@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>McTextureGhost</RootNamespace>
+    <AssemblyName>McTextureGhost</AssemblyName>
+    <!-- Needed for System.Drawing based placeholder PNG generation -->
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+
+    <!-- Ensure nuget.org is used during restore so SDK/ref packages are found -->
+    <RestoreSources>$(RestoreSources);https://api.nuget.org/v3/index.json</RestoreSources>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.Drawing.Common" Version="8.0.8" />
+  </ItemGroup>
+
+</Project>

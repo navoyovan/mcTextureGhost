@@ -1,0 +1,125 @@
+<Window x:Class="McTextureGhost.Views.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:McTextureGhost.ViewModels"
+        xmlns:views="clr-namespace:McTextureGhost.Views"
+        Title="MC Texture Ghost" Height="650" Width="950"
+        Background="#1e1e1e">
+
+    <Window.DataContext>
+        <vm:MainViewModel />
+    </Window.DataContext>
+
+    <Window.Resources>
+        <views:BoolToVisibilityConverter x:Key="BoolToVis" />
+        <views:InverseBoolToVisibilityConverter x:Key="InverseBoolToVis" />
+        <!-- Checkerboard-ish placeholder brush shown for ghost tiles before a stub PNG exists -->
+        <SolidColorBrush x:Key="GhostBrush" Color="#FC00FF" />
+        <SolidColorBrush x:Key="OkBorderBrush" Color="#3c3c3c" />
+        <SolidColorBrush x:Key="GhostBorderBrush" Color="#FC00FF" />
+    </Window.Resources>
+
+    <DockPanel Margin="12">
+
+        <!-- Top toolbar -->
+        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,10">
+            <Button Content="Open Pack Folder..." Command="{Binding OpenPackFolderCommand}"
+                    Padding="10,4" Margin="0,0,10,0" />
+            <Button Content="Rescan" Command="{Binding RescanCommand}"
+                    Padding="10,4" Margin="0,0,10,0" />
+            <TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                     Width="220" Padding="4" VerticalContentAlignment="Center"
+                     Margin="0,0,10,0"
+                     ToolTip="Search alias name, e.g. stone" />
+            <CheckBox Content="Ghosts only" IsChecked="{Binding GhostsOnly}"
+                      VerticalAlignment="Center" Foreground="White" />
+        </StackPanel>
+
+        <!-- Status bar -->
+        <TextBlock DockPanel.Dock="Bottom" Text="{Binding StatusMessage}"
+                   Foreground="#aaaaaa" Margin="0,10,0,0" />
+
+        <!-- "No match found" - offer to generate JSON scaffolding for a brand-new texture -->
+        <Border DockPanel.Dock="Top" Background="#2a2a2a" BorderBrush="#FC00FF" BorderThickness="1"
+                Padding="12" Margin="0,0,0,10"
+                Visibility="{Binding ShowCreatePanel, Converter={StaticResource BoolToVis}}">
+            <StackPanel>
+                <TextBlock Foreground="White" Margin="0,0,0,8">
+                    <Run Text="No alias named &quot;" />
+                    <Run Text="{Binding SearchText, Mode=OneWay}" FontWeight="Bold" />
+                    <Run Text="&quot; exists yet. Generate it as:" />
+                </TextBlock>
+                <StackPanel Orientation="Horizontal">
+                    <Button Content="Plain block" Padding="10,4" Margin="0,0,8,0"
+                            Command="{Binding CreateTextureCommand}" CommandParameter="plain"
+                            ToolTip="One texture, all faces. Most blocks." />
+                    <Button Content="Per-face block" Padding="10,4" Margin="0,0,8,0"
+                            Command="{Binding CreateTextureCommand}" CommandParameter="perface"
+                            ToolTip="Separate top / bottom / side textures, like a crate or log." />
+                    <Button Content="Flipbook (animated)" Padding="10,4"
+                            Command="{Binding CreateTextureCommand}" CommandParameter="flipbook"
+                            ToolTip="Animated sprite-sheet texture, like Prismarine." />
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <!-- Tile grid -->
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <ItemsControl ItemsSource="{Binding FilteredAliases}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <WrapPanel Orientation="Horizontal" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Button Command="{Binding DataContext.EditTextureCommand,
+                                          RelativeSource={RelativeSource AncestorType=Window}}"
+                                CommandParameter="{Binding}"
+                                Margin="6" Padding="0" Width="110" Height="130"
+                                ToolTip="{Binding UsedBySummary}">
+                            <Button.Style>
+                                <Style TargetType="Button">
+                                    <Setter Property="Background" Value="#2a2a2a" />
+                                    <Setter Property="BorderBrush" Value="{StaticResource OkBorderBrush}" />
+                                    <Setter Property="BorderThickness" Value="2" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Exists}" Value="False">
+                                            <Setter Property="BorderBrush" Value="{StaticResource GhostBorderBrush}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+
+                            <StackPanel Margin="6">
+                                <!-- Real texture, shown once it exists on disk -->
+                                <Image Width="64" Height="64" Stretch="Uniform"
+                                       RenderOptions.BitmapScalingMode="NearestNeighbor"
+                                       Visibility="{Binding Exists, Converter={StaticResource BoolToVis}}">
+                                    <Image.Source>
+                                        <Binding Path="FullPath" />
+                                    </Image.Source>
+                                </Image>
+
+                                <!-- Ghost placeholder, shown until the file exists -->
+                                <Border Width="64" Height="64" Background="{StaticResource GhostBrush}"
+                                        Visibility="{Binding Exists, Converter={StaticResource InverseBoolToVis}}">
+                                    <TextBlock Text="?" FontSize="28" FontWeight="Bold"
+                                               Foreground="Black"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+
+                                <TextBlock Text="{Binding Alias}" TextWrapping="Wrap"
+                                           TextAlignment="Center" Foreground="White"
+                                           FontSize="11" Margin="0,6,0,0" />
+                                <TextBlock Text="{Binding StatusText}" TextAlignment="Center"
+                                           FontSize="9" Foreground="Gray" />
+                            </StackPanel>
+                        </Button>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+    </DockPanel>
+</Window>

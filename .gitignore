@@ -1,0 +1,42 @@
+## Build results
+[Bb]in/
+[Oo]bj/
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Rr]eleases/
+x64/
+x86/
+[Aa]rm/
+[Aa]rm64/
+bld/
+[Ll]og/
+[Ll]ogs/
+
+## WPF temporary files generated during build
+*_wpftmp.*
+
+## Visual Studio cache and user files
+.vs/
+*.user
+*.userosscache
+*.suo
+*.userprefs
+*.pidb
+*.booproj
+*.svclog
+*.intermediate.manifest
+*.sln.docstates
+
+## Visual Studio Code
+.vscode/
+
+## JetBrains / Rider
+.idea/
+*.sln.iml
+
+## OS generated files
+.DS_Store
+Thumbs.db
+ehthumbs.db
+[Dd]esktop.ini
