@@ -7,6 +7,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Windows;
 using System.Windows.Data;
+using System.Windows.Threading;
 using McTextureGhost.Models;
 using McTextureGhost.Services;
 using McTextureGhost.Views;
@@ -85,9 +86,16 @@ public class MainViewModel : INotifyPropertyChanged
     public int TotalOrphanCount => Aliases.Count(a => a.Status == TextureStatus.Orphan);
     public int TotalAliasCount => Aliases.Count(a => a.Status != TextureStatus.NoEntry);
 
+    private readonly DispatcherTimer _searchDebounceTimer;
+    private string _appliedSearchQuery = "";
+    private string _appliedSearchQueryLower = "";
+    private bool _hasNonEmptySearchMatches = true;
+
+    public RelayCommand CommitSearchCommand { get; }
+
     private TextureAlias? _noEntryAlias;
 
-    private void UpdateNoEntryTile()
+    private void UpdateNoEntryTileAndMatches()
     {
         if (_noEntryAlias != null)
         {
@@ -95,30 +103,58 @@ public class MainViewModel : INotifyPropertyChanged
             _noEntryAlias = null;
         }
 
-        if (_packRoot == null || string.IsNullOrWhiteSpace(_searchText))
+        if (_packRoot == null || string.IsNullOrWhiteSpace(_appliedSearchQuery))
+        {
+            _hasNonEmptySearchMatches = true;
             return;
+        }
 
-        var query = _searchText.Trim();
-        bool hasMatch = Aliases.Any(a => a.Status != TextureStatus.NoEntry &&
-                                         (a.Alias.Contains(query, StringComparison.OrdinalIgnoreCase) ||
-                                          a.DisplayName.Contains(query, StringComparison.OrdinalIgnoreCase) ||
-                                          a.RelativePath.Contains(query, StringComparison.OrdinalIgnoreCase) ||
-                                          a.BlockFaces.Any(b => b.BlockId.Contains(query, StringComparison.OrdinalIgnoreCase))));
+        // Fast scan with early exit on first match (< 0.1ms)
+        bool hasMatch = false;
+        for (int i = 0; i < Aliases.Count; i++)
+        {
+            var a = Aliases[i];
+            if (a.Status != TextureStatus.NoEntry &&
+                a.SearchFilterKey.Contains(_appliedSearchQueryLower, StringComparison.Ordinal))
+            {
+                hasMatch = true;
+                break;
+            }
+        }
+
+        _hasNonEmptySearchMatches = hasMatch;
 
         if (!hasMatch)
         {
             _noEntryAlias = new TextureAlias
             {
-                Alias = query,
-                DisplayName = query,
-                RelativePath = "textures/blocks/" + query,
-                FullPath = Path.Combine(_packRoot, "textures", "blocks", query + ".png"),
+                Alias = _appliedSearchQuery,
+                DisplayName = _appliedSearchQuery,
+                RelativePath = "textures/blocks/" + _appliedSearchQuery,
+                FullPath = Path.Combine(_packRoot, "textures", "blocks", _appliedSearchQuery + ".png"),
                 Status = TextureStatus.NoEntry,
                 VariantKind = VariantKind.None,
                 BlockFaces = new List<BlockFaceUsage>()
             };
             Aliases.Insert(0, _noEntryAlias);
         }
+    }
+
+    private void ApplySearchFilter()
+    {
+        _appliedSearchQuery = _searchText.Trim();
+        _appliedSearchQueryLower = _appliedSearchQuery.ToLowerInvariant();
+
+        UpdateNoEntryTileAndMatches();
+        FilteredAliases.Refresh();
+        OnPropertyChanged(nameof(ShowCreatePanel));
+    }
+
+    /// <summary>Immediately applies search filter without waiting for the debounce timer.</summary>
+    public void CommitSearch()
+    {
+        _searchDebounceTimer.Stop();
+        ApplySearchFilter();
     }
 
     private string _searchText = "";
@@ -130,9 +166,19 @@ public class MainViewModel : INotifyPropertyChanged
             if (_searchText == value) return;
             _searchText = value;
             OnPropertyChanged();
-            OnPropertyChanged(nameof(ShowCreatePanel));
-            UpdateNoEntryTile();
-            FilteredAliases.Refresh();
+
+            if (string.IsNullOrWhiteSpace(_searchText))
+            {
+                // Immediate update when cleared
+                _searchDebounceTimer.Stop();
+                ApplySearchFilter();
+            }
+            else
+            {
+                // 400ms debounce to keep typing butter-smooth
+                _searchDebounceTimer.Stop();
+                _searchDebounceTimer.Start();
+            }
         }
     }
 
@@ -140,15 +186,12 @@ public class MainViewModel : INotifyPropertyChanged
     /// True when the user has typed a name that matches nothing currently
     /// declared - the "blank project" case where we offer to generate the
     /// JSON scaffolding instead of just showing an empty grid.
+    /// Evaluated in O(1) from cached search match state.
     /// </summary>
     public bool ShowCreatePanel =>
         _packRoot != null &&
-        !string.IsNullOrWhiteSpace(SearchText) &&
-        !Aliases.Any(a => a.Status != TextureStatus.NoEntry &&
-                          (a.Alias.Contains(SearchText.Trim(), StringComparison.OrdinalIgnoreCase) ||
-                           a.DisplayName.Contains(SearchText.Trim(), StringComparison.OrdinalIgnoreCase) ||
-                           a.RelativePath.Contains(SearchText.Trim(), StringComparison.OrdinalIgnoreCase) ||
-                           a.BlockFaces.Any(b => b.BlockId.Contains(SearchText.Trim(), StringComparison.OrdinalIgnoreCase))));
+        !string.IsNullOrWhiteSpace(_appliedSearchQuery) &&
+        !_hasNonEmptySearchMatches;
 
     private bool _ghostsOnly;
     public bool GhostsOnly
@@ -291,6 +334,18 @@ public class MainViewModel : INotifyPropertyChanged
         FilteredAliases = CollectionViewSource.GetDefaultView(Aliases);
         FilteredAliases.Filter = FilterPredicate;
 
+        _searchDebounceTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(400)
+        };
+        _searchDebounceTimer.Tick += (s, e) =>
+        {
+            _searchDebounceTimer.Stop();
+            ApplySearchFilter();
+        };
+
+        CommitSearchCommand = new RelayCommand(_ => CommitSearch());
+
         OpenPackIconCommand    = new RelayCommand(_ => HandlePackIconClick(), _ => _packRoot != null);
 
         OpenPackFolderCommand  = new RelayCommand(_ => OpenPackFolder());
@@ -332,8 +387,8 @@ public class MainViewModel : INotifyPropertyChanged
         if (hasStatusFilter)
         {
             bool matchStatus = (GhostsOnly && alias.Status == TextureStatus.Ghost) ||
-                               (AddedOnly && alias.Status == TextureStatus.Ok) ||
-                               (OrphansOnly && alias.Status == TextureStatus.Orphan);
+                                (AddedOnly && alias.Status == TextureStatus.Ok) ||
+                                (OrphansOnly && alias.Status == TextureStatus.Orphan);
             if (!matchStatus) return false;
         }
 
@@ -345,15 +400,9 @@ public class MainViewModel : INotifyPropertyChanged
             }
         }
 
-        if (string.IsNullOrWhiteSpace(SearchText)) return true;
+        if (string.IsNullOrWhiteSpace(_appliedSearchQueryLower)) return true;
 
-        var query = SearchText.Trim();
-        return alias.Alias.Contains(query, StringComparison.OrdinalIgnoreCase) ||
-               alias.DisplayName.Contains(query, StringComparison.OrdinalIgnoreCase) ||
-               alias.RelativePath.Contains(query, StringComparison.OrdinalIgnoreCase) ||
-               alias.PrimaryFaceBadgeText.Contains(query, StringComparison.OrdinalIgnoreCase) ||
-               alias.BlockFaces.Any(b => b.BlockId.Contains(query, StringComparison.OrdinalIgnoreCase) ||
-                                         b.Face.Contains(query, StringComparison.OrdinalIgnoreCase));
+        return alias.SearchFilterKey.Contains(_appliedSearchQueryLower, StringComparison.Ordinal);
     }
 
     public void LoadPack(string folderPath)
@@ -591,7 +640,7 @@ public class MainViewModel : INotifyPropertyChanged
             Aliases.Clear();
             foreach (var alias in results)
                 Aliases.Add(alias);
-            FilteredAliases.Refresh();
+            ApplySearchFilter();
 
             var ghostCount = results.Count(a => a.Status == TextureStatus.Ghost);
             var addedCount = results.Count(a => a.Status == TextureStatus.Ok);

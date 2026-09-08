@@ -418,6 +418,9 @@
                     <ui:TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
                                 Width="280" PlaceholderText="Search alias name, e.g. stone..."
                                 Margin="0,0,14,0" VerticalAlignment="Center">
+                        <ui:TextBox.InputBindings>
+                            <KeyBinding Key="Return" Command="{Binding CommitSearchCommand}" />
+                        </ui:TextBox.InputBindings>
                         <ui:TextBox.Icon>
                             <ui:SymbolIcon Symbol="Search24" FontSize="14" />
                         </ui:TextBox.Icon>

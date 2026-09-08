@@ -130,10 +130,16 @@ public static class PackScanner
             });
         }
 
-        return results.OrderBy(r => r.Alias, StringComparer.OrdinalIgnoreCase)
-                      .ThenBy(r => r.BlockVariantIndex ?? 0)
-                      .ThenBy(r => r.TextureVariantIndex ?? 0)
-                      .ToList();
+        var sorted = results.OrderBy(r => r.Alias, StringComparer.OrdinalIgnoreCase)
+                            .ThenBy(r => r.BlockVariantIndex ?? 0)
+                            .ThenBy(r => r.TextureVariantIndex ?? 0)
+                            .ToList();
+
+        // Warm up search index on background thread so UI thread never pauses during indexing
+        foreach (var item in sorted)
+            _ = item.SearchFilterKey;
+
+        return sorted;
     }
 
     /// <summary>

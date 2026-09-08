@@ -295,6 +295,35 @@ public class TextureAlias : INotifyPropertyChanged
 
     public bool HasFaceBadge => !string.IsNullOrEmpty(PrimaryFaceBadgeText);
 
+    private string? _searchFilterKey;
+    /// <summary>
+    /// Pre-computed lowercased search corpus containing alias, display name, relative path,
+    /// primary face badge text, and all mapped block IDs and face names.
+    /// Enables zero-allocation ordinal substring searching across thousands of items.
+    /// </summary>
+    public string SearchFilterKey
+    {
+        get
+        {
+            if (_searchFilterKey != null) return _searchFilterKey;
+
+            var sb = new System.Text.StringBuilder(128);
+            sb.Append(Alias).Append(' ')
+              .Append(DisplayName).Append(' ')
+              .Append(RelativePath).Append(' ')
+              .Append(PrimaryFaceBadgeText).Append(' ');
+
+            foreach (var face in BlockFaces)
+            {
+                sb.Append(face.BlockId).Append(' ')
+                  .Append(face.Face).Append(' ');
+            }
+
+            _searchFilterKey = sb.ToString().ToLowerInvariant();
+            return _searchFilterKey;
+        }
+    }
+
     /// <summary>
     /// Consolidated, single muted caption line below the alias name.
     /// Distinguishes block data-value variants (block N/M), random texture variations (tex N/M • w:weight),
