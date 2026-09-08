@@ -18,6 +18,9 @@ namespace McTextureGhost.ViewModels;
 /// <summary>Controls how large tiles render in the grid.</summary>
 public enum TileSizeMode { Small, Medium, Large }
 
+/// <summary>Specifies the active category tab in the texture manager.</summary>
+public enum TextureTab { All, Blocks, Items }
+
 public class MainViewModel : INotifyPropertyChanged
 {
     private FileSystemWatcher? _watcher;
@@ -35,13 +38,54 @@ public class MainViewModel : INotifyPropertyChanged
     public string? PackIconPath => _packRoot != null ? Path.Combine(_packRoot, "pack_icon.png") : null;
     public bool HasPackIcon => _packRoot != null && File.Exists(PackIconPath);
 
+    private TextureTab _activeTab = TextureTab.All;
+    public TextureTab ActiveTab
+    {
+        get => _activeTab;
+        set
+        {
+            if (_activeTab == value) return;
+            _activeTab = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(IsAllTab));
+            OnPropertyChanged(nameof(IsBlocksTab));
+            OnPropertyChanged(nameof(IsItemsTab));
+            OnPropertyChanged(nameof(SearchPlaceholderText));
+            OnPropertyChanged(nameof(TotalGhostCount));
+            OnPropertyChanged(nameof(TotalAddedCount));
+            OnPropertyChanged(nameof(TotalOrphanCount));
+            OnPropertyChanged(nameof(TotalAliasCount));
+            OnPropertyChanged(nameof(FilterStatusLabel));
+            OnPropertyChanged(nameof(ShowCreatePanel));
+            UpdateNoEntryTileAndMatches();
+            FilteredAliases.Refresh();
+        }
+    }
+
+    public bool IsAllTab => _activeTab == TextureTab.All;
+    public bool IsBlocksTab => _activeTab == TextureTab.Blocks;
+    public bool IsItemsTab => _activeTab == TextureTab.Items;
+    public TextureCategory? CurrentCategory => _activeTab switch
+    {
+        TextureTab.Blocks => TextureCategory.Block,
+        TextureTab.Items  => TextureCategory.Item,
+        _                 => null
+    };
+
+    public string SearchPlaceholderText => _activeTab switch
+    {
+        TextureTab.Blocks => "Search block name, e.g. stone...",
+        TextureTab.Items  => "Search item name, e.g. apple...",
+        _                 => "Search texture name, e.g. stone, apple..."
+    };
+
     public string WindowTitle
     {
         get
         {
             if (_packRoot == null) return "McTextureGhost";
             var packName = PackName ?? "Pack";
-            var ghostCount = TotalGhostCount;
+            var ghostCount = AllGhostCount;
             return ghostCount > 0
                 ? $"McTextureGhost — {packName} ({ghostCount} ghosts)"
                 : $"McTextureGhost — {packName} (all OK)";
@@ -81,10 +125,30 @@ public class MainViewModel : INotifyPropertyChanged
 
     public string? SelectedFolderPath => _selectedFolder?.RelativePath;
 
-    public int TotalGhostCount => Aliases.Count(a => a.Status == TextureStatus.Ghost);
-    public int TotalAddedCount => Aliases.Count(a => a.Status == TextureStatus.Ok);
-    public int TotalOrphanCount => Aliases.Count(a => a.Status == TextureStatus.Orphan);
-    public int TotalAliasCount => Aliases.Count(a => a.Status != TextureStatus.NoEntry);
+    public int TotalGhostCount => CurrentCategory.HasValue
+        ? Aliases.Count(a => a.Category == CurrentCategory.Value && a.Status == TextureStatus.Ghost)
+        : AllGhostCount;
+
+    public int TotalAddedCount => CurrentCategory.HasValue
+        ? Aliases.Count(a => a.Category == CurrentCategory.Value && a.Status == TextureStatus.Ok)
+        : Aliases.Count(a => a.Status == TextureStatus.Ok);
+
+    public int TotalOrphanCount => CurrentCategory.HasValue
+        ? Aliases.Count(a => a.Category == CurrentCategory.Value && a.Status == TextureStatus.Orphan)
+        : Aliases.Count(a => a.Status == TextureStatus.Orphan);
+
+    public int TotalAliasCount => CurrentCategory.HasValue
+        ? Aliases.Count(a => a.Category == CurrentCategory.Value && a.Status != TextureStatus.NoEntry)
+        : AllAliasCount;
+
+    public int AllGhostCount => Aliases.Count(a => a.Status == TextureStatus.Ghost);
+    public int AllAliasCount => Aliases.Count(a => a.Status != TextureStatus.NoEntry);
+
+    public int BlocksGhostCount => Aliases.Count(a => a.Category == TextureCategory.Block && a.Status == TextureStatus.Ghost);
+    public int ItemsGhostCount => Aliases.Count(a => a.Category == TextureCategory.Item && a.Status == TextureStatus.Ghost);
+
+    public int BlocksTotalCount => Aliases.Count(a => a.Category == TextureCategory.Block && a.Status != TextureStatus.NoEntry);
+    public int ItemsTotalCount => Aliases.Count(a => a.Category == TextureCategory.Item && a.Status != TextureStatus.NoEntry);
 
     private readonly DispatcherTimer _searchDebounceTimer;
     private string _appliedSearchQuery = "";
@@ -111,10 +175,12 @@ public class MainViewModel : INotifyPropertyChanged
 
         // Fast scan with early exit on first match (< 0.1ms)
         bool hasMatch = false;
+        var category = CurrentCategory;
         for (int i = 0; i < Aliases.Count; i++)
         {
             var a = Aliases[i];
             if (a.Status != TextureStatus.NoEntry &&
+                (!category.HasValue || a.Category == category.Value) &&
                 a.SearchFilterKey.Contains(_appliedSearchQueryLower, StringComparison.Ordinal))
             {
                 hasMatch = true;
@@ -124,10 +190,11 @@ public class MainViewModel : INotifyPropertyChanged
 
         _hasNonEmptySearchMatches = hasMatch;
 
-        if (!hasMatch)
+        if (!hasMatch && !IsItemsTab)
         {
             _noEntryAlias = new TextureAlias
             {
+                Category = TextureCategory.Block,
                 Alias = _appliedSearchQuery,
                 DisplayName = _appliedSearchQuery,
                 RelativePath = "textures/blocks/" + _appliedSearchQuery,
@@ -190,6 +257,7 @@ public class MainViewModel : INotifyPropertyChanged
     /// </summary>
     public bool ShowCreatePanel =>
         _packRoot != null &&
+        !IsItemsTab &&
         !string.IsNullOrWhiteSpace(_appliedSearchQuery) &&
         !_hasNonEmptySearchMatches;
 
@@ -309,6 +377,9 @@ public class MainViewModel : INotifyPropertyChanged
     public bool IsTileSizeLarge  => _tileSizeMode == TileSizeMode.Large;
 
     // ─── Commands ────────────────────────────────────────────────────────────
+    public RelayCommand SwitchToAllCommand    { get; }
+    public RelayCommand SwitchToBlocksCommand { get; }
+    public RelayCommand SwitchToItemsCommand  { get; }
     public RelayCommand OpenPackFolderCommand { get; }
     public RelayCommand CreateNewPackCommand { get; }
     public RelayCommand ClosePackCommand { get; }
@@ -326,6 +397,7 @@ public class MainViewModel : INotifyPropertyChanged
     public RelayCommand OpenTextureFolderCommand  { get; }
     public RelayCommand RevealInSidebarCommand    { get; }
     public RelayCommand AddOrphanToJsonCommand    { get; }
+    public RelayCommand AddItemOrphanToJsonCommand { get; }
     public RelayCommand ResetStatusFilterCommand  { get; }
     public RelayCommand OpenPackIconCommand       { get; }
 
@@ -345,6 +417,10 @@ public class MainViewModel : INotifyPropertyChanged
         };
 
         CommitSearchCommand = new RelayCommand(_ => CommitSearch());
+
+        SwitchToAllCommand     = new RelayCommand(_ => ActiveTab = TextureTab.All);
+        SwitchToBlocksCommand  = new RelayCommand(_ => ActiveTab = TextureTab.Blocks);
+        SwitchToItemsCommand   = new RelayCommand(_ => ActiveTab = TextureTab.Items);
 
         OpenPackIconCommand    = new RelayCommand(_ => HandlePackIconClick(), _ => _packRoot != null);
 
@@ -368,6 +444,7 @@ public class MainViewModel : INotifyPropertyChanged
         OpenTextureFolderCommand = new RelayCommand(param => OpenTextureFolder(param as TextureAlias));
         RevealInSidebarCommand   = new RelayCommand(param => RevealInSidebar(param as TextureAlias));
         AddOrphanToJsonCommand   = new RelayCommand(param => AddOrphanToJson(param as TextureAlias));
+        AddItemOrphanToJsonCommand = new RelayCommand(param => AddItemOrphanToJson(param as TextureAlias));
         ResetStatusFilterCommand = new RelayCommand(_ =>
         {
             GhostsOnly = false;
@@ -380,8 +457,12 @@ public class MainViewModel : INotifyPropertyChanged
     {
         if (obj is not TextureAlias alias) return false;
 
-        // NoEntry tile should always show when search produces zero matches
-        if (alias.Status == TextureStatus.NoEntry) return true;
+        // NoEntry tile should only show when search produces zero matches and not on Items tab
+        if (alias.Status == TextureStatus.NoEntry) return !IsItemsTab;
+
+        // Tab filter: All vs Blocks vs Items
+        if (IsBlocksTab && alias.Category != TextureCategory.Block) return false;
+        if (IsItemsTab && alias.Category != TextureCategory.Item) return false;
 
         bool hasStatusFilter = GhostsOnly || AddedOnly || OrphansOnly;
         if (hasStatusFilter)
@@ -446,6 +527,8 @@ public class MainViewModel : INotifyPropertyChanged
             var texturesDir = Path.Combine(targetFolder, "textures");
             var blocksDir = Path.Combine(texturesDir, "blocks");
             Directory.CreateDirectory(blocksDir);
+            var itemsDir = Path.Combine(texturesDir, "items");
+            Directory.CreateDirectory(itemsDir);
 
             var manifestPath = Path.Combine(targetFolder, "manifest.json");
             if (!File.Exists(manifestPath))
@@ -487,6 +570,18 @@ public class MainViewModel : INotifyPropertyChanged
                     ["texture_data"] = new JsonObject()
                 };
                 File.WriteAllText(terrainPath, terrainObj.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+            }
+
+            var itemTexturePath = Path.Combine(texturesDir, "item_texture.json");
+            if (!File.Exists(itemTexturePath))
+            {
+                var itemObj = new JsonObject
+                {
+                    ["resource_pack_name"] = packName,
+                    ["texture_name"] = "atlas.items",
+                    ["texture_data"] = new JsonObject()
+                };
+                File.WriteAllText(itemTexturePath, itemObj.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
             }
 
             var blocksPath = Path.Combine(targetFolder, "blocks.json");
@@ -610,6 +705,12 @@ public class MainViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(TotalAddedCount));
         OnPropertyChanged(nameof(TotalOrphanCount));
         OnPropertyChanged(nameof(TotalAliasCount));
+        OnPropertyChanged(nameof(AllGhostCount));
+        OnPropertyChanged(nameof(AllAliasCount));
+        OnPropertyChanged(nameof(BlocksGhostCount));
+        OnPropertyChanged(nameof(ItemsGhostCount));
+        OnPropertyChanged(nameof(BlocksTotalCount));
+        OnPropertyChanged(nameof(ItemsTotalCount));
         OnPropertyChanged(nameof(FilterStatusLabel));
         OnPropertyChanged(nameof(IsFilterActive));
         OnPropertyChanged(nameof(ShowCreatePanel));
@@ -644,12 +745,13 @@ public class MainViewModel : INotifyPropertyChanged
                 Aliases.Add(alias);
             ApplySearchFilter();
 
+            var blockCount = results.Count(a => a.Category == TextureCategory.Block);
+            var itemCount = results.Count(a => a.Category == TextureCategory.Item);
             var ghostCount = results.Count(a => a.Status == TextureStatus.Ghost);
-            var addedCount = results.Count(a => a.Status == TextureStatus.Ok);
             var orphanCount = results.Count(a => a.Status == TextureStatus.Orphan);
             StatusMessage = orphanCount > 0
-                ? $"{results.Count} textures found ({addedCount} ok, {ghostCount} ghosts, {orphanCount} orphans)."
-                : $"{results.Count} textures found ({addedCount} ok, {ghostCount} ghosts).";
+                ? $"{results.Count} textures found ({blockCount} blocks, {itemCount} items • {ghostCount} ghosts, {orphanCount} orphans)."
+                : $"{results.Count} textures found ({blockCount} blocks, {itemCount} items • {ghostCount} ghosts).";
         }
         catch (Exception ex)
         {
@@ -1073,17 +1175,25 @@ public class MainViewModel : INotifyPropertyChanged
 
         RefreshTreeCounts();
 
+        var blockCount = Aliases.Count(a => a.Category == TextureCategory.Block);
+        var itemCount = Aliases.Count(a => a.Category == TextureCategory.Item);
         var ghostCount = Aliases.Count(a => a.Status == TextureStatus.Ghost);
-        var addedCount = Aliases.Count(a => a.Status == TextureStatus.Ok);
         var orphanCount = Aliases.Count(a => a.Status == TextureStatus.Orphan);
 
         StatusMessage = orphanCount > 0
-            ? $"{Aliases.Count} textures ({addedCount} ok, {ghostCount} ghosts, {orphanCount} orphans)."
-            : $"{Aliases.Count} textures ({addedCount} ok, {ghostCount} ghosts).";
+            ? $"{Aliases.Count} textures ({blockCount} blocks, {itemCount} items • {ghostCount} ghosts, {orphanCount} orphans)."
+            : $"{Aliases.Count} textures ({blockCount} blocks, {itemCount} items • {ghostCount} ghosts).";
 
         OnPropertyChanged(nameof(TotalGhostCount));
         OnPropertyChanged(nameof(TotalAddedCount));
         OnPropertyChanged(nameof(TotalOrphanCount));
+        OnPropertyChanged(nameof(TotalAliasCount));
+        OnPropertyChanged(nameof(AllGhostCount));
+        OnPropertyChanged(nameof(AllAliasCount));
+        OnPropertyChanged(nameof(BlocksGhostCount));
+        OnPropertyChanged(nameof(ItemsGhostCount));
+        OnPropertyChanged(nameof(BlocksTotalCount));
+        OnPropertyChanged(nameof(ItemsTotalCount));
         OnPropertyChanged(nameof(FilterStatusLabel));
         OnPropertyChanged(nameof(IsFilterActive));
         OnPropertyChanged(nameof(WindowTitle));
@@ -1153,6 +1263,21 @@ public class MainViewModel : INotifyPropertyChanged
         catch (Exception ex)
         {
             StatusMessage = $"Failed to register orphan: {ex.Message}";
+        }
+    }
+
+    private void AddItemOrphanToJson(TextureAlias? alias)
+    {
+        if (alias is null || _packRoot is null) return;
+        try
+        {
+            JsonWriterService.RegisterItemOrphan(_packRoot, alias.Alias, alias.RelativePath);
+            StatusMessage = $"Registered orphan item \"{alias.Alias}\" in item_texture.json.";
+            Rescan();
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Failed to register item orphan: {ex.Message}";
         }
     }
 

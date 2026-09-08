@@ -14,19 +14,22 @@ public static class PackScanner
     public static List<TextureAlias> Scan(string packRoot)
     {
         var terrainTexturePath = Path.Combine(packRoot, "textures", "terrain_texture.json");
+        var itemTexturePath = Path.Combine(packRoot, "textures", "item_texture.json");
         var blocksJsonPath = Path.Combine(packRoot, "blocks.json");
+        var flipbookJsonPath = Path.Combine(packRoot, "textures", "flipbook_textures.json");
 
-        if (!File.Exists(terrainTexturePath))
+        bool hasTerrain = File.Exists(terrainTexturePath);
+        bool hasItems = File.Exists(itemTexturePath);
+
+        if (!hasTerrain && !hasItems)
             throw new FileNotFoundException(
-                $"Couldn't find textures/terrain_texture.json under {packRoot}. " +
+                $"Couldn't find textures/terrain_texture.json or textures/item_texture.json under {packRoot}. " +
                 "Point this at your resource pack's root folder (the one with manifest.json).");
 
-        var aliasToData = ParseTerrainTexture(terrainTexturePath);
         var aliasUsage = File.Exists(blocksJsonPath)
             ? ParseBlocksJson(blocksJsonPath)
             : new Dictionary<string, List<BlockFaceUsage>>(StringComparer.OrdinalIgnoreCase);
 
-        var flipbookJsonPath = Path.Combine(packRoot, "textures", "flipbook_textures.json");
         var flipbookCatalog = File.Exists(flipbookJsonPath)
             ? ParseFlipbookTextures(flipbookJsonPath)
             : new FlipbookCatalog();
@@ -50,58 +53,125 @@ public static class PackScanner
         var matchedFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var results = new List<TextureAlias>();
 
-        foreach (var (alias, data) in aliasToData)
+        // 1. Blocks from terrain_texture.json
+        if (hasTerrain)
         {
-            aliasUsage.TryGetValue(alias, out var blockFaces);
-            var facesList = blockFaces ?? new List<BlockFaceUsage>();
-
-            if (data.Entries.Count <= 1)
+            var aliasToData = ParseTextureAtlasJson(terrainTexturePath);
+            foreach (var (alias, data) in aliasToData)
             {
-                var primary = data.Entries.FirstOrDefault();
-                if (primary is null) continue;
+                aliasUsage.TryGetValue(alias, out var blockFaces);
+                var facesList = blockFaces ?? new List<BlockFaceUsage>();
 
-                var (fullPath, finalRel, exists) = ResolveTexture(packRoot, primary.RawPath, existingFiles, texturesDirNormalized);
-                if (exists) matchedFiles.Add(fullPath);
+                if (data.Entries.Count <= 1)
+                {
+                    var primary = data.Entries.FirstOrDefault();
+                    if (primary is null) continue;
 
-                results.Add(new TextureAlias
-                {
-                    Alias = alias,
-                    DisplayName = alias,
-                    RelativePath = finalRel,
-                    FullPath = fullPath,
-                    Status = exists ? TextureStatus.Ok : TextureStatus.Ghost,
-                    BlockVariantIndex = null,
-                    TotalBlockVariants = null,
-                    TextureVariantIndex = null,
-                    TotalTextureVariants = null,
-                    Weight = primary.Weight,
-                    Flipbook = flipbookCatalog.Find(alias, finalRel, null, null),
-                    BlockFaces = facesList
-                });
-            }
-            else
-            {
-                for (int i = 0; i < data.Entries.Count; i++)
-                {
-                    var entry = data.Entries[i];
-                    var (fullPath, finalRel, exists) = ResolveTexture(packRoot, entry.RawPath, existingFiles, texturesDirNormalized);
+                    var (fullPath, finalRel, exists) = ResolveTexture(packRoot, primary.RawPath, existingFiles, texturesDirNormalized, "blocks");
                     if (exists) matchedFiles.Add(fullPath);
 
                     results.Add(new TextureAlias
                     {
+                        Category = TextureCategory.Block,
                         Alias = alias,
                         DisplayName = alias,
                         RelativePath = finalRel,
                         FullPath = fullPath,
                         Status = exists ? TextureStatus.Ok : TextureStatus.Ghost,
-                        BlockVariantIndex = entry.BlockVariantIndex,
-                        TotalBlockVariants = entry.TotalBlockVariants,
-                        TextureVariantIndex = entry.TextureVariantIndex,
-                        TotalTextureVariants = entry.TotalTextureVariants,
-                        Weight = entry.Weight,
-                        Flipbook = flipbookCatalog.Find(alias, finalRel, entry.BlockVariantIndex, entry.TextureVariantIndex),
+                        BlockVariantIndex = null,
+                        TotalBlockVariants = null,
+                        TextureVariantIndex = null,
+                        TotalTextureVariants = null,
+                        Weight = primary.Weight,
+                        Flipbook = flipbookCatalog.Find(alias, finalRel, null, null),
                         BlockFaces = facesList
                     });
+                }
+                else
+                {
+                    for (int i = 0; i < data.Entries.Count; i++)
+                    {
+                        var entry = data.Entries[i];
+                        var (fullPath, finalRel, exists) = ResolveTexture(packRoot, entry.RawPath, existingFiles, texturesDirNormalized, "blocks");
+                        if (exists) matchedFiles.Add(fullPath);
+
+                        results.Add(new TextureAlias
+                        {
+                            Category = TextureCategory.Block,
+                            Alias = alias,
+                            DisplayName = alias,
+                            RelativePath = finalRel,
+                            FullPath = fullPath,
+                            Status = exists ? TextureStatus.Ok : TextureStatus.Ghost,
+                            BlockVariantIndex = entry.BlockVariantIndex,
+                            TotalBlockVariants = entry.TotalBlockVariants,
+                            TextureVariantIndex = entry.TextureVariantIndex,
+                            TotalTextureVariants = entry.TotalTextureVariants,
+                            Weight = entry.Weight,
+                            Flipbook = flipbookCatalog.Find(alias, finalRel, entry.BlockVariantIndex, entry.TextureVariantIndex),
+                            BlockFaces = facesList
+                        });
+                    }
+                }
+            }
+        }
+
+        // 2. Items from item_texture.json
+        if (hasItems)
+        {
+            var itemToData = ParseTextureAtlasJson(itemTexturePath);
+            foreach (var (alias, data) in itemToData)
+            {
+                if (data.Entries.Count <= 1)
+                {
+                    var primary = data.Entries.FirstOrDefault();
+                    if (primary is null) continue;
+
+                    var (fullPath, finalRel, exists) = ResolveTexture(packRoot, primary.RawPath, existingFiles, texturesDirNormalized, "items");
+                    if (exists) matchedFiles.Add(fullPath);
+
+                    results.Add(new TextureAlias
+                    {
+                        Category = TextureCategory.Item,
+                        Alias = alias,
+                        DisplayName = alias,
+                        RelativePath = finalRel,
+                        FullPath = fullPath,
+                        Status = exists ? TextureStatus.Ok : TextureStatus.Ghost,
+                        BlockVariantIndex = null,
+                        TotalBlockVariants = null,
+                        TextureVariantIndex = null,
+                        TotalTextureVariants = null,
+                        Weight = primary.Weight,
+                        Flipbook = flipbookCatalog.Find(alias, finalRel, null, null),
+                        BlockFaces = new List<BlockFaceUsage>()
+                    });
+                }
+                else
+                {
+                    for (int i = 0; i < data.Entries.Count; i++)
+                    {
+                        var entry = data.Entries[i];
+                        var (fullPath, finalRel, exists) = ResolveTexture(packRoot, entry.RawPath, existingFiles, texturesDirNormalized, "items");
+                        if (exists) matchedFiles.Add(fullPath);
+
+                        results.Add(new TextureAlias
+                        {
+                            Category = TextureCategory.Item,
+                            Alias = alias,
+                            DisplayName = alias,
+                            RelativePath = finalRel,
+                            FullPath = fullPath,
+                            Status = exists ? TextureStatus.Ok : TextureStatus.Ghost,
+                            BlockVariantIndex = null,
+                            TotalBlockVariants = null,
+                            TextureVariantIndex = entry.TextureVariantIndex,
+                            TotalTextureVariants = entry.TotalTextureVariants,
+                            Weight = entry.Weight,
+                            Flipbook = flipbookCatalog.Find(alias, finalRel, null, entry.TextureVariantIndex),
+                            BlockFaces = new List<BlockFaceUsage>()
+                        });
+                    }
                 }
             }
         }
@@ -125,8 +195,12 @@ public static class PackScanner
 
             var fileNameWithoutExt = Path.GetFileNameWithoutExtension(file);
 
+            bool isItemOrphan = relFromPack.StartsWith("textures/items/", StringComparison.OrdinalIgnoreCase) ||
+                                relFromPack.StartsWith("items/", StringComparison.OrdinalIgnoreCase);
+
             results.Add(new TextureAlias
             {
+                Category = isItemOrphan ? TextureCategory.Item : TextureCategory.Block,
                 Alias = fileNameWithoutExt,
                 DisplayName = fileNameWithoutExt,
                 RelativePath = relNoExt,
@@ -138,7 +212,8 @@ public static class PackScanner
             });
         }
 
-        var sorted = results.OrderBy(r => r.Alias, StringComparer.OrdinalIgnoreCase)
+        var sorted = results.OrderBy(r => r.Category)
+                            .ThenBy(r => r.Alias, StringComparer.OrdinalIgnoreCase)
                             .ThenBy(r => r.BlockVariantIndex ?? 0)
                             .ThenBy(r => r.TextureVariantIndex ?? 0)
                             .ToList();
@@ -158,7 +233,8 @@ public static class PackScanner
         string packRoot,
         string rawRelativePath,
         HashSet<string> existingFiles,
-        string? texturesDirNormalized)
+        string? texturesDirNormalized,
+        string defaultSubfolder = "blocks")
     {
         var cleanRel = rawRelativePath.Replace('\\', '/').TrimStart('/');
         bool hasExtension = Path.HasExtension(cleanRel);
@@ -168,7 +244,11 @@ public static class PackScanner
         if (hasExtension)
         {
             candidates.Add(cleanRel);
-            if (!startsWithTextures) candidates.Add("textures/" + cleanRel);
+            if (!startsWithTextures)
+            {
+                candidates.Add("textures/" + cleanRel);
+                candidates.Add($"textures/{defaultSubfolder}/" + cleanRel);
+            }
         }
         else
         {
@@ -178,6 +258,8 @@ public static class PackScanner
             {
                 candidates.Add("textures/" + cleanRel + ".png");
                 candidates.Add("textures/" + cleanRel + ".tga");
+                candidates.Add($"textures/{defaultSubfolder}/" + cleanRel + ".png");
+                candidates.Add($"textures/{defaultSubfolder}/" + cleanRel + ".tga");
             }
         }
 
@@ -201,7 +283,14 @@ public static class PackScanner
             }
         }
 
-        string defaultRel = startsWithTextures ? cleanRel : "textures/" + cleanRel;
+        string defaultRel;
+        if (startsWithTextures)
+            defaultRel = cleanRel;
+        else if (cleanRel.StartsWith(defaultSubfolder + "/", StringComparison.OrdinalIgnoreCase))
+            defaultRel = "textures/" + cleanRel;
+        else
+            defaultRel = $"textures/{defaultSubfolder}/" + cleanRel;
+
         string defaultFull = Path.GetFullPath(Path.Combine(packRoot, (defaultRel + ".png").Replace('/', Path.DirectorySeparatorChar)));
         return (defaultFull, defaultRel, false);
     }
@@ -223,10 +312,10 @@ public static class PackScanner
     private record ParsedAliasData(List<TextureSlotEntry> Entries);
 
     /// <summary>
-    /// Returns alias -> ParsedAliasData (handling block variants "textures": [],
-    /// random texture variations "variations": [], and nested block variants with variations e.g. dirt).
+    /// Returns alias -> ParsedAliasData from terrain_texture.json or item_texture.json (handling single strings,
+    /// block variants "textures": [], random texture variations "variations": [], and nested variants).
     /// </summary>
-    private static Dictionary<string, ParsedAliasData> ParseTerrainTexture(string path)
+    private static Dictionary<string, ParsedAliasData> ParseTextureAtlasJson(string path)
     {
         using var stream = File.OpenRead(path);
         using var doc = JsonDocument.Parse(stream, ScanDocOptions);

@@ -95,8 +95,8 @@
                                        VerticalAlignment="Center" />
                             <Border Background="#FC00FF" CornerRadius="4" Padding="5,1" Margin="8,0,0,0"
                                     VerticalAlignment="Center"
-                                    Visibility="{Binding TotalGhostCount, Converter={StaticResource IntGreaterToVis}}">
-                                <TextBlock Text="{Binding TotalGhostCount, StringFormat='👻 {0}'}"
+                                    Visibility="{Binding AllGhostCount, Converter={StaticResource IntGreaterToVis}}">
+                                <TextBlock Text="{Binding AllGhostCount, StringFormat='👻 {0}'}"
                                            Foreground="#FFFFFF" FontSize="9" FontWeight="Bold" />
                             </Border>
                         </StackPanel>
@@ -415,8 +415,94 @@
 
                 <!-- Top Toolbar -->
                 <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,14">
+                    <!-- Category Tabs (All / Blocks / Items) -->
+                    <Border VerticalAlignment="Center" Margin="0,0,14,0"
+                            Background="#18181b" BorderBrush="#2e2e34" BorderThickness="1" CornerRadius="6">
+                        <StackPanel Orientation="Horizontal">
+                            <!-- All Tab -->
+                            <ui:Button Command="{Binding SwitchToAllCommand}"
+                                       Padding="10,5" FontSize="11" CornerRadius="5,0,0,5" Cursor="Hand"
+                                       ToolTip="View all textures across terrain and items atlases">
+                                <ui:Button.Style>
+                                    <Style TargetType="ui:Button" BasedOn="{StaticResource {x:Type ui:Button}}">
+                                        <Setter Property="Appearance" Value="Transparent" />
+                                        <Setter Property="Foreground" Value="#a1a1aa" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsAllTab}" Value="True">
+                                                <Setter Property="Appearance" Value="Primary" />
+                                                <Setter Property="Foreground" Value="#ffffff" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </ui:Button.Style>
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock Text="All" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                    <Border Background="#25FFFFFF" CornerRadius="8" Padding="5,1" Margin="6,0,0,0" VerticalAlignment="Center"
+                                            Visibility="{Binding AllGhostCount, Converter={StaticResource IntGreaterToVis}}">
+                                        <TextBlock Text="{Binding AllGhostCount, StringFormat='👻 {0}'}"
+                                                   FontSize="9" FontWeight="Bold" Foreground="#FC00FF" />
+                                    </Border>
+                                </StackPanel>
+                            </ui:Button>
+
+                            <!-- Blocks Tab -->
+                            <ui:Button Command="{Binding SwitchToBlocksCommand}"
+                                       Padding="10,5" FontSize="11" CornerRadius="0" Cursor="Hand"
+                                       ToolTip="Filter to block textures (terrain_texture.json)">
+                                <ui:Button.Style>
+                                    <Style TargetType="ui:Button" BasedOn="{StaticResource {x:Type ui:Button}}">
+                                        <Setter Property="Appearance" Value="Transparent" />
+                                        <Setter Property="Foreground" Value="#a1a1aa" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsBlocksTab}" Value="True">
+                                                <Setter Property="Appearance" Value="Primary" />
+                                                <Setter Property="Foreground" Value="#ffffff" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </ui:Button.Style>
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock Text="🧱" FontSize="11" Margin="0,0,5,0" VerticalAlignment="Center" />
+                                    <TextBlock Text="Blocks" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                    <Border Background="#25FFFFFF" CornerRadius="8" Padding="5,1" Margin="6,0,0,0" VerticalAlignment="Center"
+                                            Visibility="{Binding BlocksGhostCount, Converter={StaticResource IntGreaterToVis}}">
+                                        <TextBlock Text="{Binding BlocksGhostCount, StringFormat='👻 {0}'}"
+                                                   FontSize="9" FontWeight="Bold" Foreground="#FC00FF" />
+                                    </Border>
+                                </StackPanel>
+                            </ui:Button>
+
+                            <!-- Items Tab -->
+                            <ui:Button Command="{Binding SwitchToItemsCommand}"
+                                       Padding="10,5" FontSize="11" CornerRadius="0,5,5,0" Cursor="Hand"
+                                       ToolTip="Filter to item textures (item_texture.json)">
+                                <ui:Button.Style>
+                                    <Style TargetType="ui:Button" BasedOn="{StaticResource {x:Type ui:Button}}">
+                                        <Setter Property="Appearance" Value="Transparent" />
+                                        <Setter Property="Foreground" Value="#a1a1aa" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsItemsTab}" Value="True">
+                                                <Setter Property="Appearance" Value="Primary" />
+                                                <Setter Property="Foreground" Value="#ffffff" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </ui:Button.Style>
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock Text="🗡" FontSize="11" Margin="0,0,5,0" VerticalAlignment="Center" />
+                                    <TextBlock Text="Items" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                    <Border Background="#25FFFFFF" CornerRadius="8" Padding="5,1" Margin="6,0,0,0" VerticalAlignment="Center"
+                                            Visibility="{Binding ItemsGhostCount, Converter={StaticResource IntGreaterToVis}}">
+                                        <TextBlock Text="{Binding ItemsGhostCount, StringFormat='👻 {0}'}"
+                                                   FontSize="9" FontWeight="Bold" Foreground="#FC00FF" />
+                                    </Border>
+                                </StackPanel>
+                            </ui:Button>
+                        </StackPanel>
+                    </Border>
+
                     <ui:TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
-                                Width="280" PlaceholderText="Search alias name, e.g. stone..."
+                                Width="260" PlaceholderText="{Binding SearchPlaceholderText}"
                                 Margin="0,0,14,0" VerticalAlignment="Center">
                         <ui:TextBox.InputBindings>
                             <KeyBinding Key="Return" Command="{Binding CommitSearchCommand}" />
@@ -682,7 +768,15 @@
                                                                     RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                                                   CommandParameter="{Binding PlacementTarget.DataContext,
                                                                              RelativeSource={RelativeSource AncestorType=ContextMenu}}"
-                                                  Visibility="{Binding PlacementTarget.DataContext.IsOrphan,
+                                                  Visibility="{Binding PlacementTarget.DataContext.IsBlockOrphan,
+                                                                       RelativeSource={RelativeSource AncestorType=ContextMenu},
+                                                                       Converter={StaticResource BoolToVis}}" />
+                                        <MenuItem Header="Register in item_texture.json"
+                                                  Command="{Binding PlacementTarget.Tag.AddItemOrphanToJsonCommand,
+                                                                    RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                  CommandParameter="{Binding PlacementTarget.DataContext,
+                                                                             RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                  Visibility="{Binding PlacementTarget.DataContext.IsItemOrphan,
                                                                        RelativeSource={RelativeSource AncestorType=ContextMenu},
                                                                        Converter={StaticResource BoolToVis}}" />
                                         <Separator />

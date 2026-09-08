@@ -25,6 +25,15 @@ public enum VariantKind
 }
 
 /// <summary>
+/// Specifies whether a texture belongs to a block or an item atlas.
+/// </summary>
+public enum TextureCategory
+{
+    Block,
+    Item
+}
+
+/// <summary>
 /// The 4 consolidated status states for texture tiles.
 /// </summary>
 public enum TextureStatus
@@ -80,6 +89,9 @@ public class TextureAlias : INotifyPropertyChanged
     private static readonly SolidColorBrush NoEntryPlaceholderBg = FreezeBrush("#142033");
 
     // ─── Properties ──────────────────────────────────────────────────────────
+
+    /// <summary>Specifies whether this alias belongs to blocks or items.</summary>
+    public TextureCategory Category { get; init; } = TextureCategory.Block;
 
     /// <summary>The key in texture_data, e.g. "stone", "demo_stone".</summary>
     public required string Alias { get; init; }
@@ -204,6 +216,8 @@ public class TextureAlias : INotifyPropertyChanged
     public bool IsOk => Status == TextureStatus.Ok;
     public bool IsGhost => Status == TextureStatus.Ghost;
     public bool IsOrphan => Status == TextureStatus.Orphan;
+    public bool IsBlockOrphan => Status == TextureStatus.Orphan && Category == TextureCategory.Block;
+    public bool IsItemOrphan => Status == TextureStatus.Orphan && Category == TextureCategory.Item;
     public bool IsNoEntry => Status == TextureStatus.NoEntry;
 
     public bool ShowsImageThumbnail => Status == TextureStatus.Ok || Status == TextureStatus.Orphan;
@@ -279,7 +293,7 @@ public class TextureAlias : INotifyPropertyChanged
     {
         get
         {
-            if (BlockFaces.Count == 0) return string.Empty;
+            if (Category == TextureCategory.Item || BlockFaces.Count == 0) return string.Empty;
 
             var directionalFaces = BlockFaces
                 .Select(b => b.Face.ToLowerInvariant())
@@ -330,7 +344,8 @@ public class TextureAlias : INotifyPropertyChanged
             if (_searchFilterKey != null) return _searchFilterKey;
 
             var sb = new System.Text.StringBuilder(128);
-            sb.Append(Alias).Append(' ')
+            sb.Append(Category == TextureCategory.Item ? "item " : "block ")
+              .Append(Alias).Append(' ')
               .Append(DisplayName).Append(' ')
               .Append(RelativePath).Append(' ')
               .Append(PrimaryFaceBadgeText).Append(' ');
@@ -363,6 +378,16 @@ public class TextureAlias : INotifyPropertyChanged
             if (Status == TextureStatus.Orphan) return "not in json";
             if (Status == TextureStatus.NoEntry) return "click to generate";
 
+            if (Category == TextureCategory.Item)
+            {
+                if (IsTextureVariant && TextureVariantIndex.HasValue && TotalTextureVariants.HasValue)
+                {
+                    var weightSuffix = Weight.HasValue && Weight.Value > 0 ? $" • w:{Weight}" : string.Empty;
+                    return $"item • var {TextureVariantIndex}/{TotalTextureVariants}{weightSuffix}";
+                }
+                return "item";
+            }
+
             bool hasFace = !string.IsNullOrEmpty(PrimaryFaceBadgeText);
 
             if (IsNestedVariant)
@@ -388,7 +413,7 @@ public class TextureAlias : INotifyPropertyChanged
             if (hasFace)
                 return $"face: {PrimaryFaceBadgeText}";
 
-            return string.Empty;
+            return "block";
         }
     }
 
@@ -400,6 +425,40 @@ public class TextureAlias : INotifyPropertyChanged
             {
                 $"Alias: {Alias}"
             };
+
+            if (Category == TextureCategory.Item)
+            {
+                if (Status == TextureStatus.Orphan)
+                {
+                    lines.Add("Status: ORPHAN (exists on disk, not referenced in item_texture.json)");
+                    lines.Add($"File: {RelativePath}");
+                    return string.Join(Environment.NewLine, lines);
+                }
+
+                if (IsTextureVariant && TextureVariantIndex.HasValue && TotalTextureVariants.HasValue)
+                {
+                    var weightText = Weight.HasValue ? $" (weight: {Weight})" : "";
+                    lines.Add($"Texture Variation: {TextureVariantIndex} of {TotalTextureVariants}{weightText} (item_texture.json)");
+                }
+                else
+                {
+                    lines.Add("Type: Item texture (item_texture.json)");
+                }
+
+                var extItem = System.IO.Path.GetExtension(FullPath);
+                if (string.IsNullOrEmpty(extItem)) extItem = ".png";
+                lines.Add($"File: {RelativePath}{extItem}");
+                lines.Add($"Status: {(Exists ? "OK (found on disk)" : "GHOST (missing file)")}");
+
+                if (IsFlipbook && Flipbook != null)
+                {
+                    lines.Add($"Animation: Flipbook ({Flipbook.TicksPerFrame} ticks/frame, {Flipbook.TicksPerFrame * 50}ms per frame)");
+                    if (Flipbook.Frames != null && Flipbook.Frames.Length > 0)
+                        lines.Add($"Frame sequence: {string.Join(", ", Flipbook.Frames)}");
+                }
+
+                return string.Join(Environment.NewLine, lines);
+            }
 
             if (Status == TextureStatus.Orphan)
             {

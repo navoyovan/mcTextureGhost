@@ -126,6 +126,18 @@ public static class JsonWriterService
         SaveTerrainTexture(packRoot, terrain);
     }
 
+    /// <summary>Registers an existing orphan item texture file into item_texture.json.</summary>
+    public static void RegisterItemOrphan(string packRoot, string alias, string relativePath)
+    {
+        var itemTexture = LoadOrCreateItemTexture(packRoot);
+        var textureData = GetTextureData(itemTexture);
+        textureData[alias] = new JsonObject
+        {
+            ["textures"] = relativePath
+        };
+        SaveItemTexture(packRoot, itemTexture);
+    }
+
     // ---- shared JSON plumbing ----
 
     private static JsonObject GetTextureData(JsonObject terrain)
@@ -136,6 +148,27 @@ public static class JsonWriterService
             terrain["texture_data"] = textureData;
         }
         return textureData;
+    }
+
+    private static JsonObject LoadOrCreateItemTexture(string packRoot)
+    {
+        var path = Path.Combine(packRoot, "textures", "item_texture.json");
+        if (File.Exists(path))
+            return JsonNode.Parse(File.ReadAllText(path), null, DocOptions)!.AsObject();
+
+        return new JsonObject
+        {
+            ["resource_pack_name"] = "pack",
+            ["texture_name"] = "atlas.items",
+            ["texture_data"] = new JsonObject()
+        };
+    }
+
+    private static void SaveItemTexture(string packRoot, JsonObject itemTexture)
+    {
+        var path = Path.Combine(packRoot, "textures", "item_texture.json");
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        File.WriteAllText(path, itemTexture.ToJsonString(WriteOptions));
     }
 
     private static JsonObject LoadOrCreateTerrainTexture(string packRoot)
