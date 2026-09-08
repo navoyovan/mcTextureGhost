@@ -10,6 +10,21 @@ namespace McTextureGhost.Models;
 public record BlockFaceUsage(string BlockId, string Face);
 
 /// <summary>
+/// Specifies whether a multi-texture alias represents a block data-value variant or random texture variations.
+/// </summary>
+public enum VariantKind
+{
+    /// <summary>Single texture alias.</summary>
+    None,
+    /// <summary>Declared via "textures": [ ... ] (block state / data-value slot, e.g. cobblestone_wall).</summary>
+    BlockVariant,
+    /// <summary>Declared via "variations": [ ... ] (random in-world cosmetic variation with weights, e.g. cobblestone).</summary>
+    TextureVariant,
+    /// <summary>Nested: a block state slot in "textures": [ ... ] containing "variations": [ ... ] (e.g. dirt).</summary>
+    NestedVariant
+}
+
+/// <summary>
 /// The 4 consolidated status states for texture tiles.
 /// </summary>
 public enum TextureStatus
@@ -81,14 +96,48 @@ public class TextureAlias : INotifyPropertyChanged
     /// <summary>Block IDs (namespace:name) from blocks.json that reference this alias, if any.</summary>
     public List<string> UsedByBlocks => BlockFaces.Select(b => b.BlockId).Distinct().ToList();
 
-    /// <summary>Indicates if this item is a variant (one of multiple textures declared in terrain_texture.json).</summary>
-    public bool IsVariant { get; init; }
+    /// <summary>Block variant index (1-based), e.g. 1 of 14 for cobblestone_wall or 1 of 2 for dirt.</summary>
+    public int? BlockVariantIndex { get; init; }
 
-    /// <summary>Variant index (1-based), or null if single texture.</summary>
-    public int? VariantIndex { get; init; }
+    /// <summary>Total number of block variants for this alias, or null if uniform block.</summary>
+    public int? TotalBlockVariants { get; init; }
 
-    /// <summary>Total number of variants for this alias, or null if single texture.</summary>
-    public int? TotalVariants { get; init; }
+    /// <summary>Random texture variation index (1-based), e.g. 1 of 8 for cobblestone or 1 of 2 for dirt.</summary>
+    public int? TextureVariantIndex { get; init; }
+
+    /// <summary>Total number of random texture variations in this slot, or null if no variations.</summary>
+    public int? TotalTextureVariants { get; init; }
+
+    /// <summary>Indicates if this item is a block state / data value variant (declared via "textures": [ ... ] in terrain_texture.json).</summary>
+    public bool IsBlockVariant => BlockVariantIndex.HasValue && TotalBlockVariants.HasValue && TotalBlockVariants.Value > 1;
+
+    /// <summary>Indicates if this item is a random cosmetic variation (declared via "variations": [ ... ] in terrain_texture.json).</summary>
+    public bool IsTextureVariant => TextureVariantIndex.HasValue && TotalTextureVariants.HasValue && TotalTextureVariants.Value > 1;
+
+    /// <summary>Indicates if this item has both a block state variant slot and random texture variations.</summary>
+    public bool IsNestedVariant => IsBlockVariant && IsTextureVariant;
+
+    /// <summary>The kind of variant structure defined in terrain_texture.json.</summary>
+    public VariantKind VariantKind
+    {
+        get =>
+            IsNestedVariant ? VariantKind.NestedVariant :
+            (IsBlockVariant ? VariantKind.BlockVariant :
+            (IsTextureVariant ? VariantKind.TextureVariant : VariantKind.None));
+        init { }
+    }
+
+    /// <summary>Backward-compatible helper: true if either block variant or texture variant.</summary>
+    public bool IsVariant => IsBlockVariant || IsTextureVariant;
+
+    /// <summary>Backward-compatible variant index (1-based).</summary>
+    public int? VariantIndex => TextureVariantIndex ?? BlockVariantIndex;
+
+    /// <summary>Backward-compatible total variants count.</summary>
+    public int? TotalVariants => TotalTextureVariants ?? TotalBlockVariants;
+
+    /// <summary>Optional spawn weight for random texture variations (defaults to 1 in Minecraft if omitted).</summary>
+    public int? Weight { get; init; }
 
     /// <summary>The display title shown on the tile - always the clean alias name.</summary>
     public required string DisplayName { get; init; }
@@ -247,8 +296,9 @@ public class TextureAlias : INotifyPropertyChanged
     public bool HasFaceBadge => !string.IsNullOrEmpty(PrimaryFaceBadgeText);
 
     /// <summary>
-    /// Consolidated, single muted caption line below the alias name (e.g. "var 2 of 8 • side", "face: top").
-    /// Replaces competing pill badges and avoids visual fatigue.
+    /// Consolidated, single muted caption line below the alias name.
+    /// Distinguishes block data-value variants (block N/M), random texture variations (tex N/M • w:weight),
+    /// and geometry block faces (face: ...).
     /// </summary>
     public string SubtitleCaption
     {
@@ -257,13 +307,28 @@ public class TextureAlias : INotifyPropertyChanged
             if (Status == TextureStatus.Orphan) return "not in json";
             if (Status == TextureStatus.NoEntry) return "click to generate";
 
-            bool hasVar = IsVariant && VariantIndex.HasValue && TotalVariants.HasValue;
             bool hasFace = !string.IsNullOrEmpty(PrimaryFaceBadgeText);
 
-            if (hasVar && hasFace)
-                return $"var {VariantIndex}/{TotalVariants} • {PrimaryFaceBadgeText}";
-            if (hasVar)
-                return $"var {VariantIndex}/{TotalVariants}";
+            if (IsNestedVariant)
+            {
+                var weightSuffix = Weight.HasValue && Weight.Value > 0 ? $" • w:{Weight}" : string.Empty;
+                var nestedText = $"b{BlockVariantIndex}/{TotalBlockVariants} • tex {TextureVariantIndex}/{TotalTextureVariants}{weightSuffix}";
+                return hasFace ? $"{nestedText} • {PrimaryFaceBadgeText}" : nestedText;
+            }
+
+            if (IsBlockVariant && BlockVariantIndex.HasValue && TotalBlockVariants.HasValue)
+            {
+                var blockText = $"block {BlockVariantIndex}/{TotalBlockVariants}";
+                return hasFace ? $"{blockText} • {PrimaryFaceBadgeText}" : blockText;
+            }
+
+            if (IsTextureVariant && TextureVariantIndex.HasValue && TotalTextureVariants.HasValue)
+            {
+                var weightSuffix = Weight.HasValue && Weight.Value > 0 ? $" • w:{Weight}" : string.Empty;
+                var texText = $"tex {TextureVariantIndex}/{TotalTextureVariants}{weightSuffix}";
+                return hasFace ? $"{texText} • {PrimaryFaceBadgeText}" : texText;
+            }
+
             if (hasFace)
                 return $"face: {PrimaryFaceBadgeText}";
 
@@ -294,13 +359,27 @@ public class TextureAlias : INotifyPropertyChanged
                 return string.Join(Environment.NewLine, lines);
             }
 
-            if (IsVariant && VariantIndex.HasValue && TotalVariants.HasValue)
+            if (IsNestedVariant)
             {
-                lines.Add($"Variant: {VariantIndex} of {TotalVariants} (terrain_texture.json)");
+                lines.Add($"Block Variant: {BlockVariantIndex} of {TotalBlockVariants} (terrain_texture.json \"textures\" array)");
+                var weightText = Weight.HasValue ? $" (weight: {Weight})" : "";
+                lines.Add($"Texture Variation: {TextureVariantIndex} of {TotalTextureVariants}{weightText} (nested \"variations\" array)");
+                lines.Add("  → Block state slot with random in-world cosmetic variations");
+            }
+            else if (IsBlockVariant && BlockVariantIndex.HasValue && TotalBlockVariants.HasValue)
+            {
+                lines.Add($"Block Variant: {BlockVariantIndex} of {TotalBlockVariants} (terrain_texture.json \"textures\" array)");
+                lines.Add("  → Selected by block state / data-value metadata at runtime");
+            }
+            else if (IsTextureVariant && TextureVariantIndex.HasValue && TotalTextureVariants.HasValue)
+            {
+                var weightText = Weight.HasValue ? $" (weight: {Weight})" : "";
+                lines.Add($"Texture Variation: {TextureVariantIndex} of {TotalTextureVariants}{weightText} (terrain_texture.json \"variations\" array)");
+                lines.Add("  → Random in-world cosmetic variation to reduce visual repetition");
             }
             else
             {
-                lines.Add("Variant: None (single texture)");
+                lines.Add("Variant: None (single texture in terrain_texture.json)");
             }
 
             var ext = System.IO.Path.GetExtension(FullPath);
@@ -310,7 +389,7 @@ public class TextureAlias : INotifyPropertyChanged
 
             if (BlockFaces.Count > 0)
             {
-                lines.Add("Block Faces (blocks.json):");
+                lines.Add("Block Faces (blocks.json geometry):");
                 foreach (var grp in BlockFaces.GroupBy(b => b.BlockId))
                 {
                     var facesStr = string.Join(", ", grp.Select(b => b.Face).Distinct());

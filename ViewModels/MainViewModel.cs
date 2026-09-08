@@ -31,6 +31,8 @@ public class MainViewModel : INotifyPropertyChanged
     public string? PackRootPath => _packRoot;
     private string? _cachedPackName;
     public string? PackName => _packRoot != null ? (_cachedPackName ??= GetPackDisplayName()) : null;
+    public string? PackIconPath => _packRoot != null ? Path.Combine(_packRoot, "pack_icon.png") : null;
+    public bool HasPackIcon => _packRoot != null && File.Exists(PackIconPath);
 
     public string WindowTitle
     {
@@ -112,7 +114,7 @@ public class MainViewModel : INotifyPropertyChanged
                 RelativePath = "textures/blocks/" + query,
                 FullPath = Path.Combine(_packRoot, "textures", "blocks", query + ".png"),
                 Status = TextureStatus.NoEntry,
-                IsVariant = false,
+                VariantKind = VariantKind.None,
                 BlockFaces = new List<BlockFaceUsage>()
             };
             Aliases.Insert(0, _noEntryAlias);
@@ -282,11 +284,14 @@ public class MainViewModel : INotifyPropertyChanged
     public RelayCommand RevealInSidebarCommand    { get; }
     public RelayCommand AddOrphanToJsonCommand    { get; }
     public RelayCommand ResetStatusFilterCommand  { get; }
+    public RelayCommand OpenPackIconCommand       { get; }
 
     public MainViewModel()
     {
         FilteredAliases = CollectionViewSource.GetDefaultView(Aliases);
         FilteredAliases.Filter = FilterPredicate;
+
+        OpenPackIconCommand    = new RelayCommand(_ => HandlePackIconClick(), _ => _packRoot != null);
 
         OpenPackFolderCommand  = new RelayCommand(_ => OpenPackFolder());
         CreateNewPackCommand   = new RelayCommand(_ => CreateNewPack());
@@ -549,6 +554,8 @@ public class MainViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(IsPackLoaded));
         OnPropertyChanged(nameof(PackName));
         OnPropertyChanged(nameof(PackRootPath));
+        OnPropertyChanged(nameof(PackIconPath));
+        OnPropertyChanged(nameof(HasPackIcon));
         OnPropertyChanged(nameof(TotalGhostCount));
         OnPropertyChanged(nameof(TotalAddedCount));
         OnPropertyChanged(nameof(TotalOrphanCount));
@@ -972,23 +979,21 @@ public class MainViewModel : INotifyPropertyChanged
     private void StartWatching()
     {
         _watcher?.Dispose();
-        if (_packRoot is null) return;
+        if (_packRoot is null || !Directory.Exists(_packRoot)) return;
 
-        var texturesDir = Path.Combine(_packRoot, "textures");
-        if (!Directory.Exists(texturesDir)) return;
-
-        _watcher = new FileSystemWatcher(texturesDir)
+        _watcher = new FileSystemWatcher(_packRoot)
         {
             IncludeSubdirectories = true,
             NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite,
             EnableRaisingEvents = true
         };
 
-        // Any create/delete/rename under textures/ just re-checks existence in place
-        // rather than re-parsing JSON, so ghosts flip to "real" the moment you save.
+        // Any create/delete/rename in pack root or textures/ refreshes existence in place
+        // so ghosts flip to "real" the moment you save.
         _watcher.Created += (_, _) => RefreshExistence();
         _watcher.Deleted += (_, _) => RefreshExistence();
         _watcher.Renamed += (_, _) => RefreshExistence();
+        _watcher.Changed += (_, _) => RefreshExistence();
     }
 
     private void RefreshExistence()
@@ -1030,7 +1035,33 @@ public class MainViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(FilterStatusLabel));
         OnPropertyChanged(nameof(IsFilterActive));
         OnPropertyChanged(nameof(WindowTitle));
+        OnPropertyChanged(nameof(HasPackIcon));
+        OnPropertyChanged(nameof(PackIconPath));
         FilteredAliases.Refresh();
+    }
+
+    private void HandlePackIconClick()
+    {
+        if (_packRoot is null) return;
+        var iconPath = Path.Combine(_packRoot, "pack_icon.png");
+        if (!File.Exists(iconPath))
+        {
+            try
+            {
+                PlaceholderImageFactory.CreateStub(iconPath, 64);
+                ImagePathConverter.ClearCache();
+                OnPropertyChanged(nameof(HasPackIcon));
+                OnPropertyChanged(nameof(PackIconPath));
+                StatusMessage = "Created placeholder pack_icon.png";
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = $"Could not create pack icon: {ex.Message}";
+                return;
+            }
+        }
+
+        OpenWithLauncher.Show(iconPath);
     }
 
     private void EditTexture(TextureAlias? alias)

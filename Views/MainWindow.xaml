@@ -134,11 +134,70 @@
                     <StackPanel>
                         <!-- Loaded Pack -->
                         <StackPanel Visibility="{Binding IsPackLoaded, Converter={StaticResource BoolToVis}}">
-                            <TextBlock Text="ACTIVE RESOURCE PACK" FontSize="9" FontWeight="Bold" Foreground="#8b5cf6" Margin="0,0,0,4" />
-                            <TextBlock Text="{Binding PackName}" FontWeight="SemiBold" FontSize="14" Foreground="#ffffff"
-                                       TextTrimming="CharacterEllipsis" ToolTip="{Binding PackRootPath}" />
-                            <TextBlock Text="{Binding PackRootPath}" FontSize="10" Foreground="#71717a"
-                                       TextTrimming="CharacterEllipsis" Margin="0,2,0,8" ToolTip="{Binding PackRootPath}" />
+                            <Grid Margin="0,0,0,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+
+                                <!-- Pack Icon Button (Real or Ghost) -->
+                                <Button Grid.Column="0" Command="{Binding OpenPackIconCommand}"
+                                        Cursor="Hand" Margin="0,0,10,0" VerticalAlignment="Top"
+                                        FocusVisualStyle="{x:Null}">
+                                    <Button.Template>
+                                        <ControlTemplate TargetType="Button">
+                                            <Grid Width="46" Height="46">
+                                                <!-- Real Pack Icon -->
+                                                <Border CornerRadius="6" Background="#18181B" BorderBrush="#3F3F46" BorderThickness="1"
+                                                        SnapsToDevicePixels="True"
+                                                        Visibility="{Binding HasPackIcon, Converter={StaticResource BoolToVis}}"
+                                                        ToolTip="pack_icon.png (Click to open)">
+                                                    <Grid>
+                                                        <Image Source="{Binding PackIconPath, Converter={StaticResource ImagePathConverter}}"
+                                                               Stretch="Uniform"
+                                                               RenderOptions.BitmapScalingMode="NearestNeighbor"
+                                                               RenderOptions.EdgeMode="Aliased"
+                                                               Margin="2" />
+                                                        <Border x:Name="RealHoverOverlay" Background="#20FFFFFF" CornerRadius="5" Opacity="0" />
+                                                    </Grid>
+                                                </Border>
+
+                                                <!-- Ghost Pack Icon -->
+                                                <Border CornerRadius="6" Background="#1E1420" BorderBrush="#88F472B6" BorderThickness="1"
+                                                        SnapsToDevicePixels="True"
+                                                        Visibility="{Binding HasPackIcon, Converter={StaticResource InverseBoolToVis}}"
+                                                        ToolTip="pack_icon.png is missing (Click to create placeholder)">
+                                                    <Grid>
+                                                        <TextBlock Text="?" FontSize="22" FontWeight="Bold"
+                                                                   Foreground="#A0F472B6"
+                                                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                        <Border HorizontalAlignment="Right" VerticalAlignment="Top" Margin="2"
+                                                                Background="#55F472B6" CornerRadius="3" Padding="3,1">
+                                                            <TextBlock Text="GHOST" FontSize="6.5" FontWeight="Bold" Foreground="#F472B6" />
+                                                        </Border>
+                                                        <Border x:Name="GhostHoverOverlay" Background="#20F472B6" CornerRadius="5" Opacity="0" />
+                                                    </Grid>
+                                                </Border>
+                                            </Grid>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="RealHoverOverlay" Property="Opacity" Value="1" />
+                                                    <Setter TargetName="GhostHoverOverlay" Property="Opacity" Value="1" />
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Button.Template>
+                                </Button>
+
+                                <!-- Pack Title Info -->
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock Text="ACTIVE RESOURCE PACK" FontSize="9" FontWeight="Bold" Foreground="#8B5CF6" Margin="0,0,0,2" />
+                                    <TextBlock Text="{Binding PackName}" FontWeight="SemiBold" FontSize="13" Foreground="#FFFFFF"
+                                               TextTrimming="CharacterEllipsis" ToolTip="{Binding PackRootPath}" />
+                                    <TextBlock Text="{Binding PackRootPath}" FontSize="10" Foreground="#71717A"
+                                               TextTrimming="CharacterEllipsis" Margin="0,1,0,0" ToolTip="{Binding PackRootPath}" />
+                                </StackPanel>
+                            </Grid>
 
                             <!-- Counters -->
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,8">

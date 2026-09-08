@@ -21,7 +21,7 @@ public static class PackScanner
                 $"Couldn't find textures/terrain_texture.json under {packRoot}. " +
                 "Point this at your resource pack's root folder (the one with manifest.json).");
 
-        var aliasToRelativePaths = ParseTerrainTexture(terrainTexturePath);
+        var aliasToData = ParseTerrainTexture(terrainTexturePath);
         var aliasUsage = File.Exists(blocksJsonPath)
             ? ParseBlocksJson(blocksJsonPath)
             : new Dictionary<string, List<BlockFaceUsage>>(StringComparer.OrdinalIgnoreCase);
@@ -45,17 +45,17 @@ public static class PackScanner
         var matchedFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var results = new List<TextureAlias>();
 
-        foreach (var (alias, relativePaths) in aliasToRelativePaths)
+        foreach (var (alias, data) in aliasToData)
         {
             aliasUsage.TryGetValue(alias, out var blockFaces);
             var facesList = blockFaces ?? new List<BlockFaceUsage>();
 
-            if (relativePaths.Count <= 1)
+            if (data.Entries.Count <= 1)
             {
-                var primaryRelative = relativePaths.FirstOrDefault();
-                if (primaryRelative is null) continue;
+                var primary = data.Entries.FirstOrDefault();
+                if (primary is null) continue;
 
-                var (fullPath, finalRel, exists) = ResolveTexture(packRoot, primaryRelative, existingFiles, texturesDirNormalized);
+                var (fullPath, finalRel, exists) = ResolveTexture(packRoot, primary.RawPath, existingFiles, texturesDirNormalized);
                 if (exists) matchedFiles.Add(fullPath);
 
                 results.Add(new TextureAlias
@@ -65,19 +65,22 @@ public static class PackScanner
                     RelativePath = finalRel,
                     FullPath = fullPath,
                     Status = exists ? TextureStatus.Ok : TextureStatus.Ghost,
-                    IsVariant = false,
+                    BlockVariantIndex = null,
+                    TotalBlockVariants = null,
+                    TextureVariantIndex = null,
+                    TotalTextureVariants = null,
+                    Weight = primary.Weight,
                     BlockFaces = facesList
                 });
             }
             else
             {
-                for (int i = 0; i < relativePaths.Count; i++)
+                for (int i = 0; i < data.Entries.Count; i++)
                 {
-                    var rel = relativePaths[i];
-                    var (fullPath, finalRel, exists) = ResolveTexture(packRoot, rel, existingFiles, texturesDirNormalized);
+                    var entry = data.Entries[i];
+                    var (fullPath, finalRel, exists) = ResolveTexture(packRoot, entry.RawPath, existingFiles, texturesDirNormalized);
                     if (exists) matchedFiles.Add(fullPath);
 
-                    // Keep DisplayName clean as the alias name (no ugly duplicate/truncated suffixes)
                     results.Add(new TextureAlias
                     {
                         Alias = alias,
@@ -85,9 +88,11 @@ public static class PackScanner
                         RelativePath = finalRel,
                         FullPath = fullPath,
                         Status = exists ? TextureStatus.Ok : TextureStatus.Ghost,
-                        IsVariant = true,
-                        VariantIndex = i + 1,
-                        TotalVariants = relativePaths.Count,
+                        BlockVariantIndex = entry.BlockVariantIndex,
+                        TotalBlockVariants = entry.TotalBlockVariants,
+                        TextureVariantIndex = entry.TextureVariantIndex,
+                        TotalTextureVariants = entry.TotalTextureVariants,
+                        Weight = entry.Weight,
                         BlockFaces = facesList
                     });
                 }
@@ -120,13 +125,14 @@ public static class PackScanner
                 RelativePath = relNoExt,
                 FullPath = file,
                 Status = TextureStatus.Orphan,
-                IsVariant = false,
+                VariantKind = VariantKind.None,
                 BlockFaces = new List<BlockFaceUsage>()
             });
         }
 
         return results.OrderBy(r => r.Alias, StringComparer.OrdinalIgnoreCase)
-                      .ThenBy(r => r.VariantIndex ?? 0)
+                      .ThenBy(r => r.BlockVariantIndex ?? 0)
+                      .ThenBy(r => r.TextureVariantIndex ?? 0)
                       .ToList();
     }
 
@@ -192,15 +198,26 @@ public static class PackScanner
         CommentHandling = JsonCommentHandling.Skip
     };
 
+    private record TextureSlotEntry(
+        string RawPath,
+        int? BlockVariantIndex = null,
+        int? TotalBlockVariants = null,
+        int? TextureVariantIndex = null,
+        int? TotalTextureVariants = null,
+        int? Weight = null);
+
+    private record ParsedAliasData(List<TextureSlotEntry> Entries);
+
     /// <summary>
-    /// Returns alias -> list of raw relative paths (including variation paths).
+    /// Returns alias -> ParsedAliasData (handling block variants "textures": [],
+    /// random texture variations "variations": [], and nested block variants with variations e.g. dirt).
     /// </summary>
-    private static Dictionary<string, List<string>> ParseTerrainTexture(string path)
+    private static Dictionary<string, ParsedAliasData> ParseTerrainTexture(string path)
     {
         using var stream = File.OpenRead(path);
         using var doc = JsonDocument.Parse(stream, ScanDocOptions);
 
-        var result = new Dictionary<string, List<string>>();
+        var result = new Dictionary<string, ParsedAliasData>(StringComparer.OrdinalIgnoreCase);
 
         if (!doc.RootElement.TryGetProperty("texture_data", out var textureData))
             return result;
@@ -208,62 +225,169 @@ public static class PackScanner
         foreach (var entry in textureData.EnumerateObject())
         {
             var alias = entry.Name;
-            var paths = new List<string>();
+            var rawEntries = new List<TextureSlotEntry>();
 
-            if (entry.Value.ValueKind == JsonValueKind.Object)
+            List<JsonElement>? blockSlots = null;
+
+            if (entry.Value.ValueKind == JsonValueKind.Object &&
+                entry.Value.TryGetProperty("textures", out var texturesProp) &&
+                texturesProp.ValueKind == JsonValueKind.Array)
             {
-                if (entry.Value.TryGetProperty("textures", out var texturesProp))
-                {
-                    ExtractPaths(texturesProp, paths);
-                }
-                else if (entry.Value.TryGetProperty("variations", out var varProp))
-                {
-                    ExtractPaths(varProp, paths);
-                }
+                blockSlots = texturesProp.EnumerateArray().ToList();
             }
-            else if (entry.Value.ValueKind == JsonValueKind.String || entry.Value.ValueKind == JsonValueKind.Array)
+            else if (entry.Value.ValueKind == JsonValueKind.Array)
             {
-                ExtractPaths(entry.Value, paths);
+                blockSlots = entry.Value.EnumerateArray().ToList();
             }
 
-            if (paths.Count > 0)
-                result[alias] = paths.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            if (blockSlots != null)
+            {
+                int totalBlocks = blockSlots.Count;
+                for (int b = 0; b < totalBlocks; b++)
+                {
+                    int? blockIdx = totalBlocks > 1 ? b + 1 : null;
+                    int? totalB = totalBlocks > 1 ? totalBlocks : null;
+                    var slotElement = blockSlots[b];
+
+                    if (slotElement.ValueKind == JsonValueKind.String)
+                    {
+                        var str = slotElement.GetString()?.Trim();
+                        if (!string.IsNullOrEmpty(str))
+                            rawEntries.Add(new TextureSlotEntry(str, blockIdx, totalB, null, null, null));
+                    }
+                    else if (slotElement.ValueKind == JsonValueKind.Object)
+                    {
+                        if (slotElement.TryGetProperty("variations", out var varProp) &&
+                            varProp.ValueKind == JsonValueKind.Array)
+                        {
+                            var varItems = varProp.EnumerateArray().ToList();
+                            int totalVars = varItems.Count;
+                            for (int v = 0; v < totalVars; v++)
+                            {
+                                int? texIdx = totalVars > 1 ? v + 1 : null;
+                                int? totalV = totalVars > 1 ? totalVars : null;
+                                var (vPath, weight) = ExtractVariationItem(varItems[v]);
+                                if (!string.IsNullOrEmpty(vPath))
+                                    rawEntries.Add(new TextureSlotEntry(vPath, blockIdx, totalB, texIdx, totalV, weight));
+                            }
+                        }
+                        else if (slotElement.TryGetProperty("path", out var p) &&
+                                 p.ValueKind == JsonValueKind.String)
+                        {
+                            var str = p.GetString()?.Trim();
+                            if (!string.IsNullOrEmpty(str))
+                                rawEntries.Add(new TextureSlotEntry(str, blockIdx, totalB, null, null, null));
+                        }
+                    }
+                }
+            }
+            else if (entry.Value.ValueKind == JsonValueKind.Object)
+            {
+                if (entry.Value.TryGetProperty("textures", out var singleTexturesProp))
+                {
+                    if (singleTexturesProp.ValueKind == JsonValueKind.String)
+                    {
+                        var str = singleTexturesProp.GetString()?.Trim();
+                        if (!string.IsNullOrEmpty(str))
+                            rawEntries.Add(new TextureSlotEntry(str, null, null, null, null, null));
+                    }
+                    else if (singleTexturesProp.ValueKind == JsonValueKind.Object)
+                    {
+                        if (singleTexturesProp.TryGetProperty("variations", out var varProp) &&
+                            varProp.ValueKind == JsonValueKind.Array)
+                        {
+                            var varItems = varProp.EnumerateArray().ToList();
+                            int totalVars = varItems.Count;
+                            for (int v = 0; v < totalVars; v++)
+                            {
+                                int? texIdx = totalVars > 1 ? v + 1 : null;
+                                int? totalV = totalVars > 1 ? totalVars : null;
+                                var (vPath, weight) = ExtractVariationItem(varItems[v]);
+                                if (!string.IsNullOrEmpty(vPath))
+                                    rawEntries.Add(new TextureSlotEntry(vPath, null, null, texIdx, totalV, weight));
+                            }
+                        }
+                        else if (singleTexturesProp.TryGetProperty("path", out var p) &&
+                                 p.ValueKind == JsonValueKind.String)
+                        {
+                            var str = p.GetString()?.Trim();
+                            if (!string.IsNullOrEmpty(str))
+                                rawEntries.Add(new TextureSlotEntry(str, null, null, null, null, null));
+                        }
+                    }
+                }
+                else if (entry.Value.TryGetProperty("variations", out var directVarProp) &&
+                         directVarProp.ValueKind == JsonValueKind.Array)
+                {
+                    var varItems = directVarProp.EnumerateArray().ToList();
+                    int totalVars = varItems.Count;
+                    for (int v = 0; v < totalVars; v++)
+                    {
+                        int? texIdx = totalVars > 1 ? v + 1 : null;
+                        int? totalV = totalVars > 1 ? totalVars : null;
+                        var (vPath, weight) = ExtractVariationItem(varItems[v]);
+                        if (!string.IsNullOrEmpty(vPath))
+                            rawEntries.Add(new TextureSlotEntry(vPath, null, null, texIdx, totalV, weight));
+                    }
+                }
+                else if (entry.Value.TryGetProperty("path", out var directPathProp) &&
+                         directPathProp.ValueKind == JsonValueKind.String)
+                {
+                    var str = directPathProp.GetString()?.Trim();
+                    if (!string.IsNullOrEmpty(str))
+                        rawEntries.Add(new TextureSlotEntry(str, null, null, null, null, null));
+                }
+            }
+            else if (entry.Value.ValueKind == JsonValueKind.String)
+            {
+                var str = entry.Value.GetString()?.Trim();
+                if (!string.IsNullOrEmpty(str))
+                    rawEntries.Add(new TextureSlotEntry(str, null, null, null, null, null));
+            }
+
+            // Deduplicate distinct paths, preserving first entry
+            var distinctEntries = new List<TextureSlotEntry>();
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var e in rawEntries)
+            {
+                if (seen.Add(e.RawPath))
+                    distinctEntries.Add(e);
+            }
+
+            if (distinctEntries.Count > 0)
+            {
+                if (distinctEntries.Count <= 1)
+                {
+                    var single = distinctEntries[0];
+                    distinctEntries[0] = new TextureSlotEntry(single.RawPath, null, null, null, null, single.Weight);
+                }
+
+                result[alias] = new ParsedAliasData(distinctEntries);
+            }
         }
 
         return result;
     }
 
-    private static void ExtractPaths(JsonElement element, List<string> paths)
+    private static (string? path, int? weight) ExtractVariationItem(JsonElement item)
     {
-        switch (element.ValueKind)
+        if (item.ValueKind == JsonValueKind.String)
+            return (item.GetString()?.Trim(), null);
+
+        if (item.ValueKind == JsonValueKind.Object)
         {
-            case JsonValueKind.String:
-                var str = element.GetString()?.Trim();
-                if (!string.IsNullOrEmpty(str))
-                    paths.Add(str);
-                break;
+            string? pStr = null;
+            if (item.TryGetProperty("path", out var p) && p.ValueKind == JsonValueKind.String)
+                pStr = p.GetString()?.Trim();
 
-            case JsonValueKind.Array:
-                foreach (var item in element.EnumerateArray())
-                {
-                    ExtractPaths(item, paths);
-                }
-                break;
+            int? weight = null;
+            if (item.TryGetProperty("weight", out var wProp) && wProp.TryGetInt32(out var w))
+                weight = w;
 
-            case JsonValueKind.Object:
-                if (element.TryGetProperty("path", out var pathProp) && pathProp.ValueKind == JsonValueKind.String)
-                {
-                    var pathStr = pathProp.GetString()?.Trim();
-                    if (!string.IsNullOrEmpty(pathStr))
-                        paths.Add(pathStr);
-                }
-
-                if (element.TryGetProperty("variations", out var varProp))
-                {
-                    ExtractPaths(varProp, paths);
-                }
-                break;
+            return (pStr, weight);
         }
+
+        return (null, null);
     }
 
     /// <summary>
