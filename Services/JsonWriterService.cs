@@ -12,6 +12,11 @@ namespace McTextureGhost.Services;
 public static class JsonWriterService
 {
     private static readonly JsonSerializerOptions WriteOptions = new() { WriteIndented = true };
+    private static readonly JsonDocumentOptions DocOptions = new()
+    {
+        AllowTrailingCommas = true,
+        CommentHandling = JsonCommentHandling.Skip
+    };
 
     public static string DefaultBlockId(string alias) => $"custom:{Sanitize(alias)}";
 
@@ -109,6 +114,18 @@ public static class JsonWriterService
         SaveBlocksJson(packRoot, blocks);
     }
 
+    /// <summary>Registers an existing orphan texture file into terrain_texture.json.</summary>
+    public static void RegisterOrphan(string packRoot, string alias, string relativePath)
+    {
+        var terrain = LoadOrCreateTerrainTexture(packRoot);
+        var textureData = GetTextureData(terrain);
+        textureData[alias] = new JsonObject
+        {
+            ["textures"] = relativePath
+        };
+        SaveTerrainTexture(packRoot, terrain);
+    }
+
     // ---- shared JSON plumbing ----
 
     private static JsonObject GetTextureData(JsonObject terrain)
@@ -125,7 +142,7 @@ public static class JsonWriterService
     {
         var path = Path.Combine(packRoot, "textures", "terrain_texture.json");
         if (File.Exists(path))
-            return JsonNode.Parse(File.ReadAllText(path))!.AsObject();
+            return JsonNode.Parse(File.ReadAllText(path), null, DocOptions)!.AsObject();
 
         return new JsonObject
         {
@@ -149,7 +166,7 @@ public static class JsonWriterService
     {
         var path = Path.Combine(packRoot, "blocks.json");
         if (File.Exists(path))
-            return JsonNode.Parse(File.ReadAllText(path))!.AsObject();
+            return JsonNode.Parse(File.ReadAllText(path), null, DocOptions)!.AsObject();
 
         return new JsonObject { ["format_version"] = "1.19.30" };
     }
@@ -163,7 +180,7 @@ public static class JsonWriterService
     private static JsonArray LoadOrCreateJsonArray(string path)
     {
         if (File.Exists(path))
-            return JsonNode.Parse(File.ReadAllText(path))!.AsArray();
+            return JsonNode.Parse(File.ReadAllText(path), null, DocOptions)!.AsArray();
 
         return new JsonArray();
     }

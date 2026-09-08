@@ -1,5 +1,5 @@
 # McTextureGhost
-### Ghost Resource Manager for Minecraft Bedrock Edition (`mc-ghost-resource-manager`)
+Ghost Resource Manager for Minecraft (`mc-ghost-resource-manager`)
 
 ## About
 Project to help manage missing textures in Minecraft resource packs. or to 
@@ -25,6 +25,10 @@ v0.3 - ghost for particle? and ui?
 
 feature in mind 
 -version switcher for resource packs
+-maybe also hookup github.com/Mojang/bedrock-samples
+-support .tga
+-offer to use existing from certain vanilla version eg:blocks.json if one doesnt exist or from file/mcpack
+
 
 ## the rest is claude boilerplate ↓ (i havent read it so ill keep it for now)
 

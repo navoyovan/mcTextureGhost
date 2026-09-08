@@ -24,52 +24,181 @@ public static class PackScanner
         var aliasToRelativePaths = ParseTerrainTexture(terrainTexturePath);
         var aliasUsage = File.Exists(blocksJsonPath)
             ? ParseBlocksJson(blocksJsonPath)
-            : new Dictionary<string, List<string>>();
+            : new Dictionary<string, List<BlockFaceUsage>>(StringComparer.OrdinalIgnoreCase);
 
+        var existingFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var texturesDir = Path.Combine(packRoot, "textures");
+        string? texturesDirNormalized = null;
+        if (Directory.Exists(texturesDir))
+        {
+            try
+            {
+                texturesDirNormalized = Path.GetFullPath(texturesDir);
+                foreach (var file in Directory.EnumerateFiles(texturesDir, "*", SearchOption.AllDirectories))
+                {
+                    existingFiles.Add(Path.GetFullPath(file));
+                }
+            }
+            catch { }
+        }
+
+        var matchedFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var results = new List<TextureAlias>();
 
         foreach (var (alias, relativePaths) in aliasToRelativePaths)
         {
-            // A variation array can list several paths for one alias; we surface
-            // the first as the "primary" tile and note the rest in FullPath tooltip
-            // territory is out of scope for this scaffold - primary only for now.
-            var primaryRelative = relativePaths.FirstOrDefault();
-            if (primaryRelative is null) continue;
+            aliasUsage.TryGetValue(alias, out var blockFaces);
+            var facesList = blockFaces ?? new List<BlockFaceUsage>();
 
-            var fullPath = Path.Combine(packRoot, NormalizeToPng(primaryRelative));
+            if (relativePaths.Count <= 1)
+            {
+                var primaryRelative = relativePaths.FirstOrDefault();
+                if (primaryRelative is null) continue;
 
-            aliasUsage.TryGetValue(alias, out var usedBy);
+                var (fullPath, finalRel, exists) = ResolveTexture(packRoot, primaryRelative, existingFiles, texturesDirNormalized);
+                if (exists) matchedFiles.Add(fullPath);
+
+                results.Add(new TextureAlias
+                {
+                    Alias = alias,
+                    DisplayName = alias,
+                    RelativePath = finalRel,
+                    FullPath = fullPath,
+                    Status = exists ? TextureStatus.Ok : TextureStatus.Ghost,
+                    IsVariant = false,
+                    BlockFaces = facesList
+                });
+            }
+            else
+            {
+                for (int i = 0; i < relativePaths.Count; i++)
+                {
+                    var rel = relativePaths[i];
+                    var (fullPath, finalRel, exists) = ResolveTexture(packRoot, rel, existingFiles, texturesDirNormalized);
+                    if (exists) matchedFiles.Add(fullPath);
+
+                    // Keep DisplayName clean as the alias name (no ugly duplicate/truncated suffixes)
+                    results.Add(new TextureAlias
+                    {
+                        Alias = alias,
+                        DisplayName = alias,
+                        RelativePath = finalRel,
+                        FullPath = fullPath,
+                        Status = exists ? TextureStatus.Ok : TextureStatus.Ghost,
+                        IsVariant = true,
+                        VariantIndex = i + 1,
+                        TotalVariants = relativePaths.Count,
+                        BlockFaces = facesList
+                    });
+                }
+            }
+        }
+
+        // ─── Discover Orphan files (on disk under textures/, but not declared in JSON) ──
+        foreach (var file in existingFiles)
+        {
+            if (matchedFiles.Contains(file)) continue;
+
+            var ext = Path.GetExtension(file).ToLowerInvariant();
+            if (ext != ".png" && ext != ".tga") continue;
+
+            var relFromPack = file.StartsWith(packRoot, StringComparison.OrdinalIgnoreCase)
+                ? file.Substring(packRoot.Length).TrimStart('/', '\\').Replace('\\', '/')
+                : file.Replace('\\', '/');
+
+            // Strip extension for RelativePath
+            var relNoExt = relFromPack.Length > ext.Length
+                ? relFromPack.Substring(0, relFromPack.Length - ext.Length)
+                : relFromPack;
+
+            var fileNameWithoutExt = Path.GetFileNameWithoutExtension(file);
 
             results.Add(new TextureAlias
             {
-                Alias = alias,
-                RelativePath = primaryRelative,
-                FullPath = fullPath,
-                Exists = File.Exists(fullPath),
-                UsedByBlocks = usedBy ?? new List<string>()
+                Alias = fileNameWithoutExt,
+                DisplayName = fileNameWithoutExt,
+                RelativePath = relNoExt,
+                FullPath = file,
+                Status = TextureStatus.Orphan,
+                IsVariant = false,
+                BlockFaces = new List<BlockFaceUsage>()
             });
         }
 
-        return results.OrderBy(r => r.Alias, StringComparer.OrdinalIgnoreCase).ToList();
-    }
-
-    private static string NormalizeToPng(string relativePath)
-    {
-        // terrain_texture.json paths are given without extension and use forward
-        // slashes regardless of OS; convert both.
-        var withSlashes = relativePath.Replace('/', Path.DirectorySeparatorChar);
-        return withSlashes.EndsWith(".png", StringComparison.OrdinalIgnoreCase)
-            ? withSlashes
-            : withSlashes + ".png";
+        return results.OrderBy(r => r.Alias, StringComparer.OrdinalIgnoreCase)
+                      .ThenBy(r => r.VariantIndex ?? 0)
+                      .ToList();
     }
 
     /// <summary>
-    /// Returns alias -> list of raw relative paths (usually just one, more for variations).
+    /// Resolves the absolute path and existence on disk for a texture, checking .png
+    /// and fallback extensions (such as .tga), and handling paths with or without "textures/" prefix.
+    /// </summary>
+    private static (string fullPath, string relativePath, bool exists) ResolveTexture(
+        string packRoot,
+        string rawRelativePath,
+        HashSet<string> existingFiles,
+        string? texturesDirNormalized)
+    {
+        var cleanRel = rawRelativePath.Replace('\\', '/').TrimStart('/');
+        bool hasExtension = Path.HasExtension(cleanRel);
+        bool startsWithTextures = cleanRel.StartsWith("textures/", StringComparison.OrdinalIgnoreCase);
+
+        var candidates = new List<string>();
+        if (hasExtension)
+        {
+            candidates.Add(cleanRel);
+            if (!startsWithTextures) candidates.Add("textures/" + cleanRel);
+        }
+        else
+        {
+            candidates.Add(cleanRel + ".png");
+            candidates.Add(cleanRel + ".tga");
+            if (!startsWithTextures)
+            {
+                candidates.Add("textures/" + cleanRel + ".png");
+                candidates.Add("textures/" + cleanRel + ".tga");
+            }
+        }
+
+        foreach (var candidate in candidates)
+        {
+            var testFull = Path.GetFullPath(Path.Combine(packRoot, candidate.Replace('/', Path.DirectorySeparatorChar)));
+            bool exists;
+            if (texturesDirNormalized != null && testFull.StartsWith(texturesDirNormalized, StringComparison.OrdinalIgnoreCase))
+            {
+                exists = existingFiles.Contains(testFull);
+            }
+            else
+            {
+                exists = File.Exists(testFull);
+            }
+
+            if (exists)
+            {
+                var relWithoutExt = candidate.Substring(0, candidate.Length - Path.GetExtension(candidate).Length);
+                return (testFull, relWithoutExt, true);
+            }
+        }
+
+        string defaultRel = startsWithTextures ? cleanRel : "textures/" + cleanRel;
+        string defaultFull = Path.GetFullPath(Path.Combine(packRoot, (defaultRel + ".png").Replace('/', Path.DirectorySeparatorChar)));
+        return (defaultFull, defaultRel, false);
+    }
+
+    private static readonly JsonDocumentOptions ScanDocOptions = new()
+    {
+        AllowTrailingCommas = true,
+        CommentHandling = JsonCommentHandling.Skip
+    };
+
+    /// <summary>
+    /// Returns alias -> list of raw relative paths (including variation paths).
     /// </summary>
     private static Dictionary<string, List<string>> ParseTerrainTexture(string path)
     {
         using var stream = File.OpenRead(path);
-        using var doc = JsonDocument.Parse(stream, new JsonDocumentOptions { AllowTrailingCommas = true });
+        using var doc = JsonDocument.Parse(stream, ScanDocOptions);
 
         var result = new Dictionary<string, List<string>>();
 
@@ -81,91 +210,125 @@ public static class PackScanner
             var alias = entry.Name;
             var paths = new List<string>();
 
-            if (entry.Value.TryGetProperty("textures", out var texturesProp))
+            if (entry.Value.ValueKind == JsonValueKind.Object)
             {
-                CollectPaths(texturesProp, paths);
+                if (entry.Value.TryGetProperty("textures", out var texturesProp))
+                {
+                    ExtractPaths(texturesProp, paths);
+                }
+                else if (entry.Value.TryGetProperty("variations", out var varProp))
+                {
+                    ExtractPaths(varProp, paths);
+                }
+            }
+            else if (entry.Value.ValueKind == JsonValueKind.String || entry.Value.ValueKind == JsonValueKind.Array)
+            {
+                ExtractPaths(entry.Value, paths);
             }
 
             if (paths.Count > 0)
-                result[alias] = paths;
+                result[alias] = paths.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         }
 
         return result;
     }
 
-    private static void CollectPaths(JsonElement texturesProp, List<string> paths)
+    private static void ExtractPaths(JsonElement element, List<string> paths)
     {
-        switch (texturesProp.ValueKind)
+        switch (element.ValueKind)
         {
             case JsonValueKind.String:
-                paths.Add(texturesProp.GetString()!);
+                var str = element.GetString()?.Trim();
+                if (!string.IsNullOrEmpty(str))
+                    paths.Add(str);
                 break;
 
             case JsonValueKind.Array:
-                foreach (var item in texturesProp.EnumerateArray())
+                foreach (var item in element.EnumerateArray())
                 {
-                    if (item.ValueKind == JsonValueKind.String)
-                    {
-                        paths.Add(item.GetString()!);
-                    }
-                    else if (item.ValueKind == JsonValueKind.Object &&
-                             item.TryGetProperty("path", out var p))
-                    {
-                        paths.Add(p.GetString()!);
-                    }
+                    ExtractPaths(item, paths);
                 }
                 break;
 
             case JsonValueKind.Object:
-                // Variation-style: { "path": "...", "variations": [...] } or similar.
-                if (texturesProp.TryGetProperty("path", out var pathProp))
-                    paths.Add(pathProp.GetString()!);
+                if (element.TryGetProperty("path", out var pathProp) && pathProp.ValueKind == JsonValueKind.String)
+                {
+                    var pathStr = pathProp.GetString()?.Trim();
+                    if (!string.IsNullOrEmpty(pathStr))
+                        paths.Add(pathStr);
+                }
+
+                if (element.TryGetProperty("variations", out var varProp))
+                {
+                    ExtractPaths(varProp, paths);
+                }
                 break;
         }
     }
 
     /// <summary>
-    /// Returns alias -> list of block IDs ("namespace:name") that reference it,
-    /// whether directly (string textures) or per-face (object textures).
+    /// Returns alias -> list of BlockFaceUsage (block ID + face name) from blocks.json,
+    /// covering both uniform blocks ("textures": "alias") and per-face blocks ("up", "down", etc.).
     /// </summary>
-    private static Dictionary<string, List<string>> ParseBlocksJson(string path)
+    private static Dictionary<string, List<BlockFaceUsage>> ParseBlocksJson(string path)
     {
         using var stream = File.OpenRead(path);
-        using var doc = JsonDocument.Parse(stream, new JsonDocumentOptions { AllowTrailingCommas = true });
+        using var doc = JsonDocument.Parse(stream, ScanDocOptions);
 
-        var usage = new Dictionary<string, List<string>>();
+        var usage = new Dictionary<string, List<BlockFaceUsage>>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var entry in doc.RootElement.EnumerateObject())
         {
             if (entry.Name == "format_version") continue;
+            if (entry.Value.ValueKind != JsonValueKind.Object) continue;
             var blockId = entry.Name;
 
-            if (!entry.Value.TryGetProperty("textures", out var texturesProp))
-                continue;
-
-            foreach (var alias in ExtractAliases(texturesProp))
+            if (entry.Value.TryGetProperty("textures", out var texturesProp))
             {
-                if (!usage.TryGetValue(alias, out var list))
-                    usage[alias] = list = new List<string>();
-                list.Add(blockId);
+                foreach (var (alias, face) in ExtractAliasFaces(texturesProp))
+                {
+                    if (!usage.TryGetValue(alias, out var list))
+                        usage[alias] = list = new List<BlockFaceUsage>();
+                    list.Add(new BlockFaceUsage(blockId, face));
+                }
+            }
+
+            if (entry.Value.TryGetProperty("carried_textures", out var carriedProp))
+            {
+                foreach (var (alias, face) in ExtractAliasFaces(carriedProp, isCarried: true))
+                {
+                    if (!usage.TryGetValue(alias, out var list))
+                        usage[alias] = list = new List<BlockFaceUsage>();
+                    list.Add(new BlockFaceUsage(blockId, face));
+                }
             }
         }
 
         return usage;
     }
 
-    private static IEnumerable<string> ExtractAliases(JsonElement texturesProp)
+    private static IEnumerable<(string alias, string face)> ExtractAliasFaces(JsonElement texturesProp, bool isCarried = false)
     {
         switch (texturesProp.ValueKind)
         {
             case JsonValueKind.String:
-                yield return texturesProp.GetString()!;
+                var s = texturesProp.GetString();
+                if (!string.IsNullOrEmpty(s))
+                    yield return (s, isCarried ? "carried" : "all");
                 break;
+
             case JsonValueKind.Object:
                 foreach (var face in texturesProp.EnumerateObject())
                 {
                     if (face.Value.ValueKind == JsonValueKind.String)
-                        yield return face.Value.GetString()!;
+                    {
+                        var alias = face.Value.GetString();
+                        if (!string.IsNullOrEmpty(alias))
+                        {
+                            var faceName = isCarried ? $"carried_{face.Name}" : face.Name;
+                            yield return (alias, faceName);
+                        }
+                    }
                 }
                 break;
         }
