@@ -35,7 +35,11 @@ public partial class App : Application
                 if (MainWindow != null && MainWindow.DataContext is ViewModels.MainViewModel vm && !string.IsNullOrEmpty(packPath))
                 {
                     vm.LoadPack(packPath);
-                    if (!string.IsNullOrEmpty(searchQuery))
+                    if (searchQuery == "--manifest")
+                    {
+                        vm.OpenManifestForm();
+                    }
+                    else if (!string.IsNullOrEmpty(searchQuery))
                     {
                         vm.SearchText = searchQuery;
                     }

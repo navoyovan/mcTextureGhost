@@ -138,6 +138,116 @@ public static class JsonWriterService
         SaveItemTexture(packRoot, itemTexture);
     }
 
+    /// <summary>
+    /// Adds a vanilla block and all its referenced aliases to the pack's JSON files.
+    /// </summary>
+    public static void AddVanillaBlock(string packRoot, string blockId, VanillaData vanilla)
+    {
+        if (vanilla.RawBlocksJson.TryGetValue(blockId, out var rawBlockJson))
+        {
+            var blocks = LoadOrCreateBlocksJson(packRoot);
+            blocks[blockId] = JsonNode.Parse(rawBlockJson);
+            SaveBlocksJson(packRoot, blocks);
+        }
+
+        if (vanilla.BlockToAliases.TryGetValue(blockId, out var aliases))
+        {
+            var terrain = LoadOrCreateTerrainTexture(packRoot);
+            var textureData = GetTextureData(terrain);
+            bool terrainChanged = false;
+
+            foreach (var alias in aliases)
+            {
+                if (!textureData.ContainsKey(alias) && vanilla.RawTerrainTextureJson.TryGetValue(alias, out var rawTerrainJson))
+                {
+                    textureData[alias] = JsonNode.Parse(rawTerrainJson);
+                    terrainChanged = true;
+                }
+
+                if (vanilla.RawFlipbookJson.TryGetValue(alias, out var rawFbJson))
+                {
+                    AppendFlipbookIfNotExists(packRoot, alias, rawFbJson);
+                }
+            }
+
+            if (terrainChanged)
+            {
+                SaveTerrainTexture(packRoot, terrain);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Adds a single vanilla alias into terrain_texture.json (and flipbook_textures.json if applicable).
+    /// </summary>
+    public static void AddVanillaBlockAlias(string packRoot, string alias, VanillaData vanilla)
+    {
+        var terrain = LoadOrCreateTerrainTexture(packRoot);
+        var textureData = GetTextureData(terrain);
+
+        if (vanilla.RawTerrainTextureJson.TryGetValue(alias, out var rawTerrainJson))
+        {
+            textureData[alias] = JsonNode.Parse(rawTerrainJson);
+            SaveTerrainTexture(packRoot, terrain);
+        }
+
+        if (vanilla.RawFlipbookJson.TryGetValue(alias, out var rawFbJson))
+        {
+            AppendFlipbookIfNotExists(packRoot, alias, rawFbJson);
+        }
+    }
+
+    /// <summary>
+    /// Adds a vanilla item alias into item_texture.json (and flipbook_textures.json if applicable).
+    /// </summary>
+    public static void AddVanillaItem(string packRoot, string itemAlias, VanillaData vanilla)
+    {
+        var itemTexture = LoadOrCreateItemTexture(packRoot);
+        var textureData = GetTextureData(itemTexture);
+
+        if (vanilla.RawItemTextureJson.TryGetValue(itemAlias, out var rawItemJson))
+        {
+            textureData[itemAlias] = JsonNode.Parse(rawItemJson);
+            SaveItemTexture(packRoot, itemTexture);
+        }
+
+        if (vanilla.RawFlipbookJson.TryGetValue(itemAlias, out var rawFbJson))
+        {
+            AppendFlipbookIfNotExists(packRoot, itemAlias, rawFbJson);
+        }
+    }
+
+    private static void AppendFlipbookIfNotExists(string packRoot, string aliasOrPath, string rawFlipbookJson)
+    {
+        var flipbookPath = Path.Combine(packRoot, "textures", "flipbook_textures.json");
+        var flipbook = LoadOrCreateJsonArray(flipbookPath);
+
+        bool exists = false;
+        foreach (var node in flipbook)
+        {
+            if (node is JsonObject obj)
+            {
+                if (obj.TryGetPropertyValue("atlas_tile", out var at) && at?.ToString() == aliasOrPath)
+                {
+                    exists = true;
+                    break;
+                }
+                if (obj.TryGetPropertyValue("flipbook_texture", out var ft) && ft?.ToString() == aliasOrPath)
+                {
+                    exists = true;
+                    break;
+                }
+            }
+        }
+
+        if (!exists)
+        {
+            flipbook.Add(JsonNode.Parse(rawFlipbookJson));
+            Directory.CreateDirectory(Path.GetDirectoryName(flipbookPath)!);
+            File.WriteAllText(flipbookPath, flipbook.ToJsonString(WriteOptions));
+        }
+    }
+
     // ---- shared JSON plumbing ----
 
     private static JsonObject GetTextureData(JsonObject terrain)

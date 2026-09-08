@@ -1,0 +1,183 @@
+<ui:FluentWindow x:Class="McTextureGhost.Views.CreatePackManifestDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+        Title="New Resource Pack Manifest"
+        Width="500"
+        SizeToContent="Height"
+        WindowStartupLocation="CenterOwner"
+        WindowBackdropType="Mica"
+        ExtendsContentIntoTitleBar="True"
+        Background="#18181b"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- WinUI 3 Modern TitleBar -->
+        <ui:TitleBar Grid.Row="0"
+                     Height="36"
+                     ApplicationTheme="Dark"
+                     ButtonsForeground="#D0D0D0"
+                     ButtonsBackground="Transparent"
+                     Background="Transparent"
+                     BorderBrush="#18FFFFFF"
+                     BorderThickness="0,0,0,1">
+            <ui:TitleBar.Header>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0,0,0">
+                    <TextBlock Text="✨" FontSize="13" Margin="0,0,6,0" VerticalAlignment="Center" />
+                    <TextBlock Text="New Resource Pack — Manifest Generator" FontWeight="SemiBold" FontSize="12" Foreground="#FFFFFF" VerticalAlignment="Center" />
+                </StackPanel>
+            </ui:TitleBar.Header>
+        </ui:TitleBar>
+
+        <!-- Body Form -->
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="20,16,20,12">
+            <StackPanel>
+                <TextBlock Text="Generate Manifest JSON?" FontSize="16" FontWeight="SemiBold" Foreground="#FFFFFF" Margin="0,0,0,4" />
+                <TextBlock Text="Minecraft Bedrock requires a manifest.json file to identify resource packs. The required fields and UUIDs have been automatically pre-filled below:"
+                           TextWrapping="Wrap" FontSize="12" Foreground="#A1A1AA" Margin="0,0,0,16" LineHeight="16" />
+
+                <!-- Pack Name -->
+                <TextBlock Text="PACK NAME" FontSize="10" FontWeight="Bold" Foreground="#8B5CF6" Margin="0,0,0,4" />
+                <ui:TextBox x:Name="PackNameTextBox"
+                            Text="{Binding HeaderName, UpdateSourceTrigger=PropertyChanged}"
+                            PlaceholderText="Enter resource pack name"
+                            Margin="0,0,0,12" />
+
+                <!-- Pack Description -->
+                <TextBlock Text="DESCRIPTION" FontSize="10" FontWeight="Bold" Foreground="#8B5CF6" Margin="0,0,0,4" />
+                <ui:TextBox x:Name="DescriptionTextBox"
+                            Text="{Binding HeaderDescription, UpdateSourceTrigger=PropertyChanged}"
+                            PlaceholderText="Enter pack description"
+                            Margin="0,0,0,12" />
+
+                <!-- Header UUID -->
+                <Grid Margin="0,0,0,4">
+                    <TextBlock Text="HEADER UUID (PACK ID)" FontSize="10" FontWeight="Bold" Foreground="#8B5CF6" VerticalAlignment="Center" />
+                    <TextBlock Text="Unique pack identifier" FontSize="10" Foreground="#71717A" HorizontalAlignment="Right" VerticalAlignment="Center" />
+                </Grid>
+                <Grid Margin="0,0,0,12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <ui:TextBox Grid.Column="0"
+                                Text="{Binding HeaderUuid, UpdateSourceTrigger=PropertyChanged}"
+                                FontFamily="Consolas" FontSize="11"
+                                Margin="0,0,6,0" />
+                    <ui:Button Grid.Column="1" Click="RegenerateHeaderUuid_Click"
+                               Appearance="Secondary" Padding="8,5" ToolTip="Generate new Header UUID">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <ui:SymbolIcon Symbol="ArrowSync24" FontSize="13" Margin="0,0,4,0" />
+                            <TextBlock Text="New" FontSize="11" />
+                        </StackPanel>
+                    </ui:Button>
+                </Grid>
+
+                <!-- Module UUID -->
+                <Grid Margin="0,0,0,4">
+                    <TextBlock Text="MODULE UUID (RESOURCES ID)" FontSize="10" FontWeight="Bold" Foreground="#8B5CF6" VerticalAlignment="Center" />
+                    <TextBlock Text="Unique resources module identifier" FontSize="10" Foreground="#71717A" HorizontalAlignment="Right" VerticalAlignment="Center" />
+                </Grid>
+                <Grid Margin="0,0,0,12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <ui:TextBox Grid.Column="0"
+                                Text="{Binding ModuleUuid, UpdateSourceTrigger=PropertyChanged}"
+                                FontFamily="Consolas" FontSize="11"
+                                Margin="0,0,6,0" />
+                    <ui:Button Grid.Column="1" Click="RegenerateModuleUuid_Click"
+                               Appearance="Secondary" Padding="8,5" ToolTip="Generate new Module UUID">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <ui:SymbolIcon Symbol="ArrowSync24" FontSize="13" Margin="0,0,4,0" />
+                            <TextBlock Text="New" FontSize="11" />
+                        </StackPanel>
+                    </ui:Button>
+                </Grid>
+
+                <!-- Version & Min Engine Version Row -->
+                <Grid Margin="0,0,0,6">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="16" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Pack Version -->
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Text="PACK VERSION" FontSize="10" FontWeight="Bold" Foreground="#8B5CF6" Margin="0,0,0,4" />
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <ui:TextBox Grid.Column="0" Text="{Binding VersionMajor, UpdateSourceTrigger=PropertyChanged}" HorizontalContentAlignment="Center" />
+                            <TextBlock Grid.Column="1" Text="." FontSize="14" Foreground="#71717A" VerticalAlignment="Center" Margin="4,0" />
+                            <ui:TextBox Grid.Column="2" Text="{Binding VersionMinor, UpdateSourceTrigger=PropertyChanged}" HorizontalContentAlignment="Center" />
+                            <TextBlock Grid.Column="3" Text="." FontSize="14" Foreground="#71717A" VerticalAlignment="Center" Margin="4,0" />
+                            <ui:TextBox Grid.Column="4" Text="{Binding VersionPatch, UpdateSourceTrigger=PropertyChanged}" HorizontalContentAlignment="Center" />
+                        </Grid>
+                    </StackPanel>
+
+                    <!-- Min Engine Version -->
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Text="MIN ENGINE VERSION" FontSize="10" FontWeight="Bold" Foreground="#8B5CF6" Margin="0,0,0,4" />
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <ui:TextBox Grid.Column="0" Text="{Binding MinEngineMajor, UpdateSourceTrigger=PropertyChanged}" HorizontalContentAlignment="Center" />
+                            <TextBlock Grid.Column="1" Text="." FontSize="14" Foreground="#71717A" VerticalAlignment="Center" Margin="4,0" />
+                            <ui:TextBox Grid.Column="2" Text="{Binding MinEngineMinor, UpdateSourceTrigger=PropertyChanged}" HorizontalContentAlignment="Center" />
+                            <TextBlock Grid.Column="3" Text="." FontSize="14" Foreground="#71717A" VerticalAlignment="Center" Margin="4,0" />
+                            <ui:TextBox Grid.Column="4" Text="{Binding MinEnginePatch, UpdateSourceTrigger=PropertyChanged}" HorizontalContentAlignment="Center" />
+                        </Grid>
+                    </StackPanel>
+                </Grid>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- Dialog Footer Actions -->
+        <Border Grid.Row="2" Background="#141416" BorderBrush="#27272a" BorderThickness="0,1,0,0" Padding="16,12">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <!-- Cancel Button -->
+                <ui:Button Grid.Column="0" Content="Cancel" Click="Cancel_Click"
+                           Appearance="Transparent" Padding="14,6" />
+
+                <!-- Action Buttons: Skip and Generate -->
+                <StackPanel Grid.Column="2" Orientation="Horizontal">
+                    <ui:Button Content="Skip (Create Empty)" Click="Skip_Click"
+                               Appearance="Secondary" Padding="14,6" Margin="0,0,8,0"
+                               ToolTip="Create the pack folder without manifest.json (you can generate it later)" />
+                    <ui:Button Content="Generate Manifest" Click="Generate_Click"
+                               Appearance="Primary" Padding="16,6">
+                        <ui:Button.Icon>
+                            <ui:SymbolIcon Symbol="Checkmark24" FontSize="14" />
+                        </ui:Button.Icon>
+                    </ui:Button>
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</ui:FluentWindow>

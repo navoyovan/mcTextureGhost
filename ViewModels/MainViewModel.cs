@@ -24,6 +24,7 @@ public enum TextureTab { All, Blocks, Items }
 public class MainViewModel : INotifyPropertyChanged
 {
     private FileSystemWatcher? _watcher;
+    private readonly DispatcherTimer _watchDebounceTimer;
     private string? _packRoot;
 
     public ObservableCollection<TextureAlias> Aliases { get; } = new();
@@ -37,6 +38,29 @@ public class MainViewModel : INotifyPropertyChanged
     public string? PackName => _packRoot != null ? (_cachedPackName ??= GetPackDisplayName()) : null;
     public string? PackIconPath => _packRoot != null ? Path.Combine(_packRoot, "pack_icon.png") : null;
     public bool HasPackIcon => _packRoot != null && File.Exists(PackIconPath);
+    public bool HasManifest => _packRoot != null && File.Exists(Path.Combine(_packRoot, "manifest.json"));
+
+    private ManifestModel? _currentManifest;
+    public ManifestModel? CurrentManifest
+    {
+        get => _currentManifest;
+        set { _currentManifest = value; OnPropertyChanged(); }
+    }
+
+    private bool _isManifestViewActive;
+    public bool IsManifestViewActive
+    {
+        get => _isManifestViewActive;
+        set
+        {
+            if (_isManifestViewActive == value) return;
+            _isManifestViewActive = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(IsExplorerViewActive));
+        }
+    }
+
+    public bool IsExplorerViewActive => !_isManifestViewActive;
 
     private TextureTab _activeTab = TextureTab.All;
     public TextureTab ActiveTab
@@ -59,6 +83,7 @@ public class MainViewModel : INotifyPropertyChanged
             OnPropertyChanged(nameof(ShowCreatePanel));
             UpdateNoEntryTileAndMatches();
             FilteredAliases.Refresh();
+            FilteredCatalogTree?.Refresh();
         }
     }
 
@@ -106,7 +131,11 @@ public class MainViewModel : INotifyPropertyChanged
             _selectedFolder = value;
             if (_selectedFolder != null) _selectedFolder.IsSelected = true;
 
-            if (_selectedFolder != null && _selectedFolder.IsDirectory && !string.IsNullOrWhiteSpace(_selectedFolder.RelativePath))
+            if (_selectedFolder != null && _selectedFolder.IsManifest)
+            {
+                OpenManifestForm();
+            }
+            else if (_selectedFolder != null && _selectedFolder.IsDirectory && !string.IsNullOrWhiteSpace(_selectedFolder.RelativePath))
             {
                 _selectedFolderExact = _selectedFolder.RelativePath.Replace('\\', '/');
                 _selectedFolderFilterPrefix = _selectedFolderExact.TrimEnd('/') + '/';
@@ -214,6 +243,21 @@ public class MainViewModel : INotifyPropertyChanged
 
         UpdateNoEntryTileAndMatches();
         FilteredAliases.Refresh();
+        FilteredCatalogTree?.Refresh();
+
+        if (!string.IsNullOrWhiteSpace(_appliedSearchQueryLower))
+        {
+            foreach (var node in CatalogTree)
+            {
+                if (node.SearchFilterKey.Contains(_appliedSearchQueryLower, StringComparison.Ordinal))
+                {
+                    node.IsExpanded = true;
+                    foreach (var ag in node.AliasGroups)
+                        ag.IsExpanded = true;
+                }
+            }
+        }
+
         OnPropertyChanged(nameof(ShowCreatePanel));
     }
 
@@ -273,6 +317,7 @@ public class MainViewModel : INotifyPropertyChanged
             OnPropertyChanged(nameof(IsFilterActive));
             OnPropertyChanged(nameof(FilterStatusLabel));
             FilteredAliases.Refresh();
+            FilteredCatalogTree?.Refresh();
         }
     }
 
@@ -288,6 +333,7 @@ public class MainViewModel : INotifyPropertyChanged
             OnPropertyChanged(nameof(IsFilterActive));
             OnPropertyChanged(nameof(FilterStatusLabel));
             FilteredAliases.Refresh();
+            FilteredCatalogTree?.Refresh();
         }
     }
 
@@ -303,6 +349,7 @@ public class MainViewModel : INotifyPropertyChanged
             OnPropertyChanged(nameof(IsFilterActive));
             OnPropertyChanged(nameof(FilterStatusLabel));
             FilteredAliases.Refresh();
+            FilteredCatalogTree?.Refresh();
         }
     }
 
@@ -349,32 +396,69 @@ public class MainViewModel : INotifyPropertyChanged
         set { _statusMessage = value; OnPropertyChanged(); }
     }
 
-    // ─── Tile size ───────────────────────────────────────────────────────────
-    private TileSizeMode _tileSizeMode = TileSizeMode.Medium;
-    public TileSizeMode CurrentTileSizeMode
+    // ─── Tile size (Hardcoded to Large) ───────────────────────────────────────
+    public int TileButtonWidth  => 156;
+    public int TileButtonHeight => 180;
+    public int TileImageSize    => 96;
+
+    // ─── View Mode (Pack Grid vs Catalog Tree) ─────────────────────────────────
+    public enum ViewMode { Pack, Catalog }
+
+    private ViewMode _viewMode = ViewMode.Pack;
+    public ViewMode CurrentViewMode
     {
-        get => _tileSizeMode;
+        get => _viewMode;
         set
         {
-            if (_tileSizeMode == value) return;
-            _tileSizeMode = value;
+            if (_viewMode == value) return;
+            _viewMode = value;
             OnPropertyChanged();
-            OnPropertyChanged(nameof(TileButtonWidth));
-            OnPropertyChanged(nameof(TileButtonHeight));
-            OnPropertyChanged(nameof(TileImageSize));
-            OnPropertyChanged(nameof(IsTileSizeSmall));
-            OnPropertyChanged(nameof(IsTileSizeMedium));
-            OnPropertyChanged(nameof(IsTileSizeLarge));
+            OnPropertyChanged(nameof(IsPackView));
+            OnPropertyChanged(nameof(IsCatalogView));
         }
     }
 
-    public int TileButtonWidth  => _tileSizeMode switch { TileSizeMode.Small => 84,  TileSizeMode.Large => 156, _ => 112 };
-    public int TileButtonHeight => _tileSizeMode switch { TileSizeMode.Small => 108, TileSizeMode.Large => 180, _ => 134 };
-    public int TileImageSize    => _tileSizeMode switch { TileSizeMode.Small => 48,  TileSizeMode.Large => 96,  _ => 64  };
+    public bool IsPackView => _viewMode == ViewMode.Pack;
+    public bool IsCatalogView => _viewMode == ViewMode.Catalog;
 
-    public bool IsTileSizeSmall  => _tileSizeMode == TileSizeMode.Small;
-    public bool IsTileSizeMedium => _tileSizeMode == TileSizeMode.Medium;
-    public bool IsTileSizeLarge  => _tileSizeMode == TileSizeMode.Large;
+    public RelayCommand SwitchToPackViewCommand { get; }
+    public RelayCommand SwitchToCatalogViewCommand { get; }
+
+    // ─── Vanilla Reference Data ───────────────────────────────────────────────
+    private VanillaData? _vanillaData;
+    public VanillaData? VanillaData => _vanillaData;
+    public bool IsVanillaDataLoaded => _vanillaData != null;
+
+    private bool _isVanillaLoading;
+    public bool IsVanillaLoading
+    {
+        get => _isVanillaLoading;
+        set
+        {
+            if (_isVanillaLoading == value) return;
+            _isVanillaLoading = value;
+            OnPropertyChanged();
+        }
+    }
+
+    private string _vanillaDataStatusLabel = "Checking vanilla catalog...";
+    public string VanillaDataStatusLabel
+    {
+        get => _vanillaDataStatusLabel;
+        set
+        {
+            if (_vanillaDataStatusLabel == value) return;
+            _vanillaDataStatusLabel = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public RelayCommand FetchVanillaDataCommand { get; }
+
+    // ─── Catalog Tree ─────────────────────────────────────────────────────────
+    public ObservableCollection<BlockGroupNode> CatalogTree { get; } = new();
+    public ICollectionView FilteredCatalogTree { get; }
+    public RelayCommand AddVanillaEntryCommand { get; }
 
     // ─── Commands ────────────────────────────────────────────────────────────
     public RelayCommand SwitchToAllCommand    { get; }
@@ -390,9 +474,6 @@ public class MainViewModel : INotifyPropertyChanged
     public RelayCommand EditTextureCommand { get; }
     public RelayCommand RescanCommand { get; }
     public RelayCommand CreateTextureCommand { get; }
-    public RelayCommand SetTileSizeSmallCommand  { get; }
-    public RelayCommand SetTileSizeMediumCommand { get; }
-    public RelayCommand SetTileSizeLargeCommand  { get; }
     public RelayCommand CopyPathCommand           { get; }
     public RelayCommand OpenTextureFolderCommand  { get; }
     public RelayCommand RevealInSidebarCommand    { get; }
@@ -400,11 +481,23 @@ public class MainViewModel : INotifyPropertyChanged
     public RelayCommand AddItemOrphanToJsonCommand { get; }
     public RelayCommand ResetStatusFilterCommand  { get; }
     public RelayCommand OpenPackIconCommand       { get; }
+    public RelayCommand SwitchToExplorerViewCommand { get; }
+    public RelayCommand SwitchToManifestViewCommand { get; }
+    public RelayCommand SaveManifestCommand       { get; }
+    public RelayCommand GenerateManifestCommand   { get; }
+    public RelayCommand RegenerateHeaderUuidCommand { get; }
+    public RelayCommand RegenerateModuleUuidCommand { get; }
+    public RelayCommand CopyHeaderUuidCommand     { get; }
+    public RelayCommand CopyModuleUuidCommand     { get; }
+    public RelayCommand OpenManifestInEditorCommand { get; }
 
     public MainViewModel()
     {
         FilteredAliases = CollectionViewSource.GetDefaultView(Aliases);
         FilteredAliases.Filter = FilterPredicate;
+
+        FilteredCatalogTree = CollectionViewSource.GetDefaultView(CatalogTree);
+        FilteredCatalogTree.Filter = CatalogFilterPredicate;
 
         _searchDebounceTimer = new DispatcherTimer
         {
@@ -416,11 +509,26 @@ public class MainViewModel : INotifyPropertyChanged
             ApplySearchFilter();
         };
 
+        _watchDebounceTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(150)
+        };
+        _watchDebounceTimer.Tick += (s, e) =>
+        {
+            _watchDebounceTimer.Stop();
+            RefreshExistence();
+        };
+
         CommitSearchCommand = new RelayCommand(_ => CommitSearch());
 
         SwitchToAllCommand     = new RelayCommand(_ => ActiveTab = TextureTab.All);
         SwitchToBlocksCommand  = new RelayCommand(_ => ActiveTab = TextureTab.Blocks);
         SwitchToItemsCommand   = new RelayCommand(_ => ActiveTab = TextureTab.Items);
+
+        SwitchToPackViewCommand    = new RelayCommand(_ => CurrentViewMode = ViewMode.Pack);
+        SwitchToCatalogViewCommand = new RelayCommand(_ => CurrentViewMode = ViewMode.Catalog, _ => IsVanillaDataLoaded);
+        FetchVanillaDataCommand    = new RelayCommand(_ => _ = RefreshVanillaDataAsync());
+        AddVanillaEntryCommand     = new RelayCommand(param => AddVanillaEntry(param), _ => _packRoot != null && _vanillaData != null);
 
         OpenPackIconCommand    = new RelayCommand(_ => HandlePackIconClick(), _ => _packRoot != null);
 
@@ -436,10 +544,6 @@ public class MainViewModel : INotifyPropertyChanged
         RescanCommand          = new RelayCommand(_ => Rescan(), _ => _packRoot != null && !IsScanning);
         CreateTextureCommand   = new RelayCommand(param => CreateTexture(param as string));
 
-        SetTileSizeSmallCommand  = new RelayCommand(_ => CurrentTileSizeMode = TileSizeMode.Small);
-        SetTileSizeMediumCommand = new RelayCommand(_ => CurrentTileSizeMode = TileSizeMode.Medium);
-        SetTileSizeLargeCommand  = new RelayCommand(_ => CurrentTileSizeMode = TileSizeMode.Large);
-
         CopyPathCommand          = new RelayCommand(param => CopyPath(param as TextureAlias));
         OpenTextureFolderCommand = new RelayCommand(param => OpenTextureFolder(param as TextureAlias));
         RevealInSidebarCommand   = new RelayCommand(param => RevealInSidebar(param as TextureAlias));
@@ -451,6 +555,32 @@ public class MainViewModel : INotifyPropertyChanged
             AddedOnly = false;
             OrphansOnly = false;
         });
+
+        SwitchToExplorerViewCommand = new RelayCommand(_ => SwitchToExplorerView());
+        SwitchToManifestViewCommand = new RelayCommand(_ => SwitchToManifestView(), _ => _packRoot != null);
+        SaveManifestCommand         = new RelayCommand(_ => SaveManifest(), _ => _packRoot != null && CurrentManifest != null);
+        GenerateManifestCommand     = new RelayCommand(_ => GenerateManifest(), _ => _packRoot != null);
+        RegenerateHeaderUuidCommand = new RelayCommand(_ => CurrentManifest?.RegenerateHeaderUuid());
+        RegenerateModuleUuidCommand = new RelayCommand(_ => CurrentManifest?.RegenerateModuleUuid());
+        CopyHeaderUuidCommand       = new RelayCommand(_ =>
+        {
+            if (!string.IsNullOrEmpty(CurrentManifest?.HeaderUuid))
+            {
+                Clipboard.SetText(CurrentManifest.HeaderUuid);
+                StatusMessage = "Header UUID copied to clipboard.";
+            }
+        });
+        CopyModuleUuidCommand       = new RelayCommand(_ =>
+        {
+            if (!string.IsNullOrEmpty(CurrentManifest?.ModuleUuid))
+            {
+                Clipboard.SetText(CurrentManifest.ModuleUuid);
+                StatusMessage = "Module UUID copied to clipboard.";
+            }
+        });
+        OpenManifestInEditorCommand = new RelayCommand(_ => OpenManifestInEditor(), _ => _packRoot != null);
+
+        _ = InitializeVanillaDataAsync();
     }
 
     private bool FilterPredicate(object obj)
@@ -484,6 +614,28 @@ public class MainViewModel : INotifyPropertyChanged
         if (string.IsNullOrWhiteSpace(_appliedSearchQueryLower)) return true;
 
         return alias.SearchFilterKey.Contains(_appliedSearchQueryLower, StringComparison.Ordinal);
+    }
+
+    private bool CatalogFilterPredicate(object obj)
+    {
+        if (obj is not BlockGroupNode node) return false;
+
+        if (IsBlocksTab && node.Category != TextureCategory.Block) return false;
+        if (IsItemsTab && node.Category != TextureCategory.Item) return false;
+
+        bool hasStatusFilter = GhostsOnly || AddedOnly || OrphansOnly;
+        if (hasStatusFilter)
+        {
+            bool match = false;
+            if (GhostsOnly && node.GhostCount > 0) match = true;
+            if (AddedOnly && node.AliasGroups.Any(a => a.Leaves.Any(l => l.Status == CatalogEntryStatus.Ok || l.Status == CatalogEntryStatus.VanillaOverride))) match = true;
+            if (OrphansOnly && node.AliasGroups.Any(a => a.Leaves.Any(l => l.Status == CatalogEntryStatus.Orphan))) match = true;
+            if (!match) return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(_appliedSearchQueryLower)) return true;
+
+        return node.SearchFilterKey.Contains(_appliedSearchQueryLower, StringComparison.Ordinal);
     }
 
     public void LoadPack(string folderPath)
@@ -521,6 +673,19 @@ public class MainViewModel : INotifyPropertyChanged
         var packName = Path.GetFileName(targetFolder);
         if (string.IsNullOrWhiteSpace(packName)) packName = "MyResourcePack";
 
+        var manifestPath = Path.Combine(targetFolder, "manifest.json");
+        var defaultManifest = ManifestModel.CreateDefault(packName, manifestPath);
+
+        var manifestDialog = new CreatePackManifestDialog(defaultManifest)
+        {
+            Owner = Application.Current?.MainWindow
+        };
+
+        if (manifestDialog.ShowDialog() != true)
+        {
+            return; // Cancelled
+        }
+
         try
         {
             Directory.CreateDirectory(targetFolder);
@@ -530,31 +695,9 @@ public class MainViewModel : INotifyPropertyChanged
             var itemsDir = Path.Combine(texturesDir, "items");
             Directory.CreateDirectory(itemsDir);
 
-            var manifestPath = Path.Combine(targetFolder, "manifest.json");
-            if (!File.Exists(manifestPath))
+            if (manifestDialog.ShouldGenerateManifest)
             {
-                var manifestObj = new JsonObject
-                {
-                    ["format_version"] = 2,
-                    ["header"] = new JsonObject
-                    {
-                        ["name"] = packName,
-                        ["description"] = "Bedrock resource pack created with McTextureGhost",
-                        ["uuid"] = Guid.NewGuid().ToString(),
-                        ["version"] = new JsonArray { 1, 0, 0 },
-                        ["min_engine_version"] = new JsonArray { 1, 20, 0 }
-                    },
-                    ["modules"] = new JsonArray
-                    {
-                        new JsonObject
-                        {
-                            ["type"] = "resources",
-                            ["uuid"] = Guid.NewGuid().ToString(),
-                            ["version"] = new JsonArray { 1, 0, 0 }
-                        }
-                    }
-                };
-                File.WriteAllText(manifestPath, manifestObj.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+                defaultManifest.SaveToFile(manifestPath);
             }
 
             var terrainPath = Path.Combine(texturesDir, "terrain_texture.json");
@@ -595,6 +738,15 @@ public class MainViewModel : INotifyPropertyChanged
             _cachedPackName = null;
             Rescan();
             StartWatching();
+
+            if (manifestDialog.ShouldGenerateManifest)
+            {
+                StatusMessage = "Resource pack created with manifest.json.";
+            }
+            else
+            {
+                StatusMessage = "Resource pack created without manifest. Click manifest.json on the left to generate one anytime.";
+            }
         }
         catch (Exception ex)
         {
@@ -602,14 +754,86 @@ public class MainViewModel : INotifyPropertyChanged
         }
     }
 
+    public void OpenManifestForm()
+    {
+        if (_packRoot == null) return;
+        var manifestPath = Path.Combine(_packRoot, "manifest.json");
+        var packName = PackName ?? Path.GetFileName(_packRoot);
+        CurrentManifest = ManifestModel.LoadFromFile(manifestPath, packName);
+        IsManifestViewActive = true;
+    }
+
+    public void SaveManifest()
+    {
+        if (_packRoot == null || CurrentManifest == null) return;
+        var manifestPath = Path.Combine(_packRoot, "manifest.json");
+        try
+        {
+            CurrentManifest.SaveToFile(manifestPath);
+            _cachedPackName = null;
+            OnPropertyChanged(nameof(PackName));
+            OnPropertyChanged(nameof(WindowTitle));
+            OnPropertyChanged(nameof(HasManifest));
+            BuildFolderTree();
+            StatusMessage = "manifest.json saved successfully.";
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Failed to save manifest.json: {ex.Message}";
+        }
+    }
+
+    public void GenerateManifest()
+    {
+        if (_packRoot == null) return;
+        var manifestPath = Path.Combine(_packRoot, "manifest.json");
+        if (CurrentManifest == null)
+        {
+            var packName = PackName ?? Path.GetFileName(_packRoot);
+            CurrentManifest = ManifestModel.CreateDefault(packName, manifestPath);
+        }
+        SaveManifest();
+    }
+
+    public void SwitchToExplorerView()
+    {
+        IsManifestViewActive = false;
+    }
+
+    public void SwitchToManifestView()
+    {
+        OpenManifestForm();
+    }
+
+    public void OpenManifestInEditor()
+    {
+        if (_packRoot == null) return;
+        var manifestPath = Path.Combine(_packRoot, "manifest.json");
+        if (File.Exists(manifestPath))
+        {
+            try
+            {
+                Process.Start(new ProcessStartInfo { FileName = manifestPath, UseShellExecute = true });
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = $"Could not open file: {ex.Message}";
+            }
+        }
+    }
+
     private void ClosePack()
     {
+        _watchDebounceTimer.Stop();
         _watcher?.Dispose();
         _watcher = null;
         _packRoot = null;
         _cachedPackName = null;
+        CurrentManifest = null;
+        IsManifestViewActive = false;
         FlipbookAnimationManager.ClearCache();
         Aliases.Clear();
+        CatalogTree.Clear();
         PackFolders.Clear();
         SelectedFolder = null;
         SearchText = "";
@@ -701,6 +925,7 @@ public class MainViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(PackRootPath));
         OnPropertyChanged(nameof(PackIconPath));
         OnPropertyChanged(nameof(HasPackIcon));
+        OnPropertyChanged(nameof(HasManifest));
         OnPropertyChanged(nameof(TotalGhostCount));
         OnPropertyChanged(nameof(TotalAddedCount));
         OnPropertyChanged(nameof(TotalOrphanCount));
@@ -738,12 +963,21 @@ public class MainViewModel : INotifyPropertyChanged
 
         try
         {
-            var results = await Task.Run(() => PackScanner.Scan(packRoot));
+            var results = await Task.Run(() => PackScanner.Scan(packRoot, _vanillaData));
 
             Aliases.Clear();
             foreach (var alias in results)
                 Aliases.Add(alias);
             ApplySearchFilter();
+
+            if (_vanillaData != null)
+            {
+                var tree = await Task.Run(() => PackScanner.BuildCatalogTree(results, _vanillaData, packRoot));
+                CatalogTree.Clear();
+                foreach (var node in tree)
+                    CatalogTree.Add(node);
+                FilteredCatalogTree.Refresh();
+            }
 
             var blockCount = results.Count(a => a.Category == TextureCategory.Block);
             var itemCount = results.Count(a => a.Category == TextureCategory.Item);
@@ -828,6 +1062,11 @@ public class MainViewModel : INotifyPropertyChanged
         }
         catch { }
 
+        if (string.IsNullOrEmpty(relativePath))
+        {
+            hasChildren = true;
+        }
+
         if (hasChildren)
         {
             node.SubFolders.Add(CreatePlaceholder());
@@ -874,6 +1113,7 @@ public class MainViewModel : INotifyPropertyChanged
 
             // 2. Non-image files in this directory (exclude images; keep PNGs truncated as is)
             var files = Directory.GetFiles(node.FullPath);
+            bool foundManifest = false;
             foreach (var file in files.OrderBy(f => Path.GetFileName(f), StringComparer.OrdinalIgnoreCase))
             {
                 var fileName = Path.GetFileName(file);
@@ -886,6 +1126,11 @@ public class MainViewModel : INotifyPropertyChanged
                     ? fileName
                     : (node.RelativePath + "/" + fileName);
 
+                if (string.IsNullOrEmpty(node.RelativePath) && fileName.Equals("manifest.json", StringComparison.OrdinalIgnoreCase))
+                {
+                    foundManifest = true;
+                }
+
                 var fileNode = new PackFolderItem
                 {
                     Name = fileName,
@@ -893,11 +1138,36 @@ public class MainViewModel : INotifyPropertyChanged
                     FullPath = file,
                     IsDirectory = false,
                     IsLoaded = true,
+                    IsMissing = false,
                     TextureCount = 0,
                     GhostCount = 0
                 };
 
                 node.SubFolders.Add(fileNode);
+            }
+
+            // If this is the root pack node and manifest.json is missing on disk, insert a missing manifest placeholder
+            if (string.IsNullOrEmpty(node.RelativePath) && !foundManifest && _packRoot != null)
+            {
+                var manifestPath = Path.Combine(_packRoot, "manifest.json");
+                var missingManifestNode = new PackFolderItem
+                {
+                    Name = "manifest.json",
+                    RelativePath = "manifest.json",
+                    FullPath = manifestPath,
+                    IsDirectory = false,
+                    IsLoaded = true,
+                    IsMissing = true,
+                    TextureCount = 0,
+                    GhostCount = 0
+                };
+
+                int firstFileIdx = 0;
+                while (firstFileIdx < node.SubFolders.Count && node.SubFolders[firstFileIdx].IsDirectory)
+                {
+                    firstFileIdx++;
+                }
+                node.SubFolders.Insert(firstFileIdx, missingManifestNode);
             }
         }
         catch { }
@@ -1132,21 +1402,44 @@ public class MainViewModel : INotifyPropertyChanged
     private void StartWatching()
     {
         _watcher?.Dispose();
+        _watchDebounceTimer.Stop();
         if (_packRoot is null || !Directory.Exists(_packRoot)) return;
 
         _watcher = new FileSystemWatcher(_packRoot)
         {
             IncludeSubdirectories = true,
-            NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite,
+            NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite | NotifyFilters.Size,
             EnableRaisingEvents = true
         };
 
-        // Any create/delete/rename in pack root or textures/ refreshes existence in place
-        // so ghosts flip to "real" the moment you save.
-        _watcher.Created += (_, _) => RefreshExistence();
-        _watcher.Deleted += (_, _) => RefreshExistence();
-        _watcher.Renamed += (_, _) => RefreshExistence();
-        _watcher.Changed += (_, _) => RefreshExistence();
+        void OnFileChanged(object sender, FileSystemEventArgs e)
+        {
+            var dispatcher = Application.Current?.Dispatcher;
+            if (dispatcher == null) return;
+            dispatcher.InvokeAsync(() =>
+            {
+                _watchDebounceTimer.Stop();
+                _watchDebounceTimer.Start();
+            });
+        }
+
+        void OnFileRenamed(object sender, RenamedEventArgs e)
+        {
+            var dispatcher = Application.Current?.Dispatcher;
+            if (dispatcher == null) return;
+            dispatcher.InvokeAsync(() =>
+            {
+                _watchDebounceTimer.Stop();
+                _watchDebounceTimer.Start();
+            });
+        }
+
+        // Any create/delete/rename/change in pack root or textures/ refreshes existence in place
+        // with debouncing so external editor saves flip to "real" immediately without file locks.
+        _watcher.Created += OnFileChanged;
+        _watcher.Deleted += OnFileChanged;
+        _watcher.Renamed += OnFileRenamed;
+        _watcher.Changed += OnFileChanged;
     }
 
     private void RefreshExistence()
@@ -1170,6 +1463,57 @@ public class MainViewModel : INotifyPropertyChanged
             else if (alias.Status != TextureStatus.NoEntry)
             {
                 alias.Status = File.Exists(alias.FullPath) ? TextureStatus.Ok : TextureStatus.Ghost;
+            }
+        }
+
+        // Synchronize CatalogTree leaves and refresh thumbnails
+        foreach (var block in CatalogTree)
+        {
+            bool blockChanged = false;
+            foreach (var ag in block.AliasGroups)
+            {
+                bool agChanged = false;
+                foreach (var leaf in ag.Leaves)
+                {
+                    if (leaf.TextureAlias != null)
+                    {
+                        var newStatus = leaf.TextureAlias.Status switch
+                        {
+                            TextureStatus.Ok => CatalogEntryStatus.Ok,
+                            TextureStatus.Ghost => CatalogEntryStatus.Ghost,
+                            TextureStatus.Orphan => CatalogEntryStatus.Orphan,
+                            _ => CatalogEntryStatus.Ok
+                        };
+                        if (leaf.Status != newStatus)
+                        {
+                            leaf.Status = newStatus;
+                            agChanged = true;
+                        }
+                    }
+                    else if (leaf.Status == CatalogEntryStatus.NotAdded || leaf.Status == CatalogEntryStatus.VanillaOverride)
+                    {
+                        var exists = File.Exists(leaf.FullPath);
+                        var newStatus = exists ? CatalogEntryStatus.VanillaOverride : CatalogEntryStatus.NotAdded;
+                        if (leaf.Status != newStatus)
+                        {
+                            leaf.Status = newStatus;
+                            agChanged = true;
+                        }
+                    }
+
+                    leaf.RefreshThumbnail();
+                }
+
+                if (agChanged)
+                {
+                    ag.NotifyCountsChanged();
+                    blockChanged = true;
+                }
+            }
+
+            if (blockChanged)
+            {
+                block.NotifyCountsChanged();
             }
         }
 
@@ -1200,6 +1544,7 @@ public class MainViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(HasPackIcon));
         OnPropertyChanged(nameof(PackIconPath));
         FilteredAliases.Refresh();
+        FilteredCatalogTree.Refresh();
     }
 
     private void HandlePackIconClick()
@@ -1240,6 +1585,7 @@ public class MainViewModel : INotifyPropertyChanged
         if (alias.Status == TextureStatus.Ghost)
         {
             PlaceholderImageFactory.CreateStub(alias.FullPath);
+            ImagePathConverter.ClearCache();
             alias.Status = TextureStatus.Ok;
             RefreshTreeCounts();
             OnPropertyChanged(nameof(TotalGhostCount));
@@ -1278,6 +1624,139 @@ public class MainViewModel : INotifyPropertyChanged
         catch (Exception ex)
         {
             StatusMessage = $"Failed to register item orphan: {ex.Message}";
+        }
+    }
+
+    private async Task InitializeVanillaDataAsync()
+    {
+        IsVanillaLoading = true;
+        VanillaDataStatusLabel = "Loading vanilla catalog...";
+
+        try
+        {
+            var data = await VanillaDataService.LoadAsync(forceRefresh: false, progress =>
+            {
+                App.Current?.Dispatcher?.Invoke(() => VanillaDataStatusLabel = progress);
+            });
+
+            _vanillaData = data;
+            if (data != null)
+            {
+                VanillaDataStatusLabel = $"Vanilla: {data.RawBlocksJson.Count} blocks, {data.ItemTextures.Count} items";
+                OnPropertyChanged(nameof(IsVanillaDataLoaded));
+                OnPropertyChanged(nameof(VanillaData));
+
+                if (_packRoot != null)
+                {
+                    Rescan();
+                }
+            }
+            else
+            {
+                VanillaDataStatusLabel = "Offline (no vanilla data)";
+            }
+        }
+        catch (Exception ex)
+        {
+            VanillaDataStatusLabel = $"Vanilla load failed: {ex.Message}";
+        }
+        finally
+        {
+            IsVanillaLoading = false;
+        }
+    }
+
+    private async Task RefreshVanillaDataAsync()
+    {
+        IsVanillaLoading = true;
+        VanillaDataStatusLabel = "Checking for vanilla updates...";
+
+        try
+        {
+            var data = await VanillaDataService.LoadAsync(forceRefresh: true, progress =>
+            {
+                App.Current?.Dispatcher?.Invoke(() => VanillaDataStatusLabel = progress);
+            });
+
+            _vanillaData = data;
+            if (data != null)
+            {
+                VanillaDataStatusLabel = $"Vanilla: {data.RawBlocksJson.Count} blocks, {data.ItemTextures.Count} items";
+                OnPropertyChanged(nameof(IsVanillaDataLoaded));
+                OnPropertyChanged(nameof(VanillaData));
+
+                if (_packRoot != null)
+                {
+                    Rescan();
+                }
+            }
+            else
+            {
+                VanillaDataStatusLabel = "Could not reach GitHub";
+            }
+        }
+        catch (Exception ex)
+        {
+            VanillaDataStatusLabel = $"Refresh failed: {ex.Message}";
+        }
+        finally
+        {
+            IsVanillaLoading = false;
+        }
+    }
+
+    private void AddVanillaEntry(object? param)
+    {
+        if (_packRoot == null || _vanillaData == null) return;
+
+        try
+        {
+            if (param is BlockGroupNode blockNode)
+            {
+                if (blockNode.Category == TextureCategory.Block)
+                {
+                    JsonWriterService.AddVanillaBlock(_packRoot, blockNode.BlockId, _vanillaData);
+                    StatusMessage = $"Added {blockNode.DisplayName} to pack.";
+                }
+                else
+                {
+                    JsonWriterService.AddVanillaItem(_packRoot, blockNode.BlockId, _vanillaData);
+                    StatusMessage = $"Added {blockNode.DisplayName} to pack.";
+                }
+                Rescan();
+            }
+            else if (param is AliasGroupNode aliasNode)
+            {
+                if (aliasNode.Category == TextureCategory.Block)
+                {
+                    JsonWriterService.AddVanillaBlockAlias(_packRoot, aliasNode.Alias, _vanillaData);
+                    StatusMessage = $"Added alias {aliasNode.Alias} to terrain_texture.json.";
+                }
+                else
+                {
+                    JsonWriterService.AddVanillaItem(_packRoot, aliasNode.Alias, _vanillaData);
+                    StatusMessage = $"Added item {aliasNode.Alias} to item_texture.json.";
+                }
+                Rescan();
+            }
+            else if (param is CatalogLeaf leaf)
+            {
+                if (leaf.Category == TextureCategory.Block)
+                {
+                    JsonWriterService.AddVanillaBlockAlias(_packRoot, leaf.Alias, _vanillaData);
+                    StatusMessage = $"Added alias {leaf.Alias} to terrain_texture.json.";
+                }
+                else
+                {
+                    JsonWriterService.AddVanillaItem(_packRoot, leaf.Alias, _vanillaData);
+                    StatusMessage = $"Added item {leaf.Alias} to item_texture.json.";
+                }
+                Rescan();
+            }
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Failed to add entry: {ex.Message}";
         }
     }
 

@@ -88,6 +88,16 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
     {
         if (sender is System.Windows.Controls.TreeViewItem item && item.DataContext is PackFolderItem fileItem)
         {
+            if (fileItem.IsManifest)
+            {
+                if (DataContext is MainViewModel vm)
+                {
+                    vm.OpenManifestForm();
+                    e.Handled = true;
+                    return;
+                }
+            }
+
             if (!fileItem.IsDirectory && !fileItem.IsPlaceholder && System.IO.File.Exists(fileItem.FullPath))
             {
                 try

@@ -92,12 +92,20 @@ public class FlipbookThumbnail : Grid, IFlipbookTarget
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
+        ImagePathConverter.CacheCleared -= OnCacheCleared;
+        ImagePathConverter.CacheCleared += OnCacheCleared;
         ApplyTexture();
     }
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
+        ImagePathConverter.CacheCleared -= OnCacheCleared;
         FlipbookAnimationManager.Unregister(this);
+    }
+
+    private void OnCacheCleared()
+    {
+        Dispatcher.InvokeAsync(ApplyTexture);
     }
 
     private void ApplyTexture()

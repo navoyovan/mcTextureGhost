@@ -11,7 +11,7 @@ namespace McTextureGhost.Services;
 /// </summary>
 public static class PackScanner
 {
-    public static List<TextureAlias> Scan(string packRoot)
+    public static List<TextureAlias> Scan(string packRoot, VanillaData? vanilla = null)
     {
         var terrainTexturePath = Path.Combine(packRoot, "textures", "terrain_texture.json");
         var itemTexturePath = Path.Combine(packRoot, "textures", "item_texture.json");
@@ -20,11 +20,11 @@ public static class PackScanner
 
         bool hasTerrain = File.Exists(terrainTexturePath);
         bool hasItems = File.Exists(itemTexturePath);
+        var manifestPath = Path.Combine(packRoot, "manifest.json");
+        var texturesDir = Path.Combine(packRoot, "textures");
 
-        if (!hasTerrain && !hasItems)
-            throw new FileNotFoundException(
-                $"Couldn't find textures/terrain_texture.json or textures/item_texture.json under {packRoot}. " +
-                "Point this at your resource pack's root folder (the one with manifest.json).");
+        if (!Directory.Exists(packRoot))
+            throw new DirectoryNotFoundException($"Resource pack directory does not exist: {packRoot}");
 
         var aliasUsage = File.Exists(blocksJsonPath)
             ? ParseBlocksJson(blocksJsonPath)
@@ -35,7 +35,6 @@ public static class PackScanner
             : new FlipbookCatalog();
 
         var existingFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var texturesDir = Path.Combine(packRoot, "textures");
         string? texturesDirNormalized = null;
         if (Directory.Exists(texturesDir))
         {
@@ -195,21 +194,108 @@ public static class PackScanner
 
             var fileNameWithoutExt = Path.GetFileNameWithoutExtension(file);
 
-            bool isItemOrphan = relFromPack.StartsWith("textures/items/", StringComparison.OrdinalIgnoreCase) ||
-                                relFromPack.StartsWith("items/", StringComparison.OrdinalIgnoreCase);
+            bool isItem = relFromPack.StartsWith("textures/items/", StringComparison.OrdinalIgnoreCase) ||
+                          relFromPack.StartsWith("items/", StringComparison.OrdinalIgnoreCase);
 
-            results.Add(new TextureAlias
+            if (isItem)
             {
-                Category = isItemOrphan ? TextureCategory.Item : TextureCategory.Block,
-                Alias = fileNameWithoutExt,
-                DisplayName = fileNameWithoutExt,
-                RelativePath = relNoExt,
-                FullPath = file,
-                Status = TextureStatus.Orphan,
-                VariantKind = VariantKind.None,
-                Flipbook = flipbookCatalog.Find(fileNameWithoutExt, relNoExt, null, null),
-                BlockFaces = new List<BlockFaceUsage>()
-            });
+                if (!hasItems && vanilla == null) continue;
+
+                string? vanillaItemAlias = null;
+                if (vanilla != null && vanilla.DeclaredItemPaths.Contains(relNoExt))
+                {
+                    foreach (var (vAlias, vData) in vanilla.ItemTextures)
+                    {
+                        if (vData.Entries.Any(e => VanillaDataService.NormalizeTexturePath(e.RawPath).Equals(relNoExt, StringComparison.OrdinalIgnoreCase)))
+                        {
+                            vanillaItemAlias = vAlias;
+                            break;
+                        }
+                    }
+                }
+
+                if (vanillaItemAlias != null)
+                {
+                    results.Add(new TextureAlias
+                    {
+                        Category = TextureCategory.Item,
+                        Alias = vanillaItemAlias,
+                        DisplayName = vanilla!.GetItemDisplayName(vanillaItemAlias),
+                        RelativePath = relNoExt,
+                        FullPath = file,
+                        Status = TextureStatus.Ok,
+                        VariantKind = VariantKind.None,
+                        Flipbook = flipbookCatalog.Find(vanillaItemAlias, relNoExt, null, null) ?? vanilla.Flipbooks.Find(vanillaItemAlias, relNoExt, null, null),
+                        BlockFaces = new List<BlockFaceUsage>()
+                    });
+                }
+                else
+                {
+                    results.Add(new TextureAlias
+                    {
+                        Category = TextureCategory.Item,
+                        Alias = fileNameWithoutExt,
+                        DisplayName = fileNameWithoutExt,
+                        RelativePath = relNoExt,
+                        FullPath = file,
+                        Status = TextureStatus.Orphan,
+                        VariantKind = VariantKind.None,
+                        Flipbook = flipbookCatalog.Find(fileNameWithoutExt, relNoExt, null, null),
+                        BlockFaces = new List<BlockFaceUsage>()
+                    });
+                }
+            }
+            else
+            {
+                if (!hasTerrain && vanilla == null) continue;
+
+                string? vanillaBlockAlias = null;
+                List<BlockFaceUsage>? vanillaBlockFaces = null;
+                if (vanilla != null && vanilla.DeclaredBlockPaths.Contains(relNoExt))
+                {
+                    foreach (var (vAlias, vData) in vanilla.TerrainTextures)
+                    {
+                        if (vData.Entries.Any(e => VanillaDataService.NormalizeTexturePath(e.RawPath).Equals(relNoExt, StringComparison.OrdinalIgnoreCase)))
+                        {
+                            vanillaBlockAlias = vAlias;
+                            if (vanilla.BlockUsage.TryGetValue(vAlias, out var u))
+                                vanillaBlockFaces = u;
+                            break;
+                        }
+                    }
+                }
+
+                if (vanillaBlockAlias != null)
+                {
+                    results.Add(new TextureAlias
+                    {
+                        Category = TextureCategory.Block,
+                        Alias = vanillaBlockAlias,
+                        DisplayName = vanilla!.GetBlockDisplayName(vanillaBlockAlias),
+                        RelativePath = relNoExt,
+                        FullPath = file,
+                        Status = TextureStatus.Ok,
+                        VariantKind = VariantKind.None,
+                        Flipbook = flipbookCatalog.Find(vanillaBlockAlias, relNoExt, null, null) ?? vanilla.Flipbooks.Find(vanillaBlockAlias, relNoExt, null, null),
+                        BlockFaces = vanillaBlockFaces ?? new List<BlockFaceUsage>()
+                    });
+                }
+                else
+                {
+                    results.Add(new TextureAlias
+                    {
+                        Category = TextureCategory.Block,
+                        Alias = fileNameWithoutExt,
+                        DisplayName = fileNameWithoutExt,
+                        RelativePath = relNoExt,
+                        FullPath = file,
+                        Status = TextureStatus.Orphan,
+                        VariantKind = VariantKind.None,
+                        Flipbook = flipbookCatalog.Find(fileNameWithoutExt, relNoExt, null, null),
+                        BlockFaces = new List<BlockFaceUsage>()
+                    });
+                }
+            }
         }
 
         var sorted = results.OrderBy(r => r.Category)
@@ -295,13 +381,13 @@ public static class PackScanner
         return (defaultFull, defaultRel, false);
     }
 
-    private static readonly JsonDocumentOptions ScanDocOptions = new()
+    public static readonly JsonDocumentOptions ScanDocOptions = new()
     {
         AllowTrailingCommas = true,
         CommentHandling = JsonCommentHandling.Skip
     };
 
-    private record TextureSlotEntry(
+    public record TextureSlotEntry(
         string RawPath,
         int? BlockVariantIndex = null,
         int? TotalBlockVariants = null,
@@ -309,17 +395,21 @@ public static class PackScanner
         int? TotalTextureVariants = null,
         int? Weight = null);
 
-    private record ParsedAliasData(List<TextureSlotEntry> Entries);
+    public record ParsedAliasData(List<TextureSlotEntry> Entries);
 
     /// <summary>
     /// Returns alias -> ParsedAliasData from terrain_texture.json or item_texture.json (handling single strings,
     /// block variants "textures": [], random texture variations "variations": [], and nested variants).
     /// </summary>
-    private static Dictionary<string, ParsedAliasData> ParseTextureAtlasJson(string path)
+    public static Dictionary<string, ParsedAliasData> ParseTextureAtlasJson(string path)
     {
         using var stream = File.OpenRead(path);
         using var doc = JsonDocument.Parse(stream, ScanDocOptions);
+        return ParseTextureAtlasJson(doc);
+    }
 
+    public static Dictionary<string, ParsedAliasData> ParseTextureAtlasJson(JsonDocument doc)
+    {
         var result = new Dictionary<string, ParsedAliasData>(StringComparer.OrdinalIgnoreCase);
 
         if (!doc.RootElement.TryGetProperty("texture_data", out var textureData))
@@ -497,11 +587,15 @@ public static class PackScanner
     /// Returns alias -> list of BlockFaceUsage (block ID + face name) from blocks.json,
     /// covering both uniform blocks ("textures": "alias") and per-face blocks ("up", "down", etc.).
     /// </summary>
-    private static Dictionary<string, List<BlockFaceUsage>> ParseBlocksJson(string path)
+    public static Dictionary<string, List<BlockFaceUsage>> ParseBlocksJson(string path)
     {
         using var stream = File.OpenRead(path);
         using var doc = JsonDocument.Parse(stream, ScanDocOptions);
+        return ParseBlocksJson(doc);
+    }
 
+    public static Dictionary<string, List<BlockFaceUsage>> ParseBlocksJson(JsonDocument doc)
+    {
         var usage = new Dictionary<string, List<BlockFaceUsage>>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var entry in doc.RootElement.EnumerateObject())
@@ -534,7 +628,7 @@ public static class PackScanner
         return usage;
     }
 
-    private static IEnumerable<(string alias, string face)> ExtractAliasFaces(JsonElement texturesProp, bool isCarried = false)
+    public static IEnumerable<(string alias, string face)> ExtractAliasFaces(JsonElement texturesProp, bool isCarried = false)
     {
         switch (texturesProp.ValueKind)
         {
@@ -612,104 +706,437 @@ public static class PackScanner
     /// </summary>
     public static FlipbookCatalog ParseFlipbookTextures(string path)
     {
-        var catalog = new FlipbookCatalog();
-        if (!File.Exists(path)) return catalog;
+        if (!File.Exists(path)) return new FlipbookCatalog();
 
         try
         {
             using var stream = File.OpenRead(path);
-            using var doc = JsonDocument.Parse(stream, new JsonDocumentOptions
+            using var doc = JsonDocument.Parse(stream, ScanDocOptions);
+            return ParseFlipbookTextures(doc);
+        }
+        catch { return new FlipbookCatalog(); }
+    }
+
+    public static FlipbookCatalog ParseFlipbookTextures(JsonDocument doc)
+    {
+        var catalog = new FlipbookCatalog();
+        if (doc.RootElement.ValueKind != JsonValueKind.Array)
+            return catalog;
+
+        foreach (var item in doc.RootElement.EnumerateArray())
+        {
+            if (item.ValueKind != JsonValueKind.Object) continue;
+
+            string? texturePath = null;
+            if (item.TryGetProperty("flipbook_texture", out var ftProp) && ftProp.ValueKind == JsonValueKind.String)
+                texturePath = ftProp.GetString();
+
+            string? atlasTile = null;
+            if (item.TryGetProperty("atlas_tile", out var atProp) && atProp.ValueKind == JsonValueKind.String)
+                atlasTile = atProp.GetString();
+
+            int? atlasIndex = null;
+            if (item.TryGetProperty("atlas_index", out var aiProp) && aiProp.ValueKind == JsonValueKind.Number && aiProp.TryGetInt32(out var ai))
+                atlasIndex = ai;
+
+            int? atlasTileVariant = null;
+            if (item.TryGetProperty("atlas_tile_variant", out var atvProp) && atvProp.ValueKind == JsonValueKind.Number && atvProp.TryGetInt32(out var atv))
+                atlasTileVariant = atv;
+
+            int ticksPerFrame = 1;
+            if (item.TryGetProperty("ticks_per_frame", out var tpfProp))
             {
-                AllowTrailingCommas = true,
-                CommentHandling = JsonCommentHandling.Skip
-            });
+                if (tpfProp.ValueKind == JsonValueKind.Number && tpfProp.TryGetInt32(out var tpf) && tpf > 0)
+                    ticksPerFrame = tpf;
+            }
 
-            if (doc.RootElement.ValueKind != JsonValueKind.Array)
-                return catalog;
-
-            foreach (var item in doc.RootElement.EnumerateArray())
+            int[]? frames = null;
+            if (item.TryGetProperty("frames", out var framesProp) && framesProp.ValueKind == JsonValueKind.Array)
             {
-                if (item.ValueKind != JsonValueKind.Object) continue;
-
-                string? texturePath = null;
-                if (item.TryGetProperty("flipbook_texture", out var ftProp) && ftProp.ValueKind == JsonValueKind.String)
-                    texturePath = ftProp.GetString();
-
-                string? atlasTile = null;
-                if (item.TryGetProperty("atlas_tile", out var atProp) && atProp.ValueKind == JsonValueKind.String)
-                    atlasTile = atProp.GetString();
-
-                int? atlasIndex = null;
-                if (item.TryGetProperty("atlas_index", out var aiProp) && aiProp.ValueKind == JsonValueKind.Number && aiProp.TryGetInt32(out var ai))
-                    atlasIndex = ai;
-
-                int? atlasTileVariant = null;
-                if (item.TryGetProperty("atlas_tile_variant", out var atvProp) && atvProp.ValueKind == JsonValueKind.Number && atvProp.TryGetInt32(out var atv))
-                    atlasTileVariant = atv;
-
-                int ticksPerFrame = 1;
-                if (item.TryGetProperty("ticks_per_frame", out var tpfProp))
+                var frameList = new List<int>();
+                foreach (var f in framesProp.EnumerateArray())
                 {
-                    if (tpfProp.ValueKind == JsonValueKind.Number && tpfProp.TryGetInt32(out var tpf) && tpf > 0)
-                        ticksPerFrame = tpf;
+                    if (f.ValueKind == JsonValueKind.Number && f.TryGetInt32(out var fIdx))
+                        frameList.Add(fIdx);
                 }
+                if (frameList.Count > 0)
+                    frames = frameList.ToArray();
+            }
 
-                int[]? frames = null;
-                if (item.TryGetProperty("frames", out var framesProp) && framesProp.ValueKind == JsonValueKind.Array)
-                {
-                    var frameList = new List<int>();
-                    foreach (var f in framesProp.EnumerateArray())
-                    {
-                        if (f.ValueKind == JsonValueKind.Number && f.TryGetInt32(out var fIdx))
-                            frameList.Add(fIdx);
-                    }
-                    if (frameList.Count > 0)
-                        frames = frameList.ToArray();
-                }
+            bool blendFrames = true;
+            if (item.TryGetProperty("blend_frames", out var blendProp) &&
+                (blendProp.ValueKind == JsonValueKind.True || blendProp.ValueKind == JsonValueKind.False))
+            {
+                blendFrames = blendProp.GetBoolean();
+            }
 
-                bool blendFrames = true;
-                if (item.TryGetProperty("blend_frames", out var blendProp) &&
-                    (blendProp.ValueKind == JsonValueKind.True || blendProp.ValueKind == JsonValueKind.False))
-                {
-                    blendFrames = blendProp.GetBoolean();
-                }
+            if (string.IsNullOrWhiteSpace(texturePath) && string.IsNullOrWhiteSpace(atlasTile))
+                continue;
 
-                if (string.IsNullOrWhiteSpace(texturePath) && string.IsNullOrWhiteSpace(atlasTile))
-                    continue;
+            var def = new FlipbookDefinition(
+                FlipbookTexture: texturePath ?? "",
+                AtlasTile: atlasTile ?? "",
+                TicksPerFrame: ticksPerFrame,
+                Frames: frames,
+                BlendFrames: blendFrames,
+                AtlasIndex: atlasIndex,
+                AtlasTileVariant: atlasTileVariant
+            );
 
-                var def = new FlipbookDefinition(
-                    FlipbookTexture: texturePath ?? "",
-                    AtlasTile: atlasTile ?? "",
-                    TicksPerFrame: ticksPerFrame,
-                    Frames: frames,
-                    BlendFrames: blendFrames,
-                    AtlasIndex: atlasIndex,
-                    AtlasTileVariant: atlasTileVariant
-                );
+            if (!string.IsNullOrWhiteSpace(texturePath))
+            {
+                var norm = texturePath.Replace('\\', '/').TrimStart('/');
+                if (norm.EndsWith(".png", StringComparison.OrdinalIgnoreCase))
+                    norm = norm.Substring(0, norm.Length - 4);
 
-                if (!string.IsNullOrWhiteSpace(texturePath))
-                {
-                    var norm = texturePath.Replace('\\', '/').TrimStart('/');
-                    if (norm.EndsWith(".png", StringComparison.OrdinalIgnoreCase))
-                        norm = norm.Substring(0, norm.Length - 4);
+                catalog.ByPath[norm] = def;
+                var fn = Path.GetFileName(norm);
+                if (!string.IsNullOrEmpty(fn))
+                    catalog.ByFileName[fn] = def;
+            }
 
-                    catalog.ByPath[norm] = def;
-                    var fn = Path.GetFileName(norm);
-                    if (!string.IsNullOrEmpty(fn))
-                        catalog.ByFileName[fn] = def;
-                }
-
-                if (!string.IsNullOrWhiteSpace(atlasTile))
-                {
-                    if (atlasTileVariant.HasValue)
-                        catalog.ByAtlasVariant[$"{atlasTile}#{atlasTileVariant.Value}"] = def;
-                    else
-                        catalog.ByAtlas.TryAdd(atlasTile, def);
-                }
+            if (!string.IsNullOrWhiteSpace(atlasTile))
+            {
+                if (atlasTileVariant.HasValue)
+                    catalog.ByAtlasVariant[$"{atlasTile}#{atlasTileVariant.Value}"] = def;
+                else
+                    catalog.ByAtlas.TryAdd(atlasTile, def);
             }
         }
-        catch { }
 
         return catalog;
+    }
+
+    /// <summary>
+    /// Constructs a 3-level hierarchical catalog tree (Block -> AliasGroup -> Leaves)
+    /// merging user pack aliases with the vanilla reference catalog.
+    /// </summary>
+    public static List<BlockGroupNode> BuildCatalogTree(
+        IList<TextureAlias> userAliases,
+        VanillaData vanilla,
+        string? packRoot)
+    {
+        var blocksTree = new List<BlockGroupNode>();
+        var itemsTree = new List<BlockGroupNode>();
+
+        // Index user aliases by Category + Alias
+        var userBlockAliases = userAliases
+            .Where(a => a.Category == TextureCategory.Block && a.Status != TextureStatus.NoEntry)
+            .GroupBy(a => a.Alias, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.ToList(), StringComparer.OrdinalIgnoreCase);
+
+        var userItemAliases = userAliases
+            .Where(a => a.Category == TextureCategory.Item && a.Status != TextureStatus.NoEntry)
+            .GroupBy(a => a.Alias, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.ToList(), StringComparer.OrdinalIgnoreCase);
+
+        var userBlocksJsonPath = packRoot != null ? Path.Combine(packRoot, "blocks.json") : null;
+        var userBlocksMap = (userBlocksJsonPath != null && File.Exists(userBlocksJsonPath))
+            ? ParseBlocksJson(userBlocksJsonPath)
+            : new Dictionary<string, List<BlockFaceUsage>>(StringComparer.OrdinalIgnoreCase);
+
+        // Also parse user blockId -> aliases from user's blocks.json
+        var userBlockToAliases = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+        if (userBlocksJsonPath != null && File.Exists(userBlocksJsonPath))
+        {
+            try
+            {
+                using var stream = File.OpenRead(userBlocksJsonPath);
+                using var doc = JsonDocument.Parse(stream, ScanDocOptions);
+                foreach (var entry in doc.RootElement.EnumerateObject())
+                {
+                    if (entry.Name == "format_version" || entry.Value.ValueKind != JsonValueKind.Object) continue;
+                    var aliasSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    if (entry.Value.TryGetProperty("textures", out var tp))
+                    {
+                        foreach (var (a, _) in ExtractAliasFaces(tp)) aliasSet.Add(a);
+                    }
+                    if (entry.Value.TryGetProperty("carried_textures", out var cp))
+                    {
+                        foreach (var (a, _) in ExtractAliasFaces(cp, isCarried: true)) aliasSet.Add(a);
+                    }
+                    userBlockToAliases[entry.Name] = aliasSet.ToList();
+                }
+            }
+            catch { }
+        }
+
+        var trackedUserAliases = new HashSet<TextureAlias>();
+
+        // ── 1. BLOCKS ──────────────────────────────────────────────────────────
+        var allBlockIds = new HashSet<string>(vanilla.RawBlocksJson.Keys, StringComparer.OrdinalIgnoreCase);
+        foreach (var uBlockId in userBlockToAliases.Keys)
+            allBlockIds.Add(uBlockId);
+
+        foreach (var blockId in allBlockIds)
+        {
+            List<string>? aliasesForBlock = null;
+            if (userBlockToAliases.TryGetValue(blockId, out var uAliases) && uAliases.Count > 0)
+                aliasesForBlock = uAliases;
+            else if (vanilla.BlockToAliases.TryGetValue(blockId, out var vAliases) && vAliases.Count > 0)
+                aliasesForBlock = vAliases;
+
+            if (aliasesForBlock == null || aliasesForBlock.Count == 0)
+                continue;
+
+            var blockNode = new BlockGroupNode
+            {
+                BlockId = blockId,
+                DisplayName = vanilla.GetBlockDisplayName(blockId),
+                Category = TextureCategory.Block
+            };
+
+            foreach (var alias in aliasesForBlock)
+            {
+                var aliasNode = new AliasGroupNode
+                {
+                    Alias = alias,
+                    Category = TextureCategory.Block,
+                    ParentBlock = blockNode
+                };
+
+                var faces = userBlocksMap.TryGetValue(alias, out var uf) ? uf :
+                            (vanilla.BlockUsage.TryGetValue(alias, out var vf) ? vf : new List<BlockFaceUsage>());
+                aliasNode.FaceSummary = SummarizeFaces(faces);
+
+                if (userBlockAliases.TryGetValue(alias, out var userTiles))
+                {
+                    foreach (var tile in userTiles)
+                    {
+                        trackedUserAliases.Add(tile);
+                        var leafStatus = tile.Status switch
+                        {
+                            TextureStatus.Ok      => CatalogEntryStatus.Ok,
+                            TextureStatus.Ghost   => CatalogEntryStatus.Ghost,
+                            TextureStatus.Orphan  => CatalogEntryStatus.Orphan,
+                            _                     => CatalogEntryStatus.Ok
+                        };
+
+                        var leaf = new CatalogLeaf
+                        {
+                            Alias = alias,
+                            DisplayName = tile.DisplayName,
+                            RelativePath = tile.RelativePath,
+                            FullPath = tile.FullPath,
+                            Category = TextureCategory.Block,
+                            Status = leafStatus,
+                            TextureAlias = tile,
+                            SubtitleCaption = tile.SubtitleCaption,
+                            PrimaryFaceBadgeText = tile.PrimaryFaceBadgeText,
+                            Flipbook = tile.Flipbook
+                        };
+                        aliasNode.Leaves.Add(leaf);
+                    }
+                }
+                else
+                {
+                    if (vanilla.TerrainTextures.TryGetValue(alias, out var vData))
+                    {
+                        for (int i = 0; i < vData.Entries.Count; i++)
+                        {
+                            var entry = vData.Entries[i];
+                            var caption = entry.TotalBlockVariants.HasValue
+                                ? $"block {entry.BlockVariantIndex}/{entry.TotalBlockVariants}"
+                                : (entry.TotalTextureVariants.HasValue
+                                    ? $"tex {entry.TextureVariantIndex}/{entry.TotalTextureVariants}"
+                                    : "vanilla default");
+
+                            var leaf = new CatalogLeaf
+                            {
+                                Alias = alias,
+                                DisplayName = alias,
+                                RelativePath = entry.RawPath,
+                                FullPath = packRoot != null ? Path.Combine(packRoot, (entry.RawPath + ".png").Replace('/', Path.DirectorySeparatorChar)) : entry.RawPath,
+                                Category = TextureCategory.Block,
+                                Status = CatalogEntryStatus.NotAdded,
+                                TextureAlias = null,
+                                SubtitleCaption = caption,
+                                PrimaryFaceBadgeText = aliasNode.FaceSummary,
+                                Flipbook = vanilla.Flipbooks.Find(alias, entry.RawPath, entry.BlockVariantIndex, entry.TextureVariantIndex)
+                            };
+                            aliasNode.Leaves.Add(leaf);
+                        }
+                    }
+                    else
+                    {
+                        var leaf = new CatalogLeaf
+                        {
+                            Alias = alias,
+                            DisplayName = alias,
+                            RelativePath = $"textures/blocks/{alias}",
+                            FullPath = packRoot != null ? Path.Combine(packRoot, "textures", "blocks", $"{alias}.png") : alias,
+                            Category = TextureCategory.Block,
+                            Status = CatalogEntryStatus.Ghost,
+                            TextureAlias = null,
+                            SubtitleCaption = "missing declaration",
+                            PrimaryFaceBadgeText = aliasNode.FaceSummary
+                        };
+                        aliasNode.Leaves.Add(leaf);
+                    }
+                }
+
+                aliasNode.NotifyCountsChanged();
+                blockNode.AliasGroups.Add(aliasNode);
+            }
+
+            blockNode.NotifyCountsChanged();
+            blocksTree.Add(blockNode);
+        }
+
+        // ── 2. ITEMS ───────────────────────────────────────────────────────────
+        var allItemAliases = new HashSet<string>(vanilla.ItemTextures.Keys, StringComparer.OrdinalIgnoreCase);
+        foreach (var uItem in userItemAliases.Keys)
+            allItemAliases.Add(uItem);
+
+        foreach (var itemAlias in allItemAliases)
+        {
+            var itemBlockNode = new BlockGroupNode
+            {
+                BlockId = itemAlias,
+                DisplayName = vanilla.GetItemDisplayName(itemAlias),
+                Category = TextureCategory.Item
+            };
+
+            var aliasNode = new AliasGroupNode
+            {
+                Alias = itemAlias,
+                Category = TextureCategory.Item,
+                ParentBlock = itemBlockNode
+            };
+
+            if (userItemAliases.TryGetValue(itemAlias, out var userTiles))
+            {
+                foreach (var tile in userTiles)
+                {
+                    trackedUserAliases.Add(tile);
+                    var leafStatus = tile.Status switch
+                    {
+                        TextureStatus.Ok      => CatalogEntryStatus.Ok,
+                        TextureStatus.Ghost   => CatalogEntryStatus.Ghost,
+                        TextureStatus.Orphan  => CatalogEntryStatus.Orphan,
+                        _                     => CatalogEntryStatus.Ok
+                    };
+
+                    var leaf = new CatalogLeaf
+                    {
+                        Alias = itemAlias,
+                        DisplayName = tile.DisplayName,
+                        RelativePath = tile.RelativePath,
+                        FullPath = tile.FullPath,
+                        Category = TextureCategory.Item,
+                        Status = leafStatus,
+                        TextureAlias = tile,
+                        SubtitleCaption = tile.SubtitleCaption,
+                        Flipbook = tile.Flipbook
+                    };
+                    aliasNode.Leaves.Add(leaf);
+                }
+            }
+            else
+            {
+                if (vanilla.ItemTextures.TryGetValue(itemAlias, out var vData))
+                {
+                    for (int i = 0; i < vData.Entries.Count; i++)
+                    {
+                        var entry = vData.Entries[i];
+                        var caption = entry.TotalTextureVariants.HasValue
+                            ? $"var {entry.TextureVariantIndex}/{entry.TotalTextureVariants}"
+                            : "vanilla default";
+
+                        var leaf = new CatalogLeaf
+                        {
+                            Alias = itemAlias,
+                            DisplayName = itemAlias,
+                            RelativePath = entry.RawPath,
+                            FullPath = packRoot != null ? Path.Combine(packRoot, (entry.RawPath + ".png").Replace('/', Path.DirectorySeparatorChar)) : entry.RawPath,
+                            Category = TextureCategory.Item,
+                            Status = CatalogEntryStatus.NotAdded,
+                            TextureAlias = null,
+                            SubtitleCaption = caption,
+                            Flipbook = vanilla.Flipbooks.Find(itemAlias, entry.RawPath, null, entry.TextureVariantIndex)
+                        };
+                        aliasNode.Leaves.Add(leaf);
+                    }
+                }
+            }
+
+            aliasNode.NotifyCountsChanged();
+            itemBlockNode.AliasGroups.Add(aliasNode);
+            itemBlockNode.NotifyCountsChanged();
+            itemsTree.Add(itemBlockNode);
+        }
+
+        // ── 3. UNCATEGORIZED ───────────────────────────────────────────────────
+        var untracked = userAliases
+            .Where(a => a.Status != TextureStatus.NoEntry && !trackedUserAliases.Contains(a))
+            .ToList();
+
+        BlockGroupNode? uncategorizedNode = null;
+        if (untracked.Count > 0)
+        {
+            uncategorizedNode = new BlockGroupNode
+            {
+                BlockId = "uncategorized",
+                DisplayName = "(Uncategorized)",
+                Category = TextureCategory.Block
+            };
+
+            foreach (var grp in untracked.GroupBy(u => u.Alias, StringComparer.OrdinalIgnoreCase))
+            {
+                var aliasNode = new AliasGroupNode
+                {
+                    Alias = grp.Key,
+                    Category = grp.First().Category,
+                    ParentBlock = uncategorizedNode
+                };
+
+                foreach (var tile in grp)
+                {
+                    var leaf = new CatalogLeaf
+                    {
+                        Alias = tile.Alias,
+                        DisplayName = tile.DisplayName,
+                        RelativePath = tile.RelativePath,
+                        FullPath = tile.FullPath,
+                        Category = tile.Category,
+                        Status = tile.Status switch
+                        {
+                            TextureStatus.Ok     => CatalogEntryStatus.Ok,
+                            TextureStatus.Ghost  => CatalogEntryStatus.Ghost,
+                            _                    => CatalogEntryStatus.Orphan
+                        },
+                        TextureAlias = tile,
+                        SubtitleCaption = tile.SubtitleCaption,
+                        PrimaryFaceBadgeText = tile.PrimaryFaceBadgeText,
+                        Flipbook = tile.Flipbook
+                    };
+                    aliasNode.Leaves.Add(leaf);
+                }
+
+                aliasNode.NotifyCountsChanged();
+                uncategorizedNode.AliasGroups.Add(aliasNode);
+            }
+
+            uncategorizedNode.NotifyCountsChanged();
+        }
+
+        var result = new List<BlockGroupNode>();
+        result.AddRange(blocksTree.OrderBy(b => b.DisplayName, StringComparer.OrdinalIgnoreCase));
+        result.AddRange(itemsTree.OrderBy(b => b.DisplayName, StringComparer.OrdinalIgnoreCase));
+        if (uncategorizedNode != null)
+            result.Add(uncategorizedNode);
+
+        return result;
+    }
+
+    private static string SummarizeFaces(List<BlockFaceUsage> faces)
+    {
+        if (faces.Count == 0) return string.Empty;
+        var distinct = faces.Select(f => f.Face.ToLowerInvariant()).Where(f => f != "all").Distinct().ToList();
+        if (distinct.Count == 0) return "all";
+        if (distinct.Count == 1) return distinct[0];
+        if (distinct.Count == 2 && distinct.Contains("up") && distinct.Contains("down")) return "top/btm";
+        if (distinct.Count <= 3) return string.Join("/", distinct);
+        return "multi";
     }
 }

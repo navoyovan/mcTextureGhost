@@ -243,6 +243,24 @@
                                     </ui:Button.Icon>
                                 </ui:Button>
                             </StackPanel>
+
+                            <!-- Missing Manifest Warning Banner in Pack Info Card -->
+                            <Border Background="#2A1A10" BorderBrush="#D97706" BorderThickness="1" CornerRadius="6"
+                                    Padding="8,5" Margin="0,8,0,0"
+                                    Visibility="{Binding HasManifest, Converter={StaticResource InverseBoolToVis}}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                        <TextBlock Text="⚠️ No manifest.json" FontWeight="SemiBold" FontSize="11" Foreground="#FBBF24" />
+                                        <TextBlock Text="Folder lacks pack manifest" FontSize="9.5" Foreground="#D4D4D8" />
+                                    </StackPanel>
+                                    <ui:Button Grid.Column="1" Content="Generate" Command="{Binding SwitchToManifestViewCommand}"
+                                               Appearance="Primary" Padding="8,3" FontSize="10" VerticalAlignment="Center" />
+                                </Grid>
+                            </Border>
                         </StackPanel>
 
                         <!-- No Pack Loaded -->
@@ -253,26 +271,88 @@
                     </StackPanel>
                 </Border>
 
-                <!-- 2. Directory Explorer Section (dir-exp) -->
+                <!-- 2. Directory Explorer & Manifest Editor Section (Left Workspace) -->
                 <Grid Grid.Row="1" Margin="0,0,0,12">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
 
-                    <TextBlock Grid.Row="0" Text="DIRECTORY EXPLORER" FontSize="10" FontWeight="SemiBold"
-                               Foreground="#71717a" Margin="4,0,4,8" />
+                    <!-- View Toggle Header: Explorer vs Manifest -->
+                    <Grid Grid.Row="0" Margin="0,0,0,8" Visibility="{Binding IsPackLoaded, Converter={StaticResource BoolToVis}}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
 
-                    <!-- Folder TreeView when pack is loaded -->
+                        <!-- Explorer Tab Button -->
+                        <ui:Button Grid.Column="0" Command="{Binding SwitchToExplorerViewCommand}"
+                                   Padding="6,4" Margin="0,0,3,0" HorizontalAlignment="Stretch" Cursor="Hand">
+                            <ui:Button.Style>
+                                <Style TargetType="ui:Button" BasedOn="{StaticResource {x:Type ui:Button}}">
+                                    <Setter Property="Appearance" Value="Transparent" />
+                                    <Setter Property="Foreground" Value="#71717A" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsExplorerViewActive}" Value="True">
+                                            <Setter Property="Appearance" Value="Secondary" />
+                                            <Setter Property="Foreground" Value="#FFFFFF" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </ui:Button.Style>
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                <TextBlock Text="📁" FontSize="11" Margin="0,0,5,0" VerticalAlignment="Center" />
+                                <TextBlock Text="Explorer" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </ui:Button>
+
+                        <!-- Manifest Tab Button -->
+                        <ui:Button Grid.Column="1" Command="{Binding SwitchToManifestViewCommand}"
+                                   Padding="6,4" Margin="3,0,0,0" HorizontalAlignment="Stretch" Cursor="Hand">
+                            <ui:Button.Style>
+                                <Style TargetType="ui:Button" BasedOn="{StaticResource {x:Type ui:Button}}">
+                                    <Setter Property="Appearance" Value="Transparent" />
+                                    <Setter Property="Foreground" Value="#71717A" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsManifestViewActive}" Value="True">
+                                            <Setter Property="Appearance" Value="Secondary" />
+                                            <Setter Property="Foreground" Value="#FFFFFF" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </ui:Button.Style>
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                <TextBlock Text="📋" FontSize="11" Margin="0,0,5,0" VerticalAlignment="Center" />
+                                <TextBlock Text="Manifest" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                <!-- Missing indicator dot -->
+                                <Border Width="6" Height="6" CornerRadius="3" Background="#F59E0B" Margin="5,0,0,0" VerticalAlignment="Center"
+                                        Visibility="{Binding HasManifest, Converter={StaticResource InverseBoolToVis}}"
+                                        ToolTip="manifest.json is missing" />
+                            </StackPanel>
+                        </ui:Button>
+                    </Grid>
+
+                    <TextBlock Grid.Row="0" Text="DIRECTORY EXPLORER" FontSize="10" FontWeight="SemiBold"
+                               Foreground="#71717a" Margin="4,0,4,8"
+                               Visibility="{Binding IsPackLoaded, Converter={StaticResource InverseBoolToVis}}" />
+
+                    <!-- Folder TreeView when pack is loaded and Explorer is active -->
                     <TreeView Grid.Row="1" ItemsSource="{Binding PackFolders}"
                               SelectedItemChanged="TreeView_SelectedItemChanged"
                               Background="Transparent" BorderThickness="0"
-                              Visibility="{Binding IsPackLoaded, Converter={StaticResource BoolToVis}}">
+                              Visibility="{Binding IsExplorerViewActive, Converter={StaticResource BoolToVis}}">
                         <TreeView.ItemTemplate>
                             <HierarchicalDataTemplate DataType="{x:Type models:PackFolderItem}" ItemsSource="{Binding SubFolders}">
                                 <StackPanel Orientation="Horizontal" Margin="2,3">
                                     <TextBlock Text="{Binding Icon}" FontSize="11" Margin="0,0,6,0" VerticalAlignment="Center" />
                                     <TextBlock Text="{Binding Name}" FontSize="12" Foreground="#e4e4e7" VerticalAlignment="Center" />
+
+                                    <!-- Missing Badge -->
+                                    <Border Background="#4d2c00" CornerRadius="8" Padding="5,1" Margin="6,0,0,0"
+                                            VerticalAlignment="Center"
+                                            Visibility="{Binding IsMissing, Converter={StaticResource BoolToVis}}">
+                                        <TextBlock Text="missing — click to generate" Foreground="#F59E0B" FontSize="9" FontWeight="Bold" />
+                                    </Border>
 
                                     <!-- Total count badge (only for directories with textures) -->
                                     <Border Background="#27272a" CornerRadius="8" Padding="5,1" Margin="6,0,0,0"
@@ -286,12 +366,190 @@
                                             VerticalAlignment="Center"
                                             Visibility="{Binding GhostCount, Converter={StaticResource IntGreaterToVis}}">
                                         <TextBlock Text="{Binding GhostCount, StringFormat='👻 {0}'}"
-                                                   Foreground="#FC00FF" FontSize="9" FontWeight="Bold" />
+                                                    Foreground="#FC00FF" FontSize="9" FontWeight="Bold" />
                                     </Border>
                                 </StackPanel>
                             </HierarchicalDataTemplate>
                         </TreeView.ItemTemplate>
                     </TreeView>
+
+                    <!-- Manifest Editor View (Left Workspace) -->
+                    <Border Grid.Row="1" Background="#18181b" CornerRadius="8" BorderBrush="#27272a" BorderThickness="1"
+                            Padding="10" Visibility="{Binding IsManifestViewActive, Converter={StaticResource BoolToVis}}">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                            <StackPanel DataContext="{Binding CurrentManifest}">
+                                <!-- Header row with back button and status -->
+                                <Grid Margin="0,0,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <ui:Button Grid.Column="0" Command="{Binding DataContext.SwitchToExplorerViewCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                               Appearance="Transparent" Padding="4,2" Margin="0,0,6,0" ToolTip="Back to Directory Explorer">
+                                        <ui:Button.Icon>
+                                            <ui:SymbolIcon Symbol="ArrowLeft24" FontSize="13" />
+                                        </ui:Button.Icon>
+                                    </ui:Button>
+                                    <TextBlock Grid.Column="1" Text="MANIFEST EDITOR" FontSize="11" FontWeight="Bold" Foreground="#FFFFFF" VerticalAlignment="Center" />
+                                    <Border Grid.Column="2" CornerRadius="4" Padding="5,2" VerticalAlignment="Center">
+                                        <Border.Style>
+                                            <Style TargetType="Border">
+                                                <Setter Property="Background" Value="#13382c" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding FileExists}" Value="False">
+                                                        <Setter Property="Background" Value="#332410" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
+                                        <TextBlock FontSize="9" FontWeight="Bold">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Text" Value="OK" />
+                                                    <Setter Property="Foreground" Value="#34D399" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding FileExists}" Value="False">
+                                                            <Setter Property="Text" Value="MISSING" />
+                                                            <Setter Property="Foreground" Value="#F59E0B" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </Border>
+                                </Grid>
+
+                                <!-- Notice when missing -->
+                                <Border Background="#2a182a" BorderBrush="#88FC00FF" BorderThickness="1" CornerRadius="6"
+                                        Padding="8,6" Margin="0,0,0,10"
+                                        Visibility="{Binding FileExists, Converter={StaticResource InverseBoolToVis}}">
+                                    <TextBlock Text="manifest.json does not exist yet. Values below are auto-filled and ready to generate."
+                                               Foreground="#F472B6" FontSize="10" TextWrapping="Wrap" />
+                                </Border>
+
+                                <!-- Pack Name -->
+                                <TextBlock Text="PACK NAME" FontSize="9" FontWeight="Bold" Foreground="#8B5CF6" Margin="0,0,0,3" />
+                                <ui:TextBox Text="{Binding HeaderName, UpdateSourceTrigger=PropertyChanged}"
+                                            PlaceholderText="Pack name" Margin="0,0,0,8" FontSize="11" />
+
+                                <!-- Description -->
+                                <TextBlock Text="DESCRIPTION" FontSize="9" FontWeight="Bold" Foreground="#8B5CF6" Margin="0,0,0,3" />
+                                <ui:TextBox Text="{Binding HeaderDescription, UpdateSourceTrigger=PropertyChanged}"
+                                            PlaceholderText="Description" TextWrapping="Wrap" AcceptsReturn="True"
+                                            MinHeight="46" Margin="0,0,0,8" FontSize="11" />
+
+                                <!-- Header UUID -->
+                                <Grid Margin="0,0,0,3">
+                                    <TextBlock Text="HEADER UUID" FontSize="9" FontWeight="Bold" Foreground="#8B5CF6" VerticalAlignment="Center" />
+                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                        <ui:Button Command="{Binding DataContext.CopyHeaderUuidCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                   Appearance="Transparent" Padding="3,1" ToolTip="Copy UUID">
+                                            <ui:SymbolIcon Symbol="Copy24" FontSize="11" Foreground="#A1A1AA" />
+                                        </ui:Button>
+                                        <ui:Button Command="{Binding DataContext.RegenerateHeaderUuidCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                   Appearance="Transparent" Padding="3,1" ToolTip="Generate new UUID">
+                                            <ui:SymbolIcon Symbol="ArrowSync24" FontSize="11" Foreground="#8B5CF6" />
+                                        </ui:Button>
+                                    </StackPanel>
+                                </Grid>
+                                <ui:TextBox Text="{Binding HeaderUuid, UpdateSourceTrigger=PropertyChanged}"
+                                            FontFamily="Consolas" FontSize="10" Margin="0,0,0,8" />
+
+                                <!-- Module UUID -->
+                                <Grid Margin="0,0,0,3">
+                                    <TextBlock Text="MODULE UUID" FontSize="9" FontWeight="Bold" Foreground="#8B5CF6" VerticalAlignment="Center" />
+                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                        <ui:Button Command="{Binding DataContext.CopyModuleUuidCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                   Appearance="Transparent" Padding="3,1" ToolTip="Copy UUID">
+                                            <ui:SymbolIcon Symbol="Copy24" FontSize="11" Foreground="#A1A1AA" />
+                                        </ui:Button>
+                                        <ui:Button Command="{Binding DataContext.RegenerateModuleUuidCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                   Appearance="Transparent" Padding="3,1" ToolTip="Generate new UUID">
+                                            <ui:SymbolIcon Symbol="ArrowSync24" FontSize="11" Foreground="#8B5CF6" />
+                                        </ui:Button>
+                                    </StackPanel>
+                                </Grid>
+                                <ui:TextBox Text="{Binding ModuleUuid, UpdateSourceTrigger=PropertyChanged}"
+                                            FontFamily="Consolas" FontSize="10" Margin="0,0,0,8" />
+
+                                <!-- Version row -->
+                                <Grid Margin="0,0,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="8" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="VERSION" FontSize="9" FontWeight="Bold" Foreground="#8B5CF6" Margin="0,0,0,3" />
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <ui:TextBox Grid.Column="0" Text="{Binding VersionMajor, UpdateSourceTrigger=PropertyChanged}" HorizontalContentAlignment="Center" FontSize="10" Padding="2,3" />
+                                            <TextBlock Grid.Column="1" Text="." Foreground="#71717A" VerticalAlignment="Center" Margin="2,0" />
+                                            <ui:TextBox Grid.Column="2" Text="{Binding VersionMinor, UpdateSourceTrigger=PropertyChanged}" HorizontalContentAlignment="Center" FontSize="10" Padding="2,3" />
+                                            <TextBlock Grid.Column="3" Text="." Foreground="#71717A" VerticalAlignment="Center" Margin="2,0" />
+                                            <ui:TextBox Grid.Column="4" Text="{Binding VersionPatch, UpdateSourceTrigger=PropertyChanged}" HorizontalContentAlignment="Center" FontSize="10" Padding="2,3" />
+                                        </Grid>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2">
+                                        <TextBlock Text="MIN ENGINE" FontSize="9" FontWeight="Bold" Foreground="#8B5CF6" Margin="0,0,0,3" />
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <ui:TextBox Grid.Column="0" Text="{Binding MinEngineMajor, UpdateSourceTrigger=PropertyChanged}" HorizontalContentAlignment="Center" FontSize="10" Padding="2,3" />
+                                            <TextBlock Grid.Column="1" Text="." Foreground="#71717A" VerticalAlignment="Center" Margin="2,0" />
+                                            <ui:TextBox Grid.Column="2" Text="{Binding MinEngineMinor, UpdateSourceTrigger=PropertyChanged}" HorizontalContentAlignment="Center" FontSize="10" Padding="2,3" />
+                                            <TextBlock Grid.Column="3" Text="." Foreground="#71717A" VerticalAlignment="Center" Margin="2,0" />
+                                            <ui:TextBox Grid.Column="4" Text="{Binding MinEnginePatch, UpdateSourceTrigger=PropertyChanged}" HorizontalContentAlignment="Center" FontSize="10" Padding="2,3" />
+                                        </Grid>
+                                    </StackPanel>
+                                </Grid>
+
+                                <!-- Action Buttons -->
+                                <StackPanel Margin="0,4,0,0">
+                                    <!-- When exists: Save Changes -->
+                                    <ui:Button Content="Save Changes"
+                                               Command="{Binding DataContext.SaveManifestCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                               Appearance="Primary" HorizontalAlignment="Stretch" Padding="8,5" Margin="0,0,0,6"
+                                               Visibility="{Binding FileExists, Converter={StaticResource BoolToVis}}">
+                                        <ui:Button.Icon>
+                                            <ui:SymbolIcon Symbol="Save24" FontSize="13" />
+                                        </ui:Button.Icon>
+                                    </ui:Button>
+
+                                    <!-- When missing: Generate manifest.json -->
+                                    <ui:Button Content="Generate manifest.json"
+                                               Command="{Binding DataContext.GenerateManifestCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                               Appearance="Primary" HorizontalAlignment="Stretch" Padding="8,6" Margin="0,0,0,6"
+                                               Visibility="{Binding FileExists, Converter={StaticResource InverseBoolToVis}}">
+                                        <ui:Button.Icon>
+                                            <ui:SymbolIcon Symbol="Checkmark24" FontSize="13" />
+                                        </ui:Button.Icon>
+                                    </ui:Button>
+
+                                    <ui:Button Content="Open in External Editor"
+                                               Command="{Binding DataContext.OpenManifestInEditorCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                               Appearance="Secondary" HorizontalAlignment="Stretch" Padding="8,4" FontSize="10"
+                                               Visibility="{Binding FileExists, Converter={StaticResource BoolToVis}}">
+                                        <ui:Button.Icon>
+                                            <ui:SymbolIcon Symbol="Open24" FontSize="11" />
+                                        </ui:Button.Icon>
+                                    </ui:Button>
+                                </StackPanel>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </Border>
 
                     <!-- Empty state placeholder when no pack is loaded -->
                     <Border Grid.Row="1" Background="#18181b" CornerRadius="6" BorderBrush="#222226" BorderThickness="1"
@@ -501,6 +759,56 @@
                         </StackPanel>
                     </Border>
 
+                    <!-- View Mode Tabs (Pack / Catalog) -->
+                    <Border VerticalAlignment="Center" Margin="0,0,14,0"
+                            Background="#18181b" BorderBrush="#2e2e34" BorderThickness="1" CornerRadius="6">
+                        <StackPanel Orientation="Horizontal">
+                            <!-- Pack View Tab -->
+                            <ui:Button Command="{Binding SwitchToPackViewCommand}"
+                                       Padding="10,5" FontSize="11" CornerRadius="5,0,0,5" Cursor="Hand"
+                                       ToolTip="Pack View (Inspect your active resource pack)">
+                                <ui:Button.Style>
+                                    <Style TargetType="ui:Button" BasedOn="{StaticResource {x:Type ui:Button}}">
+                                        <Setter Property="Appearance" Value="Transparent" />
+                                        <Setter Property="Foreground" Value="#a1a1aa" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsPackView}" Value="True">
+                                                <Setter Property="Appearance" Value="Primary" />
+                                                <Setter Property="Foreground" Value="#ffffff" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </ui:Button.Style>
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <ui:SymbolIcon Symbol="Grid24" FontSize="12" Margin="0,0,5,0" VerticalAlignment="Center" />
+                                    <TextBlock Text="Pack" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </ui:Button>
+
+                            <!-- Catalog View Tab -->
+                            <ui:Button Command="{Binding SwitchToCatalogViewCommand}"
+                                       Padding="10,5" FontSize="11" CornerRadius="0,5,5,0" Cursor="Hand"
+                                       ToolTip="Catalog View (Browse vanilla reference and add blocks)">
+                                <ui:Button.Style>
+                                    <Style TargetType="ui:Button" BasedOn="{StaticResource {x:Type ui:Button}}">
+                                        <Setter Property="Appearance" Value="Transparent" />
+                                        <Setter Property="Foreground" Value="#a1a1aa" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsCatalogView}" Value="True">
+                                                <Setter Property="Appearance" Value="Primary" />
+                                                <Setter Property="Foreground" Value="#ffffff" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </ui:Button.Style>
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <ui:SymbolIcon Symbol="List24" FontSize="12" Margin="0,0,5,0" VerticalAlignment="Center" />
+                                    <TextBlock Text="Catalog" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </ui:Button>
+                        </StackPanel>
+                    </Border>
+
                     <ui:TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
                                 Width="260" PlaceholderText="{Binding SearchPlaceholderText}"
                                 Margin="0,0,14,0" VerticalAlignment="Center">
@@ -611,51 +919,21 @@
                         </StackPanel>
                     </Border>
 
-                    <!-- Tile size toggle (right-aligned) -->
+                    <!-- Vanilla Reference Status Badge & Refresh -->
                     <Border Margin="14,0,0,0" VerticalAlignment="Center"
-                            Background="#1f1f23" BorderBrush="#3c3c3c" BorderThickness="1" CornerRadius="6">
-                        <StackPanel Orientation="Horizontal">
-                            <ui:Button Content="S" Command="{Binding SetTileSizeSmallCommand}"
-                                       Padding="8,3" FontSize="10" ToolTip="Small tiles"
-                                       CornerRadius="6,0,0,6">
-                                <ui:Button.Style>
-                                    <Style TargetType="ui:Button" BasedOn="{StaticResource {x:Type ui:Button}}">
-                                        <Setter Property="Appearance" Value="Secondary" />
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding IsTileSizeSmall}" Value="True">
-                                                <Setter Property="Appearance" Value="Primary" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </ui:Button.Style>
-                            </ui:Button>
-                            <ui:Button Content="M" Command="{Binding SetTileSizeMediumCommand}"
-                                       Padding="8,3" FontSize="10" ToolTip="Medium tiles (default)"
-                                       CornerRadius="0">
-                                <ui:Button.Style>
-                                    <Style TargetType="ui:Button" BasedOn="{StaticResource {x:Type ui:Button}}">
-                                        <Setter Property="Appearance" Value="Secondary" />
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding IsTileSizeMedium}" Value="True">
-                                                <Setter Property="Appearance" Value="Primary" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </ui:Button.Style>
-                            </ui:Button>
-                            <ui:Button Content="L" Command="{Binding SetTileSizeLargeCommand}"
-                                       Padding="8,3" FontSize="10" ToolTip="Large tiles"
-                                       CornerRadius="0,6,6,0">
-                                <ui:Button.Style>
-                                    <Style TargetType="ui:Button" BasedOn="{StaticResource {x:Type ui:Button}}">
-                                        <Setter Property="Appearance" Value="Secondary" />
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding IsTileSizeLarge}" Value="True">
-                                                <Setter Property="Appearance" Value="Primary" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </ui:Button.Style>
+                            Background="#18181b" BorderBrush="#2e2e34" BorderThickness="1" CornerRadius="6"
+                            Padding="8,3">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <ui:ProgressRing Width="12" Height="12" Margin="0,0,6,0"
+                                             IsIndeterminate="True"
+                                             Visibility="{Binding IsVanillaLoading, Converter={StaticResource BoolToVis}}" />
+                            <TextBlock Text="{Binding VanillaDataStatusLabel}" FontSize="10" Foreground="#A1A1AA" VerticalAlignment="Center" />
+                            <ui:Button Command="{Binding FetchVanillaDataCommand}"
+                                       Appearance="Transparent" Padding="4,1" Margin="6,0,0,0" Cursor="Hand"
+                                       ToolTip="Re-check vanilla catalog from GitHub">
+                                <ui:Button.Icon>
+                                    <ui:SymbolIcon Symbol="ArrowSync24" FontSize="11" Foreground="#A1A1AA" />
+                                </ui:Button.Icon>
                             </ui:Button>
                         </StackPanel>
                     </Border>
@@ -700,6 +978,7 @@
                          VirtualizingPanel.ScrollUnit="Pixel"
                          ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                          ScrollViewer.VerticalScrollBarVisibility="Auto"
+                         Visibility="{Binding IsPackView, Converter={StaticResource BoolToVis}}"
                          RenderOptions.BitmapScalingMode="NearestNeighbor"
                          RenderOptions.ClearTypeHint="Enabled"
                          SnapsToDevicePixels="True"
@@ -915,6 +1194,179 @@
                         </DataTemplate>
                     </ListBox.ItemTemplate>
                 </ListBox>
+
+                <!-- Hierarchical Catalog Tree View (when IsCatalogView is true) -->
+                <TreeView ItemsSource="{Binding FilteredCatalogTree}"
+                          Background="Transparent" BorderThickness="0"
+                          VirtualizingPanel.IsVirtualizing="True"
+                          VirtualizingPanel.VirtualizationMode="Recycling"
+                          ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                          ScrollViewer.VerticalScrollBarVisibility="Auto"
+                          Visibility="{Binding IsCatalogView, Converter={StaticResource BoolToVis}}">
+                    <TreeView.Resources>
+                        <!-- Level 1: BlockGroupNode -->
+                        <HierarchicalDataTemplate DataType="{x:Type models:BlockGroupNode}"
+                                                  ItemsSource="{Binding AliasGroups}">
+                            <Border Margin="0,2" Padding="8,5" CornerRadius="6" Background="#18181B" BorderBrush="#27272A" BorderThickness="1">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <!-- Block Icon + Display Name -->
+                                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding IconGlyph}" FontSize="13" Margin="0,0,8,0" VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" FontSize="12" Foreground="#FFFFFF" VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding BlockId, StringFormat='{} ({0})'}" FontSize="10" Foreground="#71717A" Margin="6,0,0,0" VerticalAlignment="Center" />
+                                    </StackPanel>
+
+                                    <!-- Badges & Action -->
+                                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                        <!-- Ghost Badge -->
+                                        <Border Background="#3b153b" CornerRadius="4" Padding="5,1" Margin="0,0,6,0"
+                                                Visibility="{Binding HasGhost, Converter={StaticResource BoolToVis}}">
+                                            <TextBlock Text="{Binding GhostCount, StringFormat='{}👻 {0}'}"
+                                                       FontSize="9" FontWeight="Bold" Foreground="#FC00FF" />
+                                        </Border>
+
+                                        <!-- Variants Count -->
+                                        <Border Background="#202024" CornerRadius="4" Padding="5,1" Margin="0,0,8,0"
+                                                Visibility="{Binding HasMultipleVariants, Converter={StaticResource BoolToVis}}">
+                                            <TextBlock Text="{Binding TotalVariants, StringFormat='{}{0} variants'}"
+                                                       FontSize="9" Foreground="#A1A1AA" />
+                                        </Border>
+
+                                        <!-- 1-Click Add All Button -->
+                                        <ui:Button Command="{Binding DataContext.AddVanillaEntryCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                   CommandParameter="{Binding}"
+                                                   Appearance="Primary" Padding="8,3" FontSize="10"
+                                                   Visibility="{Binding CanAddAll, Converter={StaticResource BoolToVis}}"
+                                                   ToolTip="Add this block and all its textures to your pack" Cursor="Hand">
+                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                <TextBlock Text="+" FontWeight="Bold" FontSize="11" Margin="0,0,4,0" />
+                                                <TextBlock Text="Add to Pack" FontSize="10" FontWeight="SemiBold" />
+                                            </StackPanel>
+                                        </ui:Button>
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+                        </HierarchicalDataTemplate>
+
+                        <!-- Level 2: AliasGroupNode -->
+                        <HierarchicalDataTemplate DataType="{x:Type models:AliasGroupNode}"
+                                                  ItemsSource="{Binding Leaves}">
+                            <Border Margin="2,1" Padding="6,3" CornerRadius="4" Background="#141417" BorderBrush="#222226" BorderThickness="1">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                                        <TextBlock Text="🔗" FontSize="10" Margin="0,0,6,0" VerticalAlignment="Center" Opacity="0.7" />
+                                        <TextBlock Text="{Binding Alias}" FontSize="11" FontWeight="Medium" Foreground="#E4E4E7" VerticalAlignment="Center" />
+
+                                        <!-- Face summary badge if any -->
+                                        <Border Background="#258B5CF6" CornerRadius="3" Padding="4,1" Margin="6,0,0,0"
+                                                Visibility="{Binding HasFaceSummary, Converter={StaticResource BoolToVis}}">
+                                            <TextBlock Text="{Binding FaceSummary}" FontSize="9" FontWeight="Bold" Foreground="#A78BFA" />
+                                        </Border>
+
+                                        <!-- Ghost count -->
+                                        <Border Background="#3b153b" CornerRadius="4" Padding="5,1" Margin="6,0,0,0"
+                                                Visibility="{Binding GhostCount, Converter={StaticResource IntGreaterToVis}}">
+                                            <TextBlock Text="{Binding GhostCount, StringFormat='{}👻 {0}'}"
+                                                       FontSize="9" FontWeight="Bold" Foreground="#FC00FF" />
+                                        </Border>
+                                    </StackPanel>
+
+                                    <!-- 1-Click Add Alias Button -->
+                                    <ui:Button Grid.Column="1"
+                                               Command="{Binding DataContext.AddVanillaEntryCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                               CommandParameter="{Binding}"
+                                               Appearance="Secondary" Padding="6,2" FontSize="9"
+                                               Visibility="{Binding CanAdd, Converter={StaticResource BoolToVis}}"
+                                               ToolTip="Add this alias to your pack" Cursor="Hand">
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <TextBlock Text="+" FontWeight="Bold" FontSize="10" Margin="0,0,3,0" />
+                                            <TextBlock Text="Add Alias" FontSize="9" />
+                                        </StackPanel>
+                                    </ui:Button>
+                                </Grid>
+                            </Border>
+                        </HierarchicalDataTemplate>
+
+                        <!-- Level 3: CatalogLeaf -->
+                        <DataTemplate DataType="{x:Type models:CatalogLeaf}">
+                            <Border Margin="4,1" Padding="6,3" CornerRadius="4" Background="#111114" BorderBrush="#1C1C20" BorderThickness="1">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <!-- Status dot -->
+                                    <Ellipse Grid.Column="0" Width="6" Height="6" Fill="{Binding StatusDotBrush}" Margin="0,0,8,0" VerticalAlignment="Center" />
+
+                                    <!-- Thumbnail or Placeholder -->
+                                    <Grid Grid.Column="1" Width="20" Height="20" Margin="0,0,8,0" VerticalAlignment="Center">
+                                        <Image Source="{Binding FullPath, Converter={StaticResource ImagePathConverter}}"
+                                               Stretch="Uniform"
+                                               RenderOptions.BitmapScalingMode="NearestNeighbor"
+                                               RenderOptions.EdgeMode="Aliased"
+                                               SnapsToDevicePixels="True"
+                                               Visibility="{Binding ShowsImageThumbnail, Converter={StaticResource BoolToVis}}" />
+                                        <Border Background="{Binding PlaceholderBackgroundBrush}" CornerRadius="3"
+                                                Visibility="{Binding ShowsPlaceholderGlyph, Converter={StaticResource BoolToVis}}">
+                                            <TextBlock Text="{Binding PlaceholderGlyph}" FontSize="10" FontWeight="Bold"
+                                                       Foreground="{Binding PlaceholderGlyphBrush}"
+                                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        </Border>
+                                    </Grid>
+
+                                    <!-- Relative Path & Caption -->
+                                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding RelativePath}" FontSize="11" Foreground="#D4D4D8" VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding SubtitleCaption, StringFormat='{} • {0}'}" FontSize="10" Foreground="#71717A" Margin="4,0,0,0" VerticalAlignment="Center" />
+                                        <Border Background="#258B5CF6" CornerRadius="3" Padding="3,1" Margin="6,0,0,0"
+                                                Visibility="{Binding IsFlipbook, Converter={StaticResource BoolToVis}}"
+                                                ToolTip="{Binding FlipbookTooltip}">
+                                            <TextBlock Text="ANIM" FontSize="8" FontWeight="Bold" Foreground="#A78BFA" />
+                                        </Border>
+                                    </StackPanel>
+
+                                    <!-- Status badge & Actions -->
+                                    <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding StatusLabel}" Foreground="{Binding StatusMutedBrush}"
+                                                   FontSize="9" FontWeight="Bold" Margin="0,0,8,0" VerticalAlignment="Center" />
+
+                                        <ui:Button Command="{Binding DataContext.AddVanillaEntryCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                   CommandParameter="{Binding}"
+                                                   Appearance="Secondary" Padding="6,2" FontSize="9"
+                                                   Visibility="{Binding CanAdd, Converter={StaticResource BoolToVis}}"
+                                                   ToolTip="Add this texture to your pack" Cursor="Hand">
+                                            <TextBlock Text="+ Add" FontSize="9" />
+                                        </ui:Button>
+
+                                        <ui:Button Command="{Binding DataContext.EditTextureCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                   CommandParameter="{Binding TextureAlias}"
+                                                   Appearance="Transparent" Padding="4,1" FontSize="9"
+                                                   Visibility="{Binding TextureAlias, Converter={StaticResource NullToVis}}"
+                                                   ToolTip="Open texture in image editor" Cursor="Hand">
+                                            <ui:Button.Icon>
+                                                <ui:SymbolIcon Symbol="Open24" FontSize="11" />
+                                            </ui:Button.Icon>
+                                        </ui:Button>
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </TreeView.Resources>
+                </TreeView>
 
             </DockPanel>
         </Grid>

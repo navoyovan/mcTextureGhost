@@ -17,9 +17,18 @@ public class PackFolderItem : INotifyPropertyChanged
     public bool IsPlaceholder { get; init; } = false;
     public bool IsLoaded { get; set; } = false;
 
+    private bool _isMissing;
+    public bool IsMissing
+    {
+        get => _isMissing;
+        set { _isMissing = value; OnPropertyChanged(); OnPropertyChanged(nameof(Icon)); }
+    }
+
+    public bool IsManifest => Name.Equals("manifest.json", StringComparison.OrdinalIgnoreCase);
+
     public Action<PackFolderItem>? OnExpand { get; set; }
 
-    public string Icon => IsPlaceholder ? "⏳" : (IsDirectory ? "📁" : GetFileIcon(Name));
+    public string Icon => IsPlaceholder ? "⏳" : (IsMissing ? "⚠️" : (IsDirectory ? "📁" : GetFileIcon(Name)));
 
     private static string GetFileIcon(string filename)
     {
