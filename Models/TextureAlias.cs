@@ -139,6 +139,28 @@ public class TextureAlias : INotifyPropertyChanged
     /// <summary>Optional spawn weight for random texture variations (defaults to 1 in Minecraft if omitted).</summary>
     public int? Weight { get; init; }
 
+    /// <summary>Optional animated flipbook texture definition from textures/flipbook_textures.json.</summary>
+    public FlipbookDefinition? Flipbook { get; init; }
+
+    /// <summary>True if this alias has an animated flipbook definition.</summary>
+    public bool IsFlipbook => Flipbook != null;
+
+    /// <summary>Tooltip details for flipbook animated sprite sheets.</summary>
+    public string? FlipbookTooltip
+    {
+        get
+        {
+            if (Flipbook == null) return null;
+            var mode = Flipbook.BlendFrames ? "Blended (Crossfade)" : "Stepped";
+            var text = $"Flipbook Animated Texture ({mode})\n" +
+                       $"Speed: {Flipbook.TicksPerFrame} ticks/frame ({Flipbook.TicksPerFrame * 50}ms)\n" +
+                       $"Atlas Tile: {Flipbook.AtlasTile}";
+            if (Flipbook.Frames != null && Flipbook.Frames.Length > 0)
+                text += $"\nSequence: [{string.Join(", ", Flipbook.Frames)}]";
+            return text;
+        }
+    }
+
     /// <summary>The display title shown on the tile - always the clean alias name.</summary>
     public required string DisplayName { get; init; }
 
@@ -319,6 +341,11 @@ public class TextureAlias : INotifyPropertyChanged
                   .Append(face.Face).Append(' ');
             }
 
+            if (IsFlipbook)
+            {
+                sb.Append("flipbook anim animated ");
+            }
+
             _searchFilterKey = sb.ToString().ToLowerInvariant();
             return _searchFilterKey;
         }
@@ -415,6 +442,13 @@ public class TextureAlias : INotifyPropertyChanged
             if (string.IsNullOrEmpty(ext)) ext = ".png";
             lines.Add($"File: {RelativePath}{ext}");
             lines.Add($"Status: {(Exists ? "OK (found on disk)" : "GHOST (missing file)")}");
+
+            if (IsFlipbook && Flipbook != null)
+            {
+                lines.Add($"Animation: Flipbook ({Flipbook.TicksPerFrame} ticks/frame, {Flipbook.TicksPerFrame * 50}ms per frame)");
+                if (Flipbook.Frames != null && Flipbook.Frames.Length > 0)
+                    lines.Add($"Frame sequence: {string.Join(", ", Flipbook.Frames)}");
+            }
 
             if (BlockFaces.Count > 0)
             {

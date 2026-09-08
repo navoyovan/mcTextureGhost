@@ -26,6 +26,11 @@ public static class PackScanner
             ? ParseBlocksJson(blocksJsonPath)
             : new Dictionary<string, List<BlockFaceUsage>>(StringComparer.OrdinalIgnoreCase);
 
+        var flipbookJsonPath = Path.Combine(packRoot, "textures", "flipbook_textures.json");
+        var flipbookCatalog = File.Exists(flipbookJsonPath)
+            ? ParseFlipbookTextures(flipbookJsonPath)
+            : new FlipbookCatalog();
+
         var existingFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var texturesDir = Path.Combine(packRoot, "textures");
         string? texturesDirNormalized = null;
@@ -70,6 +75,7 @@ public static class PackScanner
                     TextureVariantIndex = null,
                     TotalTextureVariants = null,
                     Weight = primary.Weight,
+                    Flipbook = flipbookCatalog.Find(alias, finalRel, null, null),
                     BlockFaces = facesList
                 });
             }
@@ -93,6 +99,7 @@ public static class PackScanner
                         TextureVariantIndex = entry.TextureVariantIndex,
                         TotalTextureVariants = entry.TotalTextureVariants,
                         Weight = entry.Weight,
+                        Flipbook = flipbookCatalog.Find(alias, finalRel, entry.BlockVariantIndex, entry.TextureVariantIndex),
                         BlockFaces = facesList
                     });
                 }
@@ -126,6 +133,7 @@ public static class PackScanner
                 FullPath = file,
                 Status = TextureStatus.Orphan,
                 VariantKind = VariantKind.None,
+                Flipbook = flipbookCatalog.Find(fileNameWithoutExt, relNoExt, null, null),
                 BlockFaces = new List<BlockFaceUsage>()
             });
         }
@@ -462,5 +470,157 @@ public static class PackScanner
                 }
                 break;
         }
+    }
+
+    /// <summary>
+    /// Multi-index catalog for flipbook definitions ensuring exact variant resolution.
+    /// </summary>
+    public sealed class FlipbookCatalog
+    {
+        public Dictionary<string, FlipbookDefinition> ByPath { get; } = new(StringComparer.OrdinalIgnoreCase);
+        public Dictionary<string, FlipbookDefinition> ByFileName { get; } = new(StringComparer.OrdinalIgnoreCase);
+        public Dictionary<string, FlipbookDefinition> ByAtlasVariant { get; } = new(StringComparer.OrdinalIgnoreCase);
+        public Dictionary<string, FlipbookDefinition> ByAtlas { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+        public bool IsEmpty => ByPath.Count == 0 && ByAtlas.Count == 0;
+
+        public FlipbookDefinition? Find(string aliasName, string relPath, int? blockVariantIdx, int? texVariantIdx)
+        {
+            if (IsEmpty) return null;
+
+            // 1. Highest priority: exact normalized path without extension (e.g. "textures/blocks/soul_sand/soul_sand2")
+            var norm = relPath.Replace('\\', '/').TrimStart('/');
+            if (norm.EndsWith(".png", StringComparison.OrdinalIgnoreCase))
+                norm = norm.Substring(0, norm.Length - 4);
+
+            if (ByPath.TryGetValue(norm, out var fb)) return fb;
+
+            // 2. Second priority: filename without extension (e.g. "soul_sand2")
+            var fileName = Path.GetFileNameWithoutExtension(relPath);
+            if (!string.IsNullOrEmpty(fileName) && ByFileName.TryGetValue(fileName, out fb)) return fb;
+
+            // 3. Third priority: atlas_tile with variant slot index (0-based and 1-based)
+            if (blockVariantIdx.HasValue)
+            {
+                if (ByAtlasVariant.TryGetValue($"{aliasName}#{blockVariantIdx.Value - 1}", out fb)) return fb;
+                if (ByAtlasVariant.TryGetValue($"{aliasName}#{blockVariantIdx.Value}", out fb)) return fb;
+            }
+            if (texVariantIdx.HasValue)
+            {
+                if (ByAtlasVariant.TryGetValue($"{aliasName}#{texVariantIdx.Value - 1}", out fb)) return fb;
+                if (ByAtlasVariant.TryGetValue($"{aliasName}#{texVariantIdx.Value}", out fb)) return fb;
+            }
+
+            // 4. Lowest priority: generic atlas_tile
+            if (ByAtlas.TryGetValue(aliasName, out fb)) return fb;
+
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Parses textures/flipbook_textures.json and returns a multi-index FlipbookCatalog.
+    /// </summary>
+    public static FlipbookCatalog ParseFlipbookTextures(string path)
+    {
+        var catalog = new FlipbookCatalog();
+        if (!File.Exists(path)) return catalog;
+
+        try
+        {
+            using var stream = File.OpenRead(path);
+            using var doc = JsonDocument.Parse(stream, new JsonDocumentOptions
+            {
+                AllowTrailingCommas = true,
+                CommentHandling = JsonCommentHandling.Skip
+            });
+
+            if (doc.RootElement.ValueKind != JsonValueKind.Array)
+                return catalog;
+
+            foreach (var item in doc.RootElement.EnumerateArray())
+            {
+                if (item.ValueKind != JsonValueKind.Object) continue;
+
+                string? texturePath = null;
+                if (item.TryGetProperty("flipbook_texture", out var ftProp) && ftProp.ValueKind == JsonValueKind.String)
+                    texturePath = ftProp.GetString();
+
+                string? atlasTile = null;
+                if (item.TryGetProperty("atlas_tile", out var atProp) && atProp.ValueKind == JsonValueKind.String)
+                    atlasTile = atProp.GetString();
+
+                int? atlasIndex = null;
+                if (item.TryGetProperty("atlas_index", out var aiProp) && aiProp.ValueKind == JsonValueKind.Number && aiProp.TryGetInt32(out var ai))
+                    atlasIndex = ai;
+
+                int? atlasTileVariant = null;
+                if (item.TryGetProperty("atlas_tile_variant", out var atvProp) && atvProp.ValueKind == JsonValueKind.Number && atvProp.TryGetInt32(out var atv))
+                    atlasTileVariant = atv;
+
+                int ticksPerFrame = 1;
+                if (item.TryGetProperty("ticks_per_frame", out var tpfProp))
+                {
+                    if (tpfProp.ValueKind == JsonValueKind.Number && tpfProp.TryGetInt32(out var tpf) && tpf > 0)
+                        ticksPerFrame = tpf;
+                }
+
+                int[]? frames = null;
+                if (item.TryGetProperty("frames", out var framesProp) && framesProp.ValueKind == JsonValueKind.Array)
+                {
+                    var frameList = new List<int>();
+                    foreach (var f in framesProp.EnumerateArray())
+                    {
+                        if (f.ValueKind == JsonValueKind.Number && f.TryGetInt32(out var fIdx))
+                            frameList.Add(fIdx);
+                    }
+                    if (frameList.Count > 0)
+                        frames = frameList.ToArray();
+                }
+
+                bool blendFrames = true;
+                if (item.TryGetProperty("blend_frames", out var blendProp) &&
+                    (blendProp.ValueKind == JsonValueKind.True || blendProp.ValueKind == JsonValueKind.False))
+                {
+                    blendFrames = blendProp.GetBoolean();
+                }
+
+                if (string.IsNullOrWhiteSpace(texturePath) && string.IsNullOrWhiteSpace(atlasTile))
+                    continue;
+
+                var def = new FlipbookDefinition(
+                    FlipbookTexture: texturePath ?? "",
+                    AtlasTile: atlasTile ?? "",
+                    TicksPerFrame: ticksPerFrame,
+                    Frames: frames,
+                    BlendFrames: blendFrames,
+                    AtlasIndex: atlasIndex,
+                    AtlasTileVariant: atlasTileVariant
+                );
+
+                if (!string.IsNullOrWhiteSpace(texturePath))
+                {
+                    var norm = texturePath.Replace('\\', '/').TrimStart('/');
+                    if (norm.EndsWith(".png", StringComparison.OrdinalIgnoreCase))
+                        norm = norm.Substring(0, norm.Length - 4);
+
+                    catalog.ByPath[norm] = def;
+                    var fn = Path.GetFileName(norm);
+                    if (!string.IsNullOrEmpty(fn))
+                        catalog.ByFileName[fn] = def;
+                }
+
+                if (!string.IsNullOrWhiteSpace(atlasTile))
+                {
+                    if (atlasTileVariant.HasValue)
+                        catalog.ByAtlasVariant[$"{atlasTile}#{atlasTileVariant.Value}"] = def;
+                    else
+                        catalog.ByAtlas.TryAdd(atlasTile, def);
+                }
+            }
+        }
+        catch { }
+
+        return catalog;
     }
 }

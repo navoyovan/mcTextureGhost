@@ -754,7 +754,7 @@
                                 <!-- ── Tile content ────────────────────────────────────────── -->
                                 <StackPanel Margin="6">
 
-                                    <!-- ── Top row: 7px Status dot + short text label (top-left) ── -->
+                                    <!-- ── Top row: 7px Status dot + short text label (top-left) & Flipbook ANIM badge (top-right) ── -->
                                     <Grid Margin="0,0,0,5" Height="14">
                                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Center">
                                             <Ellipse Width="7" Height="7" Fill="{Binding StatusDotBrush}" Margin="0,0,4,0" VerticalAlignment="Center" />
@@ -762,6 +762,14 @@
                                                        Foreground="{Binding StatusMutedBrush}"
                                                        FontSize="9" FontWeight="Bold" VerticalAlignment="Center" />
                                         </StackPanel>
+
+                                        <!-- Flipbook animation badge (top-right) -->
+                                        <Border HorizontalAlignment="Right" VerticalAlignment="Center"
+                                                Background="#258B5CF6" CornerRadius="3" Padding="4,1"
+                                                Visibility="{Binding IsFlipbook, Converter={StaticResource BoolToVis}}"
+                                                ToolTip="{Binding FlipbookTooltip}">
+                                            <TextBlock Text="ANIM" FontSize="8" FontWeight="Bold" Foreground="#A78BFA" />
+                                        </Border>
                                     </Grid>
 
                                     <!-- ── Thumbnail area: pixel art thumbnail OR quiet glyph placeholder ── -->
@@ -772,14 +780,14 @@
                                           SnapsToDevicePixels="True"
                                           UseLayoutRounding="True">
 
-                                        <!-- Real texture thumbnail (for OK and Orphan) with pixel-art nearest neighbor -->
-                                        <Image Stretch="Uniform"
-                                               RenderOptions.BitmapScalingMode="NearestNeighbor"
-                                               RenderOptions.EdgeMode="Aliased"
-                                               SnapsToDevicePixels="True"
-                                               UseLayoutRounding="True"
-                                               Visibility="{Binding ShowsImageThumbnail, Converter={StaticResource BoolToVis}}"
-                                               Source="{Binding FullPath, Converter={StaticResource ImagePathConverter}}" />
+                                        <!-- Real texture thumbnail (for OK and Orphan): animated if flipbook, static if standard -->
+                                        <views:FlipbookThumbnail Stretch="Uniform"
+                                                                 RenderOptions.BitmapScalingMode="NearestNeighbor"
+                                                                 RenderOptions.EdgeMode="Aliased"
+                                                                 SnapsToDevicePixels="True"
+                                                                 UseLayoutRounding="True"
+                                                                 Visibility="{Binding ShowsImageThumbnail, Converter={StaticResource BoolToVis}}"
+                                                                 Texture="{Binding}" />
 
                                         <!-- Quiet placeholder (for Ghost and NoEntry): dark recessed background + muted glyph -->
                                         <Border Background="{Binding PlaceholderBackgroundBrush}" CornerRadius="4"

@@ -74,9 +74,9 @@ public class ImagePathConverter : IValueConverter
     /// <summary>Call this after a full rescan so stale disk images are not cached forever.</summary>
     public static void ClearCache() => _cache.Clear();
 
-    public object? Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    public static BitmapImage? GetBitmap(string? path)
     {
-        if (value is not string path || string.IsNullOrEmpty(path) || !File.Exists(path))
+        if (string.IsNullOrEmpty(path) || !File.Exists(path))
             return null;
 
         return _cache.GetOrAdd(path, static p =>
@@ -99,6 +99,14 @@ public class ImagePathConverter : IValueConverter
                 return null;
             }
         });
+    }
+
+    public object? Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        if (value is not string path)
+            return null;
+
+        return GetBitmap(path);
     }
 
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) =>

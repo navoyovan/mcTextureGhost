@@ -513,6 +513,7 @@ public class MainViewModel : INotifyPropertyChanged
         _watcher = null;
         _packRoot = null;
         _cachedPackName = null;
+        FlipbookAnimationManager.ClearCache();
         Aliases.Clear();
         PackFolders.Clear();
         SelectedFolder = null;
@@ -628,8 +629,9 @@ public class MainViewModel : INotifyPropertyChanged
         IsScanning = true;
         StatusMessage = "Scanning pack textures...";
 
-        // Discard cached BitmapImages so modified-on-disk textures reload fresh.
+        // Discard cached BitmapImages and flipbook frame slices so modified-on-disk textures reload fresh.
         ImagePathConverter.ClearCache();
+        FlipbookAnimationManager.ClearCache();
 
         var packRoot = _packRoot;
 
@@ -1055,6 +1057,7 @@ public class MainViewModel : INotifyPropertyChanged
         }
 
         ImagePathConverter.ClearCache();
+        FlipbookAnimationManager.ClearCache();
 
         foreach (var alias in Aliases)
         {
