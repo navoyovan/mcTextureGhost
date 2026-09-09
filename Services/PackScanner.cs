@@ -1129,6 +1129,244 @@ public static class PackScanner
         return result;
     }
 
+    /// <summary>
+    /// Constructs the Block Workspace tree: a 4-tier hierarchy
+    /// (Block → AliasGroup → FaceNode → CatalogLeaf) sourced exclusively from the
+    /// user's pack. Vanilla-only blocks are excluded — the Catalog dialog covers those.
+    /// Uncategorized aliases (in terrain_texture.json but not claimed by any block) are
+    /// surfaced at the bottom with Orphan status so the user can see what needs wiring.
+    /// </summary>
+    public static List<BlockGroupNode> BuildBlockWorkspaceTree(
+        IList<TextureAlias> userAliases,
+        VanillaData vanilla,
+        string? packRoot)
+    {
+        // ── Index user aliases ─────────────────────────────────────────────────
+        var userBlockAliases = userAliases
+            .Where(a => a.Category == TextureCategory.Block && a.Status != TextureStatus.NoEntry)
+            .GroupBy(a => a.Alias, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.ToList(), StringComparer.OrdinalIgnoreCase);
+
+        // ── Parse user blocks.json for block→alias and block→face mappings ────
+        var userBlocksJsonPath = packRoot != null ? Path.Combine(packRoot, "blocks.json") : null;
+        var userBlocksMap = (userBlocksJsonPath != null && File.Exists(userBlocksJsonPath))
+            ? ParseBlocksJson(userBlocksJsonPath)
+            : new Dictionary<string, List<BlockFaceUsage>>(StringComparer.OrdinalIgnoreCase);
+
+        var userBlockToAliases = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+        if (userBlocksJsonPath != null && File.Exists(userBlocksJsonPath))
+        {
+            try
+            {
+                using var stream = File.OpenRead(userBlocksJsonPath);
+                using var doc = JsonDocument.Parse(stream, ScanDocOptions);
+                foreach (var entry in doc.RootElement.EnumerateObject())
+                {
+                    if (entry.Name == "format_version" || entry.Value.ValueKind != JsonValueKind.Object) continue;
+                    var aliasSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    if (entry.Value.TryGetProperty("textures", out var tp))
+                        foreach (var (a, _) in ExtractAliasFaces(tp)) aliasSet.Add(a);
+                    if (entry.Value.TryGetProperty("carried_textures", out var cp))
+                        foreach (var (a, _) in ExtractAliasFaces(cp, isCarried: true)) aliasSet.Add(a);
+                    userBlockToAliases[entry.Name] = aliasSet.ToList();
+                }
+            }
+            catch { }
+        }
+
+        var trackedAliases = new HashSet<TextureAlias>();
+        var result = new List<BlockGroupNode>();
+
+        // ── Build one BlockGroupNode per block ID in user's blocks.json ────────
+        foreach (var blockId in userBlockToAliases.Keys.OrderBy(k => k, StringComparer.OrdinalIgnoreCase))
+        {
+            if (!userBlockToAliases.TryGetValue(blockId, out var aliasesForBlock) || aliasesForBlock.Count == 0)
+                continue;
+
+            var blockNode = new BlockGroupNode
+            {
+                BlockId = blockId,
+                DisplayName = vanilla.GetBlockDisplayName(blockId),
+                Category = TextureCategory.Block
+            };
+
+            foreach (var alias in aliasesForBlock)
+            {
+                var aliasNode = new AliasGroupNode
+                {
+                    Alias = alias,
+                    Category = TextureCategory.Block,
+                    ParentBlock = blockNode
+                };
+
+                // Collect the face usages for this alias from user's blocks.json,
+                // falling back to vanilla if the user hasn't overridden.
+                var facesForAlias = userBlocksMap.TryGetValue(alias, out var uf) ? uf :
+                                    (vanilla.BlockUsage.TryGetValue(alias, out var vf) ? vf : new List<BlockFaceUsage>());
+                aliasNode.FaceSummary = SummarizeFaces(facesForAlias);
+
+                // Determine the distinct face labels for this alias under this block.
+                // Face labels are normalised to lowercase; "all" is the fallback when
+                // no directional faces exist.
+                var faceLabels = facesForAlias
+                    .Where(f => f.BlockId.Equals(blockId, StringComparison.OrdinalIgnoreCase))
+                    .Select(f => f.Face.ToLowerInvariant())
+                    .Distinct()
+                    .ToList();
+
+                if (faceLabels.Count == 0)
+                    faceLabels.Add("all");
+
+                // Build a FaceNode per distinct face label.
+                var faceNodeMap = new Dictionary<string, FaceNode>(StringComparer.OrdinalIgnoreCase);
+                foreach (var faceLabel in faceLabels)
+                {
+                    var faceNode = new FaceNode { FaceLabel = faceLabel, IsExpanded = true };
+                    faceNodeMap[faceLabel] = faceNode;
+                    aliasNode.FaceNodes.Add(faceNode);
+                }
+
+                // Populate leaves into their FaceNodes.
+                if (userBlockAliases.TryGetValue(alias, out var userTiles))
+                {
+                    foreach (var tile in userTiles)
+                    {
+                        trackedAliases.Add(tile);
+
+                        var leafStatus = tile.Status switch
+                        {
+                            TextureStatus.Ok     => CatalogEntryStatus.Ok,
+                            TextureStatus.Ghost  => CatalogEntryStatus.Ghost,
+                            TextureStatus.Orphan => CatalogEntryStatus.Orphan,
+                            _                    => CatalogEntryStatus.Ok
+                        };
+
+                        var leaf = new CatalogLeaf
+                        {
+                            Alias        = alias,
+                            DisplayName  = tile.DisplayName,
+                            RelativePath = tile.RelativePath,
+                            FullPath     = tile.FullPath,
+                            Category     = TextureCategory.Block,
+                            Status       = leafStatus,
+                            TextureAlias = tile,
+                            SubtitleCaption   = tile.SubtitleCaption,
+                            PrimaryFaceBadgeText = tile.PrimaryFaceBadgeText,
+                            Flipbook     = tile.Flipbook
+                        };
+
+                        // Assign to the matching face node; fall back to "all".
+                        var tileFace = tile.BlockFaces
+                            .Where(f => f.BlockId.Equals(blockId, StringComparison.OrdinalIgnoreCase))
+                            .Select(f => f.Face.ToLowerInvariant())
+                            .FirstOrDefault() ?? "all";
+
+                        if (!faceNodeMap.TryGetValue(tileFace, out var targetFaceNode))
+                            targetFaceNode = faceNodeMap.Values.FirstOrDefault() ?? faceNodeMap["all"];
+
+                        targetFaceNode.Leaves.Add(leaf);
+
+                        // Also keep Leaves in sync so the alias node counts work.
+                        aliasNode.Leaves.Add(leaf);
+                    }
+                }
+                else
+                {
+                    // No user entry for this alias → show as Ghost leaf under each face.
+                    foreach (var faceNode in aliasNode.FaceNodes)
+                    {
+                        var leaf = new CatalogLeaf
+                        {
+                            Alias        = alias,
+                            DisplayName  = alias,
+                            RelativePath = $"textures/blocks/{alias}",
+                            FullPath     = packRoot != null
+                                ? Path.Combine(packRoot, "textures", "blocks", $"{alias}.png")
+                                : alias,
+                            Category     = TextureCategory.Block,
+                            Status       = CatalogEntryStatus.Ghost,
+                            TextureAlias = null,
+                            SubtitleCaption      = "missing texture",
+                            PrimaryFaceBadgeText = faceNode.FaceLabel
+                        };
+                        faceNode.Leaves.Add(leaf);
+                        aliasNode.Leaves.Add(leaf);
+                    }
+                }
+
+                aliasNode.NotifyCountsChanged();
+                blockNode.AliasGroups.Add(aliasNode);
+            }
+
+            blockNode.NotifyCountsChanged();
+            result.Add(blockNode);
+        }
+
+        // ── Uncategorized: aliases in user terrain_texture.json not claimed by any block ──
+        var untracked = userAliases
+            .Where(a => a.Category == TextureCategory.Block
+                     && a.Status != TextureStatus.NoEntry
+                     && !trackedAliases.Contains(a))
+            .ToList();
+
+        if (untracked.Count > 0)
+        {
+            var uncategorizedNode = new BlockGroupNode
+            {
+                BlockId     = "uncategorized",
+                DisplayName = "(Uncategorized)",
+                Category    = TextureCategory.Block
+            };
+
+            foreach (var grp in untracked.GroupBy(u => u.Alias, StringComparer.OrdinalIgnoreCase))
+            {
+                var aliasNode = new AliasGroupNode
+                {
+                    Alias        = grp.Key,
+                    Category     = TextureCategory.Block,
+                    ParentBlock  = uncategorizedNode,
+                    FaceSummary  = string.Empty
+                };
+
+                // Single "all" FaceNode for uncategorized aliases — no block claims a face.
+                var faceNode = new FaceNode { FaceLabel = "all", IsExpanded = true };
+                aliasNode.FaceNodes.Add(faceNode);
+
+                foreach (var tile in grp)
+                {
+                    var leaf = new CatalogLeaf
+                    {
+                        Alias        = tile.Alias,
+                        DisplayName  = tile.DisplayName,
+                        RelativePath = tile.RelativePath,
+                        FullPath     = tile.FullPath,
+                        Category     = TextureCategory.Block,
+                        Status       = tile.Status switch
+                        {
+                            TextureStatus.Ok    => CatalogEntryStatus.Ok,
+                            TextureStatus.Ghost => CatalogEntryStatus.Ghost,
+                            _                   => CatalogEntryStatus.Orphan
+                        },
+                        TextureAlias         = tile,
+                        SubtitleCaption      = tile.SubtitleCaption,
+                        PrimaryFaceBadgeText = tile.PrimaryFaceBadgeText,
+                        Flipbook             = tile.Flipbook
+                    };
+                    faceNode.Leaves.Add(leaf);
+                    aliasNode.Leaves.Add(leaf);
+                }
+
+                aliasNode.NotifyCountsChanged();
+                uncategorizedNode.AliasGroups.Add(aliasNode);
+            }
+
+            uncategorizedNode.NotifyCountsChanged();
+            result.Add(uncategorizedNode);
+        }
+
+        return result;
+    }
+
     private static string SummarizeFaces(List<BlockFaceUsage> faces)
     {
         if (faces.Count == 0) return string.Empty;

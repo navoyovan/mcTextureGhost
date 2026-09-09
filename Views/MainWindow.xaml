@@ -1731,7 +1731,60 @@
                         <TextBlock Text="Scanning..." Foreground="#a1a1aa" FontSize="11" VerticalAlignment="Center" />
                     </StackPanel>
 
+                    <!-- View mode switcher: Pack Grid / Block Workspace -->
+                    <Border VerticalAlignment="Center" Margin="0,0,0,0"
+                            Background="#18181b" BorderBrush="#2e2e34" BorderThickness="1" CornerRadius="6"
+                            HorizontalAlignment="Right">
+                        <StackPanel Orientation="Horizontal">
+                            <!-- Pack Grid tab -->
+                            <ui:Button Command="{Binding SwitchToPackViewCommand}"
+                                       Padding="10,5" FontSize="11" CornerRadius="5,0,0,5" Cursor="Hand"
+                                       ToolTip="Pack Grid — texture tile overview">
+                                <ui:Button.Style>
+                                    <Style TargetType="ui:Button" BasedOn="{StaticResource {x:Type ui:Button}}">
+                                        <Setter Property="Appearance" Value="Transparent" />
+                                        <Setter Property="Foreground" Value="#a1a1aa" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsPackView}" Value="True">
+                                                <Setter Property="Appearance" Value="Primary" />
+                                                <Setter Property="Foreground" Value="#ffffff" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </ui:Button.Style>
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <ui:SymbolIcon Symbol="Grid24" FontSize="12" Margin="0,0,5,0" VerticalAlignment="Center" />
+                                    <TextBlock Text="Pack Grid" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </ui:Button>
+
+                            <!-- Block Workspace tab -->
+                            <ui:Button Command="{Binding SwitchToBlockWorkspaceViewCommand}"
+                                       Padding="10,5" FontSize="11" CornerRadius="0,5,5,0" Cursor="Hand"
+                                       ToolTip="Block Workspace — block → face → texture hierarchy"
+                                       IsEnabled="{Binding IsPackLoaded}">
+                                <ui:Button.Style>
+                                    <Style TargetType="ui:Button" BasedOn="{StaticResource {x:Type ui:Button}}">
+                                        <Setter Property="Appearance" Value="Transparent" />
+                                        <Setter Property="Foreground" Value="#a1a1aa" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsBlockWorkspaceView}" Value="True">
+                                                <Setter Property="Appearance" Value="Primary" />
+                                                <Setter Property="Foreground" Value="#ffffff" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </ui:Button.Style>
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <ui:SymbolIcon Symbol="Apps24" FontSize="12" Margin="0,0,5,0" VerticalAlignment="Center" />
+                                    <TextBlock Text="Block Workspace" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </ui:Button>
+                        </StackPanel>
+                    </Border>
+
                 </StackPanel>
+
 
                 <!-- "No match found" - Scaffolding creation panel -->
                 <Border DockPanel.Dock="Top" Background="#232328" BorderBrush="#FC00FF" BorderThickness="1"
@@ -1760,7 +1813,7 @@
                     </StackPanel>
                 </Border>
 
-                <!-- Virtualized Tile Grid -->
+                <!-- Virtualized Tile Grid (Pack Grid view) -->
                 <ListBox ItemsSource="{Binding FilteredAliases}"
                          Background="Transparent" BorderThickness="0"
                          VirtualizingPanel.IsVirtualizing="True"
@@ -1771,7 +1824,8 @@
                          RenderOptions.BitmapScalingMode="NearestNeighbor"
                          RenderOptions.ClearTypeHint="Enabled"
                          SnapsToDevicePixels="True"
-                         UseLayoutRounding="True">
+                         UseLayoutRounding="True"
+                         Visibility="{Binding IsPackView, Converter={StaticResource BoolToVis}}">
                     <ListBox.ItemsPanel>
                         <ItemsPanelTemplate>
                             <controls:VirtualizingWrapPanel Orientation="Horizontal" />
@@ -1984,7 +2038,176 @@
                     </ListBox.ItemTemplate>
                 </ListBox>
 
+                <!-- ─── BLOCK WORKSPACE VIEW ──────────────────────────────────── -->
+                <ScrollViewer Visibility="{Binding IsBlockWorkspaceView, Converter={StaticResource BoolToVis}}"
+                              VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled"
+                              Padding="0,0,4,0">
+                    <TreeView x:Name="BlockWorkspaceTree"
+                              ItemsSource="{Binding BlockWorkspaceTree}"
+                              Background="Transparent"
+                              BorderThickness="0"
+                              VirtualizingPanel.IsVirtualizing="True"
+                              VirtualizingPanel.VirtualizationMode="Recycling"
+                              Padding="0,0,0,8">
+
+                        <TreeView.Resources>
+
+                            <!-- ── Level 1: BlockGroupNode ─────────────────────── -->
+                            <HierarchicalDataTemplate DataType="{x:Type models:BlockGroupNode}"
+                                                      ItemsSource="{Binding AliasGroups}">
+                                <Border Padding="4,5" Background="Transparent" CornerRadius="5">
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <TextBlock Text="🧱" FontSize="13" Margin="0,0,6,0" VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding DisplayName}"
+                                                   FontWeight="SemiBold" FontSize="12.5"
+                                                   Foreground="#E4E4E7" VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding BlockId, StringFormat=' ({0})'}"
+                                                   FontSize="10" Foreground="#52525B" VerticalAlignment="Center"
+                                                   Margin="2,0,0,0" />
+                                        <!-- Ghost count badge -->
+                                        <Border Background="#3b153b" CornerRadius="8" Padding="5,1" Margin="8,0,0,0"
+                                                VerticalAlignment="Center"
+                                                Visibility="{Binding GhostCount, Converter={StaticResource IntGreaterToVis}}">
+                                            <TextBlock Text="{Binding GhostCount, StringFormat='👻 {0}'}"
+                                                       FontSize="9" FontWeight="Bold" Foreground="#F472B6" />
+                                        </Border>
+                                    </StackPanel>
+                                </Border>
+                            </HierarchicalDataTemplate>
+
+                            <!-- ── Level 2: AliasGroupNode ─────────────────────── -->
+                            <HierarchicalDataTemplate DataType="{x:Type models:AliasGroupNode}"
+                                                      ItemsSource="{Binding FaceNodes}">
+                                <Border Padding="4,4" Background="Transparent" CornerRadius="5">
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <ui:SymbolIcon Symbol="Textbox24" FontSize="12" Foreground="#71717A"
+                                                       Margin="0,0,6,0" VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding Alias}"
+                                                   FontSize="11.5" FontWeight="SemiBold"
+                                                   Foreground="#D4D4D8" VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding FaceSummary, StringFormat=' · {0}'}"
+                                                   FontSize="10" Foreground="#52525B" VerticalAlignment="Center"
+                                                   Visibility="{Binding HasFaceSummary, Converter={StaticResource BoolToVis}}" />
+                                    </StackPanel>
+                                </Border>
+                            </HierarchicalDataTemplate>
+
+                            <!-- ── Level 3: FaceNode ────────────────────────────── -->
+                            <HierarchicalDataTemplate DataType="{x:Type models:FaceNode}"
+                                                      ItemsSource="{Binding Leaves}">
+                                <Border Padding="4,3" Background="Transparent" CornerRadius="5">
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <ui:SymbolIcon Symbol="ArrowRight16" FontSize="10" Foreground="#3F3F46"
+                                                       Margin="0,0,5,0" VerticalAlignment="Center" />
+                                        <Border Background="#252528" CornerRadius="4" Padding="6,2">
+                                            <TextBlock Text="{Binding FaceLabel}"
+                                                       FontSize="10" FontWeight="Bold"
+                                                       Foreground="#A1A1AA" />
+                                        </Border>
+                                        <!-- Orphan/ghost indicator on face -->
+                                        <Border Background="#3b153b" CornerRadius="8" Padding="4,1" Margin="6,0,0,0"
+                                                VerticalAlignment="Center"
+                                                Visibility="{Binding GhostCount, Converter={StaticResource IntGreaterToVis}}">
+                                            <TextBlock Text="{Binding GhostCount, StringFormat='? {0}'}"
+                                                       FontSize="8" FontWeight="Bold" Foreground="#F472B6" />
+                                        </Border>
+                                        <Border Background="#332410" CornerRadius="8" Padding="4,1" Margin="4,0,0,0"
+                                                VerticalAlignment="Center"
+                                                Visibility="{Binding OrphanCount, Converter={StaticResource IntGreaterToVis}}">
+                                            <TextBlock Text="{Binding OrphanCount, StringFormat='◈ {0}'}"
+                                                       FontSize="8" FontWeight="Bold" Foreground="#F59E0B" />
+                                        </Border>
+                                    </StackPanel>
+                                </Border>
+                            </HierarchicalDataTemplate>
+
+                            <!-- ── Level 4: CatalogLeaf ─────────────────────────── -->
+                            <DataTemplate DataType="{x:Type models:CatalogLeaf}">
+                                <Button Command="{Binding DataContext.EditTextureCommand, RelativeSource={RelativeSource AncestorType=TreeView}}"
+                                        CommandParameter="{Binding TextureAlias}"
+                                        Background="Transparent" BorderThickness="0"
+                                        Padding="0" Cursor="Hand"
+                                        FocusVisualStyle="{x:Null}">
+                                    <Button.Template>
+                                        <ControlTemplate TargetType="Button">
+                                            <Border x:Name="LeafBorder"
+                                                    Background="Transparent" CornerRadius="5"
+                                                    Padding="6,4" Margin="0,1">
+                                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                    <!-- Status dot -->
+                                                    <Ellipse Width="7" Height="7"
+                                                             Fill="{Binding StatusDotBrush}"
+                                                             Margin="0,0,7,0" VerticalAlignment="Center" />
+
+                                                    <!-- Small thumbnail or placeholder -->
+                                                    <Grid Width="28" Height="28" Margin="0,0,8,0">
+                                                        <views:FlipbookThumbnail Stretch="Uniform"
+                                                                                 RenderOptions.BitmapScalingMode="NearestNeighbor"
+                                                                                 RenderOptions.EdgeMode="Aliased"
+                                                                                 SnapsToDevicePixels="True"
+                                                                                 Visibility="{Binding ShowsImageThumbnail, Converter={StaticResource BoolToVis}}"
+                                                                                 Texture="{Binding}" />
+                                                        <Border Background="{Binding PlaceholderBackgroundBrush}" CornerRadius="3"
+                                                                Visibility="{Binding ShowsPlaceholderGlyph, Converter={StaticResource BoolToVis}}">
+                                                            <TextBlock Text="{Binding PlaceholderGlyph}"
+                                                                       FontSize="12" FontWeight="Bold"
+                                                                       Foreground="{Binding PlaceholderGlyphBrush}"
+                                                                       HorizontalAlignment="Center"
+                                                                       VerticalAlignment="Center" />
+                                                        </Border>
+                                                    </Grid>
+
+                                                    <!-- Alias / file name -->
+                                                    <StackPanel VerticalAlignment="Center">
+                                                        <TextBlock Text="{Binding DisplayName}"
+                                                                   FontSize="11.5" Foreground="#E4E4E7"
+                                                                   FontWeight="SemiBold" />
+                                                        <TextBlock Text="{Binding SubtitleCaption}"
+                                                                   FontSize="9" Foreground="#71717A"
+                                                                   Visibility="{Binding SubtitleCaption, Converter={StaticResource StringNotEmptyToVis}}" />
+                                                    </StackPanel>
+
+                                                    <!-- ANIM badge for flipbooks -->
+                                                    <Border Background="#258B5CF6" CornerRadius="3" Padding="4,1"
+                                                            Margin="8,0,0,0" VerticalAlignment="Center"
+                                                            Visibility="{Binding IsFlipbook, Converter={StaticResource BoolToVis}}"
+                                                            ToolTip="{Binding FlipbookTooltip}">
+                                                        <TextBlock Text="ANIM" FontSize="8" FontWeight="Bold" Foreground="#A78BFA" />
+                                                    </Border>
+
+                                                    <!-- Status label -->
+                                                    <Border Background="#18181B" CornerRadius="3" Padding="5,1"
+                                                            Margin="6,0,0,0" VerticalAlignment="Center">
+                                                        <TextBlock Text="{Binding StatusLabel}"
+                                                                   FontSize="8" FontWeight="Bold"
+                                                                   Foreground="{Binding StatusMutedBrush}" />
+                                                    </Border>
+                                                </StackPanel>
+                                                <VisualStateManager.VisualStateGroups>
+                                                    <VisualStateGroup />
+                                                </VisualStateManager.VisualStateGroups>
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="LeafBorder" Property="Background" Value="#222226" />
+                                                </Trigger>
+                                                <Trigger Property="IsPressed" Value="True">
+                                                    <Setter TargetName="LeafBorder" Property="Background" Value="#2D2D32" />
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Button.Template>
+                                </Button>
+                            </DataTemplate>
+
+                        </TreeView.Resources>
+                    </TreeView>
+                </ScrollViewer>
+                <!-- ─────────────────────────────────────────────────────────── -->
+
             </DockPanel>
+
         </Grid>
     </Grid>
     </Grid>

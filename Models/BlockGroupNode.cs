@@ -159,6 +159,33 @@ public class CatalogLeaf : INotifyPropertyChanged
 }
 
 /// <summary>
+/// Face tier node in the block workspace tree, grouping texture leaves for one logical face
+/// (e.g. "up", "side", "north", "all") of a single alias.
+/// </summary>
+public class FaceNode : INotifyPropertyChanged
+{
+    /// <summary>Normalised face label shown in the tree (e.g. "up", "side", "all").</summary>
+    public required string FaceLabel { get; init; }
+
+    /// <summary>Leaves (texture variants) belonging to this face.</summary>
+    public ObservableCollection<CatalogLeaf> Leaves { get; } = new();
+
+    private bool _isExpanded = true;
+    public bool IsExpanded
+    {
+        get => _isExpanded;
+        set { if (_isExpanded != value) { _isExpanded = value; OnPropertyChanged(); } }
+    }
+
+    public int GhostCount => Leaves.Count(l => l.Status == CatalogEntryStatus.Ghost);
+    public int OrphanCount => Leaves.Count(l => l.Status == CatalogEntryStatus.Orphan);
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+    protected void OnPropertyChanged([CallerMemberName] string? name = null) =>
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+}
+
+/// <summary>
 /// Intermediate node in the catalog tree, grouping all variant leaves of a single texture alias.
 /// </summary>
 public class AliasGroupNode : INotifyPropertyChanged
@@ -167,7 +194,15 @@ public class AliasGroupNode : INotifyPropertyChanged
     public required TextureCategory Category { get; init; }
     public BlockGroupNode? ParentBlock { get; set; }
 
+    /// <summary>Flat leaf collection — used by the Catalog dialog.</summary>
     public ObservableCollection<CatalogLeaf> Leaves { get; } = new();
+
+    /// <summary>
+    /// Face-grouped leaf collection — used by the Block Workspace view.
+    /// Each <see cref="FaceNode"/> holds the leaves for one logical face direction.
+    /// Populated by <c>BuildBlockWorkspaceTree</c>; empty when built via <c>BuildCatalogTree</c>.
+    /// </summary>
+    public ObservableCollection<FaceNode> FaceNodes { get; } = new();
 
     private bool _isExpanded;
     public bool IsExpanded

@@ -515,8 +515,8 @@ public class MainViewModel : INotifyPropertyChanged
         UpdateBackgroundBrush();
     }
 
-    // ─── View Mode (Pack Grid vs Catalog Tree) ─────────────────────────────────
-    public enum ViewMode { Pack, Catalog }
+    // ─── View Mode (Pack Grid vs Catalog Tree vs Block Workspace) ──────────────
+    public enum ViewMode { Pack, Catalog, BlockWorkspace }
 
     private ViewMode _viewMode = ViewMode.Pack;
     public ViewMode CurrentViewMode
@@ -529,14 +529,25 @@ public class MainViewModel : INotifyPropertyChanged
             OnPropertyChanged();
             OnPropertyChanged(nameof(IsPackView));
             OnPropertyChanged(nameof(IsCatalogView));
+            OnPropertyChanged(nameof(IsBlockWorkspaceView));
         }
     }
 
-    public bool IsPackView => _viewMode == ViewMode.Pack;
-    public bool IsCatalogView => _viewMode == ViewMode.Catalog;
+    public bool IsPackView            => _viewMode == ViewMode.Pack;
+    public bool IsCatalogView         => _viewMode == ViewMode.Catalog;
+    public bool IsBlockWorkspaceView  => _viewMode == ViewMode.BlockWorkspace;
 
-    public RelayCommand SwitchToPackViewCommand { get; }
-    public RelayCommand SwitchToCatalogViewCommand { get; }
+    public RelayCommand SwitchToPackViewCommand           { get; }
+    public RelayCommand SwitchToCatalogViewCommand        { get; }
+    public RelayCommand SwitchToBlockWorkspaceViewCommand { get; }
+
+    // ─── Block Workspace Tree ─────────────────────────────────────────────────
+    /// <summary>
+    /// 4-tier tree (Block → AliasGroup → FaceNode → CatalogLeaf) sourced
+    /// exclusively from the user's pack. Populated on every rescan alongside
+    /// <see cref="CatalogTree"/>.
+    /// </summary>
+    public ObservableCollection<BlockGroupNode> BlockWorkspaceTree { get; } = new();
 
     // ─── Vanilla Reference Data ───────────────────────────────────────────────
     private VanillaData? _vanillaData;
@@ -683,8 +694,10 @@ public class MainViewModel : INotifyPropertyChanged
         SwitchToBlocksCommand  = new RelayCommand(_ => ActiveTab = TextureTab.Blocks);
         SwitchToItemsCommand   = new RelayCommand(_ => ActiveTab = TextureTab.Items);
 
-        SwitchToPackViewCommand    = new RelayCommand(_ => CurrentViewMode = ViewMode.Pack);
-        SwitchToCatalogViewCommand = new RelayCommand(_ => CurrentViewMode = ViewMode.Catalog, _ => IsVanillaDataLoaded);
+        SwitchToPackViewCommand           = new RelayCommand(_ => CurrentViewMode = ViewMode.Pack);
+        SwitchToCatalogViewCommand        = new RelayCommand(_ => CurrentViewMode = ViewMode.Catalog, _ => IsVanillaDataLoaded);
+        SwitchToBlockWorkspaceViewCommand = new RelayCommand(_ => CurrentViewMode = ViewMode.BlockWorkspace, _ => _packRoot != null);
+
         FetchVanillaDataCommand    = new RelayCommand(_ => _ = RefreshVanillaDataAsync());
         AddVanillaEntryCommand     = new RelayCommand(param => AddVanillaEntry(param), _ => _packRoot != null && _vanillaData != null);
         OpenCatalogDialogCommand        = new RelayCommand(_ => OpenCatalogDialog(), _ => _packRoot != null);
@@ -1148,6 +1161,7 @@ public class MainViewModel : INotifyPropertyChanged
         FlipbookAnimationManager.ClearCache();
         Aliases.Clear();
         CatalogTree.Clear();
+        BlockWorkspaceTree.Clear();
         PackFolders.Clear();
         SelectedFolder = null;
         SearchText = "";
@@ -1288,12 +1302,23 @@ public class MainViewModel : INotifyPropertyChanged
 
             if (_vanillaData != null)
             {
-                var tree = await Task.Run(() => PackScanner.BuildCatalogTree(results, _vanillaData, packRoot));
+                var (catalogNodes, workspaceNodes) = await Task.Run(() =>
+                {
+                    var cat = PackScanner.BuildCatalogTree(results, _vanillaData, packRoot);
+                    var ws  = PackScanner.BuildBlockWorkspaceTree(results, _vanillaData, packRoot);
+                    return (cat, ws);
+                });
+
                 CatalogTree.Clear();
-                foreach (var node in tree)
+                foreach (var node in catalogNodes)
                     CatalogTree.Add(node);
                 FilteredCatalogTree.Refresh();
+
+                BlockWorkspaceTree.Clear();
+                foreach (var node in workspaceNodes)
+                    BlockWorkspaceTree.Add(node);
             }
+
 
             var blockCount = results.Count(a => a.Category == TextureCategory.Block);
             var itemCount = results.Count(a => a.Category == TextureCategory.Item);
