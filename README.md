@@ -2,7 +2,7 @@
 Ghost Resource Manager for Minecraft (`mc-ghost-resource-manager`)
 
 ## About
-McTextureGhost is a high-performance Windows 11 Fluent desktop tool designed for Minecraft Bedrock Edition resource pack creators, texture artists, and technical pack developers. It eliminates manual JSON boilerplate, identifies missing textures ("ghosts"), and provides real-time live reloading with instant external image editor integration.
+McTextureGhost is a desktop tool designed for Minecraft Bedrock Edition resource pack creators, texture artists, and technical pack developers. It eliminates manual JSON boilerplate, identifies missing textures ("ghosts"), and provides real-time live reloading with instant external image editor integration.
 
 ## Roadmap
 
@@ -56,8 +56,8 @@ McTextureGhost is a high-performance Windows 11 Fluent desktop tool designed for
 - **Ghost-to-Real Workflow**: clicking any missing texture ("Ghost") generates a 16×16 placeholder stub PNG and immediately opens the native Windows "Open With" dialog. once painted and saved, the tile flips to `OK` in real time.
 
 ### 3. 1:1 Bedrock Flipbook Animation Engine
-- **Synchronized Global Tick Clock**: 20Hz (50ms) world tick clock simulating Minecraft game engine.
-- **Seamless GPU Crossfade**: `blend_frames` with 60 FPS GPU crossfading between animation frames, accurately reproducing in-game fluid and portal rendering.
+- **Synchronized Global Tick Clock**: Emulates 20 world tick per second Minecraft game engine.
+- **Seamless GPU Crossfade**: `blend_frames` with 60 FPS GPU crossfading between animation frames, accurately reproducing in-game rendering.
 - **Frame Sequences & Slicing**: parses vertically stacked sprite sheets into zero-copy frame views, honoring custom `frames` index sequences and `ticks_per_frame` animation speeds.
 - **Automatic Pausing**: stop animation when no animated tiles are currently visible on screen to conserve CPU and GPU resources.
 
@@ -88,7 +88,7 @@ McTextureGhost is a high-performance Windows 11 Fluent desktop tool designed for
 
 1. **Clone the repository:**
    ```bash
-   git clone https://github.com/navoyovan/McTextureGhost.git
+   git clone https://github.com/navoyovan/mcTextureGhost.git
    cd McTextureGhost
    ```
 
