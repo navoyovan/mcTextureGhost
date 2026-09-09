@@ -154,7 +154,7 @@ public class MainViewModel : INotifyPropertyChanged
         }
     }
 
-    public string? SelectedFolderPath => _selectedFolder?.RelativePath;
+    public string? SelectedFolderPath => _selectedFolder?.RelativePath?.Replace('/', '\\');
 
     public int TotalGhostCount => CurrentCategory.HasValue
         ? Aliases.Count(a => a.Category == CurrentCategory.Value && a.Status == TextureStatus.Ghost)
@@ -443,6 +443,22 @@ public class MainViewModel : INotifyPropertyChanged
     };
 
     // ─── Window Frosted Glass Background & Dev Settings ──────────────────────
+    private bool _showCategoryTabs = false;
+    public bool ShowCategoryTabs
+    {
+        get => _showCategoryTabs;
+        set
+        {
+            if (_showCategoryTabs == value) return;
+            _showCategoryTabs = value;
+            OnPropertyChanged();
+            if (!_showCategoryTabs && _activeTab != TextureTab.All)
+            {
+                ActiveTab = TextureTab.All;
+            }
+        }
+    }
+
     private int _tintOpacityPercent = 83;
     public int TintOpacityPercent
     {
@@ -618,6 +634,13 @@ public class MainViewModel : INotifyPropertyChanged
     public RelayCommand SetZoomComfortableCommand { get; }
     public RelayCommand SetZoomLargeCommand { get; }
     public RelayCommand ResetTintSettingsCommand { get; }
+    public RelayCommand OpenRecentPackCommand { get; }
+    public RelayCommand RemoveRecentPackCommand { get; }
+    public RelayCommand ClearRecentPacksCommand { get; }
+
+    private readonly RecentPacksService _recentPacksService = new();
+    public ObservableCollection<RecentPackItem> RecentPacks { get; } = new();
+    public bool HasRecentPacks => RecentPacks.Count > 0;
 
     private bool _isAdvancedManifestExpanded;
     public bool IsAdvancedManifestExpanded
@@ -730,6 +753,37 @@ public class MainViewModel : INotifyPropertyChanged
         SetZoomComfortableCommand = new RelayCommand(_ => CurrentTileSizeMode = TileSizeMode.Comfortable);
         SetZoomLargeCommand = new RelayCommand(_ => CurrentTileSizeMode = TileSizeMode.Large);
         ResetTintSettingsCommand = new RelayCommand(_ => ResetTintSettings());
+        OpenRecentPackCommand = new RelayCommand(param =>
+        {
+            if (param is RecentPackItem item)
+            {
+                LoadPack(item.FolderPath);
+            }
+            else if (param is string path)
+            {
+                LoadPack(path);
+            }
+        });
+        RemoveRecentPackCommand = new RelayCommand(param =>
+        {
+            if (param is RecentPackItem item)
+            {
+                _recentPacksService.RemovePack(item.FolderPath);
+                RefreshRecentPacks();
+            }
+            else if (param is string path)
+            {
+                _recentPacksService.RemovePack(path);
+                RefreshRecentPacks();
+            }
+        });
+        ClearRecentPacksCommand = new RelayCommand(_ =>
+        {
+            _recentPacksService.ClearAll();
+            RefreshRecentPacks();
+        });
+
+        RefreshRecentPacks();
 
         _ = InitializeVanillaDataAsync();
     }
@@ -780,6 +834,16 @@ public class MainViewModel : INotifyPropertyChanged
         return node.SearchFilterKey.Contains(query, StringComparison.Ordinal);
     }
 
+    public void RefreshRecentPacks()
+    {
+        RecentPacks.Clear();
+        foreach (var item in _recentPacksService.LoadRecentPacks())
+        {
+            RecentPacks.Add(item);
+        }
+        OnPropertyChanged(nameof(HasRecentPacks));
+    }
+
     public void LoadPack(string folderPath)
     {
         if (string.IsNullOrWhiteSpace(folderPath) || !Directory.Exists(folderPath)) return;
@@ -787,19 +851,119 @@ public class MainViewModel : INotifyPropertyChanged
         _cachedPackName = null;
         Rescan();
         StartWatching();
+
+        if (File.Exists(Path.Combine(folderPath, "manifest.json")))
+        {
+            _recentPacksService.AddOrUpdatePack(folderPath);
+            RefreshRecentPacks();
+        }
     }
 
     private void OpenPackFolder()
     {
-        // .NET 8 WPF's built-in folder picker - no extra package needed.
-        var dialog = new OpenFolderDialog
+        var dialog = new OpenFileDialog
         {
-            Title = "Select your resource pack root (the folder with manifest.json)"
+            Title = "Select resource pack folder or manifest.json",
+            Filter = "Bedrock Resource Pack|manifest.json;pack_icon.png;*.json|All files (*.*)|*.*|Bedrock Manifest (manifest.json)|manifest.json",
+            FileName = "Select Current Folder",
+            CheckFileExists = false,
+            CheckPathExists = true,
+            ValidateNames = false
         };
 
-        if (dialog.ShowDialog() != true) return;
+        if (!string.IsNullOrEmpty(_packRoot) && Directory.Exists(_packRoot))
+        {
+            dialog.InitialDirectory = _packRoot;
+        }
 
-        LoadPack(dialog.FolderName);
+        var owner = Application.Current?.MainWindow;
+        bool? result = owner != null ? dialog.ShowDialog(owner) : dialog.ShowDialog();
+        if (result != true) return;
+
+        var resolvedFolder = ResolvePackFolder(dialog.FileName);
+        if (!string.IsNullOrEmpty(resolvedFolder) && Directory.Exists(resolvedFolder))
+        {
+            LoadPack(resolvedFolder);
+        }
+    }
+
+    /// <summary>
+    /// Resolves the intended resource pack folder from a user-selected path in the open dialog.
+    /// Supports selecting manifest.json, any pack asset file, an existing folder, or confirming
+    /// the current folder via the dialog placeholder.
+    /// </summary>
+    public static string? ResolvePackFolder(string? selectedPath)
+    {
+        if (string.IsNullOrWhiteSpace(selectedPath)) return null;
+
+        try
+        {
+            // 1. Direct directory match
+            if (Directory.Exists(selectedPath))
+            {
+                return Path.GetFullPath(selectedPath);
+            }
+
+            // 2. Existing file match (e.g. manifest.json, pack_icon.png, or asset file in subfolder)
+            if (File.Exists(selectedPath))
+            {
+                var dir = Path.GetDirectoryName(selectedPath);
+                if (string.IsNullOrEmpty(dir)) return null;
+
+                // If manifest.json is directly in this file's folder, that's the pack root
+                if (File.Exists(Path.Combine(dir, "manifest.json")))
+                {
+                    return Path.GetFullPath(dir);
+                }
+
+                // Check parent directories up to 4 levels up for manifest.json (e.g. selected textures/blocks/stone.png)
+                var current = Directory.GetParent(dir);
+                int depth = 0;
+                while (current != null && depth < 4)
+                {
+                    if (File.Exists(Path.Combine(current.FullName, "manifest.json")))
+                    {
+                        return Path.GetFullPath(current.FullName);
+                    }
+                    current = current.Parent;
+                    depth++;
+                }
+
+                return Path.GetFullPath(dir);
+            }
+
+            // 3. Virtual/placeholder path returned by OpenFileDialog when CheckFileExists = false
+            var parentDir = Path.GetDirectoryName(selectedPath);
+            if (!string.IsNullOrEmpty(parentDir) && Directory.Exists(parentDir))
+            {
+                var fileName = Path.GetFileName(selectedPath);
+
+                // Common placeholders or intentions
+                if (string.IsNullOrWhiteSpace(fileName) ||
+                    fileName.Equals("Select Current Folder", StringComparison.OrdinalIgnoreCase) ||
+                    fileName.Equals("manifest.json", StringComparison.OrdinalIgnoreCase) ||
+                    fileName == ".")
+                {
+                    return Path.GetFullPath(parentDir);
+                }
+
+                // If the user typed a relative subfolder name that exists
+                var combined = Path.Combine(parentDir, fileName);
+                if (Directory.Exists(combined))
+                {
+                    return Path.GetFullPath(combined);
+                }
+
+                // Fallback to the directory currently open in the dialog
+                return Path.GetFullPath(parentDir);
+            }
+        }
+        catch
+        {
+            // Fallback gracefully on any path formatting exception
+        }
+
+        return null;
     }
 
     private void CreateNewPack()
@@ -884,6 +1048,8 @@ public class MainViewModel : INotifyPropertyChanged
             if (manifestDialog.ShouldGenerateManifest)
             {
                 StatusMessage = "Resource pack created with manifest.json.";
+                _recentPacksService.AddOrUpdatePack(targetFolder);
+                RefreshRecentPacks();
             }
             else
             {
@@ -918,6 +1084,12 @@ public class MainViewModel : INotifyPropertyChanged
             OnPropertyChanged(nameof(HasManifest));
             BuildFolderTree();
             StatusMessage = "manifest.json saved successfully.";
+
+            if (File.Exists(manifestPath))
+            {
+                _recentPacksService.AddOrUpdatePack(_packRoot);
+                RefreshRecentPacks();
+            }
         }
         catch (Exception ex)
         {
@@ -984,6 +1156,7 @@ public class MainViewModel : INotifyPropertyChanged
         OrphansOnly = false;
         StatusMessage = "Open a resource pack folder to begin.";
 
+        RefreshRecentPacks();
         NotifyPackStateChanged();
     }
 

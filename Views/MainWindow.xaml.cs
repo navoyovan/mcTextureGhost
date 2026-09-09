@@ -2,6 +2,7 @@ using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Interop;
+using System.Windows.Media.Animation;
 using McTextureGhost.Models;
 using McTextureGhost.ViewModels;
 
@@ -44,6 +45,72 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
                 StatusFilterPopup.DataContext = e.NewValue;
             }
         };
+    }
+
+    private bool _isPackCardInitialized;
+    private bool _isAnimating;
+    private double _lastContentHeight;
+
+    private void PackStatusCardContent_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (!e.HeightChanged) return;
+
+        double newH = e.NewSize.Height;
+        if (newH <= 0) return;
+
+        // Ignore secondary layout passes while an animation is currently executing
+        if (_isAnimating) return;
+
+        double prevH = _lastContentHeight;
+        _lastContentHeight = newH;
+
+        // Skip initial render measurement on startup so window appears instantly
+        if (!_isPackCardInitialized)
+        {
+            _isPackCardInitialized = true;
+            return;
+        }
+
+        if (prevH <= 0) return;
+
+        double extraPadding = PackStatusCard.Padding.Top + PackStatusCard.Padding.Bottom 
+                              + PackStatusCard.BorderThickness.Top + PackStatusCard.BorderThickness.Bottom;
+
+        double fromHeight = prevH + extraPadding;
+        double toHeight = newH + extraPadding;
+
+        // If height difference is negligible, ignore
+        if (Math.Abs(toHeight - fromHeight) < 2.0) return;
+
+        _isAnimating = true;
+
+        // Defer starting the animation out of the Measure/Arrange/Render layout pass to prevent TimeManager invalidation loop
+        Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded, () =>
+        {
+            try
+            {
+                var anim = new DoubleAnimation
+                {
+                    From = fromHeight,
+                    To = toHeight,
+                    Duration = TimeSpan.FromMilliseconds(300),
+                    EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+                };
+
+                anim.Completed += (s, args) =>
+                {
+                    PackStatusCard.BeginAnimation(FrameworkElement.HeightProperty, null);
+                    PackStatusCard.Height = double.NaN;
+                    _isAnimating = false;
+                };
+
+                PackStatusCard.BeginAnimation(FrameworkElement.HeightProperty, anim);
+            }
+            catch
+            {
+                _isAnimating = false;
+            }
+        });
     }
 
     private void TitleBarDragGrip_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
