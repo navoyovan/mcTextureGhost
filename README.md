@@ -133,6 +133,33 @@ McTextureGhost/
 
 ---
 
+## License
+
+McTextureGhost is source-available under the [Business Source License 1.1](./LICENSE).
+
+**In short:**
+- Free to use, modify, and share for personal, educational, or internal
+  non-commercial purposes.
+- You may **not** sell it, or a modified version of it, as a commercial
+  product or paid/hosted service without a separate agreement.
+- Each release automatically converts to the fully open **Apache License
+  2.0** four years after its publication date.
+
+This isn't OSI "open source" in the strict sense, but it's not closed
+either — the code is public, contributions are welcome, and every version
+becomes permanently open on a fixed timeline regardless of what happens to
+the project. It's meant to keep the tool free for the community that
+actually uses it, while leaving room for the project to become sustainable
+without someone else selling a repackaged copy out from under it first.
+
+Contributions are accepted under the project's [Contributor License
+Agreement](./CLA.md) — first-time contributors will be prompted to sign it
+automatically when opening a pull request.
+
+Questions about commercial use or licensing exceptions? Open an issue or
+reach out directly.
+
+
 ## Disclaimer
 > **NOT AN OFFICIAL MINECRAFT PRODUCT. NOT APPROVED BY OR ASSOCIATED WITH MOJANG OR MICROSOFT.**
 

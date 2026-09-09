@@ -7,6 +7,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Windows;
 using System.Windows.Data;
+using System.Windows.Media;
 using System.Windows.Threading;
 using McTextureGhost.Models;
 using McTextureGhost.Services;
@@ -15,8 +16,8 @@ using Microsoft.Win32;
 
 namespace McTextureGhost.ViewModels;
 
-/// <summary>Controls how large tiles render in the grid.</summary>
-public enum TileSizeMode { Small, Medium, Large }
+/// <summary>Controls how large tiles render in the grid for accessibility.</summary>
+public enum TileSizeMode { Compact, Comfortable, Large }
 
 /// <summary>Specifies the active category tab in the texture manager.</summary>
 public enum TextureTab { All, Blocks, Items }
@@ -34,6 +35,7 @@ public class MainViewModel : INotifyPropertyChanged
 
     public bool IsPackLoaded => _packRoot != null;
     public string? PackRootPath => _packRoot;
+    public string? RootDirectoryName => _packRoot != null ? Path.GetFileName(_packRoot) : null;
     private string? _cachedPackName;
     public string? PackName => _packRoot != null ? (_cachedPackName ??= GetPackDisplayName()) : null;
     public string? PackIconPath => _packRoot != null ? Path.Combine(_packRoot, "pack_icon.png") : null;
@@ -396,10 +398,106 @@ public class MainViewModel : INotifyPropertyChanged
         set { _statusMessage = value; OnPropertyChanged(); }
     }
 
-    // ─── Tile size (Hardcoded to Large) ───────────────────────────────────────
-    public int TileButtonWidth  => 156;
-    public int TileButtonHeight => 180;
-    public int TileImageSize    => 96;
+    // ─── Zoom & Accessibility Tile Sizing ──────────────────────────────────
+    private TileSizeMode _currentTileSizeMode = TileSizeMode.Comfortable;
+    public TileSizeMode CurrentTileSizeMode
+    {
+        get => _currentTileSizeMode;
+        set
+        {
+            if (_currentTileSizeMode == value) return;
+            _currentTileSizeMode = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(TileButtonWidth));
+            OnPropertyChanged(nameof(TileButtonHeight));
+            OnPropertyChanged(nameof(TileImageSize));
+            OnPropertyChanged(nameof(IsZoomCompact));
+            OnPropertyChanged(nameof(IsZoomComfortable));
+            OnPropertyChanged(nameof(IsZoomLarge));
+        }
+    }
+
+    public bool IsZoomCompact => _currentTileSizeMode == TileSizeMode.Compact;
+    public bool IsZoomComfortable => _currentTileSizeMode == TileSizeMode.Comfortable;
+    public bool IsZoomLarge => _currentTileSizeMode == TileSizeMode.Large;
+
+    public int TileButtonWidth => _currentTileSizeMode switch
+    {
+        TileSizeMode.Compact => 124,
+        TileSizeMode.Large => 210,
+        _ => 160 // Comfortable
+    };
+
+    public int TileButtonHeight => _currentTileSizeMode switch
+    {
+        TileSizeMode.Compact => 150,
+        TileSizeMode.Large => 248,
+        _ => 190 // Comfortable
+    };
+
+    public int TileImageSize => _currentTileSizeMode switch
+    {
+        TileSizeMode.Compact => 68,
+        TileSizeMode.Large => 140,
+        _ => 96 // Comfortable
+    };
+
+    // ─── Window Frosted Glass Background & Dev Settings ──────────────────────
+    private int _tintOpacityPercent = 83;
+    public int TintOpacityPercent
+    {
+        get => _tintOpacityPercent;
+        set
+        {
+            var clamped = Math.Clamp(value, 0, 100);
+            if (_tintOpacityPercent == clamped) return;
+            _tintOpacityPercent = clamped;
+            OnPropertyChanged();
+            UpdateBackgroundBrush();
+        }
+    }
+
+    private int _tintBrightness = 18;
+    public int TintBrightness
+    {
+        get => _tintBrightness;
+        set
+        {
+            var clamped = Math.Clamp(value, 0, 60);
+            if (_tintBrightness == clamped) return;
+            _tintBrightness = clamped;
+            OnPropertyChanged();
+            UpdateBackgroundBrush();
+        }
+    }
+
+    private SolidColorBrush _windowBackgroundBrush = new(Color.FromArgb(212, 18, 18, 20));
+    public SolidColorBrush WindowBackgroundBrush => _windowBackgroundBrush;
+
+    public string TintHexCode => $"#{_windowBackgroundBrush.Color.A:X2}{_windowBackgroundBrush.Color.R:X2}{_windowBackgroundBrush.Color.G:X2}{_windowBackgroundBrush.Color.B:X2}";
+
+    private void UpdateBackgroundBrush()
+    {
+        byte alpha = (byte)Math.Clamp((int)Math.Round(_tintOpacityPercent * 255.0 / 100.0), 0, 255);
+        byte r = (byte)Math.Clamp(_tintBrightness, 0, 255);
+        byte g = (byte)Math.Clamp(_tintBrightness, 0, 255);
+        byte b = (byte)Math.Clamp(_tintBrightness + 2, 0, 255);
+
+        var brush = new SolidColorBrush(Color.FromArgb(alpha, r, g, b));
+        brush.Freeze();
+        _windowBackgroundBrush = brush;
+        OnPropertyChanged(nameof(WindowBackgroundBrush));
+        OnPropertyChanged(nameof(TintHexCode));
+    }
+
+    public void ResetTintSettings()
+    {
+        _tintOpacityPercent = 83;
+        _tintBrightness = 18;
+        OnPropertyChanged(nameof(TintOpacityPercent));
+        OnPropertyChanged(nameof(TintBrightness));
+        UpdateBackgroundBrush();
+    }
 
     // ─── View Mode (Pack Grid vs Catalog Tree) ─────────────────────────────────
     public enum ViewMode { Pack, Catalog }
@@ -455,10 +553,34 @@ public class MainViewModel : INotifyPropertyChanged
 
     public RelayCommand FetchVanillaDataCommand { get; }
 
-    // ─── Catalog Tree ─────────────────────────────────────────────────────────
+    // ─── Catalog Tree & Dialog ────────────────────────────────────────────────
     public ObservableCollection<BlockGroupNode> CatalogTree { get; } = new();
     public ICollectionView FilteredCatalogTree { get; }
     public RelayCommand AddVanillaEntryCommand { get; }
+    public RelayCommand OpenCatalogDialogCommand { get; }
+    public RelayCommand SetCatalogCategoryAllCommand { get; }
+    public RelayCommand SetCatalogCategoryBlocksCommand { get; }
+    public RelayCommand SetCatalogCategoryItemsCommand { get; }
+
+    private string _catalogSearchText = "";
+    public string CatalogSearchText
+    {
+        get => _catalogSearchText;
+        set
+        {
+            if (_catalogSearchText != value)
+            {
+                _catalogSearchText = value ?? "";
+                OnPropertyChanged();
+                ApplyCatalogFilter();
+            }
+        }
+    }
+
+    private TextureCategory? _catalogCategoryFilter = null;
+    public bool IsCatalogAllCategory => _catalogCategoryFilter == null;
+    public bool IsCatalogBlocksCategory => _catalogCategoryFilter == TextureCategory.Block;
+    public bool IsCatalogItemsCategory => _catalogCategoryFilter == TextureCategory.Item;
 
     // ─── Commands ────────────────────────────────────────────────────────────
     public RelayCommand SwitchToAllCommand    { get; }
@@ -483,6 +605,7 @@ public class MainViewModel : INotifyPropertyChanged
     public RelayCommand OpenPackIconCommand       { get; }
     public RelayCommand SwitchToExplorerViewCommand { get; }
     public RelayCommand SwitchToManifestViewCommand { get; }
+    public RelayCommand ToggleManifestViewCommand { get; }
     public RelayCommand SaveManifestCommand       { get; }
     public RelayCommand GenerateManifestCommand   { get; }
     public RelayCommand RegenerateHeaderUuidCommand { get; }
@@ -490,6 +613,18 @@ public class MainViewModel : INotifyPropertyChanged
     public RelayCommand CopyHeaderUuidCommand     { get; }
     public RelayCommand CopyModuleUuidCommand     { get; }
     public RelayCommand OpenManifestInEditorCommand { get; }
+    public RelayCommand ToggleAdvancedManifestCommand { get; }
+    public RelayCommand SetZoomCompactCommand { get; }
+    public RelayCommand SetZoomComfortableCommand { get; }
+    public RelayCommand SetZoomLargeCommand { get; }
+    public RelayCommand ResetTintSettingsCommand { get; }
+
+    private bool _isAdvancedManifestExpanded;
+    public bool IsAdvancedManifestExpanded
+    {
+        get => _isAdvancedManifestExpanded;
+        set { if (_isAdvancedManifestExpanded != value) { _isAdvancedManifestExpanded = value; OnPropertyChanged(); } }
+    }
 
     public MainViewModel()
     {
@@ -529,6 +664,10 @@ public class MainViewModel : INotifyPropertyChanged
         SwitchToCatalogViewCommand = new RelayCommand(_ => CurrentViewMode = ViewMode.Catalog, _ => IsVanillaDataLoaded);
         FetchVanillaDataCommand    = new RelayCommand(_ => _ = RefreshVanillaDataAsync());
         AddVanillaEntryCommand     = new RelayCommand(param => AddVanillaEntry(param), _ => _packRoot != null && _vanillaData != null);
+        OpenCatalogDialogCommand        = new RelayCommand(_ => OpenCatalogDialog(), _ => _packRoot != null);
+        SetCatalogCategoryAllCommand    = new RelayCommand(_ => SetCatalogCategory(null));
+        SetCatalogCategoryBlocksCommand = new RelayCommand(_ => SetCatalogCategory(TextureCategory.Block));
+        SetCatalogCategoryItemsCommand  = new RelayCommand(_ => SetCatalogCategory(TextureCategory.Item));
 
         OpenPackIconCommand    = new RelayCommand(_ => HandlePackIconClick(), _ => _packRoot != null);
 
@@ -558,6 +697,13 @@ public class MainViewModel : INotifyPropertyChanged
 
         SwitchToExplorerViewCommand = new RelayCommand(_ => SwitchToExplorerView());
         SwitchToManifestViewCommand = new RelayCommand(_ => SwitchToManifestView(), _ => _packRoot != null);
+        ToggleManifestViewCommand   = new RelayCommand(_ =>
+        {
+            if (IsManifestViewActive)
+                SwitchToExplorerView();
+            else
+                SwitchToManifestView();
+        }, _ => _packRoot != null);
         SaveManifestCommand         = new RelayCommand(_ => SaveManifest(), _ => _packRoot != null && CurrentManifest != null);
         GenerateManifestCommand     = new RelayCommand(_ => GenerateManifest(), _ => _packRoot != null);
         RegenerateHeaderUuidCommand = new RelayCommand(_ => CurrentManifest?.RegenerateHeaderUuid());
@@ -579,6 +725,11 @@ public class MainViewModel : INotifyPropertyChanged
             }
         });
         OpenManifestInEditorCommand = new RelayCommand(_ => OpenManifestInEditor(), _ => _packRoot != null);
+        ToggleAdvancedManifestCommand = new RelayCommand(_ => IsAdvancedManifestExpanded = !IsAdvancedManifestExpanded);
+        SetZoomCompactCommand = new RelayCommand(_ => CurrentTileSizeMode = TileSizeMode.Compact);
+        SetZoomComfortableCommand = new RelayCommand(_ => CurrentTileSizeMode = TileSizeMode.Comfortable);
+        SetZoomLargeCommand = new RelayCommand(_ => CurrentTileSizeMode = TileSizeMode.Large);
+        ResetTintSettingsCommand = new RelayCommand(_ => ResetTintSettings());
 
         _ = InitializeVanillaDataAsync();
     }
@@ -620,22 +771,13 @@ public class MainViewModel : INotifyPropertyChanged
     {
         if (obj is not BlockGroupNode node) return false;
 
-        if (IsBlocksTab && node.Category != TextureCategory.Block) return false;
-        if (IsItemsTab && node.Category != TextureCategory.Item) return false;
+        if (_catalogCategoryFilter.HasValue && node.Category != _catalogCategoryFilter.Value)
+            return false;
 
-        bool hasStatusFilter = GhostsOnly || AddedOnly || OrphansOnly;
-        if (hasStatusFilter)
-        {
-            bool match = false;
-            if (GhostsOnly && node.GhostCount > 0) match = true;
-            if (AddedOnly && node.AliasGroups.Any(a => a.Leaves.Any(l => l.Status == CatalogEntryStatus.Ok || l.Status == CatalogEntryStatus.VanillaOverride))) match = true;
-            if (OrphansOnly && node.AliasGroups.Any(a => a.Leaves.Any(l => l.Status == CatalogEntryStatus.Orphan))) match = true;
-            if (!match) return false;
-        }
+        var query = _catalogSearchText.Trim().ToLowerInvariant();
+        if (string.IsNullOrWhiteSpace(query)) return true;
 
-        if (string.IsNullOrWhiteSpace(_appliedSearchQueryLower)) return true;
-
-        return node.SearchFilterKey.Contains(_appliedSearchQueryLower, StringComparison.Ordinal);
+        return node.SearchFilterKey.Contains(query, StringComparison.Ordinal);
     }
 
     public void LoadPack(string folderPath)
@@ -922,6 +1064,7 @@ public class MainViewModel : INotifyPropertyChanged
     {
         OnPropertyChanged(nameof(IsPackLoaded));
         OnPropertyChanged(nameof(PackName));
+        OnPropertyChanged(nameof(RootDirectoryName));
         OnPropertyChanged(nameof(PackRootPath));
         OnPropertyChanged(nameof(PackIconPath));
         OnPropertyChanged(nameof(HasPackIcon));
@@ -1019,12 +1162,94 @@ public class MainViewModel : INotifyPropertyChanged
         PackFolders.Clear();
         if (_packRoot is null || !Directory.Exists(_packRoot)) return;
 
-        var rootNode = CreateFolderNode(_packRoot, "", PackName ?? Path.GetFileName(_packRoot));
-        PackFolders.Add(rootNode);
-        rootNode.IsExpanded = true;
+        try
+        {
+            // 1. Subdirectories directly under _packRoot (textures, texts, subpacks, etc.)
+            var subDirs = Directory.GetDirectories(_packRoot);
+            foreach (var dir in subDirs.OrderBy(d => Path.GetFileName(d), StringComparer.OrdinalIgnoreCase))
+            {
+                var subName = Path.GetFileName(dir);
+                if (subName.StartsWith(".")) continue;
+
+                var childNode = CreateFolderNode(dir, subName, subName, 0);
+                PackFolders.Add(childNode);
+
+                // Auto-expand textures folder for instant access
+                if (subName.Equals("textures", StringComparison.OrdinalIgnoreCase))
+                {
+                    childNode.IsExpanded = true;
+                }
+            }
+
+            // 2. Non-image files directly under _packRoot (e.g. manifest.json)
+            var files = Directory.GetFiles(_packRoot);
+            bool foundManifest = false;
+            foreach (var file in files.OrderBy(f => Path.GetFileName(f), StringComparer.OrdinalIgnoreCase))
+            {
+                var fileName = Path.GetFileName(file);
+                var ext = Path.GetExtension(file);
+
+                if (ImageExtensions.Contains(ext)) continue;
+                if (fileName.StartsWith(".")) continue;
+
+                if (fileName.Equals("manifest.json", StringComparison.OrdinalIgnoreCase))
+                {
+                    foundManifest = true;
+                }
+
+                var fileNode = new PackFolderItem
+                {
+                    Name = fileName,
+                    RelativePath = fileName,
+                    FullPath = file,
+                    IsDirectory = false,
+                    Depth = 0,
+                    IsLoaded = true,
+                    IsMissing = false,
+                    TextureCount = 0,
+                    GhostCount = 0
+                };
+
+                PackFolders.Add(fileNode);
+            }
+
+            // If manifest.json is missing on disk, insert a missing manifest placeholder
+            if (!foundManifest)
+            {
+                var manifestPath = Path.Combine(_packRoot, "manifest.json");
+                var missingManifestNode = new PackFolderItem
+                {
+                    Name = "manifest.json",
+                    RelativePath = "manifest.json",
+                    FullPath = manifestPath,
+                    IsDirectory = false,
+                    Depth = 0,
+                    IsLoaded = true,
+                    IsMissing = true,
+                    TextureCount = 0,
+                    GhostCount = 0
+                };
+                PackFolders.Add(missingManifestNode);
+            }
+
+            // Select textures folder by default so the center view shows all textures
+            var texturesFolder = PackFolders.FirstOrDefault(f => f.RelativePath.Equals("textures", StringComparison.OrdinalIgnoreCase));
+            if (texturesFolder != null)
+            {
+                SelectedFolder = texturesFolder;
+            }
+            else if (PackFolders.Count > 0)
+            {
+                SelectedFolder = PackFolders[0];
+            }
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Failed to build folder tree: {ex.Message}";
+        }
     }
 
-    private PackFolderItem CreateFolderNode(string fullPath, string relativePath, string name)
+    private PackFolderItem CreateFolderNode(string fullPath, string relativePath, string name, int depth = 0)
     {
         var node = new PackFolderItem
         {
@@ -1032,6 +1257,7 @@ public class MainViewModel : INotifyPropertyChanged
             RelativePath = relativePath.Replace('\\', '/'),
             FullPath = fullPath,
             IsDirectory = true,
+            Depth = depth,
             OnExpand = LoadFolderChildren
         };
 
@@ -1101,7 +1327,7 @@ public class MainViewModel : INotifyPropertyChanged
                     ? subName
                     : (node.RelativePath + "/" + subName);
 
-                var childNode = CreateFolderNode(dir, subRel, subName);
+                var childNode = CreateFolderNode(dir, subRel, subName, node.Depth + 1);
                 node.SubFolders.Add(childNode);
 
                 // Auto-expand textures folder under pack root for instant access
@@ -1137,6 +1363,7 @@ public class MainViewModel : INotifyPropertyChanged
                     RelativePath = fileRel,
                     FullPath = file,
                     IsDirectory = false,
+                    Depth = node.Depth + 1,
                     IsLoaded = true,
                     IsMissing = false,
                     TextureCount = 0,
@@ -1156,6 +1383,7 @@ public class MainViewModel : INotifyPropertyChanged
                     RelativePath = "manifest.json",
                     FullPath = manifestPath,
                     IsDirectory = false,
+                    Depth = node.Depth + 1,
                     IsLoaded = true,
                     IsMissing = true,
                     TextureCount = 0,
@@ -1238,8 +1466,10 @@ public class MainViewModel : INotifyPropertyChanged
 
     private void RefreshTreeCounts()
     {
-        if (PackFolders.Count == 0) return;
-        UpdateNodeCountsRecursive(PackFolders[0]);
+        foreach (var node in PackFolders)
+        {
+            UpdateNodeCountsRecursive(node);
+        }
     }
 
     private void UpdateNodeCountsRecursive(PackFolderItem node)
@@ -1758,6 +1988,49 @@ public class MainViewModel : INotifyPropertyChanged
         {
             StatusMessage = $"Failed to add entry: {ex.Message}";
         }
+    }
+
+    public void SetCatalogCategory(TextureCategory? category)
+    {
+        _catalogCategoryFilter = category;
+        OnPropertyChanged(nameof(IsCatalogAllCategory));
+        OnPropertyChanged(nameof(IsCatalogBlocksCategory));
+        OnPropertyChanged(nameof(IsCatalogItemsCategory));
+        ApplyCatalogFilter();
+    }
+
+    private void ApplyCatalogFilter()
+    {
+        FilteredCatalogTree?.Refresh();
+        var query = _catalogSearchText.Trim().ToLowerInvariant();
+        if (!string.IsNullOrWhiteSpace(query))
+        {
+            foreach (var node in CatalogTree)
+            {
+                if (node.SearchFilterKey.Contains(query, StringComparison.Ordinal))
+                {
+                    node.IsExpanded = true;
+                    foreach (var ag in node.AliasGroups)
+                        ag.IsExpanded = true;
+                }
+            }
+        }
+    }
+
+    private void OpenCatalogDialog()
+    {
+        if (_packRoot == null) return;
+        if (!IsVanillaDataLoaded)
+        {
+            StatusMessage = "Vanilla catalog is still loading. Please wait...";
+            return;
+        }
+
+        var dialog = new Views.CatalogDialog(this)
+        {
+            Owner = Application.Current?.MainWindow
+        };
+        dialog.ShowDialog();
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;

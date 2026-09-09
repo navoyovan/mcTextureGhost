@@ -15,7 +15,33 @@ public class PackFolderItem : INotifyPropertyChanged
 
     public bool IsDirectory { get; init; } = true;
     public bool IsPlaceholder { get; init; } = false;
-    public bool IsLoaded { get; set; } = false;
+
+    public PackFolderItem()
+    {
+        SubFolders.CollectionChanged += (s, e) =>
+        {
+            OnPropertyChanged(nameof(CanExpand));
+            OnPropertyChanged(nameof(IsFilledFolder));
+            OnPropertyChanged(nameof(IsOutlineFolder));
+        };
+    }
+
+    public bool CanExpand => IsDirectory && (SubFolders.Count > 0 || !IsLoaded);
+
+    private bool _isLoaded;
+    public bool IsLoaded
+    {
+        get => _isLoaded;
+        set
+        {
+            if (_isLoaded == value) return;
+            _isLoaded = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(CanExpand));
+            OnPropertyChanged(nameof(IsFilledFolder));
+            OnPropertyChanged(nameof(IsOutlineFolder));
+        }
+    }
 
     private bool _isMissing;
     public bool IsMissing
@@ -46,7 +72,13 @@ public class PackFolderItem : INotifyPropertyChanged
     public int TextureCount
     {
         get => _textureCount;
-        set { _textureCount = value; OnPropertyChanged(); }
+        set
+        {
+            _textureCount = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(IsFilledFolder));
+            OnPropertyChanged(nameof(IsOutlineFolder));
+        }
     }
 
     private int _ghostCount;
@@ -55,6 +87,25 @@ public class PackFolderItem : INotifyPropertyChanged
         get => _ghostCount;
         set { _ghostCount = value; OnPropertyChanged(); }
     }
+
+    private int _depth;
+    public int Depth
+    {
+        get => _depth;
+        set
+        {
+            if (_depth == value) return;
+            _depth = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(IsChild));
+            OnPropertyChanged(nameof(IsRoot));
+        }
+    }
+
+    public bool IsChild => _depth > 0;
+    public bool IsRoot => _depth == 0;
+    public bool IsFilledFolder => IsDirectory && (_textureCount > 0 || SubFolders.Count > 0 || !IsLoaded);
+    public bool IsOutlineFolder => IsDirectory && !IsFilledFolder;
 
     private bool _isSelected;
     public bool IsSelected
@@ -69,12 +120,19 @@ public class PackFolderItem : INotifyPropertyChanged
         get => _isExpanded;
         set
         {
+            if (!CanExpand && value) return;
             if (_isExpanded == value) return;
             _isExpanded = value;
             OnPropertyChanged();
             if (_isExpanded && !IsLoaded && IsDirectory && OnExpand != null)
             {
                 OnExpand(this);
+                if (SubFolders.Count == 0)
+                {
+                    _isExpanded = false;
+                    OnPropertyChanged();
+                }
+                OnPropertyChanged(nameof(CanExpand));
             }
         }
     }

@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using System.Windows;
+using System.Windows.Input;
 using System.Windows.Interop;
 using McTextureGhost.Models;
 using McTextureGhost.ViewModels;
@@ -45,6 +46,35 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         };
     }
 
+    private void TitleBarDragGrip_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ChangedButton == MouseButton.Left)
+        {
+            if (e.ClickCount == 2)
+            {
+                WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+            }
+            else
+            {
+                if (WindowState == WindowState.Maximized)
+                {
+                    var mousePos = PointToScreen(e.GetPosition(this));
+                    WindowState = WindowState.Normal;
+                    Left = mousePos.X - (ActualWidth / 2);
+                    Top = mousePos.Y - 20;
+                }
+                try
+                {
+                    DragMove();
+                }
+                catch (InvalidOperationException)
+                {
+                    // Ignored if drag operation interrupted
+                }
+            }
+        }
+    }
+
     private bool _isFilterPopupClosing;
 
     private void StatusFilterButton_Click(object sender, RoutedEventArgs e)
@@ -84,6 +114,38 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         }
     }
 
+    private void ExpanderButton_MouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        if (sender is FrameworkElement fe && fe.DataContext is PackFolderItem folderItem)
+        {
+            if (folderItem.CanExpand)
+            {
+                folderItem.IsExpanded = !folderItem.IsExpanded;
+            }
+            e.Handled = true;
+        }
+    }
+
+    private void ItemRowBorder_MouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        if (sender is FrameworkElement fe && fe.DataContext is PackFolderItem folderItem)
+        {
+            if (DataContext is MainViewModel vm)
+            {
+                vm.SelectedFolder = folderItem;
+            }
+
+            // On single click, expand if collapsed so user sees contents,
+            // but do not accidentally collapse if already open or if empty.
+            if (folderItem.CanExpand && !folderItem.IsExpanded)
+            {
+                folderItem.IsExpanded = true;
+            }
+
+            e.Handled = true;
+        }
+    }
+
     private void TreeViewItem_MouseDoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
         if (sender is System.Windows.Controls.TreeViewItem item && item.DataContext is PackFolderItem fileItem)
@@ -96,6 +158,16 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
                     e.Handled = true;
                     return;
                 }
+            }
+
+            if (fileItem.IsDirectory)
+            {
+                if (fileItem.CanExpand)
+                {
+                    fileItem.IsExpanded = !fileItem.IsExpanded;
+                }
+                e.Handled = true;
+                return;
             }
 
             if (!fileItem.IsDirectory && !fileItem.IsPlaceholder && System.IO.File.Exists(fileItem.FullPath))

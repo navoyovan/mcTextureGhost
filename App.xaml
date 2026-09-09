@@ -9,6 +9,10 @@
                 <ui:ThemesDictionary Theme="Dark" />
                 <ui:ControlsDictionary />
             </ResourceDictionary.MergedDictionaries>
+
+            <!-- Custom Typography from Google Fonts -->
+            <FontFamily x:Key="FontSyne">./Resources/Fonts/#Syne, Segoe UI Variable, Segoe UI, sans-serif</FontFamily>
+            <FontFamily x:Key="FontPressStart2P">./Resources/Fonts/#Press Start 2P, Consolas, Courier New, monospace</FontFamily>
         </ResourceDictionary>
     </Application.Resources>
 </Application>
