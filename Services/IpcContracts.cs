@@ -424,7 +424,8 @@ public static class IpcContractMapper
                 var rel = Path.GetRelativePath(packRoot, fullPath).Replace('\\', '/').TrimStart('/');
                 if (!rel.StartsWith("..", StringComparison.Ordinal))
                 {
-                    return $"https://pack.local/{rel}";
+                    var version = File.GetLastWriteTimeUtc(fullPath).Ticks;
+                    return $"https://pack.local/{rel}?v={version}";
                 }
             }
             catch { }

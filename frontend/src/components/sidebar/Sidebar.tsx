@@ -1,6 +1,6 @@
 // frontend/src/components/sidebar/Sidebar.tsx
 import React, { useState, useEffect } from 'react';
-import { RotateCw, X, Layers, AlertTriangle, BookOpen, FolderOpen } from 'lucide-react';
+import { AlertTriangle, BookOpen } from 'lucide-react';
 import { usePackStore } from '../../store/packStore';
 import { useIpc } from '../../hooks/useIpc';
 import { IpcMessageTypes, ManifestModelDto } from '../../types/ipc';
@@ -14,7 +14,7 @@ function formatPackPath(path: string | null): string {
 }
 
 export const Sidebar: React.FC = () => {
-  const { reloadPack, postCommand } = useIpc();
+  const { postCommand } = useIpc();
 
   const packName = usePackStore((s) => s.packName);
   const packRoot = usePackStore((s) => s.packRoot);
@@ -26,7 +26,6 @@ export const Sidebar: React.FC = () => {
   const selectedFolderPath = usePackStore((s) => s.selectedFolderPath);
   const setSelectedFolderPath = usePackStore((s) => s.setSelectedFolderPath);
   const toggleCatalog = usePackStore((s) => s.toggleCatalog);
-  const resetPackState = usePackStore((s) => s.resetPackState);
   const [iconLoadError, setIconLoadError] = useState<boolean>(false);
 
   useEffect(() => {
@@ -69,21 +68,6 @@ export const Sidebar: React.FC = () => {
       moduleVersion: [1, 0, 0],
     };
     postCommand(IpcMessageTypes.ManifestSave, { manifest: defaultManifest });
-  };
-
-  const handleOpenInExplorer = () => {
-    if (packRoot) {
-      postCommand(IpcMessageTypes.OpenInExplorer, { targetPath: packRoot });
-    }
-  };
-
-  const handleClosePack = () => {
-    postCommand(IpcMessageTypes.PackClose, {});
-    resetPackState();
-  };
-
-  const handleReload = () => {
-    reloadPack();
   };
 
   const showIconImage = hasPackIcon && packIconUrl && !iconLoadError;
@@ -164,10 +148,6 @@ export const Sidebar: React.FC = () => {
 
       {/* 3. Directory Explorer Tree Section */}
       <div className={styles.folderSection}>
-        <div className={styles.folderSectionHeader}>
-          <Layers size={12} />
-          <span>Directories</span>
-        </div>
         <div className={styles.folderTreeContainer}>
           <DirectoryTree
             folders={packFolders}
@@ -194,34 +174,6 @@ export const Sidebar: React.FC = () => {
           </div>
         </button>
 
-        <div className={styles.quickActionsRow}>
-          <button
-            type="button"
-            className={styles.quickBtn}
-            onClick={handleOpenInExplorer}
-            title="Open pack folder in Windows File Explorer"
-          >
-            <FolderOpen size={13} />
-            <span>Folder</span>
-          </button>
-          <button
-            type="button"
-            className={styles.quickBtn}
-            onClick={handleReload}
-            title="Rescan and refresh pack files"
-          >
-            <RotateCw size={13} />
-            <span>Reload</span>
-          </button>
-          <button
-            type="button"
-            className={`${styles.quickBtn} ${styles.quickBtnClose}`}
-            onClick={handleClosePack}
-            title="Close pack and return to welcome screen"
-          >
-            <X size={13} />
-          </button>
-        </div>
       </div>
     </aside>
   );

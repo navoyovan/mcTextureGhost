@@ -328,7 +328,7 @@ public sealed class IpcBridgeService : IIpcBridgeService
                         stream,
                         200,
                         "OK",
-                        $"Content-Type: {mime}\r\nAccess-Control-Allow-Origin: *\r\nCache-Control: public, max-age=3600\r\n"
+                        $"Content-Type: {mime}\r\nAccess-Control-Allow-Origin: *\r\nCache-Control: no-store, no-cache, must-revalidate\r\n"
                     );
                     e.Response = response;
                 }

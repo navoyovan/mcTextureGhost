@@ -6,7 +6,6 @@ import {
   BookOpen,
   Clock,
   Package,
-  FolderTree,
   ChevronRight,
 } from 'lucide-react';
 import { usePackStore } from '../../store/packStore';
@@ -60,22 +59,6 @@ export const WelcomeView: React.FC<WelcomeViewProps> = ({ onOpenNewPackDialog })
 
   return (
     <div className={styles.welcomeLayout} data-testid="welcome-view">
-      {/* Left Sidebar Placeholder ("dir-exp" indicator from sketch1.png) */}
-      <aside className={styles.sidebarPlaceholder} aria-label="Directory Explorer Placeholder">
-        <div className={styles.sidebarHeader}>
-          <FolderTree className={styles.sidebarHeaderIcon} />
-          <span>Explorer</span>
-        </div>
-
-        <div className={styles.sidebarMessageCard}>
-          <Package className={styles.sidebarHeaderIcon} />
-          <span className={styles.sidebarMessageTitle}>No Pack Loaded</span>
-          <span className={styles.sidebarMessageText}>
-            Open or create a Minecraft Bedrock resource pack to explore its folders and texture assets.
-          </span>
-        </div>
-      </aside>
-
       {/* Main Content Hero */}
       <main className={styles.mainContent}>
         {/* Top Hero Bar */}

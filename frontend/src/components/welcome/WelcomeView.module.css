@@ -11,58 +11,9 @@
   overflow: hidden;
 }
 
-/* Left Sidebar Placeholder ("dir-exp" from sketch1.png) */
-.sidebarPlaceholder {
-  width: 260px;
-  height: 100%;
-  background: var(--bg-secondary, rgba(24, 24, 27, 0.75));
-  backdrop-filter: blur(20px);
-  border-right: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
-  display: flex;
-  flex-direction: column;
-  padding: 24px 16px;
-  gap: 20px;
-}
-
-.sidebarHeader {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-family: var(--font-brand);
-  font-size: 12px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text-secondary, #a1a1aa);
-}
-
 .sidebarHeaderIcon {
   width: 16px;
   height: 16px;
-  color: var(--text-muted, #71717a);
-}
-
-.sidebarMessageCard {
-  background: var(--bg-surface, rgba(34, 34, 40, 0.6));
-  border: 1px dashed var(--border-default, rgba(255, 255, 255, 0.12));
-  border-radius: 8px;
-  padding: 16px;
-  text-align: center;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-}
-
-.sidebarMessageTitle {
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--text-primary, #f4f4f5);
-}
-
-.sidebarMessageText {
-  font-size: 11px;
-  line-height: 1.4;
   color: var(--text-muted, #71717a);
 }
 

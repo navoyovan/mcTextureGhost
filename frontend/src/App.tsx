@@ -1,6 +1,6 @@
 // frontend/src/App.tsx
 import React, { useEffect, useState } from 'react';
-import { Sparkles, AlertCircle, AlertTriangle, Info } from 'lucide-react';
+import { Sparkles, AlertCircle, AlertTriangle, Info, X } from 'lucide-react';
 import { usePackStore } from './store/packStore';
 import { useIpc } from './hooks/useIpc';
 import { IpcMessageTypes, ErrorPayload } from './types/ipc';
@@ -18,7 +18,6 @@ import styles from './App.module.css';
 export const App: React.FC = () => {
   const { subscribe, windowAction, postCommand } = useIpc();
   const packRoot = usePackStore((s) => s.packRoot);
-  const windowTitle = usePackStore((s) => s.windowTitle);
   const activeView = usePackStore((s) => s.activeView);
   const setPackState = usePackStore((s) => s.setPackState);
   const updateTexture = usePackStore((s) => s.updateTexture);
@@ -104,10 +103,16 @@ export const App: React.FC = () => {
         onMouseDown={handleTitleBarMouseDown}
         onDoubleClick={handleTitleBarDoubleClick}
       >
+        <div className={styles.dragHandle} aria-label="Window drag handle" title="Drag to move window">
+          <span />
+          <span />
+          <span />
+        </div>
+
         <div className={styles.titleBarLeft}>
           <Sparkles className={styles.appIcon} />
           <span className={styles.appTitle}>
-            {windowTitle || 'McTextureGhost'}
+            mcTextureGhost
           </span>
 
           {/* File / Dev Menus */}

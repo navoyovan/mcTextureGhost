@@ -55,7 +55,8 @@ const LeafThumbnail: React.FC<{ leaf: CatalogLeafDto }> = ({ leaf }) => {
 const CatalogLeafRow: React.FC<{
   leaf: CatalogLeafDto;
   onAdd: (id: string, category: string) => void;
-}> = ({ leaf, onAdd }) => {
+  aliasExists: (id: string) => boolean;
+}> = ({ leaf, onAdd, aliasExists }) => {
   const getStatusClass = (status: string) => {
     switch (status) {
       case 'OK':
@@ -103,15 +104,23 @@ const CatalogLeafRow: React.FC<{
           {leaf.status === 'GHOST' ? '👻 GHOST' : leaf.status}
         </span>
         {leaf.status === 'VANILLA' && (
-          <button
-            type="button"
-            className={styles.addLeafBtn}
-            onClick={() => onAdd(leaf.alias, leaf.category)}
-            title="Add this texture variant to your pack"
-            aria-label={`Add texture ${leaf.alias}`}
-          >
-            + Add
-          </button>
+          <>
+            {aliasExists(leaf.alias) ? (
+              <span className={styles.addedBadge} title="This texture is already in your pack">
+                ✓ Added
+              </span>
+            ) : (
+              <button
+                type="button"
+                className={styles.addLeafBtn}
+                onClick={() => onAdd(leaf.alias, leaf.category)}
+                title="Add this texture variant to your pack"
+                aria-label={`Add texture ${leaf.alias}`}
+              >
+                + Add
+              </button>
+            )}
+          </>
         )}
       </div>
     </div>
@@ -125,7 +134,8 @@ const CatalogAliasGroup: React.FC<{
   aliasGroup: AliasGroupNodeDto;
   category: string;
   onAdd: (id: string, category: string) => void;
-}> = ({ aliasGroup, category, onAdd }) => {
+  aliasExists: (id: string) => boolean;
+}> = ({ aliasGroup, category, onAdd, aliasExists }) => {
   return (
     <div className={styles.aliasGroupCard} data-testid={`alias-group-${aliasGroup.alias}`}>
       <div className={styles.aliasGroupHeader}>
@@ -148,15 +158,21 @@ const CatalogAliasGroup: React.FC<{
           )}
         </div>
 
-        <button
-          type="button"
-          className={styles.addAliasBtn}
-          onClick={() => onAdd(aliasGroup.alias, aliasGroup.category || category)}
-          title={`Add alias '${aliasGroup.alias}' to pack`}
-          aria-label={`Add alias ${aliasGroup.alias}`}
-        >
-          + Add Alias
-        </button>
+        {aliasExists(aliasGroup.alias) ? (
+          <span className={styles.addedBadge} title="This alias is already in your pack">
+            ✓ Added
+          </span>
+        ) : (
+          <button
+            type="button"
+            className={styles.addAliasBtn}
+            onClick={() => onAdd(aliasGroup.alias, aliasGroup.category || category)}
+            title={`Add alias '${aliasGroup.alias}' to pack`}
+            aria-label={`Add alias ${aliasGroup.alias}`}
+          >
+            + Add Alias
+          </button>
+        )}
       </div>
 
       {aliasGroup.leaves && aliasGroup.leaves.length > 0 && (
@@ -166,6 +182,7 @@ const CatalogAliasGroup: React.FC<{
               key={leaf.relativePath || `${aliasGroup.alias}-${index}`}
               leaf={leaf}
               onAdd={onAdd}
+              aliasExists={aliasExists}
             />
           ))}
         </div>
@@ -182,7 +199,8 @@ const CatalogBlockGroup: React.FC<{
   isExpanded: boolean;
   onToggleExpand: () => void;
   onAdd: (id: string, category: string) => void;
-}> = ({ block, isExpanded, onToggleExpand, onAdd }) => {
+  aliasExists: (id: string, blockData?: BlockGroupNodeDto) => boolean;
+}> = ({ block, isExpanded, onToggleExpand, onAdd, aliasExists }) => {
   const isItem = block.category.toLowerCase() === 'item';
 
   return (
@@ -242,19 +260,25 @@ const CatalogBlockGroup: React.FC<{
             </span>
           )}
 
-          <button
-            type="button"
-            className={styles.addBlockBtn}
-            onClick={(e) => {
-              e.stopPropagation();
-              onAdd(block.blockId, block.category);
-            }}
-            title={`Add all textures for ${block.displayName} to pack`}
-            aria-label={`Add all textures for ${block.displayName} to pack`}
-          >
-            <Zap size={11} />
-            <span>Add to Pack</span>
-          </button>
+          {aliasExists(block.blockId, block) ? (
+            <span className={styles.addedBadge} title="This block is already in your pack">
+              ✓ Added
+            </span>
+          ) : (
+            <button
+              type="button"
+              className={styles.addBlockBtn}
+              onClick={(e) => {
+                e.stopPropagation();
+                onAdd(block.blockId, block.category);
+              }}
+              title={`Add all textures for ${block.displayName} to pack`}
+              aria-label={`Add all textures for ${block.displayName} to pack`}
+            >
+              <Zap size={11} />
+              <span>Add to Pack</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -266,6 +290,7 @@ const CatalogBlockGroup: React.FC<{
               aliasGroup={aliasGroup}
               category={block.category}
               onAdd={onAdd}
+              aliasExists={aliasExists}
             />
           ))}
         </div>
@@ -279,11 +304,43 @@ const CatalogBlockGroup: React.FC<{
  */
 export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose }) => {
   const catalogTree = usePackStore((s) => s.catalogTree);
+  const aliases = usePackStore((s) => s.aliases);
   const { postCommand, loadCatalog } = useIpc();
 
   const [searchText, setSearchText] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<'all' | 'block' | 'item'>('all');
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const [isClosing, setIsClosing] = useState(false);
+
+  // Helper function to check if an alias already exists in the pack
+  const aliasExists = useCallback(
+    (id: string, blockData?: BlockGroupNodeDto): boolean => {
+      if (!aliases || !Array.isArray(aliases)) return false;
+
+      // If blockData provided, check if ANY child alias exists (block was added)
+      if (blockData && blockData.aliasGroups) {
+        return blockData.aliasGroups.some((group) =>
+          group.leaves?.some((leaf) =>
+            aliases.some((a) => a.alias === leaf.alias || a.key === leaf.alias)
+          )
+        );
+      }
+
+      // Simple alias check (for alias groups and individual leaves)
+      return aliases.some((a) => a.alias === id || a.key === id);
+    },
+    [aliases]
+  );
+
+  // Trigger close animation and then unmount after animation completes
+  const handleClose = useCallback(() => {
+    setIsClosing(true);
+    const timer = setTimeout(() => {
+      onClose();
+      setIsClosing(false);
+    }, 200); // Match exit animation duration
+    return () => clearTimeout(timer);
+  }, [onClose]);
 
   // Load catalog data if empty on open
   useEffect(() => {
@@ -298,17 +355,27 @@ export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose })
 
   // Handle Escape key to close drawer
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || isClosing) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        onClose();
+        handleClose();
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
+  }, [isOpen, isClosing, handleClose]);
+
+  // Prevent body scroll when drawer is open
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = '';
+      };
+    }
+  }, [isOpen]);
 
   // Bounded search filtering for buttery 60 FPS performance (T2-F38-04)
   const filteredBlocks = useMemo(() => {
@@ -377,20 +444,28 @@ export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose })
     }
   }, [loadCatalog, postCommand]);
 
-  if (!isOpen) return null;
+  if (!isOpen && !isClosing) return null;
 
   const totalCatalogCount = catalogTree?.length || 0;
   const isSearching = searchText.trim().length > 0 || categoryFilter !== 'all';
 
   return (
     <div
-      className={styles.drawerOverlay}
-      onClick={onClose}
+      className={`${styles.drawerOverlay} ${isClosing ? styles.overlayClosing : ''}`}
+      onClick={handleClose}
       data-testid="catalog-drawer-overlay"
+      style={{ 
+        animation: mounted ? undefined : 'none',
+        opacity: isClosing ? 0 : 1
+      }}
     >
       <aside
-        className={styles.drawerContainer}
+        className={`${styles.drawerContainer} ${isClosing ? styles.drawerClosing : ''}`}
         onClick={(e) => e.stopPropagation()}
+        style={{ 
+          animation: mounted ? undefined : 'none',
+          transform: isClosing ? 'translateX(100%)' : 'translateX(0)'
+        }}
         data-testid="catalog-drawer"
         role="dialog"
         aria-label="Vanilla Bedrock Reference Catalog"
@@ -412,7 +487,7 @@ export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose })
           <button
             type="button"
             className={styles.closeButton}
-            onClick={onClose}
+            onClick={handleClose}
             title="Close drawer (Esc)"
             aria-label="Close catalog drawer"
           >
@@ -492,6 +567,7 @@ export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose })
                 isExpanded={isBlockExpanded(block.blockId)}
                 onToggleExpand={() => toggleExpand(block.blockId)}
                 onAdd={handleAdd}
+                aliasExists={aliasExists}
               />
             ))
           ) : totalCatalogCount === 0 ? (

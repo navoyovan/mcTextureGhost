@@ -118,7 +118,7 @@ const initialState: PackStoreState = {
   tintBrightness: 30,
   tintHex: '#121214',
   debugMode: false,
-  windowTitle: 'McTextureGhost',
+  windowTitle: 'mcTextureGhost',
 };
 
 function computeStats(aliases: TextureAliasDto[]): PackStatsDto {

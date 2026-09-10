@@ -29,6 +29,7 @@ public class MainViewModel : INotifyPropertyChanged
 
     private FileSystemWatcher? _watcher;
     private readonly DispatcherTimer _watchDebounceTimer;
+    private readonly SemaphoreSlim _rescanGate = new(1, 1);
     private string? _packRoot;
 
     public ObservableCollection<TextureAlias> Aliases { get; } = new();
@@ -688,7 +689,7 @@ public class MainViewModel : INotifyPropertyChanged
         _watchDebounceTimer.Tick += (s, e) =>
         {
             _watchDebounceTimer.Stop();
-            RefreshExistence();
+            _ = RescanAsync();
         };
 
         CommitSearchCommand = new RelayCommand(_ => CommitSearch());
@@ -1285,63 +1286,76 @@ public class MainViewModel : INotifyPropertyChanged
     public async Task RescanAsync()
     {
         if (_packRoot is null) return;
-        _cachedPackName = null;
-        IsScanning = true;
-        StatusMessage = "Scanning pack textures...";
 
-        // Discard cached BitmapImages and flipbook frame slices so modified-on-disk textures reload fresh.
-        ImagePathConverter.ClearCache();
-        FlipbookAnimationManager.ClearCache();
-
-        var packRoot = _packRoot;
+        await _rescanGate.WaitAsync();
 
         try
         {
-            var results = await Task.Run(() => PackScanner.Scan(packRoot, _vanillaData));
+            _cachedPackName = null;
+            IsScanning = true;
+            StatusMessage = "Scanning pack textures...";
 
+            // Clear the current snapshot before rebuilding it so deleted entries cannot remain visible.
             Aliases.Clear();
-            foreach (var alias in results)
-                Aliases.Add(alias);
-            ApplySearchFilter();
+            CatalogTree.Clear();
+            BlockWorkspaceTree.Clear();
+            PackFolders.Clear();
+            FilteredAliases.Refresh();
+            FilteredCatalogTree.Refresh();
 
-            if (_vanillaData != null)
+            // Discard cached BitmapImages and flipbook frame slices so modified-on-disk textures reload fresh.
+            ImagePathConverter.ClearCache();
+            FlipbookAnimationManager.ClearCache();
+
+            var packRoot = _packRoot;
+
+            try
             {
-                var (catalogNodes, workspaceNodes) = await Task.Run(() =>
+                var results = await Task.Run(() => PackScanner.Scan(packRoot, _vanillaData));
+
+                foreach (var alias in results)
+                    Aliases.Add(alias);
+                ApplySearchFilter();
+
+                if (_vanillaData != null)
                 {
-                    var cat = PackScanner.BuildCatalogTree(results, _vanillaData, packRoot);
-                    var ws  = PackScanner.BuildBlockWorkspaceTree(results, _vanillaData, packRoot);
-                    return (cat, ws);
-                });
+                    var (catalogNodes, workspaceNodes) = await Task.Run(() =>
+                    {
+                        var cat = PackScanner.BuildCatalogTree(results, _vanillaData, packRoot);
+                        var ws  = PackScanner.BuildBlockWorkspaceTree(results, _vanillaData, packRoot);
+                        return (cat, ws);
+                    });
 
-                CatalogTree.Clear();
-                foreach (var node in catalogNodes)
-                    CatalogTree.Add(node);
-                FilteredCatalogTree.Refresh();
+                    foreach (var node in catalogNodes)
+                        CatalogTree.Add(node);
+                    FilteredCatalogTree.Refresh();
 
-                BlockWorkspaceTree.Clear();
-                foreach (var node in workspaceNodes)
-                    BlockWorkspaceTree.Add(node);
+                    foreach (var node in workspaceNodes)
+                        BlockWorkspaceTree.Add(node);
+                }
+
+                var blockCount = results.Count(a => a.Category == TextureCategory.Block);
+                var itemCount = results.Count(a => a.Category == TextureCategory.Item);
+                var ghostCount = results.Count(a => a.Status == TextureStatus.Ghost);
+                var orphanCount = results.Count(a => a.Status == TextureStatus.Orphan);
+                StatusMessage = orphanCount > 0
+                    ? $"{results.Count} textures found ({blockCount} blocks, {itemCount} items • {ghostCount} ghosts, {orphanCount} orphans)."
+                    : $"{results.Count} textures found ({blockCount} blocks, {itemCount} items • {ghostCount} ghosts).";
             }
-
-
-            var blockCount = results.Count(a => a.Category == TextureCategory.Block);
-            var itemCount = results.Count(a => a.Category == TextureCategory.Item);
-            var ghostCount = results.Count(a => a.Status == TextureStatus.Ghost);
-            var orphanCount = results.Count(a => a.Status == TextureStatus.Orphan);
-            StatusMessage = orphanCount > 0
-                ? $"{results.Count} textures found ({blockCount} blocks, {itemCount} items • {ghostCount} ghosts, {orphanCount} orphans)."
-                : $"{results.Count} textures found ({blockCount} blocks, {itemCount} items • {ghostCount} ghosts).";
-        }
-        catch (Exception ex)
-        {
-            Aliases.Clear();
-            StatusMessage = $"Scan failed: {ex.Message}";
+            catch (Exception ex)
+            {
+                StatusMessage = $"Scan failed: {ex.Message}";
+            }
+            finally
+            {
+                BuildFolderTree();
+                NotifyPackStateChanged();
+                IsScanning = false;
+            }
         }
         finally
         {
-            BuildFolderTree();
-            NotifyPackStateChanged();
-            IsScanning = false;
+            _rescanGate.Release();
         }
     }
 

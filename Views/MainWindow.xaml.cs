@@ -246,14 +246,26 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         // 2. PACK:RELOAD
         _ipcBridge.RegisterHandler<PackReloadPayload>(IpcMessageTypes.PackReload, async (payload, corrId) =>
         {
-            if (ViewModel.IsPackLoaded)
+            var rescanTask = await Dispatcher.InvokeAsync(() =>
             {
-                await Dispatcher.InvokeAsync(async () => await ViewModel.RescanAsync());
-            }
-            else
-            {
+                if (ViewModel.IsPackLoaded)
+                {
+                    return ViewModel.RescanAsync();
+                }
+
                 _ipcBridge.PushError("Reload Pack", "No pack currently loaded.", "info");
-            }
+                return Task.CompletedTask;
+            });
+            await rescanTask;
+
+            // After a successful rescan, explicitly push a fresh pack state to the frontend
+            await Dispatcher.InvokeAsync(() =>
+            {
+                if (ViewModel.IsPackLoaded)
+                {
+                    _ipcBridge?.PushPackState(CreatePackStatePayload());
+                }
+            });
         });
 
         // 3. PACK:CREATE
@@ -461,18 +473,21 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         // 12. VANILLA:ADD
         _ipcBridge.RegisterHandler<VanillaAddPayload>(IpcMessageTypes.VanillaAdd, async (payload, corrId) =>
         {
-            if (payload != null && ViewModel.PackRootPath != null && ViewModel.VanillaData != null)
+            await Dispatcher.InvokeAsync(async () =>
             {
-                if (string.Equals(payload.Category, "item", StringComparison.OrdinalIgnoreCase))
+                if (payload != null && ViewModel.PackRootPath != null && ViewModel.VanillaData != null)
                 {
-                    JsonWriterService.AddVanillaItem(ViewModel.PackRootPath, payload.Id, ViewModel.VanillaData);
+                    if (string.Equals(payload.Category, "item", StringComparison.OrdinalIgnoreCase))
+                    {
+                        JsonWriterService.AddVanillaItem(ViewModel.PackRootPath, payload.Id, ViewModel.VanillaData);
+                    }
+                    else
+                    {
+                        JsonWriterService.AddVanillaBlock(ViewModel.PackRootPath, payload.Id, ViewModel.VanillaData);
+                    }
+                    await ViewModel.RescanAsync();
                 }
-                else
-                {
-                    JsonWriterService.AddVanillaBlock(ViewModel.PackRootPath, payload.Id, ViewModel.VanillaData);
-                }
-                await Dispatcher.InvokeAsync(async () => await ViewModel.RescanAsync());
-            }
+            });
         });
 
         // 13. OPEN_IN_EXPLORER & PACK:OPEN_EXPLORER
@@ -553,22 +568,25 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         // 15. ADD_VANILLA_ENTRY
         _ipcBridge.RegisterHandler<AddVanillaEntryPayload>(IpcMessageTypes.AddVanillaEntry, async (payload, corrId) =>
         {
-            if (payload != null && ViewModel.PackRootPath != null && ViewModel.VanillaData != null)
+            await Dispatcher.InvokeAsync(async () =>
             {
-                var id = payload.Id ?? payload.BlockId ?? payload.Alias;
-                if (!string.IsNullOrWhiteSpace(id))
+                if (payload != null && ViewModel.PackRootPath != null && ViewModel.VanillaData != null)
                 {
-                    if (string.Equals(payload.Category, "item", StringComparison.OrdinalIgnoreCase))
+                    var id = payload.Id ?? payload.BlockId ?? payload.Alias;
+                    if (!string.IsNullOrWhiteSpace(id))
                     {
-                        JsonWriterService.AddVanillaItem(ViewModel.PackRootPath, id, ViewModel.VanillaData);
+                        if (string.Equals(payload.Category, "item", StringComparison.OrdinalIgnoreCase))
+                        {
+                            JsonWriterService.AddVanillaItem(ViewModel.PackRootPath, id, ViewModel.VanillaData);
+                        }
+                        else
+                        {
+                            JsonWriterService.AddVanillaBlock(ViewModel.PackRootPath, id, ViewModel.VanillaData);
+                        }
+                        await ViewModel.RescanAsync();
                     }
-                    else
-                    {
-                        JsonWriterService.AddVanillaBlock(ViewModel.PackRootPath, id, ViewModel.VanillaData);
-                    }
-                    await Dispatcher.InvokeAsync(async () => await ViewModel.RescanAsync());
                 }
-            }
+            });
         });
 
         // 16. APP:READY (Frontend mounted handshake)

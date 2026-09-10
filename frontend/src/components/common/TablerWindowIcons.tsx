@@ -22,20 +22,13 @@ export const IconMinus: React.FC<IconProps> = (props) => (
 
 export const IconMaximize: React.FC<IconProps> = (props) => (
   <svg {...iconProps} {...props}>
-	<path d="M8 4H4v4" />
-	<path d="M4 4l5 5" />
-	<path d="M16 4h4v4" />
-	<path d="M20 4l-5 5" />
-	<path d="M8 20H4v-4" />
-	<path d="M4 20l5-5" />
-	<path d="M16 20h4v-4" />
-	<path d="M20 20l-5-5" />
+	<rect x="5" y="5" width="14" height="14" />
   </svg>
 );
 
 export const IconX: React.FC<IconProps> = (props) => (
   <svg {...iconProps} {...props}>
-	<path d="M18 6 6 18" />
-	<path d="m6 6 12 12" />
+	<path d="M5 5l14 14" />
+	<path d="M19 5L5 19" />
   </svg>
 );
