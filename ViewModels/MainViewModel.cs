@@ -24,6 +24,9 @@ public enum TextureTab { All, Blocks, Items }
 
 public class MainViewModel : INotifyPropertyChanged
 {
+    public event Action? PackStateChanged;
+    public event Action<TextureAlias>? TextureUpdated;
+
     private FileSystemWatcher? _watcher;
     private readonly DispatcherTimer _watchDebounceTimer;
     private string? _packRoot;
@@ -1271,14 +1274,15 @@ public class MainViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(ShowCreatePanel));
         OnPropertyChanged(nameof(WindowTitle));
         FilteredAliases.Refresh();
+        PackStateChanged?.Invoke();
     }
 
-    private async void Rescan()
+    public async void Rescan()
     {
         await RescanAsync();
     }
 
-    private async Task RescanAsync()
+    public async Task RescanAsync()
     {
         if (_packRoot is null) return;
         _cachedPackName = null;
@@ -2020,6 +2024,7 @@ public class MainViewModel : INotifyPropertyChanged
             OnPropertyChanged(nameof(TotalAddedCount));
             OnPropertyChanged(nameof(WindowTitle));
             FilteredAliases.Refresh();
+            TextureUpdated?.Invoke(alias);
         }
 
         OpenWithLauncher.Show(alias.FullPath);

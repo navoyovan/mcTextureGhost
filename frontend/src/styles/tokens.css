@@ -1,0 +1,155 @@
+/* frontend/src/styles/tokens.css */
+/* Semantic CSS custom properties design tokens - Strictly zero Tailwind CSS */
+
+/* ─── Authentic Minecraft / Fluent Font Faces ─── */
+@font-face {
+  font-family: 'Syne';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/fonts/Syne.ttf') format('truetype'),
+       url('./fonts/Syne.ttf') format('truetype');
+}
+
+@font-face {
+  font-family: 'Press Start 2P';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/PressStart2P.ttf') format('truetype'),
+       url('./fonts/PressStart2P.ttf') format('truetype');
+}
+
+:root {
+  /* ─── 1. Frosted Glass & Dynamic Tint ─── */
+  --tint-opacity: 0.83;
+  --tint-brightness: 18;
+  --tint-r: 18;
+  --tint-g: 18;
+  --tint-b: 20;
+  --tint-rgb: var(--tint-r), var(--tint-g), var(--tint-b);
+  --bg-tint-color: #121214;
+  --window-bg: rgba(var(--tint-rgb), var(--tint-opacity));
+  --window-bg-elevated: rgba(30, 30, 36, var(--tint-opacity));
+  --window-bg-card: rgba(26, 26, 30, 0.75);
+  --window-bg-card-hover: rgba(36, 36, 42, 0.85);
+  --window-backdrop-blur: blur(20px) saturate(180%);
+
+  /* ─── 2. Surface & Background Colors ─── */
+  --bg-primary: #121214;
+  --bg-secondary: #18181b;
+  --bg-secondary-alt: #1a1a1e;
+  --bg-surface: #222228;
+  --bg-surface-elevated: #282830;
+  --bg-hover: #2a2a32;
+  --bg-active: #32323c;
+  --bg-selected: rgba(56, 189, 248, 0.12);
+  --bg-input: rgba(18, 18, 20, 0.60);
+  --bg-input-focus: rgba(24, 24, 28, 0.85);
+
+  /* ─── 3. Text Colors ─── */
+  --text-primary: #f4f4f5;
+  --text-secondary: #a1a1aa;
+  --text-muted: #71717a;
+  --text-dimmed: #52525b;
+  --text-inverse: #09090b;
+
+  /* ─── 4. Border Colors ─── */
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-default: rgba(255, 255, 255, 0.12);
+  --border-strong: rgba(255, 255, 255, 0.20);
+  --border-focus: #38bdf8;
+
+  /* ─── 5. Status & Semantic Colors ─── */
+  --status-ok: #22c55e;
+  --status-ghost: #f472b6;
+  --status-orphan: #f59e0b;
+  --status-override: #2dd4bf;
+  --status-new: #38bdf8;
+  --status-error: #ef4444;
+
+  /* Test Compatibility Aliases */
+  --color-ok: #22C55E;
+  --color-ghost: #F472B6;
+  --color-orphan: #F59E0B;
+  --color-override: #2DD4BF;
+  --color-new: #38BDF8;
+
+  /* Status Background Tints */
+  --status-ok-bg: rgba(34, 197, 94, 0.15);
+  --status-ghost-bg: rgba(244, 114, 182, 0.15);
+  --status-orphan-bg: rgba(245, 158, 11, 0.15);
+  --status-override-bg: rgba(45, 212, 191, 0.15);
+  --status-new-bg: rgba(56, 189, 248, 0.15);
+
+  /* ─── 6. Typography ─── */
+  /* Font Family Stacks */
+  --font-brand: 'Syne', 'Segoe UI Variable Text', 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-pixel: 'Press Start 2P', 'Consolas', 'Courier New', monospace;
+  --font-mono: 'Consolas', 'Cascadia Code', 'Segoe UI Mono', 'Courier New', monospace;
+  --font-sans: 'Segoe UI Variable Text', 'Segoe UI Variable', 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+
+  /* Font Weights */
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  /* Scaled Typography Sizes */
+  --font-size-pixel-badge: 8px;
+  --font-size-pixel-sm: 9px;
+  --font-size-pixel-title: 11px;
+  --font-size-xs: 11px;
+  --font-size-sm: 12px;
+  --font-size-base: 13px;
+  --font-size-md: 14px;
+  --font-size-lg: 16px;
+  --font-size-xl: 18px;
+  --font-size-2xl: 22px;
+  --font-size-3xl: 28px;
+  --font-size-hero: 36px;
+
+  /* Line Heights */
+  --line-height-pixel: 1.15;
+  --line-height-tight: 1.25;
+  --line-height-normal: 1.5;
+
+  /* Letter Spacing */
+  --letter-spacing-pixel: 0.04em;
+  --letter-spacing-brand: -0.01em;
+  --letter-spacing-heading: 0.03em;
+
+  /* ─── 7. Spacing ─── */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+
+  /* ─── 8. Corner Radius (Windows 11 Fluent) ─── */
+  --radius-xs: 3px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+  --radius-full: 9999px;
+
+  /* ─── 9. Transitions & Animations ─── */
+  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-normal: 250ms cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* ─── 10. Elevation & Shadows ─── */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+  --shadow-modal: 0 16px 48px rgba(0, 0, 0, 0.7);
+
+  /* ─── 11. Component Dimensions ─── */
+  --header-height: 44px;
+  --sidebar-width: 280px;
+  --tile-width: 160px;
+  --tile-height: 190px;
+  --tile-thumb-size: 96px;
+}

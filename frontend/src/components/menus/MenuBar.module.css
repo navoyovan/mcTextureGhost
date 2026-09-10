@@ -1,0 +1,126 @@
+﻿/* frontend/src/components/menus/MenuBar.module.css */
+
+.menuBar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.menuRoot {
+  position: relative;
+}
+
+.menuTrigger {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary, #a1a1aa);
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+  height: 26px;
+}
+
+.menuTrigger:hover,
+.menuTriggerOpen {
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--text-primary, #f4f4f5);
+}
+
+.menuChevron {
+  color: var(--text-muted, #71717a);
+  transition: transform 0.15s;
+}
+
+.menuChevronOpen {
+  transform: rotate(180deg);
+}
+
+/* Full-screen transparent backdrop to catch outside clicks */
+.dropdownPortalBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+}
+
+/* Dropdown panel — positioned with fixed coords from JS */
+.dropdown {
+  position: fixed;
+  min-width: 210px;
+  background: var(--bg-surface-elevated, #282830);
+  border: 1px solid var(--border-default, rgba(255, 255, 255, 0.12));
+  border-radius: 7px;
+  padding: 4px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.55), 0 2px 8px rgba(0, 0, 0, 0.35);
+  z-index: 10000;
+  animation: dropdownIn 0.12s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes dropdownIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.menuItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 10px;
+  background: transparent;
+  border: none;
+  border-radius: 5px;
+  font-size: 12px;
+  color: var(--text-primary, #f4f4f5);
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.1s, color 0.1s;
+}
+
+.menuItem:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.menuItem:active {
+  background: rgba(255, 255, 255, 0.13);
+}
+
+.menuItemDisabled {
+  color: var(--text-dimmed, #52525b);
+  cursor: not-allowed;
+}
+
+.menuItemDisabled:hover {
+  background: transparent;
+}
+
+.menuItemIcon {
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted, #71717a);
+  flex-shrink: 0;
+}
+
+.menuItemLabel {
+  flex: 1;
+}
+
+.menuDivider {
+  height: 1px;
+  background: var(--border-subtle, rgba(255, 255, 255, 0.07));
+  margin: 3px 0;
+}

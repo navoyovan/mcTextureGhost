@@ -1,0 +1,67 @@
+/* frontend/src/styles/global.css */
+
+/* ─── CSS Reset ─── */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+/* ─── Hardware Transparent Acrylic Root ─── */
+html,
+body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: transparent; /* Direct passthrough to Windows Acrylic */
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-normal);
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ─── Application Root Shell ─── */
+#root {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--window-bg);
+  backdrop-filter: var(--window-backdrop-blur);
+  -webkit-backdrop-filter: var(--window-backdrop-blur);
+  display: flex;
+  flex-direction: column;
+}
+
+/* ─── Minecraft Pixel Art Rendering Rules ─── */
+.pixelated,
+img.pixelated,
+canvas.pixelated {
+  image-rendering: pixelated;
+  image-rendering: -moz-crisp-edges;
+  image-rendering: crisp-edges;
+}
+
+/* ─── Fluent Styled Scrollbars ─── */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-default);
+  border-radius: var(--radius-sm);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--border-strong);
+}

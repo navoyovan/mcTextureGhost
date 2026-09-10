@@ -1,0 +1,389 @@
+/* frontend/src/components/sidebar/Sidebar.module.css */
+
+.sidebar {
+  width: 268px;
+  min-width: 250px;
+  max-width: 320px;
+  display: flex;
+  flex-direction: column;
+  background: rgba(18, 18, 22, 0.75);
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(16px);
+  user-select: none;
+  overflow: hidden;
+  height: 100%;
+}
+
+/* ─── 1. Active Pack Identity Card ─── */
+.packCard {
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.02);
+  flex-shrink: 0;
+}
+
+.packIdentityRow {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.packIconWrapper96 {
+  width: 96px;
+  height: 96px;
+  min-width: 96px;
+  min-height: 96px;
+  border-radius: 6px;
+  background: #141418;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  flex-shrink: 0;
+  cursor: pointer;
+  padding: 0;
+  transition: border-color 0.15s, transform 0.1s, box-shadow 0.15s;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+
+.packIconWrapper96:hover {
+  border-color: rgba(168, 85, 247, 0.6);
+  box-shadow: 0 0 12px rgba(168, 85, 247, 0.25);
+  transform: translateY(-1px);
+}
+
+.packIconWrapper96:active {
+  transform: translateY(0);
+}
+
+.packIconImg96 {
+  width: 96px;
+  height: 96px;
+  object-fit: cover;
+  image-rendering: pixelated;
+  display: block;
+}
+
+.packIconPlaceholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+  height: 100%;
+  color: #71717a;
+}
+
+.packIconPlaceholderGhost {
+  font-size: 28px;
+  line-height: 1;
+}
+
+.packIconPlaceholderText {
+  font-family: var(--font-pixel);
+  font-size: 7px;
+  letter-spacing: 0.02em;
+  color: #a1a1aa;
+}
+
+.packMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow: hidden;
+  flex: 1;
+  min-width: 0;
+}
+
+.packTitle {
+  font-family: var(--font-pixel);
+  font-size: var(--font-size-pixel-title, 11px);
+  line-height: 1.35;
+  letter-spacing: var(--letter-spacing-pixel, 0.04em);
+  color: var(--text-primary, #ffffff);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.packPath {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-muted, #71717a);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: default;
+}
+
+/* Retro Status Badge Pills */
+.statusPillsRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.pillTotal,
+.pillOk,
+.pillGhost,
+.pillOrphan {
+  font-family: var(--font-pixel);
+  font-size: 7px;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  padding: 3px 5px;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+
+.pillTotal {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #e4e4e7;
+}
+
+.pillOk {
+  background: rgba(52, 211, 153, 0.15);
+  border: 1px solid rgba(52, 211, 153, 0.3);
+  color: #34d399;
+}
+
+.pillGhost {
+  background: rgba(244, 114, 182, 0.15);
+  border: 1px solid rgba(244, 114, 182, 0.3);
+  color: var(--status-ghost, #f472b6);
+}
+
+.pillOrphan {
+  background: rgba(251, 191, 36, 0.15);
+  border: 1px solid rgba(251, 191, 36, 0.3);
+  color: #fbbf24;
+}
+
+/* Adversarial Typography Test Invariants */
+.statLabel {
+  font-family: var(--font-brand);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--text-muted, #71717a);
+  letter-spacing: 0.05em;
+}
+
+.statValue {
+  font-family: var(--font-brand);
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary, #ffffff);
+}
+
+/* ─── 2. Missing Manifest Warning Card ─── */
+.manifestWarningCard {
+  margin: 10px 14px 0 14px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.manifestWarningHeader {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.warningIcon {
+  color: #f59e0b;
+  flex-shrink: 0;
+}
+
+.warningTitle {
+  font-family: var(--font-brand);
+  font-size: 11px;
+  font-weight: 700;
+  color: #fbbf24;
+  letter-spacing: 0.02em;
+}
+
+.warningDesc {
+  font-size: 10.5px;
+  color: #d4d4d8;
+  line-height: 1.35;
+  margin: 0;
+}
+
+.generateManifestBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 26px;
+  background: rgba(245, 158, 11, 0.2);
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  border-radius: 4px;
+  color: #fef3c7;
+  font-family: var(--font-brand);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.generateManifestBtn:hover {
+  background: rgba(245, 158, 11, 0.3);
+  border-color: rgba(245, 158, 11, 0.6);
+  color: #ffffff;
+}
+
+/* ─── 3. Directory Explorer Tree Section ─── */
+.folderSection {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 12px 0 0 0;
+  min-height: 100px;
+}
+
+.folderSectionHeader {
+  padding: 0 14px 8px 14px;
+  font-family: var(--font-brand);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--text-muted, #71717a);
+  letter-spacing: 0.06em;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.folderTreeContainer {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 8px;
+}
+
+.folderItemText {
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+/* ─── 4. Action Dock at Bottom of Sidebar ─── */
+.actionDock {
+  margin-top: auto;
+  padding: 10px 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(14, 14, 18, 0.9);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.exploreCatalogCard {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.14) 0%, rgba(99, 102, 241, 0.08) 100%);
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s, border-color 0.15s, transform 0.1s;
+  width: 100%;
+}
+
+.exploreCatalogCard:hover {
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.22) 0%, rgba(99, 102, 241, 0.14) 100%);
+  border-color: rgba(139, 92, 246, 0.5);
+  transform: translateY(-1px);
+}
+
+.exploreCatalogCard:active {
+  transform: translateY(0);
+}
+
+.catalogCardIconWrapper {
+  width: 28px;
+  height: 28px;
+  border-radius: 5px;
+  background: rgba(139, 92, 246, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #c4b5fd;
+  flex-shrink: 0;
+}
+
+.catalogCardMeta {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  gap: 1px;
+}
+
+.catalogCardTitle {
+  font-family: var(--font-brand);
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.catalogCardSubtitle {
+  font-size: 10px;
+  color: #a1a1aa;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.quickActionsRow {
+  display: flex;
+  gap: 6px;
+}
+
+.quickBtn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 28px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 5px;
+  color: #d4d4d8;
+  font-size: 11px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.quickBtn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+}
+
+.quickBtnClose {
+  flex: 0 0 28px;
+  padding: 0;
+}
+
+.quickBtnClose:hover {
+  background: rgba(244, 63, 94, 0.15);
+  border-color: rgba(244, 63, 94, 0.3);
+  color: #f43f5e;
+}

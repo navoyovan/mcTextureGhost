@@ -1,0 +1,528 @@
+// frontend/src/components/catalog/CatalogDrawer.tsx
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import {
+  X,
+  BookOpen,
+  Search,
+  ChevronDown,
+  ChevronRight,
+  Zap,
+  RotateCw,
+  Layers,
+} from 'lucide-react';
+import { usePackStore } from '../../store/packStore';
+import { useIpc } from '../../hooks/useIpc';
+import { BlockGroupNodeDto, AliasGroupNodeDto, CatalogLeafDto } from '../../types/ipc';
+import styles from './CatalogDrawer.module.css';
+
+export interface CatalogDrawerProps {
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+/**
+ * Thumbnail component for a catalog leaf texture with fallback error handling.
+ */
+const LeafThumbnail: React.FC<{ leaf: CatalogLeafDto }> = ({ leaf }) => {
+  const [hasError, setHasError] = useState(false);
+  const src = leaf.imageUrl || `https://vanilla.local/${leaf.relativePath}.png`;
+
+  return (
+    <div className={styles.leafThumbWrapper}>
+      {!hasError ? (
+        <img
+          src={src}
+          alt={leaf.alias}
+          className={styles.leafThumbImg}
+          onError={() => setHasError(true)}
+          loading="lazy"
+        />
+      ) : (
+        <span className={styles.leafThumbFallback}>
+          {leaf.status === 'GHOST' ? '👻' : '📦'}
+        </span>
+      )}
+    </div>
+  );
+};
+
+/**
+ * Tier 3: Leaf Row Component
+ */
+const CatalogLeafRow: React.FC<{
+  leaf: CatalogLeafDto;
+  onAdd: (id: string, category: string) => void;
+}> = ({ leaf, onAdd }) => {
+  const getStatusClass = (status: string) => {
+    switch (status) {
+      case 'OK':
+        return styles.statusOk;
+      case 'GHOST':
+        return styles.statusGhost;
+      case 'OVERRIDE':
+        return styles.statusOverride;
+      case 'ORPHAN':
+        return styles.statusOrphan;
+      case 'VANILLA':
+      default:
+        return styles.statusVanilla;
+    }
+  };
+
+  return (
+    <div className={styles.leafRow} data-testid={`leaf-row-${leaf.alias}`}>
+      <div className={styles.leafLeft}>
+        <LeafThumbnail leaf={leaf} />
+        <div className={styles.leafMeta}>
+          <div className={styles.leafPathRow}>
+            <span className={styles.leafPath} title={leaf.relativePath}>
+              {leaf.relativePath}
+            </span>
+            {leaf.isFlipbook && (
+              <span className={styles.animBadge} title="Animated flipbook texture">
+                ANIM
+              </span>
+            )}
+          </div>
+          {leaf.subtitleCaption && (
+            <span className={styles.leafSubtitle} title={leaf.subtitleCaption}>
+              {leaf.subtitleCaption}
+            </span>
+          )}
+        </div>
+      </div>
+
+      <div className={styles.leafRight}>
+        <span
+          className={`${styles.statusPill} ${getStatusClass(leaf.status)}`}
+          data-testid={`status-pill-${leaf.status.toLowerCase()}`}
+        >
+          {leaf.status === 'GHOST' ? '👻 GHOST' : leaf.status}
+        </span>
+        {leaf.status === 'VANILLA' && (
+          <button
+            type="button"
+            className={styles.addLeafBtn}
+            onClick={() => onAdd(leaf.alias, leaf.category)}
+            title="Add this texture variant to your pack"
+            aria-label={`Add texture ${leaf.alias}`}
+          >
+            + Add
+          </button>
+        )}
+      </div>
+    </div>
+  );
+};
+
+/**
+ * Tier 2: Alias Group Component
+ */
+const CatalogAliasGroup: React.FC<{
+  aliasGroup: AliasGroupNodeDto;
+  category: string;
+  onAdd: (id: string, category: string) => void;
+}> = ({ aliasGroup, category, onAdd }) => {
+  return (
+    <div className={styles.aliasGroupCard} data-testid={`alias-group-${aliasGroup.alias}`}>
+      <div className={styles.aliasGroupHeader}>
+        <div className={styles.aliasHeaderLeft}>
+          <span className={styles.aliasNameText} title={aliasGroup.alias}>
+            {aliasGroup.alias}
+          </span>
+          {aliasGroup.faceSummary && (
+            <span
+              className={styles.faceSummaryBadge}
+              title={`Face mapping: ${aliasGroup.faceSummary}`}
+            >
+              {aliasGroup.faceSummary}
+            </span>
+          )}
+          {aliasGroup.ghostCount > 0 && (
+            <span className={styles.ghostBadge}>
+              👻 {aliasGroup.ghostCount}
+            </span>
+          )}
+        </div>
+
+        <button
+          type="button"
+          className={styles.addAliasBtn}
+          onClick={() => onAdd(aliasGroup.alias, aliasGroup.category || category)}
+          title={`Add alias '${aliasGroup.alias}' to pack`}
+          aria-label={`Add alias ${aliasGroup.alias}`}
+        >
+          + Add Alias
+        </button>
+      </div>
+
+      {aliasGroup.leaves && aliasGroup.leaves.length > 0 && (
+        <div className={styles.leavesList}>
+          {aliasGroup.leaves.map((leaf, index) => (
+            <CatalogLeafRow
+              key={leaf.relativePath || `${aliasGroup.alias}-${index}`}
+              leaf={leaf}
+              onAdd={onAdd}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+/**
+ * Tier 1: Block/Item Group Component
+ */
+const CatalogBlockGroup: React.FC<{
+  block: BlockGroupNodeDto;
+  isExpanded: boolean;
+  onToggleExpand: () => void;
+  onAdd: (id: string, category: string) => void;
+}> = ({ block, isExpanded, onToggleExpand, onAdd }) => {
+  const isItem = block.category.toLowerCase() === 'item';
+
+  return (
+    <div className={styles.blockGroupCard} data-testid={`block-group-${block.blockId}`}>
+      <div
+        className={styles.blockGroupHeader}
+        onClick={onToggleExpand}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onToggleExpand();
+          }
+        }}
+        aria-expanded={isExpanded}
+      >
+        <div className={styles.blockMetaLeft}>
+          <button
+            type="button"
+            className={styles.chevronButton}
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleExpand();
+            }}
+            aria-label={isExpanded ? 'Collapse block' : 'Expand block'}
+          >
+            {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+          </button>
+
+          <div className={styles.blockTitleGroup}>
+            <span className={styles.blockDisplayName} title={block.displayName}>
+              {block.displayName}
+            </span>
+            <span className={styles.blockIdText} title={block.blockId}>
+              ({block.blockId})
+            </span>
+          </div>
+        </div>
+
+        <div className={styles.blockBadgesAndActions}>
+          <span
+            className={`${styles.categoryBadge} ${isItem ? styles.categoryBadgeItem : ''}`}
+          >
+            {block.category}
+          </span>
+
+          {block.ghostCount > 0 && (
+            <span className={styles.ghostBadge} title={`${block.ghostCount} ghost textures`}>
+              👻 {block.ghostCount}
+            </span>
+          )}
+
+          {block.totalVariants > 0 && (
+            <span className={styles.variantsBadge} title={`${block.totalVariants} total variants`}>
+              {block.totalVariants} var
+            </span>
+          )}
+
+          <button
+            type="button"
+            className={styles.addBlockBtn}
+            onClick={(e) => {
+              e.stopPropagation();
+              onAdd(block.blockId, block.category);
+            }}
+            title={`Add all textures for ${block.displayName} to pack`}
+            aria-label={`Add all textures for ${block.displayName} to pack`}
+          >
+            <Zap size={11} />
+            <span>Add to Pack</span>
+          </button>
+        </div>
+      </div>
+
+      {isExpanded && block.aliasGroups && block.aliasGroups.length > 0 && (
+        <div className={styles.aliasGroupList}>
+          {block.aliasGroups.map((aliasGroup) => (
+            <CatalogAliasGroup
+              key={aliasGroup.alias}
+              aliasGroup={aliasGroup}
+              category={block.category}
+              onAdd={onAdd}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+/**
+ * Vanilla Reference Catalog Flyout / Drawer (Milestone 3: R3)
+ */
+export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose }) => {
+  const catalogTree = usePackStore((s) => s.catalogTree);
+  const { postCommand, loadCatalog } = useIpc();
+
+  const [searchText, setSearchText] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState<'all' | 'block' | 'item'>('all');
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+
+  // Load catalog data if empty on open
+  useEffect(() => {
+    if (isOpen && (!catalogTree || catalogTree.length === 0)) {
+      if (loadCatalog) {
+        loadCatalog();
+      } else {
+        postCommand('VANILLA:LOAD_CATALOG', {});
+      }
+    }
+  }, [isOpen, catalogTree, loadCatalog, postCommand]);
+
+  // Handle Escape key to close drawer
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
+  // Bounded search filtering for buttery 60 FPS performance (T2-F38-04)
+  const filteredBlocks = useMemo(() => {
+    if (!catalogTree || !Array.isArray(catalogTree)) return [];
+    const query = searchText.toLowerCase().trim();
+    let result = catalogTree;
+
+    if (categoryFilter !== 'all') {
+      result = result.filter(
+        (b) => b.category && b.category.toLowerCase() === categoryFilter
+      );
+    }
+
+    if (query) {
+      result = result.filter(
+        (b) =>
+          (b.displayName && b.displayName.toLowerCase().includes(query)) ||
+          (b.blockId && b.blockId.toLowerCase().includes(query)) ||
+          (b.aliasGroups &&
+            b.aliasGroups.some((a) => a.alias && a.alias.toLowerCase().includes(query)))
+      );
+    }
+
+    // Top 100 bounded search limit
+    return result.slice(0, 100);
+  }, [catalogTree, searchText, categoryFilter]);
+
+  // Auto-expand all matching blocks if searching
+  const isBlockExpanded = useCallback(
+    (blockId: string) => {
+      if (searchText.trim().length > 0) {
+        return true;
+      }
+      return expandedIds.has(blockId);
+    },
+    [searchText, expandedIds]
+  );
+
+  const toggleExpand = useCallback((blockId: string) => {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(blockId)) {
+        next.delete(blockId);
+      } else {
+        next.add(blockId);
+      }
+      return next;
+    });
+  }, []);
+
+  const handleAdd = useCallback(
+    (id: string, category: string) => {
+      postCommand('VANILLA:ADD', {
+        id,
+        category: category.toLowerCase() === 'item' ? 'item' : 'block',
+      });
+    },
+    [postCommand]
+  );
+
+  const handleManualSync = useCallback(() => {
+    if (loadCatalog) {
+      loadCatalog();
+    } else {
+      postCommand('VANILLA:LOAD_CATALOG', {});
+    }
+  }, [loadCatalog, postCommand]);
+
+  if (!isOpen) return null;
+
+  const totalCatalogCount = catalogTree?.length || 0;
+  const isSearching = searchText.trim().length > 0 || categoryFilter !== 'all';
+
+  return (
+    <div
+      className={styles.drawerOverlay}
+      onClick={onClose}
+      data-testid="catalog-drawer-overlay"
+    >
+      <aside
+        className={styles.drawerContainer}
+        onClick={(e) => e.stopPropagation()}
+        data-testid="catalog-drawer"
+        role="dialog"
+        aria-label="Vanilla Bedrock Reference Catalog"
+      >
+        {/* Drawer Header */}
+        <div className={styles.drawerHeader}>
+          <div className={styles.headerTitleGroup}>
+            <div className={styles.headerIconBadge}>
+              <BookOpen size={17} />
+            </div>
+            <div className={styles.headerTextGroup}>
+              <h2 className={styles.headerTitle}>Vanilla Bedrock Reference Catalog</h2>
+              <span className={styles.headerSubtitle}>
+                Mojang bedrock-samples offline reference database
+              </span>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            className={styles.closeButton}
+            onClick={onClose}
+            title="Close drawer (Esc)"
+            aria-label="Close catalog drawer"
+          >
+            <X size={15} />
+          </button>
+        </div>
+
+        {/* Search & Category Filter Toolbar */}
+        <div className={styles.searchToolbar}>
+          <div className={styles.searchInputRow}>
+            <Search size={14} className={styles.searchIcon} />
+            <input
+              type="text"
+              className={styles.searchInput}
+              placeholder="Search vanilla blocks, items, or aliases (e.g. sea_lantern, sword, door)..."
+              value={searchText}
+              onChange={(e) => setSearchText(e.target.value)}
+              data-testid="catalog-search-input"
+              autoFocus
+            />
+            {searchText && (
+              <button
+                type="button"
+                className={styles.clearSearchBtn}
+                onClick={() => setSearchText('')}
+                title="Clear search query"
+                aria-label="Clear search"
+              >
+                <X size={12} />
+              </button>
+            )}
+          </div>
+
+          <div className={styles.filterControlsRow}>
+            <div className={styles.categoryToggleGroup} role="group" aria-label="Category filter">
+              <button
+                type="button"
+                className={`${styles.categoryToggleBtn} ${categoryFilter === 'all' ? styles.categoryToggleBtnActive : ''}`}
+                onClick={() => setCategoryFilter('all')}
+                data-testid="category-filter-all"
+              >
+                All
+              </button>
+              <button
+                type="button"
+                className={`${styles.categoryToggleBtn} ${categoryFilter === 'block' ? styles.categoryToggleBtnActive : ''}`}
+                onClick={() => setCategoryFilter('block')}
+                data-testid="category-filter-blocks"
+              >
+                Blocks
+              </button>
+              <button
+                type="button"
+                className={`${styles.categoryToggleBtn} ${categoryFilter === 'item' ? styles.categoryToggleBtnActive : ''}`}
+                onClick={() => setCategoryFilter('item')}
+                data-testid="category-filter-items"
+              >
+                Items
+              </button>
+            </div>
+
+            <span className={styles.resultCountBadge} data-testid="result-count-badge">
+              {isSearching
+                ? `SHOWING ${filteredBlocks.length} OF ${totalCatalogCount}`
+                : `${totalCatalogCount} ENTRIES`}
+            </span>
+          </div>
+        </div>
+
+        {/* Scrollable Catalog Tree */}
+        <div className={styles.catalogTreeScroll} data-testid="catalog-tree-scroll">
+          {filteredBlocks.length > 0 ? (
+            filteredBlocks.map((block) => (
+              <CatalogBlockGroup
+                key={block.blockId}
+                block={block}
+                isExpanded={isBlockExpanded(block.blockId)}
+                onToggleExpand={() => toggleExpand(block.blockId)}
+                onAdd={handleAdd}
+              />
+            ))
+          ) : totalCatalogCount === 0 ? (
+            <div className={styles.emptyContainer} data-testid="catalog-empty-cache">
+              <div className={styles.emptyIconWrapper}>
+                <Layers size={24} />
+              </div>
+              <h3 className={styles.emptyTitle}>Vanilla Catalog Not Loaded</h3>
+              <p className={styles.emptyDesc}>
+                Reference definitions from Mojang bedrock-samples have not been loaded yet.
+              </p>
+              <button
+                type="button"
+                className={styles.loadCatalogBtn}
+                onClick={handleManualSync}
+              >
+                <RotateCw size={13} />
+                <span>Load Vanilla Data</span>
+              </button>
+            </div>
+          ) : (
+            <div className={styles.emptyContainer} data-testid="catalog-no-results">
+              <div className={styles.emptyIconWrapper}>
+                <Search size={24} />
+              </div>
+              <h3 className={styles.emptyTitle}>No Matching Vanilla Textures</h3>
+              <p className={styles.emptyDesc}>
+                No reference blocks, items, or aliases match &ldquo;{searchText}&rdquo;. Try another
+                keyword or clear filters.
+              </p>
+            </div>
+          )}
+        </div>
+      </aside>
+    </div>
+  );
+};
