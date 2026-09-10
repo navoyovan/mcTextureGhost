@@ -49,8 +49,18 @@ export const MenuBar: React.FC = () => {
   const resetPackState = usePackStore((s) => s.resetPackState);
   const isCatalogOpen = usePackStore((s) => s.isCatalogOpen);
   const toggleCatalog = usePackStore((s) => s.toggleCatalog);
+  const activeTab = usePackStore((s) => s.activeTab);
+  const setActiveTab = usePackStore((s) => s.setActiveTab);
+  const tileZoom = usePackStore((s) => s.tileZoom);
+  const setTileZoom = usePackStore((s) => s.setTileZoom);
 
   const isPackLoaded = Boolean(packRoot);
+  const zoomPresets = [
+    { label: 'SM', value: 80 },
+    { label: 'MD', value: 120 },
+    { label: 'LG', value: 160 },
+    { label: 'XL', value: 200 },
+  ] as const;
 
   useEffect(() => {
     if (!openMenu) return;
@@ -193,6 +203,18 @@ export const MenuBar: React.FC = () => {
           </div>
         );
       })}
+      <div className={styles.menuRoot}>
+        <button
+          type="button"
+          className={`${styles.menuTrigger} ${openMenu?.label === 'Beta' ? styles.menuTriggerOpen : ''}`}
+          onClick={(e) => handleTriggerClick('Beta', e)}
+          aria-haspopup="menu"
+          aria-expanded={openMenu?.label === 'Beta'}
+        >
+          BETA
+          <ChevronDown size={10} className={styles.menuChevron} />
+        </button>
+      </div>
 
       {/* Portal-rendered dropdown to escape overflow:hidden parents */}
       {openMenu &&
@@ -208,7 +230,53 @@ export const MenuBar: React.FC = () => {
               style={{ left: openMenu.x, top: openMenu.y }}
               onMouseDown={(e) => e.stopPropagation()}
             >
-              {menus
+              {openMenu.label === 'Beta' ? (
+                <div className={styles.betaPanel}>
+                  <div className={styles.betaSection}>
+                    <span className={styles.betaSectionLabel}>Textures</span>
+                    <div className={styles.betaCategoryGroup} role="group" aria-label="Texture category">
+                      {(['all', 'blocks', 'items'] as const).map((tab) => (
+                        <button
+                          key={tab}
+                          type="button"
+                          className={`${styles.betaButton} ${activeTab === tab ? styles.betaButtonActive : ''}`}
+                          onClick={() => runItem(() => setActiveTab(tab))}
+                        >
+                          {tab === 'all' ? 'All' : tab === 'blocks' ? '🧱 Blocks' : '🗡 Items'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className={styles.betaSection}>
+                    <div className={styles.betaSectionHeader}>
+                      <span className={styles.betaSectionLabel}>Zoom level</span>
+                      <span className={styles.betaZoomValue}>{tileZoom}px</span>
+                    </div>
+                    <div className={styles.betaZoomControls}>
+                      {zoomPresets.map((preset) => (
+                        <button
+                          key={preset.label}
+                          type="button"
+                          className={`${styles.betaZoomButton} ${tileZoom === preset.value ? styles.betaButtonActive : ''}`}
+                          onClick={() => runItem(() => setTileZoom(preset.value))}
+                        >
+                          {preset.label}
+                        </button>
+                      ))}
+                    </div>
+                    <input
+                      type="range"
+                      className={styles.betaSlider}
+                      min={80}
+                      max={200}
+                      step={8}
+                      value={tileZoom}
+                      onChange={(e) => setTileZoom(Number(e.target.value))}
+                      aria-label="Tile size zoom"
+                    />
+                  </div>
+                </div>
+              ) : menus
                 .find((m) => m.label === openMenu.label)
                 ?.items.map((item, idx) => (
                   <React.Fragment key={idx}>

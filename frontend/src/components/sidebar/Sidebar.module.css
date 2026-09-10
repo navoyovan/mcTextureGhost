@@ -1,6 +1,7 @@
 /* frontend/src/components/sidebar/Sidebar.module.css */
 
 .sidebar {
+	display: none;
   width: 268px;
   min-width: 250px;
   max-width: 320px;

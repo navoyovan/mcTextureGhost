@@ -26,32 +26,30 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
     private static extern IntPtr SendMessage(IntPtr hWnd, int Msg, IntPtr wParam, IntPtr lParam);
 
     [DllImport("user32.dll")]
-    private static extern bool GetCursorPos(out POINT lpPoint);
+    private static extern bool GetWindowRect(IntPtr hWnd, out RECT rect);
 
     [DllImport("user32.dll")]
-    private static extern bool ScreenToClient(IntPtr hWnd, ref POINT lpPoint);
+    private static extern bool GetCursorPos(out POINT point);
 
     [StructLayout(LayoutKind.Sequential)]
-    private struct POINT { public int X; public int Y; }
+    private struct RECT { public int Left, Top, Right, Bottom; }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct POINT { public int X, Y; }
 
     private const int WM_NCLBUTTONDOWN = 0xA1;
     private const int HTCAPTION = 0x2;
-
-    // WM_NCHITTEST — resize hit-test codes
-    private const int WM_NCHITTEST   = 0x0084;
-    private const int HTNOWHERE      = 0;
-    private const int HTCLIENT       = 1;
-    private const int HTLEFT         = 10;
-    private const int HTRIGHT        = 11;
-    private const int HTTOP          = 12;
-    private const int HTTOPLEFT      = 13;
-    private const int HTTOPRIGHT     = 14;
-    private const int HTBOTTOM       = 15;
-    private const int HTBOTTOMLEFT   = 16;
-    private const int HTBOTTOMRIGHT  = 17;
-
-    /// <summary>Resize grip width in physical pixels.</summary>
-    private const int RESIZE_BORDER_PX = 6;
+    private const int HTLEFT = 10;
+    private const int HTRIGHT = 11;
+    private const int HTTOP = 12;
+    private const int HTTOPLEFT = 13;
+    private const int HTTOPRIGHT = 14;
+    private const int HTBOTTOM = 15;
+    private const int HTBOTTOMLEFT = 16;
+    private const int HTBOTTOMRIGHT = 17;
+    private const int WM_NCHITTEST = 0x0084;
+    private const int WM_LBUTTONDOWN = 0x0201;
+    private const int RESIZE_BORDER_PX = 8;
 
 #if DEBUG
     private const bool IsDebugMode = true;
@@ -77,9 +75,8 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
                 DwmSetWindowAttribute(handle, DWMWA_USE_IMMERSIVE_DARK_MODE_OLD, ref darkMode, sizeof(int));
             }
 
-            // Hook WM_NCHITTEST so edge/corner resize works even when WebView2
-            // covers the entire client area and would otherwise swallow the message.
-            HwndSource.FromHwnd(handle)?.AddHook(ResizeBorderWndProc);
+            HwndSource.FromHwnd(handle)?.AddHook(MainWindowWndProc);
+            WebView.MessageHook += WebView_MessageHook;
         };
 
         Loaded += MainWindow_Loaded;
@@ -90,47 +87,76 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         await InitializeWebViewAsync();
     }
 
-    /// <summary>
-    /// WndProc hook that restores edge/corner resize hit-testing for windows where
-    /// WebView2 fills the entire client area and swallows <c>WM_NCHITTEST</c>.
-    /// </summary>
-    private IntPtr ResizeBorderWndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+    private IntPtr WebView_MessageHook(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
     {
         if (msg != WM_NCHITTEST || WindowState == WindowState.Maximized)
+        {
+            if (msg != WM_LBUTTONDOWN || WindowState == WindowState.Maximized || !GetCursorPos(out var cursor))
+                return IntPtr.Zero;
+
+            int mouseHit = GetResizeHit(cursor.X, cursor.Y);
+            if (mouseHit == 0)
+                return IntPtr.Zero;
+
+            ReleaseCapture();
+            SendMessage(new WindowInteropHelper(this).Handle, WM_NCLBUTTONDOWN,
+                (IntPtr)mouseHit, IntPtr.Zero);
+            handled = true;
+            return IntPtr.Zero;
+        }
+
+        // Let the top-level WPF window handle only its resize pixels. The
+        // rest of the WebView remains a normal interactive child HWND.
+        var windowHandle = new WindowInteropHelper(this).Handle;
+        if (!GetWindowRect(windowHandle, out var rect))
             return IntPtr.Zero;
 
-        // Cursor position is encoded in lParam as screen coordinates.
-        int screenX = unchecked((short)(lParam.ToInt32() & 0xFFFF));
-        int screenY = unchecked((short)((lParam.ToInt32() >> 16) & 0xFFFF));
-
-        // Convert to client coordinates.
-        var pt = new POINT { X = screenX, Y = screenY };
-        ScreenToClient(hwnd, ref pt);
-
-        int w = (int)ActualWidth;
-        int h = (int)ActualHeight;
-        double dpi = PresentationSource.FromVisual(this)?.CompositionTarget?.TransformToDevice.M11 ?? 1.0;
-        int border = (int)(RESIZE_BORDER_PX * dpi);
-
-        bool onLeft   = pt.X < border;
-        bool onRight  = pt.X > w * dpi - border;
-        bool onTop    = pt.Y < border;
-        bool onBottom = pt.Y > h * dpi - border;
-
-        if (!onLeft && !onRight && !onTop && !onBottom)
-            return IntPtr.Zero;  // Interior — let WebView2 / default handling continue.
-
-        int hit;
-        if      (onTop    && onLeft)  hit = HTTOPLEFT;
-        else if (onTop    && onRight) hit = HTTOPRIGHT;
-        else if (onBottom && onLeft)  hit = HTBOTTOMLEFT;
-        else if (onBottom && onRight) hit = HTBOTTOMRIGHT;
-        else if (onTop)               hit = HTTOP;
-        else if (onBottom)            hit = HTBOTTOM;
-        else if (onLeft)              hit = HTLEFT;
-        else                          hit = HTRIGHT;
+        int x = unchecked((short)(lParam.ToInt32() & 0xFFFF));
+        int y = unchecked((short)((lParam.ToInt32() >> 16) & 0xFFFF));
+        int hit = GetResizeHit(x, y);
+        if (hit == 0)
+            return IntPtr.Zero;
 
         handled = true;
+        return new IntPtr(hit);
+    }
+
+    private int GetResizeHit(int x, int y)
+    {
+        var windowHandle = new WindowInteropHelper(this).Handle;
+        if (!GetWindowRect(windowHandle, out var rect))
+            return 0;
+
+        bool left = x < rect.Left + RESIZE_BORDER_PX;
+        bool right = x >= rect.Right - RESIZE_BORDER_PX;
+        bool top = y < rect.Top + RESIZE_BORDER_PX;
+        bool bottom = y >= rect.Bottom - RESIZE_BORDER_PX;
+        if (!left && !right && !top && !bottom)
+            return 0;
+
+        return top ? (left ? HTTOPLEFT : right ? HTTOPRIGHT : HTTOP)
+            : bottom ? (left ? HTBOTTOMLEFT : right ? HTBOTTOMRIGHT : HTBOTTOM)
+            : left ? HTLEFT : HTRIGHT;
+    }
+
+    private IntPtr MainWindowWndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+    {
+        if (msg != WM_NCHITTEST || WindowState == WindowState.Maximized || !GetWindowRect(hwnd, out var rect))
+            return IntPtr.Zero;
+
+        int x = unchecked((short)(lParam.ToInt32() & 0xFFFF));
+        int y = unchecked((short)((lParam.ToInt32() >> 16) & 0xFFFF));
+        bool left = x < rect.Left + RESIZE_BORDER_PX;
+        bool right = x >= rect.Right - RESIZE_BORDER_PX;
+        bool top = y < rect.Top + RESIZE_BORDER_PX;
+        bool bottom = y >= rect.Bottom - RESIZE_BORDER_PX;
+        if (!left && !right && !top && !bottom)
+            return IntPtr.Zero;
+
+        handled = true;
+        int hit = top ? (left ? HTTOPLEFT : right ? HTTOPRIGHT : HTTOP)
+            : bottom ? (left ? HTBOTTOMLEFT : right ? HTBOTTOMRIGHT : HTBOTTOM)
+            : left ? HTLEFT : HTRIGHT;
         return new IntPtr(hit);
     }
 

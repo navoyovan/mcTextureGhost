@@ -1,6 +1,6 @@
 // frontend/src/App.tsx
 import React, { useEffect, useState } from 'react';
-import { Minus, Square, X, Sparkles, AlertCircle, AlertTriangle, Info } from 'lucide-react';
+import { Sparkles, AlertCircle, AlertTriangle, Info } from 'lucide-react';
 import { usePackStore } from './store/packStore';
 import { useIpc } from './hooks/useIpc';
 import { IpcMessageTypes, ErrorPayload } from './types/ipc';
@@ -12,12 +12,12 @@ import { PackGrid } from './components/grid/PackGrid';
 import { BlockWorkspace } from './components/workspace/BlockWorkspace';
 import { CatalogDrawer } from './components/catalog/CatalogDrawer';
 import { MenuBar } from './components/menus/MenuBar';
+import { IconMinus, IconMaximize, IconX } from './components/common/TablerWindowIcons';
 import styles from './App.module.css';
 
 export const App: React.FC = () => {
   const { subscribe, windowAction, postCommand } = useIpc();
   const packRoot = usePackStore((s) => s.packRoot);
-  const packName = usePackStore((s) => s.packName);
   const windowTitle = usePackStore((s) => s.windowTitle);
   const activeView = usePackStore((s) => s.activeView);
   const setPackState = usePackStore((s) => s.setPackState);
@@ -29,6 +29,15 @@ export const App: React.FC = () => {
 
 
   const [activeToast, setActiveToast] = useState<ErrorPayload | null>(null);
+
+  const packFolderName = packRoot?.split(/[\\/]/).filter(Boolean).pop() || 'Resource Pack';
+  const activeFolderSuffix = usePackStore((s) => s.selectedFolderPath)
+    ?.split(/[\\/]/)
+    .filter(Boolean)
+    .join('/');
+  const packLocationLabel = activeFolderSuffix
+    ? `${packFolderName}/${activeFolderSuffix}`
+    : packFolderName;
 
   const handleTitleBarMouseDown = (e: React.MouseEvent) => {
     if (e.button === 0 && !(e.target as HTMLElement).closest('button')) {
@@ -104,9 +113,9 @@ export const App: React.FC = () => {
           {/* File / Dev Menus */}
           <MenuBar />
 
-          {packName && (
+          {packRoot && (
             <span className={styles.packBadge} data-testid="pack-badge">
-              {packName}
+              {packLocationLabel}
             </span>
           )}
         </div>
@@ -120,7 +129,7 @@ export const App: React.FC = () => {
             aria-label="Minimize Window"
             title="Minimize"
           >
-            <Minus className={styles.captionIcon} />
+            <IconMinus className={styles.captionIcon} />
           </button>
           <button
             type="button"
@@ -129,7 +138,7 @@ export const App: React.FC = () => {
             aria-label="Maximize Window"
             title="Maximize"
           >
-            <Square className={styles.captionIcon} />
+            <IconMaximize className={styles.captionIcon} />
           </button>
           <button
             type="button"
@@ -138,7 +147,7 @@ export const App: React.FC = () => {
             aria-label="Close Window"
             title="Close"
           >
-            <X className={styles.captionIcon} />
+            <IconX className={styles.captionIcon} />
           </button>
         </div>
       </header>

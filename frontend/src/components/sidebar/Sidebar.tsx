@@ -27,7 +27,6 @@ export const Sidebar: React.FC = () => {
   const setSelectedFolderPath = usePackStore((s) => s.setSelectedFolderPath);
   const toggleCatalog = usePackStore((s) => s.toggleCatalog);
   const resetPackState = usePackStore((s) => s.resetPackState);
-
   const [iconLoadError, setIconLoadError] = useState<boolean>(false);
 
   useEffect(() => {
