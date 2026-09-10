@@ -13,6 +13,7 @@ import {
 import { usePackStore } from '../../store/packStore';
 import { useIpc } from '../../hooks/useIpc';
 import { BlockGroupNodeDto, AliasGroupNodeDto, CatalogLeafDto } from '../../types/ipc';
+import { FlipbookThumbnail } from '../common/FlipbookThumbnail';
 import styles from './CatalogDrawer.module.css';
 
 export interface CatalogDrawerProps {
@@ -30,10 +31,12 @@ const LeafThumbnail: React.FC<{ leaf: CatalogLeafDto }> = ({ leaf }) => {
   return (
     <div className={styles.leafThumbWrapper}>
       {!hasError ? (
-        <img
+        <FlipbookThumbnail
           src={src}
           alt={leaf.alias}
           className={styles.leafThumbImg}
+          isFlipbook={leaf.isFlipbook}
+          flipbook={leaf.flipbook}
           onError={() => setHasError(true)}
           loading="lazy"
         />

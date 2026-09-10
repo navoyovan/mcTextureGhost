@@ -3,6 +3,7 @@ import React, { useMemo } from 'react';
 import { usePackStore, pathMatchesFolder } from '../../store/packStore';
 import { useIpc } from '../../hooks/useIpc';
 import { TextureAliasDto } from '../../types/ipc';
+import { FlipbookThumbnail } from '../common/FlipbookThumbnail';
 import styles from './PackGrid.module.css';
 
 export const PackGrid: React.FC = () => {
@@ -95,34 +96,33 @@ export const PackGrid: React.FC = () => {
               onClick={() => handleTileClick(alias)}
               title={`${alias.displayName || alias.alias}\nStatus: ${alias.status}\nPath: ${alias.relativePath}`}
             >
-              {/* Thumbnail Container */}
+              {/* Thumbnail Container - 100% clean texture display without overlays */}
               <div className={styles.tileThumbnailWrapper}>
-                <span className={`${styles.statusDot} ${getStatusDotClass(alias.status)}`} />
-
                 {!isGhost && alias.imageUrl ? (
-                  <img
+                  <FlipbookThumbnail
                     src={alias.imageUrl}
                     alt={alias.alias}
                     className={styles.tileThumbnail}
+                    isFlipbook={alias.isFlipbook}
+                    flipbook={alias.flipbook}
                     loading="lazy"
-                    onError={(e) => {
-                      (e.target as HTMLElement).style.display = 'none';
-                    }}
                   />
                 ) : (
                   <span className={styles.placeholderGhost}>?</span>
                 )}
-
-                {alias.isFlipbook && (
-                  <span className={styles.animBadge} title="Animated flipbook sprite-sheet">
-                    ANIM
-                  </span>
-                )}
               </div>
 
-              {/* Tile Metadata */}
+              {/* Tile Metadata with Status Dot and Badges separated from artwork */}
               <div className={styles.tileMeta}>
-                <span className={styles.tileTitle}>{alias.displayName || alias.alias}</span>
+                <div className={styles.tileHeaderRow}>
+                  <span className={`${styles.statusDot} ${getStatusDotClass(alias.status)}`} />
+                  <span className={styles.tileTitle}>{alias.displayName || alias.alias}</span>
+                  {alias.isFlipbook && (
+                    <span className={styles.animBadge} title="Animated flipbook sprite-sheet">
+                      ANIM
+                    </span>
+                  )}
+                </div>
                 <span className={styles.tileSubtitle}>
                   {alias.subtitleCaption || alias.relativePath || alias.category}
                 </span>

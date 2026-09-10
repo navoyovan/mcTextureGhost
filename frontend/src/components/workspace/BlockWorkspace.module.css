@@ -205,7 +205,7 @@
   width: 100%;
   aspect-ratio: 1 / 1;
   background: #0d0d10;
-  border-radius: 4px;
+  border-radius: 0;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -218,20 +218,28 @@
   height: 100%;
   object-fit: contain;
   image-rendering: pixelated;
+  border-radius: 0;
 }
 
 .leafGhost {
   font-size: 20px;
   color: #f472b6;
+  border-radius: 0;
+}
+
+.leafHeaderRow {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  min-width: 0;
 }
 
 .leafStatusDot {
-  position: absolute;
-  top: 4px;
-  left: 4px;
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
+  flex-shrink: 0;
 }
 
 .statusDotOk {

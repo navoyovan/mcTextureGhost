@@ -70,6 +70,14 @@ export const Block3DViewer: React.FC<Block3DViewerProps> = ({ faceTextures = {} 
         tex.magFilter = THREE.NearestFilter;
         tex.minFilter = THREE.NearestFilter;
         tex.generateMipmaps = false;
+        const img = tex.image as HTMLImageElement | undefined;
+        if (img && img.height > img.width && img.width > 0) {
+          const frameCount = Math.floor(img.height / img.width);
+          tex.wrapS = THREE.RepeatWrapping;
+          tex.wrapT = THREE.RepeatWrapping;
+          tex.repeat.set(1, 1 / frameCount);
+          tex.offset.set(0, 1 - 1 / frameCount);
+        }
         tex.needsUpdate = true;
         renderer.render(scene, camera);
       });

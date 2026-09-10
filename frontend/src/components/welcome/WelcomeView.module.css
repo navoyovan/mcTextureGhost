@@ -267,7 +267,7 @@
 .recentItemIcon {
   width: 36px;
   height: 36px;
-  border-radius: 6px;
+  border-radius: 0;
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.1));
   display: flex;
@@ -282,6 +282,7 @@
   height: 100%;
   object-fit: cover;
   image-rendering: pixelated;
+  border-radius: 0;
 }
 
 .recentItemInfo {

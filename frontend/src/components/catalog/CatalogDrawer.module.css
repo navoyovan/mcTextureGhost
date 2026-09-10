@@ -519,7 +519,7 @@
 .leafThumbWrapper {
   width: 26px;
   height: 26px;
-  border-radius: var(--radius-xs);
+  border-radius: 0;
   background: rgba(0, 0, 0, 0.45);
   border: 1px solid var(--border-subtle);
   display: flex;
@@ -535,6 +535,7 @@
   image-rendering: pixelated;
   image-rendering: crisp-edges;
   object-fit: contain;
+  border-radius: 0;
 }
 
 .leafThumbFallback {

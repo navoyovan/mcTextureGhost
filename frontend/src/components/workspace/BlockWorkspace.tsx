@@ -4,6 +4,7 @@ import { Box, Layers, ArrowRight } from 'lucide-react';
 import { usePackStore } from '../../store/packStore';
 import { useIpc } from '../../hooks/useIpc';
 import { BlockGroupNodeDto, CatalogLeafDto } from '../../types/ipc';
+import { FlipbookThumbnail } from '../common/FlipbookThumbnail';
 import { Block3DViewer } from './Block3DViewer';
 import styles from './BlockWorkspace.module.css';
 
@@ -166,27 +167,28 @@ export const BlockWorkspace: React.FC = () => {
                               title={`${leaf.displayName || leaf.alias}\nStatus: ${leaf.status}\nClick to edit`}
                             >
                               <div className={styles.leafThumbWrapper}>
-                                <span
-                                  className={`${styles.leafStatusDot} ${getStatusDotClass(leaf.status)}`}
-                                />
                                 {leaf.status !== 'GHOST' && leaf.imageUrl ? (
-                                  <img
+                                  <FlipbookThumbnail
                                     src={leaf.imageUrl}
                                     alt={leaf.alias}
                                     className={styles.leafThumb}
+                                    isFlipbook={leaf.isFlipbook}
+                                    flipbook={leaf.flipbook}
                                     loading="lazy"
-                                    onError={(e) => {
-                                      (e.target as HTMLElement).style.display = 'none';
-                                    }}
                                   />
                                 ) : (
                                   <span className={styles.leafGhost}>?</span>
                                 )}
                               </div>
                               <div className={styles.leafMeta}>
-                                <span className={styles.leafName}>
-                                  {leaf.displayName || leaf.alias}
-                                </span>
+                                <div className={styles.leafHeaderRow}>
+                                  <span
+                                    className={`${styles.leafStatusDot} ${getStatusDotClass(leaf.status)}`}
+                                  />
+                                  <span className={styles.leafName}>
+                                    {leaf.displayName || leaf.alias}
+                                  </span>
+                                </div>
                               </div>
                             </div>
                           ))}
@@ -204,23 +206,28 @@ export const BlockWorkspace: React.FC = () => {
                           title={`${leaf.displayName || leaf.alias}\nStatus: ${leaf.status}`}
                         >
                           <div className={styles.leafThumbWrapper}>
-                            <span
-                              className={`${styles.leafStatusDot} ${getStatusDotClass(leaf.status)}`}
-                            />
                             {leaf.status !== 'GHOST' && leaf.imageUrl ? (
-                              <img
+                              <FlipbookThumbnail
                                 src={leaf.imageUrl}
                                 alt={leaf.alias}
                                 className={styles.leafThumb}
+                                isFlipbook={leaf.isFlipbook}
+                                flipbook={leaf.flipbook}
+                                loading="lazy"
                               />
                             ) : (
                               <span className={styles.leafGhost}>?</span>
                             )}
                           </div>
                           <div className={styles.leafMeta}>
-                            <span className={styles.leafName}>
-                              {leaf.displayName || leaf.alias}
-                            </span>
+                            <div className={styles.leafHeaderRow}>
+                              <span
+                                className={`${styles.leafStatusDot} ${getStatusDotClass(leaf.status)}`}
+                              />
+                              <span className={styles.leafName}>
+                                {leaf.displayName || leaf.alias}
+                              </span>
+                            </div>
                           </div>
                         </div>
                       ))}
