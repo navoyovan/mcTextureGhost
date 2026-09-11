@@ -1,5 +1,7 @@
 // frontend/src/components/catalog/CatalogDrawer.tsx
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
+import { gsap } from 'gsap';
 import {
   X,
   BookOpen,
@@ -310,7 +312,10 @@ export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose })
   const [searchText, setSearchText] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<'all' | 'block' | 'item'>('all');
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
-  const [isClosing, setIsClosing] = useState(false);
+  const [isMounted, setIsMounted] = useState(isOpen);
+  const overlayRef = useRef<HTMLDivElement | null>(null);
+  const drawerRef = useRef<HTMLElement | null>(null);
+  const animationRef = useRef<gsap.core.Timeline | null>(null);
 
   // Helper function to check if an alias already exists in the pack
   const aliasExists = useCallback(
@@ -332,15 +337,64 @@ export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose })
     [aliases]
   );
 
-  // Trigger close animation and then unmount after animation completes
+  // Ask the parent to close; unmount happens after the GSAP exit animation finishes.
   const handleClose = useCallback(() => {
-    setIsClosing(true);
-    const timer = setTimeout(() => {
-      onClose();
-      setIsClosing(false);
-    }, 200); // Match exit animation duration
-    return () => clearTimeout(timer);
-  }, [onClose]);
+    if (!isOpen) return;
+    onClose();
+  }, [isOpen, onClose]);
+
+  useEffect(() => {
+    animationRef.current?.kill();
+
+    if (isOpen) {
+      setIsMounted(true);
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    const overlay = overlayRef.current;
+    const drawer = drawerRef.current;
+    if (!isMounted || !overlay || !drawer) return;
+
+    animationRef.current?.kill();
+
+    if (isOpen) {
+      gsap.set(overlay, { autoAlpha: 0 });
+      gsap.set(drawer, { xPercent: 100 });
+
+      animationRef.current = gsap
+        .timeline({ defaults: { overwrite: 'auto' } })
+        .to(overlay, {
+          autoAlpha: 1,
+          duration: 0.18,
+          ease: 'power1.out',
+        }, 0)
+        .to(drawer, {
+          xPercent: 0,
+          duration: 0.34,
+          ease: 'power3.out',
+        }, 0);
+      return;
+    }
+
+    animationRef.current = gsap
+      .timeline({
+        defaults: { overwrite: 'auto' },
+        onComplete: () => setIsMounted(false),
+      })
+      .to(overlay, {
+        autoAlpha: 0,
+        duration: 0.18,
+        ease: 'power1.in',
+      }, 0)
+      .to(drawer, {
+        xPercent: 100,
+        duration: 0.26,
+        ease: 'power2.in',
+      }, 0);
+  }, [isMounted, isOpen]);
+
+  useEffect(() => () => animationRef.current?.kill(), []);
 
   // Load catalog data if empty on open
   useEffect(() => {
@@ -355,7 +409,7 @@ export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose })
 
   // Handle Escape key to close drawer
   useEffect(() => {
-    if (!isOpen || isClosing) return;
+    if (!isOpen) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -365,17 +419,7 @@ export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose })
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, isClosing, handleClose]);
-
-  // Prevent body scroll when drawer is open
-  useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = 'hidden';
-      return () => {
-        document.body.style.overflow = '';
-      };
-    }
-  }, [isOpen]);
+  }, [isOpen, handleClose]);
 
   // Bounded search filtering for buttery 60 FPS performance (T2-F38-04)
   const filteredBlocks = useMemo(() => {
@@ -444,28 +488,22 @@ export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose })
     }
   }, [loadCatalog, postCommand]);
 
-  if (!isOpen && !isClosing) return null;
+  if (!isMounted) return null;
 
   const totalCatalogCount = catalogTree?.length || 0;
   const isSearching = searchText.trim().length > 0 || categoryFilter !== 'all';
 
-  return (
+  return createPortal(
     <div
-      className={`${styles.drawerOverlay} ${isClosing ? styles.overlayClosing : ''}`}
+      ref={overlayRef}
+      className={styles.drawerOverlay}
       onClick={handleClose}
       data-testid="catalog-drawer-overlay"
-      style={{ 
-        animation: mounted ? undefined : 'none',
-        opacity: isClosing ? 0 : 1
-      }}
     >
       <aside
-        className={`${styles.drawerContainer} ${isClosing ? styles.drawerClosing : ''}`}
+        ref={drawerRef}
+        className={styles.drawerContainer}
         onClick={(e) => e.stopPropagation()}
-        style={{ 
-          animation: mounted ? undefined : 'none',
-          transform: isClosing ? 'translateX(100%)' : 'translateX(0)'
-        }}
         data-testid="catalog-drawer"
         role="dialog"
         aria-label="Vanilla Bedrock Reference Catalog"
@@ -602,6 +640,7 @@ export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose })
           )}
         </div>
       </aside>
-    </div>
+    </div>,
+    document.body
   );
 };

@@ -25,7 +25,7 @@ export const Sidebar: React.FC = () => {
   const packFolders = usePackStore((s) => s.packFolders);
   const selectedFolderPath = usePackStore((s) => s.selectedFolderPath);
   const setSelectedFolderPath = usePackStore((s) => s.setSelectedFolderPath);
-  const toggleCatalog = usePackStore((s) => s.toggleCatalog);
+  const setIsCatalogOpen = usePackStore((s) => s.setIsCatalogOpen);
   const [iconLoadError, setIconLoadError] = useState<boolean>(false);
 
   useEffect(() => {
@@ -162,7 +162,7 @@ export const Sidebar: React.FC = () => {
         <button
           type="button"
           className={styles.exploreCatalogCard}
-          onClick={toggleCatalog}
+          onClick={() => setIsCatalogOpen(true)}
           title="Open Vanilla Bedrock Reference Catalog"
         >
           <div className={styles.catalogCardIconWrapper}>
