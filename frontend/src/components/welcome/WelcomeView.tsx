@@ -109,7 +109,7 @@ export const WelcomeView: React.FC<WelcomeViewProps> = ({ onOpenNewPackDialog })
             onClick={handleCreateNew}
             data-testid="create-pack-card"
           >
-            <div className={styles.actionIconWrapperCreate}>
+            <div className={`${styles.actionIconWrapper} ${styles.actionIconWrapperCreate}`}>
               <FolderPlus className={styles.actionIcon} />
             </div>
             <div className={styles.actionCardContent}>

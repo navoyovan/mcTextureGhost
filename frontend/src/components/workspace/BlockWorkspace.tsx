@@ -48,6 +48,12 @@ export const BlockWorkspace: React.FC = () => {
           const firstLeaf = fn.leaves && fn.leaves.length > 0 ? fn.leaves[0] : null;
           if (firstLeaf && firstLeaf.imageUrl) {
             textures[label] = firstLeaf.imageUrl;
+            if (label === 'side') {
+              textures.north = textures.north ?? firstLeaf.imageUrl;
+              textures.south = textures.south ?? firstLeaf.imageUrl;
+              textures.east = textures.east ?? firstLeaf.imageUrl;
+              textures.west = textures.west ?? firstLeaf.imageUrl;
+            }
           }
         }
       } else if (ag.leaves && ag.leaves.length > 0) {
@@ -98,20 +104,28 @@ export const BlockWorkspace: React.FC = () => {
         <div className={styles.blockListHeader}>Pack Blocks ({blockWorkspaceTree.length})</div>
         {blockWorkspaceTree.map((block) => {
           const isActive = selectedBlock?.blockId === block.blockId;
+          const isCustom = block.isUserDefined !== false;
           return (
             <button
               key={block.blockId}
               type="button"
-              className={`${styles.blockItem} ${isActive ? styles.blockItemActive : ''}`}
+              className={`${styles.blockItem} ${isActive ? styles.blockItemActive : ''} ${!isCustom ? styles.blockItemVanilla : ''}`}
               onClick={() => setSelectedBlockId(block.blockId)}
             >
               <div className={styles.blockItemLeft}>
-                <Box size={14} />
+                <Box size={14} className={!isCustom ? styles.blockIconMuted : undefined} />
                 <span className={styles.blockItemName}>{block.displayName || block.blockId}</span>
               </div>
-              {block.ghostCount > 0 && (
-                <span className={styles.ghostBadge}>👻 {block.ghostCount}</span>
-              )}
+              <div className={styles.blockItemBadges}>
+                {!isCustom && block.blockId !== 'uncategorized' && (
+                  <span className={styles.vanillaTag} title="Inferred from vanilla blocks.json (not in custom blocks.json)">
+                    vanilla
+                  </span>
+                )}
+                {block.ghostCount > 0 && (
+                  <span className={styles.ghostBadge}>👻 {block.ghostCount}</span>
+                )}
+              </div>
             </button>
           );
         })}
@@ -123,7 +137,14 @@ export const BlockWorkspace: React.FC = () => {
           {/* Header */}
           <div className={styles.detailHeader}>
             <div className={styles.blockTitleGroup}>
-              <h2 className={styles.blockDisplayName}>{selectedBlock.displayName}</h2>
+              <div className={styles.blockHeaderTitleRow}>
+                <h2 className={styles.blockDisplayName}>{selectedBlock.displayName}</h2>
+                {selectedBlock.isUserDefined === false && selectedBlock.blockId !== 'uncategorized' && (
+                  <span className={styles.vanillaHeaderBadge} title="Using vanilla blocks.json definition (not in custom blocks.json)">
+                    Vanilla Fallback
+                  </span>
+                )}
+              </div>
               <span className={styles.blockIdSub}>{selectedBlock.blockId}</span>
             </div>
             {selectedBlock.ghostCount > 0 && (
@@ -159,9 +180,9 @@ export const BlockWorkspace: React.FC = () => {
 
                         {/* Horizontal Variant Strip (sketch2.png layout) */}
                         <div className={styles.variantStrip}>
-                          {fn.leaves?.map((leaf) => (
+                          {fn.leaves?.map((leaf, idx) => (
                             <div
-                              key={leaf.alias + leaf.relativePath}
+                              key={`${leaf.alias}-${leaf.relativePath}-${fn.faceLabel}-${idx}`}
                               className={styles.leafCard}
                               onClick={() => handleLeafClick(leaf)}
                               title={`${leaf.displayName || leaf.alias}\nStatus: ${leaf.status}\nClick to edit`}

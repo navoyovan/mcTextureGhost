@@ -57,8 +57,9 @@ const LeafThumbnail: React.FC<{ leaf: CatalogLeafDto }> = ({ leaf }) => {
 const CatalogLeafRow: React.FC<{
   leaf: CatalogLeafDto;
   onAdd: (id: string, category: string) => void;
-  aliasExists: (id: string) => boolean;
-}> = ({ leaf, onAdd, aliasExists }) => {
+}> = ({ leaf, onAdd }) => {
+  const isAdded = leaf.status !== 'VANILLA';
+
   const getStatusClass = (status: string) => {
     switch (status) {
       case 'OK':
@@ -105,24 +106,20 @@ const CatalogLeafRow: React.FC<{
         >
           {leaf.status === 'GHOST' ? '👻 GHOST' : leaf.status}
         </span>
-        {leaf.status === 'VANILLA' && (
-          <>
-            {aliasExists(leaf.alias) ? (
-              <span className={styles.addedBadge} title="This texture is already in your pack">
-                ✓ Added
-              </span>
-            ) : (
-              <button
-                type="button"
-                className={styles.addLeafBtn}
-                onClick={() => onAdd(leaf.alias, leaf.category)}
-                title="Add this texture variant to your pack"
-                aria-label={`Add texture ${leaf.alias}`}
-              >
-                + Add
-              </button>
-            )}
-          </>
+        {isAdded ? (
+          <span className={styles.addedBadge} title="This texture is already in your pack">
+            ✓ Added
+          </span>
+        ) : (
+          <button
+            type="button"
+            className={styles.addLeafBtn}
+            onClick={() => onAdd(leaf.alias, leaf.category)}
+            title="Add this texture variant to your pack"
+            aria-label={`Add texture ${leaf.alias}`}
+          >
+            + Add
+          </button>
         )}
       </div>
     </div>
@@ -136,8 +133,12 @@ const CatalogAliasGroup: React.FC<{
   aliasGroup: AliasGroupNodeDto;
   category: string;
   onAdd: (id: string, category: string) => void;
-  aliasExists: (id: string) => boolean;
-}> = ({ aliasGroup, category, onAdd, aliasExists }) => {
+}> = ({ aliasGroup, category, onAdd }) => {
+  const isAdded =
+    (aliasGroup.notAddedCount ?? 0) === 0 &&
+    (aliasGroup.leaves?.length ?? 0) > 0 &&
+    aliasGroup.leaves.every((l) => l.status !== 'VANILLA');
+
   return (
     <div className={styles.aliasGroupCard} data-testid={`alias-group-${aliasGroup.alias}`}>
       <div className={styles.aliasGroupHeader}>
@@ -160,7 +161,7 @@ const CatalogAliasGroup: React.FC<{
           )}
         </div>
 
-        {aliasExists(aliasGroup.alias) ? (
+        {isAdded ? (
           <span className={styles.addedBadge} title="This alias is already in your pack">
             ✓ Added
           </span>
@@ -184,7 +185,6 @@ const CatalogAliasGroup: React.FC<{
               key={leaf.relativePath || `${aliasGroup.alias}-${index}`}
               leaf={leaf}
               onAdd={onAdd}
-              aliasExists={aliasExists}
             />
           ))}
         </div>
@@ -201,9 +201,20 @@ const CatalogBlockGroup: React.FC<{
   isExpanded: boolean;
   onToggleExpand: () => void;
   onAdd: (id: string, category: string) => void;
-  aliasExists: (id: string, blockData?: BlockGroupNodeDto) => boolean;
-}> = ({ block, isExpanded, onToggleExpand, onAdd, aliasExists }) => {
+  isBlockInWorkspace: (blockId: string) => boolean;
+}> = ({ block, isExpanded, onToggleExpand, onAdd, isBlockInWorkspace }) => {
   const isItem = block.category.toLowerCase() === 'item';
+
+  const allAliasesAdded =
+    (block.aliasGroups?.length ?? 0) > 0 &&
+    block.aliasGroups.every(
+      (ag) =>
+        (ag.notAddedCount ?? 0) === 0 &&
+        (ag.leaves?.length ?? 0) > 0 &&
+        ag.leaves.every((l) => l.status !== 'VANILLA')
+    );
+
+  const isAdded = isItem ? allAliasesAdded : (isBlockInWorkspace(block.blockId) && allAliasesAdded);
 
   return (
     <div className={styles.blockGroupCard} data-testid={`block-group-${block.blockId}`}>
@@ -262,7 +273,7 @@ const CatalogBlockGroup: React.FC<{
             </span>
           )}
 
-          {aliasExists(block.blockId, block) ? (
+          {isAdded ? (
             <span className={styles.addedBadge} title="This block is already in your pack">
               ✓ Added
             </span>
@@ -292,7 +303,6 @@ const CatalogBlockGroup: React.FC<{
               aliasGroup={aliasGroup}
               category={block.category}
               onAdd={onAdd}
-              aliasExists={aliasExists}
             />
           ))}
         </div>
@@ -306,7 +316,7 @@ const CatalogBlockGroup: React.FC<{
  */
 export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose }) => {
   const catalogTree = usePackStore((s) => s.catalogTree);
-  const aliases = usePackStore((s) => s.aliases);
+  const blockWorkspaceTree = usePackStore((s) => s.blockWorkspaceTree);
   const { postCommand, loadCatalog } = useIpc();
 
   const [searchText, setSearchText] = useState('');
@@ -317,24 +327,14 @@ export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose })
   const drawerRef = useRef<HTMLElement | null>(null);
   const animationRef = useRef<gsap.core.Timeline | null>(null);
 
-  // Helper function to check if an alias already exists in the pack
-  const aliasExists = useCallback(
-    (id: string, blockData?: BlockGroupNodeDto): boolean => {
-      if (!aliases || !Array.isArray(aliases)) return false;
-
-      // If blockData provided, check if ANY child alias exists (block was added)
-      if (blockData && blockData.aliasGroups) {
-        return blockData.aliasGroups.some((group) =>
-          group.leaves?.some((leaf) =>
-            aliases.some((a) => a.alias === leaf.alias || a.key === leaf.alias)
-          )
-        );
-      }
-
-      // Simple alias check (for alias groups and individual leaves)
-      return aliases.some((a) => a.alias === id || a.key === id);
+  const isBlockInWorkspace = useCallback(
+    (blockId: string): boolean => {
+      if (!blockWorkspaceTree || !Array.isArray(blockWorkspaceTree)) return false;
+      return blockWorkspaceTree.some(
+        (b) => b.blockId.toLowerCase() === blockId.toLowerCase()
+      );
     },
-    [aliases]
+    [blockWorkspaceTree]
   );
 
   // Ask the parent to close; unmount happens after the GSAP exit animation finishes.
@@ -421,7 +421,13 @@ export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose })
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, handleClose]);
 
-  // Bounded search filtering for buttery 60 FPS performance (T2-F38-04)
+  const [displayLimit, setDisplayLimit] = useState(100);
+
+  // Reset display limit when query or filter changes
+  useEffect(() => {
+    setDisplayLimit(100);
+  }, [searchText, categoryFilter]);
+
   const filteredBlocks = useMemo(() => {
     if (!catalogTree || !Array.isArray(catalogTree)) return [];
     const query = searchText.toLowerCase().trim();
@@ -443,9 +449,22 @@ export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose })
       );
     }
 
-    // Top 100 bounded search limit
-    return result.slice(0, 100);
+    return result;
   }, [catalogTree, searchText, categoryFilter]);
+
+  const visibleBlocks = useMemo(() => {
+    return filteredBlocks.slice(0, displayLimit);
+  }, [filteredBlocks, displayLimit]);
+
+  const handleScroll = useCallback(
+    (e: React.UIEvent<HTMLDivElement>) => {
+      const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
+      if (scrollHeight - scrollTop - clientHeight < 400) {
+        setDisplayLimit((prev) => Math.min(prev + 100, filteredBlocks.length));
+      }
+    },
+    [filteredBlocks.length]
+  );
 
   // Auto-expand all matching blocks if searching
   const isBlockExpanded = useCallback(
@@ -589,25 +608,44 @@ export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose })
 
             <span className={styles.resultCountBadge} data-testid="result-count-badge">
               {isSearching
-                ? `SHOWING ${filteredBlocks.length} OF ${totalCatalogCount}`
-                : `${totalCatalogCount} ENTRIES`}
+                ? `SHOWING ${visibleBlocks.length} OF ${filteredBlocks.length}`
+                : `SHOWING ${visibleBlocks.length} OF ${totalCatalogCount}`}
             </span>
           </div>
         </div>
 
         {/* Scrollable Catalog Tree */}
-        <div className={styles.catalogTreeScroll} data-testid="catalog-tree-scroll">
-          {filteredBlocks.length > 0 ? (
-            filteredBlocks.map((block) => (
-              <CatalogBlockGroup
-                key={block.blockId}
-                block={block}
-                isExpanded={isBlockExpanded(block.blockId)}
-                onToggleExpand={() => toggleExpand(block.blockId)}
-                onAdd={handleAdd}
-                aliasExists={aliasExists}
-              />
-            ))
+        <div
+          className={styles.catalogTreeScroll}
+          onScroll={handleScroll}
+          data-testid="catalog-tree-scroll"
+        >
+          {visibleBlocks.length > 0 ? (
+            <>
+              {visibleBlocks.map((block) => (
+                <CatalogBlockGroup
+                  key={block.blockId}
+                  block={block}
+                  isExpanded={isBlockExpanded(block.blockId)}
+                  onToggleExpand={() => toggleExpand(block.blockId)}
+                  onAdd={handleAdd}
+                  isBlockInWorkspace={isBlockInWorkspace}
+                />
+              ))}
+              {displayLimit < filteredBlocks.length && (
+                <div className={styles.loadMoreTrigger}>
+                  <button
+                    type="button"
+                    className={styles.loadMoreBtn}
+                    onClick={() =>
+                      setDisplayLimit((prev) => Math.min(prev + 100, filteredBlocks.length))
+                    }
+                  >
+                    Load More ({filteredBlocks.length - displayLimit} remaining)
+                  </button>
+                </div>
+              )}
+            </>
           ) : totalCatalogCount === 0 ? (
             <div className={styles.emptyContainer} data-testid="catalog-empty-cache">
               <div className={styles.emptyIconWrapper}>

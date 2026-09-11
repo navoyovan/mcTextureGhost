@@ -356,7 +356,8 @@ public record BlockGroupNodeDto(
     [property: JsonPropertyName("category")] string Category,
     [property: JsonPropertyName("aliasGroups")] List<AliasGroupNodeDto> AliasGroups,
     [property: JsonPropertyName("ghostCount")] int GhostCount = 0,
-    [property: JsonPropertyName("totalVariants")] int TotalVariants = 0
+    [property: JsonPropertyName("totalVariants")] int TotalVariants = 0,
+    [property: JsonPropertyName("isUserDefined")] bool IsUserDefined = true
 );
 
 public record PackFolderItemDto(
@@ -542,7 +543,8 @@ public static class IpcContractMapper
             Category: node.Category == TextureCategory.Item ? "item" : "block",
             AliasGroups: node.AliasGroups.Select(a => a.ToDto(packRoot)).ToList(),
             GhostCount: node.GhostCount,
-            TotalVariants: node.TotalVariants
+            TotalVariants: node.TotalVariants,
+            IsUserDefined: node.IsUserDefined
         );
 
     public static PackFolderItemDto ToDto(this PackFolderItem item) =>

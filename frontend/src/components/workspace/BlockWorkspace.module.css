@@ -55,6 +55,55 @@
   font-weight: 600;
 }
 
+.blockItemVanilla {
+  color: #8e8e93;
+  opacity: 0.85;
+}
+
+.blockItemVanilla:hover {
+  color: #d4d4d8;
+  opacity: 1;
+}
+
+.blockIconMuted {
+  opacity: 0.55;
+}
+
+.blockItemBadges {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.vanillaTag {
+  font-family: var(--font-pixel);
+  font-size: 7px;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  padding: 2px 4px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #a1a1aa;
+}
+
+.blockHeaderTitleRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.vanillaHeaderBadge {
+  font-family: var(--font-pixel);
+  font-size: 8px;
+  line-height: 1;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #a1a1aa;
+}
+
 .blockItemLeft {
   display: flex;
   align-items: center;

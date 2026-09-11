@@ -199,6 +199,7 @@ export interface BlockGroupNodeDto {
   aliasGroups: AliasGroupNodeDto[];
   ghostCount: number;
   totalVariants: number;
+  isUserDefined?: boolean;
 }
 
 export interface PackFolderItemDto {

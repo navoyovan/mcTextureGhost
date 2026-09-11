@@ -262,6 +262,31 @@
   background: rgba(255, 255, 255, 0.25);
 }
 
+.loadMoreTrigger {
+  display: flex;
+  justify-content: center;
+  padding: 12px 0 8px;
+}
+
+.loadMoreBtn {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #a1a1aa;
+  font-family: var(--font-brand);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.loadMoreBtn:hover {
+  background: rgba(139, 92, 246, 0.15);
+  border-color: rgba(139, 92, 246, 0.35);
+  color: #c4b5fd;
+}
+
 /* ─── 5. Tier 1: Block/Item Group Card ─── */
 .blockGroupCard {
   background: rgba(26, 26, 32, 0.65);

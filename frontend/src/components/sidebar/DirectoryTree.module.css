@@ -91,6 +91,17 @@
   flex-shrink: 0;
 }
 
+.fileIcon {
+  color: #71717a;
+  flex-shrink: 0;
+  transition: color 0.12s;
+}
+
+.fileIconSelected {
+  color: #a78bfa;
+  flex-shrink: 0;
+}
+
 .missingFolderIcon {
   color: #f59e0b;
   flex-shrink: 0;
