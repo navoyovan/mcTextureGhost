@@ -57,6 +57,12 @@ public class CatalogLeaf : INotifyPropertyChanged
     public required string RelativePath { get; init; }
     public required string FullPath { get; init; }
     public required TextureCategory Category { get; init; }
+    public VariantKind VariantKind { get; init; } = VariantKind.None;
+    public int? BlockVariantIndex { get; init; }
+    public int? TotalBlockVariants { get; init; }
+    public int? TextureVariantIndex { get; init; }
+    public int? TotalTextureVariants { get; init; }
+    public int? Weight { get; init; }
 
     private CatalogEntryStatus _status;
     public CatalogEntryStatus Status

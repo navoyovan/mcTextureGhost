@@ -173,6 +173,12 @@ export interface CatalogLeafDto {
   primaryFaceBadgeText: string;
   isFlipbook: boolean;
   flipbook?: FlipbookDefinitionDto | null;
+  variantKind?: 'None' | 'BlockVariant' | 'TextureVariant' | 'NestedVariant';
+  blockVariantIndex?: number | null;
+  totalBlockVariants?: number | null;
+  textureVariantIndex?: number | null;
+  totalTextureVariants?: number | null;
+  weight?: number | null;
 }
 
 export interface FaceNodeDto {

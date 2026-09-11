@@ -330,7 +330,13 @@ public record CatalogLeafDto(
     [property: JsonPropertyName("subtitleCaption")] string SubtitleCaption,
     [property: JsonPropertyName("primaryFaceBadgeText")] string PrimaryFaceBadgeText,
     [property: JsonPropertyName("isFlipbook")] bool IsFlipbook,
-    [property: JsonPropertyName("flipbook")] FlipbookDefinitionDto? Flipbook
+    [property: JsonPropertyName("flipbook")] FlipbookDefinitionDto? Flipbook,
+    [property: JsonPropertyName("variantKind")] string? VariantKind = "None",
+    [property: JsonPropertyName("blockVariantIndex")] int? BlockVariantIndex = null,
+    [property: JsonPropertyName("totalBlockVariants")] int? TotalBlockVariants = null,
+    [property: JsonPropertyName("textureVariantIndex")] int? TextureVariantIndex = null,
+    [property: JsonPropertyName("totalTextureVariants")] int? TotalTextureVariants = null,
+    [property: JsonPropertyName("weight")] int? Weight = null
 );
 
 public record FaceNodeDto(
@@ -513,7 +519,13 @@ public static class IpcContractMapper
             SubtitleCaption: leaf.SubtitleCaption,
             PrimaryFaceBadgeText: leaf.PrimaryFaceBadgeText,
             IsFlipbook: leaf.IsFlipbook,
-            Flipbook: leaf.Flipbook != null ? leaf.Flipbook.ToDto() : null
+            Flipbook: leaf.Flipbook != null ? leaf.Flipbook.ToDto() : null,
+            VariantKind: leaf.VariantKind.ToString(),
+            BlockVariantIndex: leaf.BlockVariantIndex,
+            TotalBlockVariants: leaf.TotalBlockVariants,
+            TextureVariantIndex: leaf.TextureVariantIndex,
+            TotalTextureVariants: leaf.TotalTextureVariants,
+            Weight: leaf.Weight
         );
     }
 
