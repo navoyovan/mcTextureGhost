@@ -1,6 +1,6 @@
 // frontend/src/components/toolbar/Toolbar.tsx
 import React from 'react';
-import { Search, X, LayoutGrid, Box } from 'lucide-react';
+import { Search, X, LayoutGrid, Box, FileCode } from 'lucide-react';
 import { usePackStore } from '../../store/packStore';
 import styles from './Toolbar.module.css';
 
@@ -71,6 +71,15 @@ export const Toolbar: React.FC = () => {
           >
             <Box size={13} />
             <span>Block Workspace</span>
+          </button>
+          <button
+            type="button"
+            className={`${styles.viewModeButton} ${activeView === 'manifest' ? styles.viewModeButtonActive : ''}`}
+            onClick={() => setActiveView('manifest')}
+            title="Manifest Editor (manifest.json)"
+          >
+            <FileCode size={13} />
+            <span>Manifest</span>
           </button>
         </div>
       </div>

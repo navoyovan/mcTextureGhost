@@ -56,8 +56,7 @@ const LeafThumbnail: React.FC<{ leaf: CatalogLeafDto }> = ({ leaf }) => {
  */
 const CatalogLeafRow: React.FC<{
   leaf: CatalogLeafDto;
-  onAdd: (id: string, category: string) => void;
-}> = ({ leaf, onAdd }) => {
+}> = ({ leaf }) => {
   const isAdded = leaf.status !== 'VANILLA';
 
   const getStatusClass = (status: string) => {
@@ -106,20 +105,10 @@ const CatalogLeafRow: React.FC<{
         >
           {leaf.status === 'GHOST' ? '👻 GHOST' : leaf.status}
         </span>
-        {isAdded ? (
+        {isAdded && (
           <span className={styles.addedBadge} title="This texture is already in your pack">
             ✓ Added
           </span>
-        ) : (
-          <button
-            type="button"
-            className={styles.addLeafBtn}
-            onClick={() => onAdd(leaf.alias, leaf.category)}
-            title="Add this texture variant to your pack"
-            aria-label={`Add texture ${leaf.alias}`}
-          >
-            + Add
-          </button>
         )}
       </div>
     </div>
@@ -184,7 +173,6 @@ const CatalogAliasGroup: React.FC<{
             <CatalogLeafRow
               key={leaf.relativePath || `${aliasGroup.alias}-${index}`}
               leaf={leaf}
-              onAdd={onAdd}
             />
           ))}
         </div>
@@ -366,13 +354,13 @@ export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose })
         .timeline({ defaults: { overwrite: 'auto' } })
         .to(overlay, {
           autoAlpha: 1,
-          duration: 0.18,
+          duration: 0.2,
           ease: 'power1.out',
         }, 0)
         .to(drawer, {
           xPercent: 0,
-          duration: 0.34,
-          ease: 'power3.out',
+          duration: 0.28,
+          ease: 'power2.out',
         }, 0);
       return;
     }
@@ -389,12 +377,16 @@ export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose })
       }, 0)
       .to(drawer, {
         xPercent: 100,
-        duration: 0.26,
+        duration: 0.22,
         ease: 'power2.in',
       }, 0);
   }, [isMounted, isOpen]);
 
-  useEffect(() => () => animationRef.current?.kill(), []);
+  useEffect(() => {
+    return () => {
+      animationRef.current?.kill();
+    };
+  }, []);
 
   // Load catalog data if empty on open
   useEffect(() => {

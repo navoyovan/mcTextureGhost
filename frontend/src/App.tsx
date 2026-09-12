@@ -10,6 +10,7 @@ import { Sidebar } from './components/sidebar/Sidebar';
 import { Toolbar } from './components/toolbar/Toolbar';
 import { PackGrid } from './components/grid/PackGrid';
 import { BlockWorkspace } from './components/workspace/BlockWorkspace';
+import { ManifestEditor } from './components/manifest/ManifestEditor';
 import { CatalogDrawer } from './components/catalog/CatalogDrawer';
 import { MenuBar } from './components/menus/MenuBar';
 import { IconMinus, IconMaximize, IconX } from './components/common/TablerWindowIcons';
@@ -166,7 +167,13 @@ export const App: React.FC = () => {
             <Sidebar />
             <div className={styles.workspaceContentArea}>
               <Toolbar />
-              {activeView === 'workspace' ? <BlockWorkspace /> : <PackGrid />}
+              {activeView === 'workspace' ? (
+                <BlockWorkspace />
+              ) : activeView === 'manifest' ? (
+                <ManifestEditor />
+              ) : (
+                <PackGrid />
+              )}
             </div>
           </div>
         )}

@@ -12,17 +12,12 @@
   overflow: hidden;
   contain: layout paint;
   opacity: 0;
-  transition: opacity 240ms cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.drawerOverlay.drawerActive {
-  opacity: 1;
 }
 
 .drawerContainer {
   position: fixed;
   top: 0;
-  left: 100%;
+  right: 0;
   width: 640px;
   max-width: 92vw;
   height: 100vh;
@@ -36,12 +31,6 @@
   user-select: none;
   will-change: transform;
   backface-visibility: hidden;
-  transform: translate3d(0, 0, 0);
-  transition: transform 240ms cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.drawerContainer.drawerActive {
-  transform: translate3d(-100%, 0, 0);
 }
 
 /* ─── 2. Drawer Header ─── */

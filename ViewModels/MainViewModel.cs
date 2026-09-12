@@ -1348,6 +1348,16 @@ public class MainViewModel : INotifyPropertyChanged
             }
             finally
             {
+                var manifestPath = Path.Combine(packRoot, "manifest.json");
+                if (File.Exists(manifestPath))
+                {
+                    CurrentManifest = ManifestModel.LoadFromFile(manifestPath, PackName ?? Path.GetFileName(packRoot));
+                }
+                else
+                {
+                    CurrentManifest = null;
+                }
+
                 BuildFolderTree();
                 NotifyPackStateChanged();
                 IsScanning = false;
@@ -1474,49 +1484,64 @@ public class MainViewModel : INotifyPropertyChanged
             FullPath = fullPath,
             IsDirectory = true,
             Depth = depth,
-            OnExpand = LoadFolderChildren
+            IsLoaded = true
         };
 
         ComputeCountsForNode(node);
 
-        // Check if there are any child entries without full recursion
-        bool hasChildren = false;
+        if (depth >= 15) return node;
+
         try
         {
-            using var dirs = Directory.EnumerateDirectories(fullPath).GetEnumerator();
-            if (dirs.MoveNext())
+            if (Directory.Exists(fullPath))
             {
-                hasChildren = true;
-            }
-            else
-            {
-                using var files = Directory.EnumerateFiles(fullPath).GetEnumerator();
-                while (files.MoveNext())
+                // 1. Subdirectories recursively
+                var subDirs = Directory.GetDirectories(fullPath);
+                foreach (var dir in subDirs.OrderBy(d => Path.GetFileName(d), StringComparer.OrdinalIgnoreCase))
                 {
-                    var ext = Path.GetExtension(files.Current);
-                    if (!ImageExtensions.Contains(ext))
+                    var subName = Path.GetFileName(dir);
+                    if (subName.StartsWith(".")) continue;
+
+                    var subRel = string.IsNullOrEmpty(relativePath)
+                        ? subName
+                        : (relativePath.Replace('\\', '/') + "/" + subName);
+
+                    var childNode = CreateFolderNode(dir, subRel, subName, depth + 1);
+                    node.SubFolders.Add(childNode);
+                }
+
+                // 2. Non-image files in this directory
+                var files = Directory.GetFiles(fullPath);
+                foreach (var file in files.OrderBy(f => Path.GetFileName(f), StringComparer.OrdinalIgnoreCase))
+                {
+                    var fileName = Path.GetFileName(file);
+                    var ext = Path.GetExtension(file);
+
+                    if (ImageExtensions.Contains(ext)) continue;
+                    if (fileName.StartsWith(".")) continue;
+
+                    var fileRel = string.IsNullOrEmpty(relativePath)
+                        ? fileName
+                        : (relativePath.Replace('\\', '/') + "/" + fileName);
+
+                    var fileNode = new PackFolderItem
                     {
-                        hasChildren = true;
-                        break;
-                    }
+                        Name = fileName,
+                        RelativePath = fileRel,
+                        FullPath = file,
+                        IsDirectory = false,
+                        Depth = depth + 1,
+                        IsLoaded = true,
+                        IsMissing = false,
+                        TextureCount = 0,
+                        GhostCount = 0
+                    };
+
+                    node.SubFolders.Add(fileNode);
                 }
             }
         }
         catch { }
-
-        if (string.IsNullOrEmpty(relativePath))
-        {
-            hasChildren = true;
-        }
-
-        if (hasChildren)
-        {
-            node.SubFolders.Add(CreatePlaceholder());
-        }
-        else
-        {
-            node.IsLoaded = true;
-        }
 
         return node;
     }
@@ -1525,96 +1550,6 @@ public class MainViewModel : INotifyPropertyChanged
     {
         if (node.IsLoaded) return;
         node.IsLoaded = true;
-        node.SubFolders.Clear();
-
-        if (string.IsNullOrEmpty(node.FullPath) || !Directory.Exists(node.FullPath))
-            return;
-
-        try
-        {
-            // 1. Subdirectories
-            var subDirs = Directory.GetDirectories(node.FullPath);
-            foreach (var dir in subDirs.OrderBy(d => Path.GetFileName(d), StringComparer.OrdinalIgnoreCase))
-            {
-                var subName = Path.GetFileName(dir);
-                if (subName.StartsWith(".")) continue;
-
-                var subRel = string.IsNullOrEmpty(node.RelativePath)
-                    ? subName
-                    : (node.RelativePath + "/" + subName);
-
-                var childNode = CreateFolderNode(dir, subRel, subName, node.Depth + 1);
-                node.SubFolders.Add(childNode);
-
-                // Auto-expand textures folder under pack root for instant access
-                if (childNode.RelativePath.Equals("textures", StringComparison.OrdinalIgnoreCase))
-                {
-                    childNode.IsExpanded = true;
-                }
-            }
-
-            // 2. Non-image files in this directory (exclude images; keep PNGs truncated as is)
-            var files = Directory.GetFiles(node.FullPath);
-            bool foundManifest = false;
-            foreach (var file in files.OrderBy(f => Path.GetFileName(f), StringComparer.OrdinalIgnoreCase))
-            {
-                var fileName = Path.GetFileName(file);
-                var ext = Path.GetExtension(file);
-
-                if (ImageExtensions.Contains(ext)) continue;
-                if (fileName.StartsWith(".")) continue;
-
-                var fileRel = string.IsNullOrEmpty(node.RelativePath)
-                    ? fileName
-                    : (node.RelativePath + "/" + fileName);
-
-                if (string.IsNullOrEmpty(node.RelativePath) && fileName.Equals("manifest.json", StringComparison.OrdinalIgnoreCase))
-                {
-                    foundManifest = true;
-                }
-
-                var fileNode = new PackFolderItem
-                {
-                    Name = fileName,
-                    RelativePath = fileRel,
-                    FullPath = file,
-                    IsDirectory = false,
-                    Depth = node.Depth + 1,
-                    IsLoaded = true,
-                    IsMissing = false,
-                    TextureCount = 0,
-                    GhostCount = 0
-                };
-
-                node.SubFolders.Add(fileNode);
-            }
-
-            // If this is the root pack node and manifest.json is missing on disk, insert a missing manifest placeholder
-            if (string.IsNullOrEmpty(node.RelativePath) && !foundManifest && _packRoot != null)
-            {
-                var manifestPath = Path.Combine(_packRoot, "manifest.json");
-                var missingManifestNode = new PackFolderItem
-                {
-                    Name = "manifest.json",
-                    RelativePath = "manifest.json",
-                    FullPath = manifestPath,
-                    IsDirectory = false,
-                    Depth = node.Depth + 1,
-                    IsLoaded = true,
-                    IsMissing = true,
-                    TextureCount = 0,
-                    GhostCount = 0
-                };
-
-                int firstFileIdx = 0;
-                while (firstFileIdx < node.SubFolders.Count && node.SubFolders[firstFileIdx].IsDirectory)
-                {
-                    firstFileIdx++;
-                }
-                node.SubFolders.Insert(firstFileIdx, missingManifestNode);
-            }
-        }
-        catch { }
     }
 
     private static bool PathMatchesFolder(string itemRelPath, string folderRelPath, string folderPrefix)

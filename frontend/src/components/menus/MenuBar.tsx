@@ -1,4 +1,4 @@
-﻿// frontend/src/components/menus/MenuBar.tsx
+// frontend/src/components/menus/MenuBar.tsx
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   FolderOpen,
@@ -48,6 +48,7 @@ export const MenuBar: React.FC = () => {
   const packRoot = usePackStore((s) => s.packRoot);
   const resetPackState = usePackStore((s) => s.resetPackState);
   const isCatalogOpen = usePackStore((s) => s.isCatalogOpen);
+  const setActiveView = usePackStore((s) => s.setActiveView);
   const toggleCatalog = usePackStore((s) => s.toggleCatalog);
   const activeTab = usePackStore((s) => s.activeTab);
   const setActiveTab = usePackStore((s) => s.setActiveTab);
@@ -123,7 +124,7 @@ export const MenuBar: React.FC = () => {
         {
           label: 'Edit Manifest\u2026',
           icon: <FileText size={13} />,
-          action: () => postCommand(IpcMessageTypes.ManifestSave, {}),
+          action: () => setActiveView('manifest'),
           disabled: !isPackLoaded,
         },
         {

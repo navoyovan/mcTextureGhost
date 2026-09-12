@@ -52,12 +52,14 @@ export interface DirectoryTreeNodeProps {
   node: PackFolderItemDto;
   selectedPath: string | null;
   onSelect: (path: string | null) => void;
+  onOpenManifest?: () => void;
 }
 
 export const DirectoryTreeNode: React.FC<DirectoryTreeNodeProps> = ({
   node,
   selectedPath,
   onSelect,
+  onOpenManifest,
 }) => {
   const hasChildren = Boolean(node.subFolders && node.subFolders.length > 0);
   const [isExpanded, setIsExpanded] = useState<boolean>(() => {
@@ -65,10 +67,18 @@ export const DirectoryTreeNode: React.FC<DirectoryTreeNodeProps> = ({
     return (node.depth ?? 0) === 0 || node.name?.toLowerCase() === 'textures';
   });
 
-  const nodePath = node.relativePath || node.name;
-  const isSelected = selectedPath === nodePath;
+  const nodePath = (node.relativePath || node.name).replace(/\\/g, '/');
+  const isSelected = Boolean(
+    selectedPath &&
+    selectedPath.replace(/\\/g, '/').toLowerCase() === nodePath.toLowerCase()
+  );
+  const isManifest = (node.name?.toLowerCase() === 'manifest.json' || node.relativePath?.toLowerCase() === 'manifest.json');
 
   const handleRowClick = () => {
+    if (isManifest && onOpenManifest) {
+      onOpenManifest();
+      return;
+    }
     // Clicking the already selected path clears the filter, otherwise select this node
     onSelect(isSelected ? null : nodePath);
   };
@@ -136,6 +146,7 @@ export const DirectoryTreeNode: React.FC<DirectoryTreeNodeProps> = ({
               node={sub}
               selectedPath={selectedPath}
               onSelect={onSelect}
+              onOpenManifest={onOpenManifest}
             />
           ))}
         </div>
@@ -148,12 +159,14 @@ export interface DirectoryTreeProps {
   folders: PackFolderItemDto[];
   selectedPath: string | null;
   onSelect: (path: string | null) => void;
+  onOpenManifest?: () => void;
 }
 
 export const DirectoryTree: React.FC<DirectoryTreeProps> = ({
   folders,
   selectedPath,
   onSelect,
+  onOpenManifest,
 }) => {
   if (!folders || folders.length === 0) {
     return (
@@ -171,6 +184,7 @@ export const DirectoryTree: React.FC<DirectoryTreeProps> = ({
           node={node}
           selectedPath={selectedPath}
           onSelect={onSelect}
+          onOpenManifest={onOpenManifest}
         />
       ))}
     </div>

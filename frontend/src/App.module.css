@@ -148,6 +148,7 @@
   display: flex;
   overflow: hidden;
   height: 100%;
+  background: transparent;
 }
 
 .workspaceContentArea {
@@ -156,6 +157,7 @@
   flex-direction: column;
   overflow: hidden;
   height: 100%;
+  background: transparent;
 }
 
 /* Notification / Error Toast */

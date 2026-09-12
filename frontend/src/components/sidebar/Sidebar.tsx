@@ -1,9 +1,10 @@
 // frontend/src/components/sidebar/Sidebar.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { AlertTriangle, BookOpen } from 'lucide-react';
 import { usePackStore } from '../../store/packStore';
 import { useIpc } from '../../hooks/useIpc';
-import { IpcMessageTypes, ManifestModelDto } from '../../types/ipc';
+import { IpcMessageTypes } from '../../types/ipc';
 import { DirectoryTree } from './DirectoryTree';
 import styles from './Sidebar.module.css';
 
@@ -25,12 +26,40 @@ export const Sidebar: React.FC = () => {
   const packFolders = usePackStore((s) => s.packFolders);
   const selectedFolderPath = usePackStore((s) => s.selectedFolderPath);
   const setSelectedFolderPath = usePackStore((s) => s.setSelectedFolderPath);
+  const isCatalogOpen = usePackStore((s) => s.isCatalogOpen);
   const setIsCatalogOpen = usePackStore((s) => s.setIsCatalogOpen);
+  const setActiveView = usePackStore((s) => s.setActiveView);
   const [iconLoadError, setIconLoadError] = useState<boolean>(false);
+
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const [btnRect, setBtnRect] = useState<DOMRect | null>(null);
+  const [shouldPortal, setShouldPortal] = useState<boolean>(false);
 
   useEffect(() => {
     setIconLoadError(false);
   }, [packIconUrl]);
+
+  useEffect(() => {
+    if (isCatalogOpen) {
+      setShouldPortal(true);
+    } else {
+      const timer = setTimeout(() => {
+        setShouldPortal(false);
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [isCatalogOpen]);
+
+  useEffect(() => {
+    const updateRect = () => {
+      if (buttonRef.current) {
+        setBtnRect(buttonRef.current.getBoundingClientRect());
+      }
+    };
+    updateRect();
+    window.addEventListener('resize', updateRect);
+    return () => window.removeEventListener('resize', updateRect);
+  }, [isCatalogOpen, shouldPortal]);
 
   const handlePackIconClick = () => {
     if (!packRoot) return;
@@ -42,35 +71,40 @@ export const Sidebar: React.FC = () => {
     });
   };
 
-  const handleGenerateManifest = () => {
-    const defaultManifest: ManifestModelDto = {
-      headerName: packName || 'Bedrock Resource Pack',
-      headerDescription: 'Scaffolded by McTextureGhost',
-      headerUuid: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'c3f0b26a-9f5e-4c7b-891d-123456789abc',
-      versionMajor: 1,
-      versionMinor: 0,
-      versionPatch: 0,
-      minEngineMajor: 1,
-      minEngineMinor: 20,
-      minEnginePatch: 0,
-      moduleUuid: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'e4a1c57d-0a6f-4e8c-902e-abcdef123456',
-      moduleType: 'resources',
-      moduleVersionMajor: 1,
-      moduleVersionMinor: 0,
-      moduleVersionPatch: 0,
-      formatVersion: 2,
-      fileExists: true,
-      filePath: packRoot ? `${packRoot}\\manifest.json` : null,
-      versionString: '1.0.0',
-      minEngineString: '1.20.0',
-      version: [1, 0, 0],
-      minEngineVersion: [1, 20, 0],
-      moduleVersion: [1, 0, 0],
-    };
-    postCommand(IpcMessageTypes.ManifestSave, { manifest: defaultManifest });
-  };
-
   const showIconImage = hasPackIcon && packIconUrl && !iconLoadError;
+
+  const renderCatalogButton = (isPortaled: boolean = false) => {
+    const customStyle: React.CSSProperties = isPortaled && btnRect ? {
+      position: 'fixed',
+      top: `${btnRect.top}px`,
+      left: `${btnRect.left}px`,
+      width: `${btnRect.width}px`,
+      height: `${btnRect.height}px`,
+      margin: 0,
+      zIndex: 1002,
+    } : shouldPortal ? {
+      visibility: 'hidden',
+    } : {};
+
+    return (
+      <button
+        ref={!isPortaled ? buttonRef : undefined}
+        type="button"
+        style={customStyle}
+        className={styles.exploreCatalogCard}
+        onClick={() => setIsCatalogOpen(!isCatalogOpen)}
+        title={isCatalogOpen ? 'Close Vanilla Reference Catalog' : 'Open Vanilla Bedrock Reference Catalog'}
+      >
+        <div className={styles.catalogCardIconWrapper}>
+          <BookOpen size={16} />
+        </div>
+        <div className={styles.catalogCardMeta}>
+          <span className={styles.catalogCardTitle}>Explore Catalog</span>
+          <span className={styles.catalogCardSubtitle}>Browse vanilla Bedrock textures</span>
+        </div>
+      </button>
+    );
+  };
 
   return (
     <aside className={styles.sidebar} aria-label="Pack Explorer Sidebar">
@@ -139,9 +173,9 @@ export const Sidebar: React.FC = () => {
           <button
             type="button"
             className={styles.generateManifestBtn}
-            onClick={handleGenerateManifest}
+            onClick={() => setActiveView('manifest')}
           >
-            ⚡ Generate Manifest
+            ⚡ Open Manifest Editor
           </button>
         </div>
       )}
@@ -153,28 +187,15 @@ export const Sidebar: React.FC = () => {
             folders={packFolders}
             selectedPath={selectedFolderPath}
             onSelect={setSelectedFolderPath}
+            onOpenManifest={() => setActiveView('manifest')}
           />
         </div>
       </div>
 
-      {/* 4. Action Dock at Bottom of Sidebar */}
-      <div className={styles.actionDock}>
-        <button
-          type="button"
-          className={styles.exploreCatalogCard}
-          onClick={() => setIsCatalogOpen(true)}
-          title="Open Vanilla Bedrock Reference Catalog"
-        >
-          <div className={styles.catalogCardIconWrapper}>
-            <BookOpen size={16} />
-          </div>
-          <div className={styles.catalogCardMeta}>
-            <span className={styles.catalogCardTitle}>Explore Catalog</span>
-            <span className={styles.catalogCardSubtitle}>Browse vanilla Bedrock textures</span>
-          </div>
-        </button>
-
-      </div>
+      {/* 4. Catalog Button — bare, sticks to sidebar bottom */}
+      {renderCatalogButton(false)}
+      {shouldPortal && btnRect && createPortal(renderCatalogButton(true), document.body)}
     </aside>
   );
 };
+

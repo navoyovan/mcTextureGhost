@@ -433,7 +433,9 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
                     if (ViewModel.CurrentManifest == null)
                     {
                         var manifestPath = Path.Combine(ViewModel.PackRootPath ?? "", "manifest.json");
-                        ViewModel.CurrentManifest = new ManifestModel { FilePath = manifestPath, FileExists = File.Exists(manifestPath) };
+                        ViewModel.CurrentManifest = File.Exists(manifestPath)
+                            ? ManifestModel.LoadFromFile(manifestPath, ViewModel.PackName ?? Path.GetFileName(ViewModel.PackRootPath ?? ""))
+                            : new ManifestModel { FilePath = manifestPath, FileExists = false };
                     }
                     payload.Manifest.ApplyTo(ViewModel.CurrentManifest);
                     ViewModel.SaveManifestCommand.Execute(null);

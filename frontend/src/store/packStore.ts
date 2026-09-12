@@ -34,7 +34,7 @@ export interface PackStoreState {
   activeTab: 'all' | 'blocks' | 'items';
   searchQuery: string;
   statusFilter: 'all' | 'ghosts' | 'added' | 'orphans';
-  activeView: 'grid' | 'workspace';
+  activeView: 'grid' | 'workspace' | 'manifest';
   selectedBlockId: string | null;
   selectedAliasKey: string | null;
   selectedFolderPath: string | null;
@@ -59,7 +59,7 @@ export interface PackStoreActions {
   setActiveTab: (tab: 'all' | 'blocks' | 'items') => void;
   setSearchQuery: (query: string) => void;
   setStatusFilter: (filter: 'all' | 'ghosts' | 'added' | 'orphans') => void;
-  setActiveView: (view: 'grid' | 'workspace') => void;
+  setActiveView: (view: 'grid' | 'workspace' | 'manifest') => void;
   setSelectedBlockId: (id: string | null) => void;
   setSelectedAliasKey: (key: string | null) => void;
   setSelectedFolderPath: (path: string | null) => void;
@@ -149,7 +149,11 @@ function computeStats(aliases: TextureAliasDto[]): PackStatsDto {
 let currentState: PackStoreState = { ...initialState };
 const listeners = new Set<() => void>();
 
+// Stable merged snapshot — recreated only when notify() fires
+let cachedSnapshot: PackStore | null = null;
+
 function notify(): void {
+  cachedSnapshot = null; // invalidate so next getSnapshot builds a fresh one
   listeners.forEach((listener) => listener());
 }
 
@@ -196,7 +200,10 @@ export const packStoreActions: PackStoreActions = {
 
   updateTexture(aliasKey: string, newStatus: string, fullPath: string, imageUrl?: string | null): void {
     const updatedAliases = currentState.aliases.map((alias) => {
-      const isMatch = alias.alias === aliasKey || alias.key === aliasKey || alias.fullPath === fullPath;
+      const isMatch =
+        alias.alias === aliasKey ||
+        alias.key === aliasKey ||
+        (!!fullPath && alias.fullPath === fullPath);
       if (!isMatch) return alias;
 
       return {
@@ -332,6 +339,7 @@ export const rawPackStore = {
   getState: (): PackStore => ({ ...currentState, ...packStoreActions }),
   setState: (updater: (prev: PackStoreState) => Partial<PackStoreState>): void => {
     currentState = { ...currentState, ...updater(currentState) };
+    cachedSnapshot = null;
     notify();
   },
   subscribe: (listener: () => void): (() => void) => {
@@ -349,9 +357,11 @@ export const rawPackStore = {
  * const setPackState = usePackStore(s => s.setPackState);
  */
 export function usePackStore<T = PackStore>(selector?: (state: PackStore) => T): T {
-  const getSnapshot = () => {
-    const s = { ...currentState, ...packStoreActions };
-    return selector ? selector(s) : (s as unknown as T);
+  const getSnapshot = (): T => {
+    if (!cachedSnapshot) {
+      cachedSnapshot = { ...currentState, ...packStoreActions };
+    }
+    return selector ? selector(cachedSnapshot) : (cachedSnapshot as unknown as T);
   };
 
   return useSyncExternalStore(
