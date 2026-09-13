@@ -60,33 +60,47 @@ export const Block3DViewer: React.FC<Block3DViewerProps> = ({ faceTextures = {} 
     const createMaterial = (url?: string | null) => {
       if (!url) {
         return new THREE.MeshStandardMaterial({
-          color: 0x27272a,
-          roughness: 0.8,
-          metalness: 0.1,
+          color: 0x3f3f46,
+          roughness: 0.9,
+          metalness: 0.05,
         });
       }
 
-      const texture = textureLoader.load(url, (tex) => {
-        tex.magFilter = THREE.NearestFilter;
-        tex.minFilter = THREE.NearestFilter;
-        tex.generateMipmaps = false;
-        const img = tex.image as HTMLImageElement | undefined;
-        if (img && img.height > img.width && img.width > 0) {
-          const frameCount = Math.floor(img.height / img.width);
-          tex.wrapS = THREE.RepeatWrapping;
-          tex.wrapT = THREE.RepeatWrapping;
-          tex.repeat.set(1, 1 / frameCount);
-          tex.offset.set(0, 1 - 1 / frameCount);
-        }
-        tex.needsUpdate = true;
-        renderer.render(scene, camera);
-      });
-
-      return new THREE.MeshStandardMaterial({
-        map: texture,
+      const mat = new THREE.MeshStandardMaterial({
         roughness: 0.9,
         metalness: 0.05,
+        color: 0x3f3f46,
       });
+
+      textureLoader.load(
+        url,
+        (tex) => {
+          tex.magFilter = THREE.NearestFilter;
+          tex.minFilter = THREE.NearestFilter;
+          tex.generateMipmaps = false;
+          const img = tex.image as HTMLImageElement | undefined;
+          if (img && img.height > img.width && img.width > 0) {
+            const frameCount = Math.floor(img.height / img.width);
+            tex.wrapS = THREE.RepeatWrapping;
+            tex.wrapT = THREE.RepeatWrapping;
+            tex.repeat.set(1, 1 / frameCount);
+            tex.offset.set(0, 1 - 1 / frameCount);
+          }
+          tex.needsUpdate = true;
+          mat.map = tex;
+          mat.color.setHex(0xffffff);
+          mat.needsUpdate = true;
+          renderer.render(scene, camera);
+        },
+        undefined,
+        () => {
+          // On error (missing/corrupted file), fall back to neutral dark material
+          mat.color.setHex(0x3f3f46);
+          mat.needsUpdate = true;
+        }
+      );
+
+      return mat;
     };
 
     // Faces: [East (+X), West (-X), Up (+Y), Down (-Y), South (+Z), North (-Z)]

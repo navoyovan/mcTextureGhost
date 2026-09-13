@@ -16,9 +16,11 @@ Fast reference for day-to-day tasks. Consult this file first to conserve context
 - `frontend/src/components/catalog/CatalogDrawer.tsx`: Vanilla Bedrock reference catalog flyout.
 - `frontend/src/components/`: Sidebar, Grid, Viewport, and Modals.
 
-## 3. IPC Communication Pattern
+## 3. IPC Communication & Virtual Hosts
 - **Host $\rightarrow$ Web:** `MainViewModel` posts JSON string via `CoreWebView2.PostWebMessageAsString`.
 - **Web $\rightarrow$ Host:** React components post message via `window.chrome?.webview?.postMessage({ type, payload })`.
+- **Vanilla Scaffolding (`VANILLA:ADD`):** Supports both Block IDs (`blocks.json` + `terrain_texture.json`) and specific individual texture aliases (`JsonWriterService.AddVanillaBlockAlias`).
+- **WebView2 Virtual Hosts:** `https://pack.local/*` and `https://vanilla.local/*` must buffer files into in-memory streams (`MemoryStream`) using `FileShare.ReadWrite | FileShare.Delete` to prevent open file handle locks on user textures.
 - Always ensure new actions are typed on both ends.
 
 ## 4. Build & Verify Commands

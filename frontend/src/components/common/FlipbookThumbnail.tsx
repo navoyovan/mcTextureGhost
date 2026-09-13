@@ -196,9 +196,33 @@ export const FlipbookThumbnail: React.FC<FlipbookThumbnailProps> = ({
     // Draw frame 0 immediately so there is never a blank flash
     drawFrame((performance.now() / 1000) * 20);
 
-    const unsubscribe = flipbookCoordinator.subscribe(drawFrame);
+    // Only subscribe to the global animation tick loop when the canvas is intersecting the viewport
+    let unsubscribe: (() => void) | null = null;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const [entry] = entries;
+        if (entry && entry.isIntersecting) {
+          if (!unsubscribe) {
+            unsubscribe = flipbookCoordinator.subscribe(drawFrame);
+          }
+        } else {
+          if (unsubscribe) {
+            unsubscribe();
+            unsubscribe = null;
+          }
+        }
+      },
+      { rootMargin: '100px' } // Pre-activate 100px before scrolling into view
+    );
+
+    observer.observe(canvas);
+
     return () => {
-      unsubscribe();
+      observer.disconnect();
+      if (unsubscribe) {
+        unsubscribe();
+      }
     };
   }, [imageState, flipbook]);
 

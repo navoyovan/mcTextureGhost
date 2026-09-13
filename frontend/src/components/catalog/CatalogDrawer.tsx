@@ -25,15 +25,17 @@ export interface CatalogDrawerProps {
 }
 
 /**
- * Thumbnail component for a catalog leaf texture with fallback error handling.
+ * Thumbnail component for a catalog leaf texture.
+ * Defaults to '?' placeholder since vanilla reference textures are JSON declarations
+ * rather than raw image files on disk, avoiding hundreds of 404 ERR_FILE_NOT_FOUND errors.
  */
 const LeafThumbnail: React.FC<{ leaf: CatalogLeafDto }> = ({ leaf }) => {
   const [hasError, setHasError] = useState(false);
-  const src = leaf.imageUrl || `https://vanilla.local/${leaf.relativePath}.png`;
+  const src = leaf.imageUrl;
 
   return (
     <div className={styles.leafThumbWrapper}>
-      {!hasError ? (
+      {!hasError && src && !src.includes('vanilla.local') ? (
         <FlipbookThumbnail
           src={src}
           alt={leaf.alias}
@@ -44,9 +46,7 @@ const LeafThumbnail: React.FC<{ leaf: CatalogLeafDto }> = ({ leaf }) => {
           loading="lazy"
         />
       ) : (
-        <span className={styles.leafThumbFallback}>
-          {leaf.status === 'GHOST' ? '👻' : '📦'}
-        </span>
+        <span className={styles.leafThumbFallback}>?</span>
       )}
     </div>
   );
@@ -58,7 +58,9 @@ const LeafThumbnail: React.FC<{ leaf: CatalogLeafDto }> = ({ leaf }) => {
 const CatalogLeafRow: React.FC<{
   leaf: CatalogLeafDto;
   blockDisplayName?: string;
-}> = ({ leaf, blockDisplayName }) => {
+  category?: string;
+  onAdd?: (id: string, category: string) => void;
+}> = ({ leaf, blockDisplayName, category = 'block', onAdd }) => {
   const isAdded = leaf.status !== 'VANILLA';
 
   const getStatusClass = (status: string) => {
@@ -155,16 +157,28 @@ const CatalogLeafRow: React.FC<{
       </div>
 
       <div className={styles.leafRight}>
-        <span
-          className={`${styles.statusPill} ${getStatusClass(leaf.status)}`}
-          data-testid={`status-pill-${leaf.status.toLowerCase()}`}
-        >
-          {leaf.status === 'GHOST' ? '👻 GHOST' : leaf.status}
-        </span>
-        {isAdded && (
-          <span className={styles.addedBadge} title="This texture is already in your pack">
-            ✓ Added
-          </span>
+        {isAdded ? (
+          <>
+            <span
+              className={`${styles.statusPill} ${getStatusClass(leaf.status)}`}
+              data-testid={`status-pill-${leaf.status.toLowerCase()}`}
+            >
+              {leaf.status === 'GHOST' ? '👻 GHOST' : leaf.status}
+            </span>
+            <span className={styles.addedBadge} title="This texture is already in your pack">
+              ✓ Added
+            </span>
+          </>
+        ) : (
+          <button
+            type="button"
+            className={styles.addLeafBtn}
+            onClick={() => onAdd?.(leaf.alias, leaf.category || category)}
+            title={`Add alias '${leaf.alias}' to pack`}
+            aria-label={`Add ${leaf.alias}`}
+          >
+            + Add
+          </button>
         )}
       </div>
     </div>
@@ -233,6 +247,8 @@ const CatalogAliasGroup: React.FC<{
               key={`${leaf.relativePath || aliasGroup.alias}:${leaf.blockVariantIndex ?? ''}:${leaf.textureVariantIndex ?? ''}:${index}`}
               leaf={leaf}
               blockDisplayName={blockDisplayName}
+              category={aliasGroup.category || category}
+              onAdd={onAdd}
             />
           ))}
         </div>

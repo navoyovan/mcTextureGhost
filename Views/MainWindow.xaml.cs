@@ -381,11 +381,35 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
                 {
                     try
                     {
-                        if (File.Exists(payload.FullPath))
-                        {
-                            File.Delete(payload.FullPath);
-                        }
                         ImagePathConverter.ClearCache();
+                        GC.Collect();
+                        GC.WaitForPendingFinalizers();
+
+                        bool deleted = false;
+                        Exception? lastEx = null;
+                        for (int attempt = 0; attempt < 5; attempt++)
+                        {
+                            try
+                            {
+                                if (File.Exists(payload.FullPath))
+                                {
+                                    File.Delete(payload.FullPath);
+                                }
+                                deleted = true;
+                                break;
+                            }
+                            catch (IOException ioEx)
+                            {
+                                lastEx = ioEx;
+                                await Task.Delay(60);
+                            }
+                        }
+
+                        if (!deleted && lastEx != null)
+                        {
+                            throw lastEx;
+                        }
+
                         await ViewModel.RescanAsync();
                     }
                     catch (Exception ex)
@@ -538,7 +562,21 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
                     }
                     else
                     {
-                        JsonWriterService.AddVanillaBlock(ViewModel.PackRootPath, payload.Id, ViewModel.VanillaData);
+                        // Check if payload.Id is a known BlockId in blocks.json
+                        if (ViewModel.VanillaData.RawBlocksJson.ContainsKey(payload.Id))
+                        {
+                            JsonWriterService.AddVanillaBlock(ViewModel.PackRootPath, payload.Id, ViewModel.VanillaData);
+                        }
+                        else if (ViewModel.VanillaData.RawTerrainTextureJson.ContainsKey(payload.Id))
+                        {
+                            // It's a specific alias (e.g. "door_upper" or "door_lower")
+                            JsonWriterService.AddVanillaBlockAlias(ViewModel.PackRootPath, payload.Id, ViewModel.VanillaData);
+                        }
+                        else
+                        {
+                            // Fallback
+                            JsonWriterService.AddVanillaBlock(ViewModel.PackRootPath, payload.Id, ViewModel.VanillaData);
+                        }
                     }
                     await ViewModel.RescanAsync();
                 }

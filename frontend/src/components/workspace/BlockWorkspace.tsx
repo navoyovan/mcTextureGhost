@@ -1,6 +1,5 @@
-// frontend/src/components/workspace/BlockWorkspace.tsx
-import React, { useState, useMemo, useCallback } from 'react';
-import { Box, Layers, ArrowRight } from 'lucide-react';
+import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
+import { Box, Layers, ArrowRight, MoreVertical, Edit3, Trash2, FileX } from 'lucide-react';
 import { usePackStore } from '../../store/packStore';
 import { useIpc } from '../../hooks/useIpc';
 import { BlockGroupNodeDto, CatalogLeafDto } from '../../types/ipc';
@@ -26,12 +25,29 @@ interface VariantTileGroup {
 function groupLeavesByVariantSlot(leaves: CatalogLeafDto[]): VariantTileGroup[] {
   const map = new Map<string, VariantTileGroup>();
   for (const leaf of leaves) {
-    // If it's a block variant slot from "textures": [...], blockVariantIndex distinguishes it (1, 2, 3...)
-    // Texture variants within the same slot share the same blockVariantIndex (or undefined if not a block variant)
-    const slotKey = `${leaf.alias}__bv_${leaf.blockVariantIndex ?? 'none'}`;
+    // A tile is a texture variation if totalTextureVariants > 1 or variantKind is TextureVariant/NestedVariant
+    const isTexVar = Boolean(
+      (leaf.totalTextureVariants && leaf.totalTextureVariants > 1) ||
+      leaf.variantKind === 'TextureVariant' ||
+      leaf.variantKind === 'NestedVariant'
+    );
+
+    const slotKey = isTexVar
+      ? `${leaf.alias}__bv_${leaf.blockVariantIndex ?? 'none'}`
+      : `${leaf.alias}__bv_${leaf.blockVariantIndex ?? 'none'}__rp_${leaf.relativePath || 'def'}`;
+
     const existing = map.get(slotKey);
     if (existing) {
-      existing.leaves.push(leaf);
+      // Deduplicate leaves that point to the exact same relativePath & indices
+      const exists = existing.leaves.some(
+        (l) =>
+          l.relativePath === leaf.relativePath &&
+          l.textureVariantIndex === leaf.textureVariantIndex &&
+          l.blockVariantIndex === leaf.blockVariantIndex
+      );
+      if (!exists) {
+        existing.leaves.push(leaf);
+      }
     } else {
       map.set(slotKey, {
         key: slotKey,
@@ -45,9 +61,25 @@ function groupLeavesByVariantSlot(leaves: CatalogLeafDto[]): VariantTileGroup[] 
 
 export const BlockWorkspace: React.FC = () => {
   const blockWorkspaceTree = usePackStore((s) => s.blockWorkspaceTree);
-  const { editTexture } = useIpc();
+  const { editTexture, deleteTextureFile, deleteTextureEntries } = useIpc();
 
   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
+  const [activeMenuKey, setActiveMenuKey] = useState<string | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setActiveMenuKey(null);
+      }
+    };
+    if (activeMenuKey) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [activeMenuKey]);
 
   const showTooltip = useCallback((content: string, e: React.MouseEvent) => {
     setTooltip({ content, x: e.clientX, y: e.clientY });
@@ -86,7 +118,8 @@ export const BlockWorkspace: React.FC = () => {
         for (const fn of ag.faceNodes) {
           const label = (fn.faceLabel || '').toLowerCase();
           const firstLeaf = fn.leaves && fn.leaves.length > 0 ? fn.leaves[0] : null;
-          if (firstLeaf && firstLeaf.imageUrl) {
+          // Only pass real texture URLs for existing files; ghost/missing textures must not trigger 3D texture fetches
+          if (firstLeaf && firstLeaf.status !== 'GHOST' && firstLeaf.imageUrl) {
             textures[label] = firstLeaf.imageUrl;
             if (label === 'side') {
               textures.north = textures.north ?? firstLeaf.imageUrl;
@@ -98,7 +131,7 @@ export const BlockWorkspace: React.FC = () => {
         }
       } else if (ag.leaves && ag.leaves.length > 0) {
         const first = ag.leaves[0];
-        if (first && first.imageUrl) textures.all = first.imageUrl;
+        if (first && first.status !== 'GHOST' && first.imageUrl) textures.all = first.imageUrl;
       }
     }
     return textures;
@@ -117,6 +150,8 @@ export const BlockWorkspace: React.FC = () => {
       default:         return styles.statusDotNew;
     }
   };
+
+  const tileZoom = usePackStore((s) => s.tileZoom);
 
   /**
    * Renders one card for a block variant slot.
@@ -153,12 +188,20 @@ export const BlockWorkspace: React.FC = () => {
       hasTexVariants ? `${numVariations} texture variations (side-by-side)` : '',
     ].filter(Boolean);
 
-    // Dynamic width calculation based on number of variations:
-    // Base tile is 96px with an 80px thumbnail.
-    // Each additional variation adds an 80px thumb + gap (4px), expanding horizontally.
-    const cardStyle = hasTexVariants
-      ? { width: `${96 + (numVariations - 1) * 84}px` }
-      : undefined;
+    // Dynamic width calculation based on tileZoom and number of variations:
+    // Base tile matches grid proportions (tileZoom + 40px width, tileZoom thumbnail).
+    // Each additional variation adds tileZoom thumb + gap (4px), expanding horizontally.
+    const baseCardWidth = tileZoom + 40;
+    const cardWidth = hasTexVariants
+      ? baseCardWidth + (numVariations - 1) * (tileZoom + 4)
+      : baseCardWidth;
+
+    const cardStyle = {
+      '--tile-zoom': `${tileZoom}px`,
+      width: `${cardWidth}px`,
+    } as React.CSSProperties;
+
+    const isGhost = primary.status === 'GHOST';
 
     return (
       <div
@@ -168,7 +211,79 @@ export const BlockWorkspace: React.FC = () => {
         onMouseEnter={(e) => showTooltip(tooltipLines.join('\n'), e)}
         onMouseMove={moveTooltip}
         onMouseLeave={hideTooltip}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          hideTooltip();
+          setActiveMenuKey(cardKey);
+        }}
       >
+        {/* 3-Dots Hover Menu Trigger */}
+        <button
+          type="button"
+          className={`${styles.moreButton} ${activeMenuKey === cardKey ? styles.moreButtonActive : ''}`}
+          onClick={(e) => {
+            e.stopPropagation();
+            hideTooltip();
+            setActiveMenuKey((prev) => (prev === cardKey ? null : cardKey));
+          }}
+          title="Texture options"
+          aria-label="Texture options"
+        >
+          <MoreVertical size={14} />
+        </button>
+
+        {/* Dropdown Menu */}
+        {activeMenuKey === cardKey && (
+          <div
+            ref={menuRef}
+            className={styles.dropdownMenu}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              className={styles.menuItem}
+              onClick={() => {
+                setActiveMenuKey(null);
+                handleLeafClick(primary);
+              }}
+            >
+              <Edit3 size={13} className={styles.menuIcon} />
+              <span>Edit Texture</span>
+            </button>
+
+            <button
+              type="button"
+              className={`${styles.menuItem} ${styles.menuItemDanger}`}
+              disabled={isGhost || !primary.fullPath}
+              onClick={() => {
+                setActiveMenuKey(null);
+                if (primary.fullPath) {
+                  deleteTextureFile(primary.fullPath, primary.alias);
+                }
+              }}
+              title={isGhost ? 'Texture file does not exist on disk' : 'Delete PNG file from disk'}
+            >
+              <Trash2 size={13} className={styles.menuIcon} />
+              <span>Delete Texture</span>
+            </button>
+
+            <button
+              type="button"
+              className={`${styles.menuItem} ${styles.menuItemDanger}`}
+              disabled={primary.status === 'ORPHAN'}
+              onClick={() => {
+                setActiveMenuKey(null);
+                deleteTextureEntries(primary.alias, 'block', primary.relativePath);
+              }}
+              title={primary.status === 'ORPHAN' ? 'Orphan has no JSON declarations' : 'Remove declarations from JSON schemas'}
+            >
+              <FileX size={13} className={styles.menuIcon} />
+              <span>Delete Entries</span>
+            </button>
+          </div>
+        )}
+
         {/* Thumbnail area: single thumb or side-by-side texture variations */}
         <div className={hasTexVariants ? styles.texVariantThumbRow : styles.leafThumbWrapper}>
           {leaves.map((leaf, i) => {

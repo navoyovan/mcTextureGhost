@@ -216,6 +216,18 @@ public static class PackScanner
 
                 if (vanillaItemAlias != null)
                 {
+                    var vEntry = vanilla?.ItemTextures.TryGetValue(vanillaItemAlias, out var vData) == true
+                        ? vData.Entries.FirstOrDefault(e => VanillaDataService.NormalizeTexturePath(e.RawPath).Equals(relNoExt, StringComparison.OrdinalIgnoreCase))
+                        : null;
+
+                    var vKind = VariantKind.None;
+                    if (vEntry != null)
+                    {
+                        if (vEntry.BlockVariantIndex.HasValue && vEntry.TextureVariantIndex.HasValue) vKind = VariantKind.NestedVariant;
+                        else if (vEntry.BlockVariantIndex.HasValue) vKind = VariantKind.BlockVariant;
+                        else if (vEntry.TextureVariantIndex.HasValue) vKind = VariantKind.TextureVariant;
+                    }
+
                     results.Add(new TextureAlias
                     {
                         Category = TextureCategory.Item,
@@ -224,8 +236,13 @@ public static class PackScanner
                         RelativePath = relNoExt,
                         FullPath = file,
                         Status = TextureStatus.Ok,
-                        VariantKind = VariantKind.None,
-                        Flipbook = flipbookCatalog.Find(vanillaItemAlias, relNoExt, null, null) ?? vanilla.Flipbooks.Find(vanillaItemAlias, relNoExt, null, null),
+                        VariantKind = vKind,
+                        BlockVariantIndex = vEntry?.BlockVariantIndex,
+                        TotalBlockVariants = vEntry?.TotalBlockVariants,
+                        TextureVariantIndex = vEntry?.TextureVariantIndex,
+                        TotalTextureVariants = vEntry?.TotalTextureVariants,
+                        Weight = vEntry?.Weight,
+                        Flipbook = flipbookCatalog.Find(vanillaItemAlias, relNoExt, vEntry?.BlockVariantIndex, vEntry?.TextureVariantIndex) ?? vanilla?.Flipbooks.Find(vanillaItemAlias, relNoExt, vEntry?.BlockVariantIndex, vEntry?.TextureVariantIndex),
                         BlockFaces = new List<BlockFaceUsage>()
                     });
                 }
@@ -251,13 +268,17 @@ public static class PackScanner
 
                 string? vanillaBlockAlias = null;
                 List<BlockFaceUsage>? vanillaBlockFaces = null;
+                PackScanner.TextureSlotEntry? matchedVanillaEntry = null;
+
                 if (vanilla != null && vanilla.DeclaredBlockPaths.Contains(relNoExt))
                 {
                     foreach (var (vAlias, vData) in vanilla.TerrainTextures)
                     {
-                        if (vData.Entries.Any(e => VanillaDataService.NormalizeTexturePath(e.RawPath).Equals(relNoExt, StringComparison.OrdinalIgnoreCase)))
+                        var foundEntry = vData.Entries.FirstOrDefault(e => VanillaDataService.NormalizeTexturePath(e.RawPath).Equals(relNoExt, StringComparison.OrdinalIgnoreCase));
+                        if (foundEntry != null)
                         {
                             vanillaBlockAlias = vAlias;
+                            matchedVanillaEntry = foundEntry;
                             if (vanilla.BlockUsage.TryGetValue(vAlias, out var u))
                                 vanillaBlockFaces = u;
                             break;
@@ -267,6 +288,14 @@ public static class PackScanner
 
                 if (vanillaBlockAlias != null)
                 {
+                    var vKind = VariantKind.None;
+                    if (matchedVanillaEntry != null)
+                    {
+                        if (matchedVanillaEntry.BlockVariantIndex.HasValue && matchedVanillaEntry.TextureVariantIndex.HasValue) vKind = VariantKind.NestedVariant;
+                        else if (matchedVanillaEntry.BlockVariantIndex.HasValue) vKind = VariantKind.BlockVariant;
+                        else if (matchedVanillaEntry.TextureVariantIndex.HasValue) vKind = VariantKind.TextureVariant;
+                    }
+
                     results.Add(new TextureAlias
                     {
                         Category = TextureCategory.Block,
@@ -275,8 +304,13 @@ public static class PackScanner
                         RelativePath = relNoExt,
                         FullPath = file,
                         Status = TextureStatus.Ok,
-                        VariantKind = VariantKind.None,
-                        Flipbook = flipbookCatalog.Find(vanillaBlockAlias, relNoExt, null, null) ?? vanilla.Flipbooks.Find(vanillaBlockAlias, relNoExt, null, null),
+                        VariantKind = vKind,
+                        BlockVariantIndex = matchedVanillaEntry?.BlockVariantIndex,
+                        TotalBlockVariants = matchedVanillaEntry?.TotalBlockVariants,
+                        TextureVariantIndex = matchedVanillaEntry?.TextureVariantIndex,
+                        TotalTextureVariants = matchedVanillaEntry?.TotalTextureVariants,
+                        Weight = matchedVanillaEntry?.Weight,
+                        Flipbook = flipbookCatalog.Find(vanillaBlockAlias, relNoExt, matchedVanillaEntry?.BlockVariantIndex, matchedVanillaEntry?.TextureVariantIndex) ?? vanilla?.Flipbooks.Find(vanillaBlockAlias, relNoExt, matchedVanillaEntry?.BlockVariantIndex, matchedVanillaEntry?.TextureVariantIndex),
                         BlockFaces = vanillaBlockFaces ?? new List<BlockFaceUsage>()
                     });
                 }
@@ -899,7 +933,85 @@ public static class PackScanner
                             (vanilla.BlockUsage.TryGetValue(alias, out var vf) ? vf : new List<BlockFaceUsage>());
                 aliasNode.FaceSummary = SummarizeFaces(faces);
 
-                if (userBlockAliases.TryGetValue(alias, out var userTiles))
+                if (vanilla.TerrainTextures.TryGetValue(alias, out var vData))
+                {
+                    var userTileList = userBlockAliases.TryGetValue(alias, out var ut) ? ut : new List<TextureAlias>();
+                    foreach (var tile in userTileList) trackedUserAliases.Add(tile);
+
+                    for (int i = 0; i < vData.Entries.Count; i++)
+                    {
+                        var entry = vData.Entries[i];
+                        var normRaw = VanillaDataService.NormalizeTexturePath(entry.RawPath);
+
+                        // Find matching user tile by relative path or variant index
+                        var matchedUserTile = userTileList.FirstOrDefault(t =>
+                            VanillaDataService.NormalizeTexturePath(t.RelativePath).Equals(normRaw, StringComparison.OrdinalIgnoreCase) ||
+                            (t.BlockVariantIndex.HasValue && entry.BlockVariantIndex.HasValue && t.BlockVariantIndex == entry.BlockVariantIndex &&
+                             t.TextureVariantIndex == entry.TextureVariantIndex));
+
+                        if (matchedUserTile != null)
+                        {
+                            var leafStatus = matchedUserTile.Status switch
+                            {
+                                TextureStatus.Ok      => CatalogEntryStatus.Ok,
+                                TextureStatus.Ghost   => CatalogEntryStatus.Ghost,
+                                TextureStatus.Orphan  => CatalogEntryStatus.Orphan,
+                                _                     => CatalogEntryStatus.Ok
+                            };
+
+                            var leaf = new CatalogLeaf
+                            {
+                                Alias = alias,
+                                DisplayName = matchedUserTile.DisplayName,
+                                RelativePath = matchedUserTile.RelativePath,
+                                FullPath = matchedUserTile.FullPath,
+                                Category = TextureCategory.Block,
+                                Status = leafStatus,
+                                TextureAlias = matchedUserTile,
+                                VariantKind = matchedUserTile.VariantKind,
+                                BlockVariantIndex = matchedUserTile.BlockVariantIndex ?? entry.BlockVariantIndex,
+                                TotalBlockVariants = matchedUserTile.TotalBlockVariants ?? entry.TotalBlockVariants,
+                                TextureVariantIndex = matchedUserTile.TextureVariantIndex ?? entry.TextureVariantIndex,
+                                TotalTextureVariants = matchedUserTile.TotalTextureVariants ?? entry.TotalTextureVariants,
+                                Weight = matchedUserTile.Weight ?? entry.Weight,
+                                SubtitleCaption = matchedUserTile.SubtitleCaption,
+                                PrimaryFaceBadgeText = matchedUserTile.PrimaryFaceBadgeText,
+                                Flipbook = matchedUserTile.Flipbook ?? vanilla.Flipbooks.Find(alias, entry.RawPath, entry.BlockVariantIndex, entry.TextureVariantIndex)
+                            };
+                            aliasNode.Leaves.Add(leaf);
+                        }
+                        else
+                        {
+                            var caption = entry.TotalBlockVariants.HasValue
+                                ? $"block state {entry.BlockVariantIndex}/{entry.TotalBlockVariants}"
+                                : (entry.TotalTextureVariants.HasValue
+                                    ? $"tex {entry.TextureVariantIndex}/{entry.TotalTextureVariants}"
+                                    : "vanilla default");
+
+                            var leaf = new CatalogLeaf
+                            {
+                                Alias = alias,
+                                DisplayName = alias,
+                                RelativePath = entry.RawPath,
+                                FullPath = packRoot != null ? Path.Combine(packRoot, (entry.RawPath + ".png").Replace('/', Path.DirectorySeparatorChar)) : entry.RawPath,
+                                Category = TextureCategory.Block,
+                                Status = CatalogEntryStatus.NotAdded,
+                                TextureAlias = null,
+                                VariantKind = entry.TotalBlockVariants.HasValue ? VariantKind.BlockVariant : (entry.TotalTextureVariants.HasValue ? VariantKind.TextureVariant : VariantKind.None),
+                                BlockVariantIndex = entry.BlockVariantIndex,
+                                TotalBlockVariants = entry.TotalBlockVariants,
+                                TextureVariantIndex = entry.TextureVariantIndex,
+                                TotalTextureVariants = entry.TotalTextureVariants,
+                                Weight = entry.Weight,
+                                SubtitleCaption = caption,
+                                PrimaryFaceBadgeText = aliasNode.FaceSummary,
+                                Flipbook = vanilla.Flipbooks.Find(alias, entry.RawPath, entry.BlockVariantIndex, entry.TextureVariantIndex)
+                            };
+                            aliasNode.Leaves.Add(leaf);
+                        }
+                    }
+                }
+                else if (userBlockAliases.TryGetValue(alias, out var userTiles))
                 {
                     foreach (var tile in userTiles)
                     {
@@ -921,6 +1033,12 @@ public static class PackScanner
                             Category = TextureCategory.Block,
                             Status = leafStatus,
                             TextureAlias = tile,
+                            VariantKind = tile.VariantKind,
+                            BlockVariantIndex = tile.BlockVariantIndex,
+                            TotalBlockVariants = tile.TotalBlockVariants,
+                            TextureVariantIndex = tile.TextureVariantIndex,
+                            TotalTextureVariants = tile.TotalTextureVariants,
+                            Weight = tile.Weight,
                             SubtitleCaption = tile.SubtitleCaption,
                             PrimaryFaceBadgeText = tile.PrimaryFaceBadgeText,
                             Flipbook = tile.Flipbook
@@ -930,49 +1048,19 @@ public static class PackScanner
                 }
                 else
                 {
-                    if (vanilla.TerrainTextures.TryGetValue(alias, out var vData))
+                    var leaf = new CatalogLeaf
                     {
-                        for (int i = 0; i < vData.Entries.Count; i++)
-                        {
-                            var entry = vData.Entries[i];
-                            var caption = entry.TotalBlockVariants.HasValue
-                                ? $"block state {entry.BlockVariantIndex}/{entry.TotalBlockVariants}"
-                                : (entry.TotalTextureVariants.HasValue
-                                    ? $"tex {entry.TextureVariantIndex}/{entry.TotalTextureVariants}"
-                                    : "vanilla default");
-
-                            var leaf = new CatalogLeaf
-                            {
-                                Alias = alias,
-                                DisplayName = alias,
-                                RelativePath = entry.RawPath,
-                                FullPath = packRoot != null ? Path.Combine(packRoot, (entry.RawPath + ".png").Replace('/', Path.DirectorySeparatorChar)) : entry.RawPath,
-                                Category = TextureCategory.Block,
-                                Status = CatalogEntryStatus.NotAdded,
-                                TextureAlias = null,
-                                SubtitleCaption = caption,
-                                PrimaryFaceBadgeText = aliasNode.FaceSummary,
-                                Flipbook = vanilla.Flipbooks.Find(alias, entry.RawPath, entry.BlockVariantIndex, entry.TextureVariantIndex)
-                            };
-                            aliasNode.Leaves.Add(leaf);
-                        }
-                    }
-                    else
-                    {
-                        var leaf = new CatalogLeaf
-                        {
-                            Alias = alias,
-                            DisplayName = alias,
-                            RelativePath = $"textures/blocks/{alias}",
-                            FullPath = packRoot != null ? Path.Combine(packRoot, "textures", "blocks", $"{alias}.png") : alias,
-                            Category = TextureCategory.Block,
-                            Status = CatalogEntryStatus.Ghost,
-                            TextureAlias = null,
-                            SubtitleCaption = "missing declaration",
-                            PrimaryFaceBadgeText = aliasNode.FaceSummary
-                        };
-                        aliasNode.Leaves.Add(leaf);
-                    }
+                        Alias = alias,
+                        DisplayName = alias,
+                        RelativePath = $"textures/blocks/{alias}",
+                        FullPath = packRoot != null ? Path.Combine(packRoot, "textures", "blocks", $"{alias}.png") : alias,
+                        Category = TextureCategory.Block,
+                        Status = CatalogEntryStatus.Ghost,
+                        TextureAlias = null,
+                        SubtitleCaption = "missing declaration",
+                        PrimaryFaceBadgeText = aliasNode.FaceSummary
+                    };
+                    aliasNode.Leaves.Add(leaf);
                 }
 
                 aliasNode.NotifyCountsChanged();
@@ -1004,7 +1092,75 @@ public static class PackScanner
                 ParentBlock = itemBlockNode
             };
 
-            if (userItemAliases.TryGetValue(itemAlias, out var userTiles))
+            if (vanilla.ItemTextures.TryGetValue(itemAlias, out var vData))
+            {
+                var userTileList = userItemAliases.TryGetValue(itemAlias, out var ut) ? ut : new List<TextureAlias>();
+                foreach (var tile in userTileList) trackedUserAliases.Add(tile);
+
+                for (int i = 0; i < vData.Entries.Count; i++)
+                {
+                    var entry = vData.Entries[i];
+                    var normRaw = VanillaDataService.NormalizeTexturePath(entry.RawPath);
+
+                    var matchedUserTile = userTileList.FirstOrDefault(t =>
+                        VanillaDataService.NormalizeTexturePath(t.RelativePath).Equals(normRaw, StringComparison.OrdinalIgnoreCase) ||
+                        (t.TextureVariantIndex.HasValue && entry.TextureVariantIndex.HasValue && t.TextureVariantIndex == entry.TextureVariantIndex));
+
+                    if (matchedUserTile != null)
+                    {
+                        var leafStatus = matchedUserTile.Status switch
+                        {
+                            TextureStatus.Ok      => CatalogEntryStatus.Ok,
+                            TextureStatus.Ghost   => CatalogEntryStatus.Ghost,
+                            TextureStatus.Orphan  => CatalogEntryStatus.Orphan,
+                            _                     => CatalogEntryStatus.Ok
+                        };
+
+                        var leaf = new CatalogLeaf
+                        {
+                            Alias = itemAlias,
+                            DisplayName = matchedUserTile.DisplayName,
+                            RelativePath = matchedUserTile.RelativePath,
+                            FullPath = matchedUserTile.FullPath,
+                            Category = TextureCategory.Item,
+                            Status = leafStatus,
+                            TextureAlias = matchedUserTile,
+                            VariantKind = matchedUserTile.VariantKind,
+                            TextureVariantIndex = matchedUserTile.TextureVariantIndex ?? entry.TextureVariantIndex,
+                            TotalTextureVariants = matchedUserTile.TotalTextureVariants ?? entry.TotalTextureVariants,
+                            Weight = matchedUserTile.Weight ?? entry.Weight,
+                            SubtitleCaption = matchedUserTile.SubtitleCaption,
+                            Flipbook = matchedUserTile.Flipbook ?? vanilla.Flipbooks.Find(itemAlias, entry.RawPath, null, entry.TextureVariantIndex)
+                        };
+                        aliasNode.Leaves.Add(leaf);
+                    }
+                    else
+                    {
+                        var caption = entry.TotalTextureVariants.HasValue
+                            ? $"var {entry.TextureVariantIndex}/{entry.TotalTextureVariants}"
+                            : "vanilla default";
+
+                        var leaf = new CatalogLeaf
+                        {
+                            Alias = itemAlias,
+                            DisplayName = itemAlias,
+                            RelativePath = entry.RawPath,
+                            FullPath = packRoot != null ? Path.Combine(packRoot, (entry.RawPath + ".png").Replace('/', Path.DirectorySeparatorChar)) : entry.RawPath,
+                            Category = TextureCategory.Item,
+                            Status = CatalogEntryStatus.NotAdded,
+                            TextureAlias = null,
+                            VariantKind = entry.TotalTextureVariants.HasValue ? VariantKind.TextureVariant : VariantKind.None,
+                            TextureVariantIndex = entry.TextureVariantIndex,
+                            TotalTextureVariants = entry.TotalTextureVariants,
+                            Weight = entry.Weight,
+                            SubtitleCaption = caption,
+                            Flipbook = vanilla.Flipbooks.Find(itemAlias, entry.RawPath, null, entry.TextureVariantIndex)
+                        };
+                        aliasNode.Leaves.Add(leaf);
+                    }
+                }
+            }
+            else if (userItemAliases.TryGetValue(itemAlias, out var userTiles))
             {
                 foreach (var tile in userTiles)
                 {
@@ -1030,33 +1186,6 @@ public static class PackScanner
                         Flipbook = tile.Flipbook
                     };
                     aliasNode.Leaves.Add(leaf);
-                }
-            }
-            else
-            {
-                if (vanilla.ItemTextures.TryGetValue(itemAlias, out var vData))
-                {
-                    for (int i = 0; i < vData.Entries.Count; i++)
-                    {
-                        var entry = vData.Entries[i];
-                        var caption = entry.TotalTextureVariants.HasValue
-                            ? $"var {entry.TextureVariantIndex}/{entry.TotalTextureVariants}"
-                            : "vanilla default";
-
-                        var leaf = new CatalogLeaf
-                        {
-                            Alias = itemAlias,
-                            DisplayName = itemAlias,
-                            RelativePath = entry.RawPath,
-                            FullPath = packRoot != null ? Path.Combine(packRoot, (entry.RawPath + ".png").Replace('/', Path.DirectorySeparatorChar)) : entry.RawPath,
-                            Category = TextureCategory.Item,
-                            Status = CatalogEntryStatus.NotAdded,
-                            TextureAlias = null,
-                            SubtitleCaption = caption,
-                            Flipbook = vanilla.Flipbooks.Find(itemAlias, entry.RawPath, null, entry.TextureVariantIndex)
-                        };
-                        aliasNode.Leaves.Add(leaf);
-                    }
                 }
             }
 
@@ -1425,7 +1554,20 @@ public static class PackScanner
                                 _                    => CatalogEntryStatus.Ok
                             };
 
-                            foreach (var faceNode in aliasNode.FaceNodes)
+                            var targetFaceLabels = tile.BlockFaces
+                                .Where(f => f.BlockId.Equals(blockId, StringComparison.OrdinalIgnoreCase))
+                                .Select(f => f.Face.ToLowerInvariant())
+                                .Distinct()
+                                .ToList();
+
+                            var targetNodes = aliasNode.FaceNodes
+                                .Where(fn => targetFaceLabels.Count == 0 || targetFaceLabels.Contains(fn.FaceLabel.ToLowerInvariant()) || fn.FaceLabel == "all")
+                                .ToList();
+
+                            if (targetNodes.Count == 0)
+                                targetNodes = aliasNode.FaceNodes.ToList();
+
+                            foreach (var faceNode in targetNodes)
                             {
                                 var faceLeaf = new CatalogLeaf
                                 {

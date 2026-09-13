@@ -109,6 +109,11 @@ export const PackGrid: React.FC = () => {
                 key={uniqueKey}
                 className={styles.tileCard}
                 onClick={() => handleTileClick(alias)}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setActiveMenuKey(uniqueKey);
+                }}
                 title={`${alias.displayName || alias.alias}\nStatus: ${alias.status}\nPath: ${alias.relativePath}`}
               >
                 {/* 3-Dots Hover Menu Trigger */}

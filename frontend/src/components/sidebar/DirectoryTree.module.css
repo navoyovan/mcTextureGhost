@@ -171,3 +171,34 @@
   font-size: 11px;
   color: var(--text-muted, #71717a);
 }
+
+/* ─── Manifest edit button (visible on row hover) ─── */
+.editManifestBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: #71717a;
+  cursor: pointer;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.12s, background 0.12s, color 0.12s;
+}
+
+.treeRow:hover .editManifestBtn {
+  opacity: 1;
+}
+
+.editManifestBtn:hover {
+  background: rgba(139, 92, 246, 0.25);
+  color: #c4b5fd;
+}
+
+.editManifestBtn:active {
+  background: rgba(139, 92, 246, 0.4);
+}

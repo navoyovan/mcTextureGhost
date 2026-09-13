@@ -9,6 +9,7 @@ import {
   FileImage,
   FileCode,
   File,
+  Pencil,
 } from 'lucide-react';
 import { PackFolderItemDto } from '../../types/ipc';
 import styles from './DirectoryTree.module.css';
@@ -75,12 +76,13 @@ export const DirectoryTreeNode: React.FC<DirectoryTreeNodeProps> = ({
   const isManifest = (node.name?.toLowerCase() === 'manifest.json' || node.relativePath?.toLowerCase() === 'manifest.json');
 
   const handleRowClick = () => {
-    if (isManifest && onOpenManifest) {
-      onOpenManifest();
-      return;
-    }
     // Clicking the already selected path clears the filter, otherwise select this node
     onSelect(isSelected ? null : nodePath);
+  };
+
+  const handleEditManifest = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (onOpenManifest) onOpenManifest();
   };
 
   const handleChevronClick = (e: React.MouseEvent) => {
@@ -134,6 +136,17 @@ export const DirectoryTreeNode: React.FC<DirectoryTreeNodeProps> = ({
             <span className={styles.countPill} title={`${node.textureCount} textures`}>
               {node.textureCount}
             </span>
+          )}
+          {isManifest && onOpenManifest && (
+            <button
+              type="button"
+              className={styles.editManifestBtn}
+              onClick={handleEditManifest}
+              title="Open Manifest Editor"
+              aria-label="Edit manifest.json"
+            >
+              <Pencil size={11} />
+            </button>
           )}
         </div>
       </div>

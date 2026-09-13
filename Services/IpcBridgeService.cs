@@ -324,9 +324,22 @@ public sealed class IpcBridgeService : IIpcBridgeService
                         _ => "application/octet-stream"
                     };
 
-                    var stream = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                    byte[] fileBytes;
+                    using (var fs = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+                    {
+                        fileBytes = new byte[fs.Length];
+                        int bytesRead = 0;
+                        while (bytesRead < fileBytes.Length)
+                        {
+                            int n = fs.Read(fileBytes, bytesRead, fileBytes.Length - bytesRead);
+                            if (n == 0) break;
+                            bytesRead += n;
+                        }
+                    }
+
+                    var ms = new MemoryStream(fileBytes);
                     var response = _coreWebView2!.Environment.CreateWebResourceResponse(
-                        stream,
+                        ms,
                         200,
                         "OK",
                         $"Content-Type: {mime}\r\nAccess-Control-Allow-Origin: *\r\nCache-Control: no-store, no-cache, must-revalidate\r\n"

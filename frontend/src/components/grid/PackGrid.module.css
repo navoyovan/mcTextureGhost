@@ -27,6 +27,8 @@
   user-select: none;
   transition: transform 0.15s, border-color 0.15s, background-color 0.15s, box-shadow 0.15s;
   text-align: left;
+  content-visibility: auto;
+  contain-intrinsic-size: auto var(--tile-card-width, 160px);
 }
 
 .tileCard:hover {

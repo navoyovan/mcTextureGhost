@@ -18,7 +18,8 @@ Consult these project specification files **only when relevant** to the task at 
 
 ## Execution Rules for Antigravity Agents
 - **Strict Anti-Looping & Action Invariant:**
-  - **NEVER** loop across files or repeatedly re-read documentation files before answering or implementing a change.
+  - **NEVER** loop across files, re-read documentation files, or repeatedly call `view_file` on the same file/lines in an execution turn.
+  - **Single Read Hard Limit:** Inspect any file or snippet at most ONCE. If you already have the lines in context or just viewed them, immediately apply edits via `replace_file_content` instead of calling `view_file` again.
   - Read **only** the single most relevant file (or section) needed for the current prompt.
   - When the user asks for a UI tweak, bug fix, or feature, immediately inspect the target code and apply the fix. Do not circle across unrequested documents.
   - Do NOT pause or generate formal planning artifacts (`implementation_plan.md`) unless the user explicitly asks for a plan or proposal first.

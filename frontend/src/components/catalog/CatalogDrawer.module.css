@@ -437,13 +437,13 @@
 }
 
 .aliasGroupCard {
-  background: rgba(18, 18, 22, 0.85);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  padding: 8px 12px;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 8px 4px 16px 4px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 10px;
 }
 
 .aliasGroupHeader {
@@ -451,6 +451,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 10px;
+  padding-bottom: 4px;
 }
 
 .aliasHeaderLeft {
@@ -462,10 +463,10 @@
 }
 
 .aliasNameText {
-  font-family: var(--font-mono);
-  font-size: 11.5px;
-  font-weight: 600;
-  color: var(--text-primary);
+  font-family: var(--font-brand);
+  font-size: 13px;
+  font-weight: 700;
+  color: #e4e4e7;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -480,16 +481,16 @@
 .faceSummaryBadge {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
-  font-family: var(--font-pixel);
-  font-size: 7.5px;
-  padding: 2px 6px;
-  border-radius: 3px;
-  letter-spacing: 0.03em;
-  background: rgba(168, 85, 247, 0.18);
-  border: 1px solid rgba(168, 85, 247, 0.35);
-  color: #d8b4fe;
-  flex-shrink: 0;
+  gap: 6px;
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #a1a1aa;
+  background: rgba(255, 255, 255, 0.06);
+  padding: 3px 8px;
+  border-radius: 4px;
+  width: fit-content;
+  border: none;
 }
 
 .addAliasBtn {
