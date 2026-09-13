@@ -6,6 +6,7 @@ import { FlipbookDefinitionDto } from '../../types/ipc';
 import { flipbookCoordinator } from '../common/FlipbookThumbnail';
 import { resolveBlockShape } from '../../config/blockShapes';
 import { buildBlockMesh } from './blockGeometryBuilder';
+import { isTgaUrl, loadTgaAsDataUrl } from '../../utils/tgaDecoder';
 import styles from './Block3DViewer.module.css';
 
 interface Block3DViewerProps {
@@ -119,55 +120,72 @@ export const Block3DViewer: React.FC<Block3DViewerProps> = ({
         side: doubleSided ? THREE.DoubleSide : THREE.FrontSide,
       });
 
-      textureLoader.load(
-        url,
-        (tex) => {
-          tex.colorSpace = THREE.SRGBColorSpace;
-          tex.magFilter = THREE.NearestFilter;
-          tex.minFilter = THREE.NearestFilter;
-          tex.generateMipmaps = false;
-          const img = tex.image as HTMLImageElement | undefined;
-          if (img && img.height > img.width && img.width > 0) {
-            const frameCount = Math.floor(img.height / img.width);
-            tex.wrapS = THREE.ClampToEdgeWrapping;
-            tex.wrapT = THREE.ClampToEdgeWrapping;
+      const loadWithUrl = (textureUrl: string) => {
+        textureLoader.load(
+          textureUrl,
+          (tex) => {
+            tex.colorSpace = THREE.SRGBColorSpace;
+            tex.magFilter = THREE.NearestFilter;
+            tex.minFilter = THREE.NearestFilter;
+            tex.generateMipmaps = false;
+            const img = tex.image as HTMLImageElement | undefined;
+            if (img && img.height > img.width && img.width > 0) {
+              const frameCount = Math.floor(img.height / img.width);
+              tex.wrapS = THREE.ClampToEdgeWrapping;
+              tex.wrapT = THREE.ClampToEdgeWrapping;
 
-            const inset = 0.05 / img.height;
-            const frameH = 1 / frameCount;
+              const inset = 0.05 / img.height;
+              const frameH = 1 / frameCount;
 
-            tex.repeat.set(1, frameH - 2 * inset);
-            tex.offset.set(0, 1 - frameH + inset);
+              tex.repeat.set(1, frameH - 2 * inset);
+              tex.offset.set(0, 1 - frameH + inset);
 
-            if (frameCount > 1) {
-              animatedTextures.push({
-                texture: tex,
-                frameCount,
-                ticksPerFrame: Math.max(1, flipbook?.ticksPerFrame ?? 1),
-                frames: flipbook?.frames && flipbook.frames.length > 0 ? flipbook.frames : null,
-                lastFrame: 0,
-              });
+              if (frameCount > 1) {
+                animatedTextures.push({
+                  texture: tex,
+                  frameCount,
+                  ticksPerFrame: Math.max(1, flipbook?.ticksPerFrame ?? 1),
+                  frames: flipbook?.frames && flipbook.frames.length > 0 ? flipbook.frames : null,
+                  lastFrame: 0,
+                });
+              }
+            } else {
+              tex.wrapS = THREE.ClampToEdgeWrapping;
+              tex.wrapT = THREE.ClampToEdgeWrapping;
             }
-          } else {
-            tex.wrapS = THREE.ClampToEdgeWrapping;
-            tex.wrapT = THREE.ClampToEdgeWrapping;
+            tex.needsUpdate = true;
+            mat.map = tex;
+            mat.color.setHex(0xffffff);
+            mat.needsUpdate = true;
+            if (isMounted) {
+              try {
+                renderer.render(scene, camera);
+              } catch { }
+            }
+          },
+          undefined,
+          () => {
+            // On error (missing/corrupted file), fall back to neutral dark material
+            mat.color.setHex(0x3f3f46);
+            mat.needsUpdate = true;
           }
-          tex.needsUpdate = true;
-          mat.map = tex;
-          mat.color.setHex(0xffffff);
-          mat.needsUpdate = true;
-          if (isMounted) {
-            try {
-              renderer.render(scene, camera);
-            } catch { }
-          }
-        },
-        undefined,
-        () => {
-          // On error (missing/corrupted file), fall back to neutral dark material
-          mat.color.setHex(0x3f3f46);
-          mat.needsUpdate = true;
-        }
-      );
+        );
+      };
+
+      if (isTgaUrl(url)) {
+        loadTgaAsDataUrl(url)
+          .then((dataUrl) => {
+            if (isMounted) loadWithUrl(dataUrl);
+          })
+          .catch(() => {
+            if (isMounted) {
+              mat.color.setHex(0x3f3f46);
+              mat.needsUpdate = true;
+            }
+          });
+      } else {
+        loadWithUrl(url);
+      }
 
       return mat;
     };

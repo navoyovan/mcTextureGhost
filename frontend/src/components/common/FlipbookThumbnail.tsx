@@ -1,6 +1,6 @@
-// frontend/src/components/common/FlipbookThumbnail.tsx
 import React, { useEffect, useRef, useState } from 'react';
 import { FlipbookDefinitionDto } from '../../types/ipc';
+import { isTgaUrl, loadTgaAsDataUrl } from '../../utils/tgaDecoder';
 import styles from './FlipbookThumbnail.module.css';
 
 type RenderCallback = (totalTicks: number) => void;
@@ -97,12 +97,33 @@ export const FlipbookThumbnail: React.FC<FlipbookThumbnailProps> = ({
     progress: number;
   }>({ frameA: -1, frameB: -1, progress: -1 });
 
+  const [resolvedSrc, setResolvedSrc] = useState<string>(src);
+
+  // Resolve TGA if needed
+  useEffect(() => {
+    let active = true;
+    if (isTgaUrl(src)) {
+      loadTgaAsDataUrl(src)
+        .then((dataUrl) => {
+          if (active) setResolvedSrc(dataUrl);
+        })
+        .catch(() => {
+          if (active) setImageState((prev) => ({ ...prev, hasError: true }));
+        });
+    } else {
+      setResolvedSrc(src);
+    }
+    return () => {
+      active = false;
+    };
+  }, [src]);
+
   // Load and inspect image dimensions
   useEffect(() => {
     let active = true;
     const img = new Image();
     img.crossOrigin = 'anonymous';
-    img.src = src;
+    img.src = resolvedSrc;
 
     img.onload = () => {
       if (!active) return;
@@ -128,7 +149,7 @@ export const FlipbookThumbnail: React.FC<FlipbookThumbnailProps> = ({
     return () => {
       active = false;
     };
-  }, [src, isFlipbook]);
+  }, [resolvedSrc, isFlipbook]);
 
   // Handle animation loop subscription and frame drawing
   useEffect(() => {
@@ -229,7 +250,7 @@ export const FlipbookThumbnail: React.FC<FlipbookThumbnailProps> = ({
   if (imageState.hasError) {
     return (
       <img
-        src={src}
+        src={resolvedSrc}
         alt={alt}
         className={`${styles.thumbnailImg} ${className || ''}`}
         loading={loading}
@@ -251,7 +272,7 @@ export const FlipbookThumbnail: React.FC<FlipbookThumbnailProps> = ({
 
   return (
     <img
-      src={src}
+      src={resolvedSrc}
       alt={alt}
       className={`${styles.thumbnailImg} ${className || ''}`}
       loading={loading}

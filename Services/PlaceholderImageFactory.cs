@@ -30,6 +30,46 @@ public static class PlaceholderImageFactory
             }
         }
 
-        bitmap.Save(fullPath, ImageFormat.Png);
+        var ext = Path.GetExtension(fullPath);
+        if (string.Equals(ext, ".tga", StringComparison.OrdinalIgnoreCase))
+        {
+            WriteTgaStub(fullPath, bitmap, size);
+        }
+        else
+        {
+            bitmap.Save(fullPath, ImageFormat.Png);
+        }
+    }
+
+    private static void WriteTgaStub(string fullPath, Bitmap bitmap, int size)
+    {
+        using var fs = new FileStream(fullPath, FileMode.Create, FileAccess.Write, FileShare.None);
+        using var bw = new BinaryWriter(fs);
+
+        // Standard 18-byte TGA Header for uncompressed true-color 24-bit image
+        bw.Write((byte)0);  // ID length
+        bw.Write((byte)0);  // Color map type (none)
+        bw.Write((byte)2);  // Image type (uncompressed true-color)
+        bw.Write((short)0); // Color map origin
+        bw.Write((short)0); // Color map length
+        bw.Write((byte)0);  // Color map entry size
+        bw.Write((short)0); // X-origin
+        bw.Write((short)0); // Y-origin
+        bw.Write((short)size); // Width
+        bw.Write((short)size); // Height
+        bw.Write((byte)24);    // Pixel depth (24 bpp BGR)
+        bw.Write((byte)0x20);  // Image descriptor (0x20 = top-left origin)
+
+        // Write BGR pixel data top-to-bottom
+        for (var y = 0; y < size; y++)
+        {
+            for (var x = 0; x < size; x++)
+            {
+                var pixel = bitmap.GetPixel(x, y);
+                bw.Write(pixel.B);
+                bw.Write(pixel.G);
+                bw.Write(pixel.R);
+            }
+        }
     }
 }
