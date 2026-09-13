@@ -40,3 +40,10 @@ bld/
 Thumbs.db
 ehthumbs.db
 [Dd]esktop.ini
+
+## Frontend dependencies and build outputs
+node_modules/
+dist/
+frontend/node_modules/
+frontend/dist/
+*.tsbuildinfo

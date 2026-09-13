@@ -399,7 +399,7 @@ public class TextureAlias : INotifyPropertyChanged
 
             if (IsBlockVariant && BlockVariantIndex.HasValue && TotalBlockVariants.HasValue)
             {
-                var blockText = $"block {BlockVariantIndex}/{TotalBlockVariants}";
+                var blockText = $"block state {BlockVariantIndex}/{TotalBlockVariants}";
                 return hasFace ? $"{blockText} • {PrimaryFaceBadgeText}" : blockText;
             }
 

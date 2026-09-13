@@ -24,8 +24,12 @@ public enum TextureTab { All, Blocks, Items }
 
 public class MainViewModel : INotifyPropertyChanged
 {
+    public event Action? PackStateChanged;
+    public event Action<TextureAlias>? TextureUpdated;
+
     private FileSystemWatcher? _watcher;
     private readonly DispatcherTimer _watchDebounceTimer;
+    private readonly SemaphoreSlim _rescanGate = new(1, 1);
     private string? _packRoot;
 
     public ObservableCollection<TextureAlias> Aliases { get; } = new();
@@ -253,9 +257,9 @@ public class MainViewModel : INotifyPropertyChanged
             {
                 if (node.SearchFilterKey.Contains(_appliedSearchQueryLower, StringComparison.Ordinal))
                 {
-                    node.IsExpanded = true;
+                    node.IsExpanded = false;
                     foreach (var ag in node.AliasGroups)
-                        ag.IsExpanded = true;
+                        ag.IsExpanded = false;
                 }
             }
         }
@@ -685,7 +689,7 @@ public class MainViewModel : INotifyPropertyChanged
         _watchDebounceTimer.Tick += (s, e) =>
         {
             _watchDebounceTimer.Stop();
-            RefreshExistence();
+            _ = RescanAsync();
         };
 
         CommitSearchCommand = new RelayCommand(_ => CommitSearch());
@@ -1271,73 +1275,97 @@ public class MainViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(ShowCreatePanel));
         OnPropertyChanged(nameof(WindowTitle));
         FilteredAliases.Refresh();
+        PackStateChanged?.Invoke();
     }
 
-    private async void Rescan()
+    public async void Rescan()
     {
         await RescanAsync();
     }
 
-    private async Task RescanAsync()
+    public async Task RescanAsync()
     {
         if (_packRoot is null) return;
-        _cachedPackName = null;
-        IsScanning = true;
-        StatusMessage = "Scanning pack textures...";
 
-        // Discard cached BitmapImages and flipbook frame slices so modified-on-disk textures reload fresh.
-        ImagePathConverter.ClearCache();
-        FlipbookAnimationManager.ClearCache();
-
-        var packRoot = _packRoot;
+        await _rescanGate.WaitAsync();
 
         try
         {
-            var results = await Task.Run(() => PackScanner.Scan(packRoot, _vanillaData));
+            _cachedPackName = null;
+            IsScanning = true;
+            StatusMessage = "Scanning pack textures...";
 
+            // Clear the current snapshot before rebuilding it so deleted entries cannot remain visible.
             Aliases.Clear();
-            foreach (var alias in results)
-                Aliases.Add(alias);
-            ApplySearchFilter();
+            CatalogTree.Clear();
+            BlockWorkspaceTree.Clear();
+            PackFolders.Clear();
+            FilteredAliases.Refresh();
+            FilteredCatalogTree.Refresh();
 
-            if (_vanillaData != null)
+            // Discard cached BitmapImages and flipbook frame slices so modified-on-disk textures reload fresh.
+            ImagePathConverter.ClearCache();
+            FlipbookAnimationManager.ClearCache();
+
+            var packRoot = _packRoot;
+
+            try
             {
-                var (catalogNodes, workspaceNodes) = await Task.Run(() =>
+                var results = await Task.Run(() => PackScanner.Scan(packRoot, _vanillaData));
+
+                foreach (var alias in results)
+                    Aliases.Add(alias);
+                ApplySearchFilter();
+
+                if (_vanillaData != null)
                 {
-                    var cat = PackScanner.BuildCatalogTree(results, _vanillaData, packRoot);
-                    var ws  = PackScanner.BuildBlockWorkspaceTree(results, _vanillaData, packRoot);
-                    return (cat, ws);
-                });
+                    var (catalogNodes, workspaceNodes) = await Task.Run(() =>
+                    {
+                        var cat = PackScanner.BuildCatalogTree(results, _vanillaData, packRoot);
+                        var ws  = PackScanner.BuildBlockWorkspaceTree(results, _vanillaData, packRoot);
+                        return (cat, ws);
+                    });
 
-                CatalogTree.Clear();
-                foreach (var node in catalogNodes)
-                    CatalogTree.Add(node);
-                FilteredCatalogTree.Refresh();
+                    foreach (var node in catalogNodes)
+                        CatalogTree.Add(node);
+                    FilteredCatalogTree.Refresh();
 
-                BlockWorkspaceTree.Clear();
-                foreach (var node in workspaceNodes)
-                    BlockWorkspaceTree.Add(node);
+                    foreach (var node in workspaceNodes)
+                        BlockWorkspaceTree.Add(node);
+                }
+
+                var blockCount = results.Count(a => a.Category == TextureCategory.Block);
+                var itemCount = results.Count(a => a.Category == TextureCategory.Item);
+                var ghostCount = results.Count(a => a.Status == TextureStatus.Ghost);
+                var orphanCount = results.Count(a => a.Status == TextureStatus.Orphan);
+                StatusMessage = orphanCount > 0
+                    ? $"{results.Count} textures found ({blockCount} blocks, {itemCount} items • {ghostCount} ghosts, {orphanCount} orphans)."
+                    : $"{results.Count} textures found ({blockCount} blocks, {itemCount} items • {ghostCount} ghosts).";
             }
+            catch (Exception ex)
+            {
+                StatusMessage = $"Scan failed: {ex.Message}";
+            }
+            finally
+            {
+                var manifestPath = Path.Combine(packRoot, "manifest.json");
+                if (File.Exists(manifestPath))
+                {
+                    CurrentManifest = ManifestModel.LoadFromFile(manifestPath, PackName ?? Path.GetFileName(packRoot));
+                }
+                else
+                {
+                    CurrentManifest = null;
+                }
 
-
-            var blockCount = results.Count(a => a.Category == TextureCategory.Block);
-            var itemCount = results.Count(a => a.Category == TextureCategory.Item);
-            var ghostCount = results.Count(a => a.Status == TextureStatus.Ghost);
-            var orphanCount = results.Count(a => a.Status == TextureStatus.Orphan);
-            StatusMessage = orphanCount > 0
-                ? $"{results.Count} textures found ({blockCount} blocks, {itemCount} items • {ghostCount} ghosts, {orphanCount} orphans)."
-                : $"{results.Count} textures found ({blockCount} blocks, {itemCount} items • {ghostCount} ghosts).";
-        }
-        catch (Exception ex)
-        {
-            Aliases.Clear();
-            StatusMessage = $"Scan failed: {ex.Message}";
+                BuildFolderTree();
+                NotifyPackStateChanged();
+                IsScanning = false;
+            }
         }
         finally
         {
-            BuildFolderTree();
-            NotifyPackStateChanged();
-            IsScanning = false;
+            _rescanGate.Release();
         }
     }
 
@@ -1456,49 +1484,64 @@ public class MainViewModel : INotifyPropertyChanged
             FullPath = fullPath,
             IsDirectory = true,
             Depth = depth,
-            OnExpand = LoadFolderChildren
+            IsLoaded = true
         };
 
         ComputeCountsForNode(node);
 
-        // Check if there are any child entries without full recursion
-        bool hasChildren = false;
+        if (depth >= 15) return node;
+
         try
         {
-            using var dirs = Directory.EnumerateDirectories(fullPath).GetEnumerator();
-            if (dirs.MoveNext())
+            if (Directory.Exists(fullPath))
             {
-                hasChildren = true;
-            }
-            else
-            {
-                using var files = Directory.EnumerateFiles(fullPath).GetEnumerator();
-                while (files.MoveNext())
+                // 1. Subdirectories recursively
+                var subDirs = Directory.GetDirectories(fullPath);
+                foreach (var dir in subDirs.OrderBy(d => Path.GetFileName(d), StringComparer.OrdinalIgnoreCase))
                 {
-                    var ext = Path.GetExtension(files.Current);
-                    if (!ImageExtensions.Contains(ext))
+                    var subName = Path.GetFileName(dir);
+                    if (subName.StartsWith(".")) continue;
+
+                    var subRel = string.IsNullOrEmpty(relativePath)
+                        ? subName
+                        : (relativePath.Replace('\\', '/') + "/" + subName);
+
+                    var childNode = CreateFolderNode(dir, subRel, subName, depth + 1);
+                    node.SubFolders.Add(childNode);
+                }
+
+                // 2. Non-image files in this directory
+                var files = Directory.GetFiles(fullPath);
+                foreach (var file in files.OrderBy(f => Path.GetFileName(f), StringComparer.OrdinalIgnoreCase))
+                {
+                    var fileName = Path.GetFileName(file);
+                    var ext = Path.GetExtension(file);
+
+                    if (ImageExtensions.Contains(ext)) continue;
+                    if (fileName.StartsWith(".")) continue;
+
+                    var fileRel = string.IsNullOrEmpty(relativePath)
+                        ? fileName
+                        : (relativePath.Replace('\\', '/') + "/" + fileName);
+
+                    var fileNode = new PackFolderItem
                     {
-                        hasChildren = true;
-                        break;
-                    }
+                        Name = fileName,
+                        RelativePath = fileRel,
+                        FullPath = file,
+                        IsDirectory = false,
+                        Depth = depth + 1,
+                        IsLoaded = true,
+                        IsMissing = false,
+                        TextureCount = 0,
+                        GhostCount = 0
+                    };
+
+                    node.SubFolders.Add(fileNode);
                 }
             }
         }
         catch { }
-
-        if (string.IsNullOrEmpty(relativePath))
-        {
-            hasChildren = true;
-        }
-
-        if (hasChildren)
-        {
-            node.SubFolders.Add(CreatePlaceholder());
-        }
-        else
-        {
-            node.IsLoaded = true;
-        }
 
         return node;
     }
@@ -1507,96 +1550,6 @@ public class MainViewModel : INotifyPropertyChanged
     {
         if (node.IsLoaded) return;
         node.IsLoaded = true;
-        node.SubFolders.Clear();
-
-        if (string.IsNullOrEmpty(node.FullPath) || !Directory.Exists(node.FullPath))
-            return;
-
-        try
-        {
-            // 1. Subdirectories
-            var subDirs = Directory.GetDirectories(node.FullPath);
-            foreach (var dir in subDirs.OrderBy(d => Path.GetFileName(d), StringComparer.OrdinalIgnoreCase))
-            {
-                var subName = Path.GetFileName(dir);
-                if (subName.StartsWith(".")) continue;
-
-                var subRel = string.IsNullOrEmpty(node.RelativePath)
-                    ? subName
-                    : (node.RelativePath + "/" + subName);
-
-                var childNode = CreateFolderNode(dir, subRel, subName, node.Depth + 1);
-                node.SubFolders.Add(childNode);
-
-                // Auto-expand textures folder under pack root for instant access
-                if (childNode.RelativePath.Equals("textures", StringComparison.OrdinalIgnoreCase))
-                {
-                    childNode.IsExpanded = true;
-                }
-            }
-
-            // 2. Non-image files in this directory (exclude images; keep PNGs truncated as is)
-            var files = Directory.GetFiles(node.FullPath);
-            bool foundManifest = false;
-            foreach (var file in files.OrderBy(f => Path.GetFileName(f), StringComparer.OrdinalIgnoreCase))
-            {
-                var fileName = Path.GetFileName(file);
-                var ext = Path.GetExtension(file);
-
-                if (ImageExtensions.Contains(ext)) continue;
-                if (fileName.StartsWith(".")) continue;
-
-                var fileRel = string.IsNullOrEmpty(node.RelativePath)
-                    ? fileName
-                    : (node.RelativePath + "/" + fileName);
-
-                if (string.IsNullOrEmpty(node.RelativePath) && fileName.Equals("manifest.json", StringComparison.OrdinalIgnoreCase))
-                {
-                    foundManifest = true;
-                }
-
-                var fileNode = new PackFolderItem
-                {
-                    Name = fileName,
-                    RelativePath = fileRel,
-                    FullPath = file,
-                    IsDirectory = false,
-                    Depth = node.Depth + 1,
-                    IsLoaded = true,
-                    IsMissing = false,
-                    TextureCount = 0,
-                    GhostCount = 0
-                };
-
-                node.SubFolders.Add(fileNode);
-            }
-
-            // If this is the root pack node and manifest.json is missing on disk, insert a missing manifest placeholder
-            if (string.IsNullOrEmpty(node.RelativePath) && !foundManifest && _packRoot != null)
-            {
-                var manifestPath = Path.Combine(_packRoot, "manifest.json");
-                var missingManifestNode = new PackFolderItem
-                {
-                    Name = "manifest.json",
-                    RelativePath = "manifest.json",
-                    FullPath = manifestPath,
-                    IsDirectory = false,
-                    Depth = node.Depth + 1,
-                    IsLoaded = true,
-                    IsMissing = true,
-                    TextureCount = 0,
-                    GhostCount = 0
-                };
-
-                int firstFileIdx = 0;
-                while (firstFileIdx < node.SubFolders.Count && node.SubFolders[firstFileIdx].IsDirectory)
-                {
-                    firstFileIdx++;
-                }
-                node.SubFolders.Insert(firstFileIdx, missingManifestNode);
-            }
-        }
-        catch { }
     }
 
     private static bool PathMatchesFolder(string itemRelPath, string folderRelPath, string folderPrefix)
@@ -2020,6 +1973,7 @@ public class MainViewModel : INotifyPropertyChanged
             OnPropertyChanged(nameof(TotalAddedCount));
             OnPropertyChanged(nameof(WindowTitle));
             FilteredAliases.Refresh();
+            TextureUpdated?.Invoke(alias);
         }
 
         OpenWithLauncher.Show(alias.FullPath);
@@ -2207,9 +2161,9 @@ public class MainViewModel : INotifyPropertyChanged
             {
                 if (node.SearchFilterKey.Contains(query, StringComparison.Ordinal))
                 {
-                    node.IsExpanded = true;
+                    node.IsExpanded = false;
                     foreach (var ag in node.AliasGroups)
-                        ag.IsExpanded = true;
+                        ag.IsExpanded = false;
                 }
             }
         }

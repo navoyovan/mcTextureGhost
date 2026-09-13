@@ -57,6 +57,13 @@ public class CatalogLeaf : INotifyPropertyChanged
     public required string RelativePath { get; init; }
     public required string FullPath { get; init; }
     public required TextureCategory Category { get; init; }
+    public VariantKind VariantKind { get; init; } = VariantKind.None;
+    public int? BlockVariantIndex { get; init; }
+    public int? TotalBlockVariants { get; init; }
+    public int? TextureVariantIndex { get; init; }
+    public int? TotalTextureVariants { get; init; }
+    public int? Weight { get; init; }
+    public string FileName => !string.IsNullOrEmpty(RelativePath) ? System.IO.Path.GetFileName(RelativePath) : DisplayName;
 
     private CatalogEntryStatus _status;
     public CatalogEntryStatus Status
@@ -243,6 +250,7 @@ public class BlockGroupNode : INotifyPropertyChanged
     public required string BlockId { get; init; }
     public required string DisplayName { get; init; }
     public required TextureCategory Category { get; init; }
+    public bool IsUserDefined { get; init; } = true;
 
     public ObservableCollection<AliasGroupNode> AliasGroups { get; } = new();
 
