@@ -2,9 +2,14 @@
 import React, { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { RotateCcw } from 'lucide-react';
+import { FlipbookDefinitionDto } from '../../types/ipc';
+import { flipbookCoordinator } from '../common/FlipbookThumbnail';
+import { resolveBlockShape } from '../../config/blockShapes';
+import { buildBlockMesh } from './blockGeometryBuilder';
 import styles from './Block3DViewer.module.css';
 
 interface Block3DViewerProps {
+  blockId?: string | null;
   faceTextures?: {
     up?: string | null;
     down?: string | null;
@@ -14,12 +19,25 @@ interface Block3DViewerProps {
     west?: string | null;
     all?: string | null;
   };
+  faceFlipbooks?: {
+    up?: FlipbookDefinitionDto | null;
+    down?: FlipbookDefinitionDto | null;
+    north?: FlipbookDefinitionDto | null;
+    south?: FlipbookDefinitionDto | null;
+    east?: FlipbookDefinitionDto | null;
+    west?: FlipbookDefinitionDto | null;
+    all?: FlipbookDefinitionDto | null;
+  };
 }
 
-export const Block3DViewer: React.FC<Block3DViewerProps> = ({ faceTextures = {} }) => {
+export const Block3DViewer: React.FC<Block3DViewerProps> = ({
+  blockId,
+  faceTextures = {},
+  faceFlipbooks = {},
+}) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const cubeRef = useRef<THREE.Mesh | null>(null);
+  const cubeRef = useRef<THREE.Object3D | null>(null);
 
   // Track rotation state
   const isDraggingRef = useRef(false);
@@ -46,28 +64,48 @@ export const Block3DViewer: React.FC<Block3DViewerProps> = ({ faceTextures = {} 
       });
       renderer.setSize(width, height);
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.outputColorSpace = THREE.SRGBColorSpace;
     } catch (e) {
       console.warn('[Block3DViewer] Failed to initialize WebGLRenderer:', e);
       return;
     }
 
-    // 3. Lighting
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.9);
+    // 3. Lighting: Minecraft isometric shading
+    // Top face is brightest (1.0), South/North faces slightly shaded (~0.8), East/West (~0.6), Bottom (~0.5)
+    // Using an ambient light base + directional light without blowing out or washing out color saturation
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
     scene.add(ambientLight);
 
-    const dirLight = new THREE.DirectionalLight(0xffffff, 1.1);
-    dirLight.position.set(5, 10, 7);
+    const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    dirLight.position.set(2, 4, 3);
     scene.add(dirLight);
 
-    // 4. Cube Materials with Nearest-Neighbor filtering
+    const shape = resolveBlockShape(blockId);
+
+    // 4. Materials with Nearest-Neighbor filtering
     const textureLoader = new THREE.TextureLoader();
 
-    const createMaterial = (url?: string | null) => {
+    interface AnimatedTex {
+      texture: THREE.Texture;
+      frameCount: number;
+      ticksPerFrame: number;
+      frames?: number[] | null;
+      lastFrame: number;
+    }
+
+    const animatedTextures: AnimatedTex[] = [];
+
+    const createMaterial = (
+      url?: string | null,
+      doubleSided?: boolean,
+      flipbook?: FlipbookDefinitionDto | null
+    ) => {
       if (!url) {
         return new THREE.MeshStandardMaterial({
           color: 0x3f3f46,
           roughness: 0.9,
           metalness: 0.05,
+          side: doubleSided ? THREE.DoubleSide : THREE.FrontSide,
         });
       }
 
@@ -75,21 +113,43 @@ export const Block3DViewer: React.FC<Block3DViewerProps> = ({ faceTextures = {} 
         roughness: 0.9,
         metalness: 0.05,
         color: 0x3f3f46,
+        transparent: true,
+        alphaTest: 0.05,
+        depthWrite: true,
+        side: doubleSided ? THREE.DoubleSide : THREE.FrontSide,
       });
 
       textureLoader.load(
         url,
         (tex) => {
+          tex.colorSpace = THREE.SRGBColorSpace;
           tex.magFilter = THREE.NearestFilter;
           tex.minFilter = THREE.NearestFilter;
           tex.generateMipmaps = false;
           const img = tex.image as HTMLImageElement | undefined;
           if (img && img.height > img.width && img.width > 0) {
             const frameCount = Math.floor(img.height / img.width);
-            tex.wrapS = THREE.RepeatWrapping;
-            tex.wrapT = THREE.RepeatWrapping;
-            tex.repeat.set(1, 1 / frameCount);
-            tex.offset.set(0, 1 - 1 / frameCount);
+            tex.wrapS = THREE.ClampToEdgeWrapping;
+            tex.wrapT = THREE.ClampToEdgeWrapping;
+
+            const inset = 0.05 / img.height;
+            const frameH = 1 / frameCount;
+
+            tex.repeat.set(1, frameH - 2 * inset);
+            tex.offset.set(0, 1 - frameH + inset);
+
+            if (frameCount > 1) {
+              animatedTextures.push({
+                texture: tex,
+                frameCount,
+                ticksPerFrame: Math.max(1, flipbook?.ticksPerFrame ?? 1),
+                frames: flipbook?.frames && flipbook.frames.length > 0 ? flipbook.frames : null,
+                lastFrame: 0,
+              });
+            }
+          } else {
+            tex.wrapS = THREE.ClampToEdgeWrapping;
+            tex.wrapT = THREE.ClampToEdgeWrapping;
           }
           tex.needsUpdate = true;
           mat.map = tex;
@@ -120,23 +180,33 @@ export const Block3DViewer: React.FC<Block3DViewerProps> = ({ faceTextures = {} 
     const eastTex = faceTextures.east || faceTextures.all;
     const westTex = faceTextures.west || faceTextures.all;
 
-    const materials: THREE.Material[] = [
-      createMaterial(eastTex),  // Right (+X)
-      createMaterial(westTex),  // Left (-X)
-      createMaterial(upTex),    // Top (+Y)
-      createMaterial(downTex),  // Bottom (-Y)
-      createMaterial(southTex), // Front (+Z)
-      createMaterial(northTex), // Back (-Z)
-    ];
+    const upFlip = faceFlipbooks.up || faceFlipbooks.all;
+    const downFlip = faceFlipbooks.down || faceFlipbooks.all;
+    const northFlip = faceFlipbooks.north || faceFlipbooks.all;
+    const southFlip = faceFlipbooks.south || faceFlipbooks.all;
+    const eastFlip = faceFlipbooks.east || faceFlipbooks.all;
+    const westFlip = faceFlipbooks.west || faceFlipbooks.all;
 
-    const geometry = new THREE.BoxGeometry(1, 1, 1);
-    const cube = new THREE.Mesh(geometry, materials);
-    scene.add(cube);
-    cubeRef.current = cube;
+    const faceMats = {
+      east: createMaterial(eastTex, false, eastFlip),
+      west: createMaterial(westTex, false, westFlip),
+      up: createMaterial(upTex, false, upFlip),
+      down: createMaterial(downTex, false, downFlip),
+      south: createMaterial(southTex, false, southFlip),
+      north: createMaterial(northTex, false, northFlip),
+    };
+
+    const primaryTex = southTex || upTex || eastTex || northTex || westTex || downTex;
+    const primaryFlip = southFlip || upFlip || eastFlip || northFlip || westFlip || downFlip;
+    const primaryMat = createMaterial(primaryTex, shape.doubleSided, primaryFlip);
+
+    const blockObj = buildBlockMesh(shape, faceMats, primaryMat);
+    scene.add(blockObj);
+    cubeRef.current = blockObj;
 
     // Initial default isometric orientation
     const initEuler = new THREE.Euler(Math.atan(1 / Math.SQRT2) * 0.5, Math.PI / 4, 0, 'YXZ');
-    cube.quaternion.setFromEuler(initEuler);
+    blockObj.quaternion.setFromEuler(initEuler);
 
     let isMounted = true;
 
@@ -164,24 +234,66 @@ export const Block3DViewer: React.FC<Block3DViewerProps> = ({ faceTextures = {} 
         renderer.setSize(w, h);
       } catch { }
     };
-    window.addEventListener('resize', handleResize);
+    let unsubscribeFlipbook: (() => void) | null = null;
+    if (flipbookCoordinator) {
+      unsubscribeFlipbook = flipbookCoordinator.subscribe((totalTicks: number) => {
+        if (!isMounted || animatedTextures.length === 0) return;
+        let didChange = false;
+
+        for (const item of animatedTextures) {
+          const { frameCount, ticksPerFrame, frames } = item;
+          const seqLen = frames && frames.length > 0 ? frames.length : frameCount;
+          const currentStep = Math.floor(totalTicks / ticksPerFrame);
+          const seqIdx = ((currentStep % seqLen) + seqLen) % seqLen;
+          const frameIndex = frames && frames.length > 0 ? (frames[seqIdx] ?? 0) : seqIdx;
+
+          if (frameIndex !== item.lastFrame) {
+            item.lastFrame = frameIndex;
+            const frameH = 1 / item.frameCount;
+            // WebGL Y-texture coordinates run bottom-to-top: frame 0 is at the top of the sprite
+            // Include halfTexel margin to prevent sampling border pixels from adjacent frames
+            const texImg = item.texture.image as HTMLImageElement | undefined;
+            const imgH = texImg?.height || (item.frameCount * 16);
+            const subPixel = 0.05 / imgH;
+
+            item.texture.offset.y = 1 - (frameIndex + 1) * frameH + subPixel;
+            item.texture.needsUpdate = true;
+            didChange = true;
+          }
+        }
+
+        if (didChange && isMounted) {
+          try {
+            renderer.render(scene, camera);
+          } catch { }
+        }
+      });
+    }
 
     return () => {
       isMounted = false;
+      if (unsubscribeFlipbook) unsubscribeFlipbook();
       cancelAnimationFrame(animId);
       window.removeEventListener('resize', handleResize);
-      materials.forEach((m) => {
-        const mat = m as any;
-        if (mat.map && typeof mat.map.dispose === 'function') {
-          mat.map.dispose();
-        }
-        if (typeof mat.dispose === 'function') {
-          mat.dispose();
+      blockObj.traverse((child) => {
+        if (child instanceof THREE.Mesh) {
+          if (child.geometry) {
+            child.geometry.dispose();
+          }
+          if (Array.isArray(child.material)) {
+            child.material.forEach((m) => {
+              if (m.map) m.map.dispose();
+              m.dispose();
+            });
+          } else if (child.material) {
+            if (child.material.map) child.material.map.dispose();
+            child.material.dispose();
+          }
         }
       });
       renderer.dispose();
     };
-  }, [faceTextures]);
+  }, [faceTextures, blockId]);
 
   // Project 2D client coordinates onto a virtual unit hemisphere (Trackball / Arcball)
   const projectToTrackballSphere = (clientX: number, clientY: number): THREE.Vector3 => {
