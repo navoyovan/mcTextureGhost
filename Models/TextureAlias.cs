@@ -157,6 +157,12 @@ public class TextureAlias : INotifyPropertyChanged
     /// <summary>True if this alias has an animated flipbook definition.</summary>
     public bool IsFlipbook => Flipbook != null;
 
+    /// <summary>Physical path to companion MERS/MER PBR texture map, if present on disk.</summary>
+    public string? MersFullPath { get; set; }
+
+    /// <summary>True if a companion MERS/MER texture exists on disk for this texture.</summary>
+    public bool HasMers => !string.IsNullOrEmpty(MersFullPath);
+
     /// <summary>Tooltip details for flipbook animated sprite sheets.</summary>
     public string? FlipbookTooltip
     {

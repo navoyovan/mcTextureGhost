@@ -176,6 +176,8 @@ export interface TextureAliasDto {
   flipbook?: FlipbookDefinitionDto | null;
   primaryFaceBadgeText: string;
   subtitleCaption: string;
+  hasMers?: boolean;
+  mersFullPath?: string | null;
   key?: string | null;
 }
 

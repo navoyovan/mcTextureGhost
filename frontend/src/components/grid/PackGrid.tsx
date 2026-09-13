@@ -1,6 +1,6 @@
 // frontend/src/components/grid/PackGrid.tsx
 import React, { useMemo, useState, useEffect, useRef } from 'react';
-import { MoreVertical, Edit3, Trash2, FileX } from 'lucide-react';
+import { MoreVertical, Edit3, Trash2, FileX, Sparkles } from 'lucide-react';
 import { usePackStore, pathMatchesFolder } from '../../store/packStore';
 import { useIpc } from '../../hooks/useIpc';
 import { TextureAliasDto } from '../../types/ipc';
@@ -162,6 +162,21 @@ export const PackGrid: React.FC = () => {
                       <span>Edit Texture</span>
                     </button>
 
+                    {alias.hasMers && alias.mersFullPath && (
+                      <button
+                        type="button"
+                        className={styles.menuItem}
+                        onClick={() => {
+                          setActiveMenuKey(null);
+                          editTexture(alias.alias + '_mers', alias.mersFullPath!, false);
+                        }}
+                        title={`Edit PBR MERS map: ${alias.mersFullPath}`}
+                      >
+                        <Sparkles size={13} className={styles.menuIcon} />
+                        <span>Edit MERS</span>
+                      </button>
+                    )}
+
                     <button
                       type="button"
                       className={`${styles.menuItem} ${styles.menuItemDanger}`}
@@ -220,6 +235,11 @@ export const PackGrid: React.FC = () => {
                       <span>{fileBase}</span>
                       <span className={styles.fileExt}>{fileExt}</span>
                     </span>
+                    {alias.hasMers && (
+                      <span className={styles.mersBadge} title={`PBR MERS layer exists: ${alias.mersFullPath}`}>
+                        MERS
+                      </span>
+                    )}
                     {alias.isFlipbook && (
                       <span className={styles.animBadge} title="Animated flipbook sprite-sheet">
                         ANIM

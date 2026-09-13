@@ -175,6 +175,22 @@ public static class PackScanner
             }
         }
 
+        // ─── 3. Discover and parse *.texture_set.json companion files ─────────────────
+        // PBR companion maps (metalness_emissive_roughness, heightmap/normal) referenced
+        // inside *.texture_set.json files are valid texture components, not orphan files.
+        foreach (var file in existingFiles)
+        {
+            if (file.EndsWith(".texture_set.json", StringComparison.OrdinalIgnoreCase))
+            {
+                matchedFiles.Add(file);
+                var referencedPbrFiles = ParseTextureSetJson(file, packRoot, existingFiles, texturesDirNormalized);
+                foreach (var pbrFile in referencedPbrFiles)
+                {
+                    matchedFiles.Add(pbrFile);
+                }
+            }
+        }
+
         // ─── Discover Orphan files (on disk under textures/, but not declared in JSON) ──
         foreach (var file in existingFiles)
         {
@@ -182,6 +198,43 @@ public static class PackScanner
 
             var ext = Path.GetExtension(file).ToLowerInvariant();
             if (ext != ".png" && ext != ".tga") continue;
+
+            var fileNameWithoutExt = Path.GetFileNameWithoutExtension(file);
+
+            // Filter out conventional PBR map files (_mer, _mers, _normal, _heightmap)
+            // if their companion texture set or base diffuse file is matched or present
+            bool isPbrSuffix = fileNameWithoutExt.EndsWith("_mer", StringComparison.OrdinalIgnoreCase) ||
+                               fileNameWithoutExt.EndsWith("_mers", StringComparison.OrdinalIgnoreCase) ||
+                               fileNameWithoutExt.EndsWith("_normal", StringComparison.OrdinalIgnoreCase) ||
+                               fileNameWithoutExt.EndsWith("_heightmap", StringComparison.OrdinalIgnoreCase);
+
+            if (isPbrSuffix)
+            {
+                var dir = Path.GetDirectoryName(file) ?? "";
+                string baseName = fileNameWithoutExt;
+                if (baseName.EndsWith("_mers", StringComparison.OrdinalIgnoreCase))
+                    baseName = baseName.Substring(0, baseName.Length - 5);
+                else if (baseName.EndsWith("_mer", StringComparison.OrdinalIgnoreCase))
+                    baseName = baseName.Substring(0, baseName.Length - 4);
+                else if (baseName.EndsWith("_normal", StringComparison.OrdinalIgnoreCase))
+                    baseName = baseName.Substring(0, baseName.Length - 7);
+                else if (baseName.EndsWith("_heightmap", StringComparison.OrdinalIgnoreCase))
+                    baseName = baseName.Substring(0, baseName.Length - 10);
+
+                var companionTextureSet = Path.GetFullPath(Path.Combine(dir, $"{baseName}.texture_set.json"));
+                var companionPng = Path.GetFullPath(Path.Combine(dir, $"{baseName}.png"));
+                var companionTga = Path.GetFullPath(Path.Combine(dir, $"{baseName}.tga"));
+
+                if (existingFiles.Contains(companionTextureSet) ||
+                    existingFiles.Contains(companionPng) ||
+                    existingFiles.Contains(companionTga) ||
+                    matchedFiles.Contains(companionPng) ||
+                    matchedFiles.Contains(companionTga))
+                {
+                    // This is a PBR companion layer for an existing texture, ignore as orphan
+                    continue;
+                }
+            }
 
             var relFromPack = file.StartsWith(packRoot, StringComparison.OrdinalIgnoreCase)
                 ? file.Substring(packRoot.Length).TrimStart('/', '\\').Replace('\\', '/')
@@ -191,8 +244,6 @@ public static class PackScanner
             var relNoExt = relFromPack.Length > ext.Length
                 ? relFromPack.Substring(0, relFromPack.Length - ext.Length)
                 : relFromPack;
-
-            var fileNameWithoutExt = Path.GetFileNameWithoutExtension(file);
 
             bool isItem = relFromPack.StartsWith("textures/items/", StringComparison.OrdinalIgnoreCase) ||
                           relFromPack.StartsWith("items/", StringComparison.OrdinalIgnoreCase);
@@ -337,6 +388,54 @@ public static class PackScanner
                             .ThenBy(r => r.BlockVariantIndex ?? 0)
                             .ThenBy(r => r.TextureVariantIndex ?? 0)
                             .ToList();
+
+        // Detect companion MERS/MER PBR texture for each tile
+        foreach (var item in sorted)
+        {
+            if (string.IsNullOrEmpty(item.FullPath)) continue;
+
+            var dir = Path.GetDirectoryName(item.FullPath) ?? "";
+            var fnWithoutExt = Path.GetFileNameWithoutExtension(item.FullPath);
+
+            // 1. Check companion texture_set.json
+            var tsPath = Path.Combine(dir, $"{fnWithoutExt}.texture_set.json");
+            if (existingFiles.Contains(tsPath))
+            {
+                var pbrFiles = ParseTextureSetJson(tsPath, packRoot, existingFiles, texturesDirNormalized);
+                var mersFile = pbrFiles.FirstOrDefault(p =>
+                {
+                    var name = Path.GetFileNameWithoutExtension(p);
+                    return name.EndsWith("_mers", StringComparison.OrdinalIgnoreCase) ||
+                           name.EndsWith("_mer", StringComparison.OrdinalIgnoreCase);
+                });
+                if (mersFile != null)
+                {
+                    item.MersFullPath = mersFile;
+                }
+            }
+
+            // 2. Direct naming convention check fallback (_mers.tga, _mers.png, _mer.tga, _mer.png)
+            if (string.IsNullOrEmpty(item.MersFullPath))
+            {
+                var candidates = new[]
+                {
+                    Path.Combine(dir, $"{fnWithoutExt}_mers.tga"),
+                    Path.Combine(dir, $"{fnWithoutExt}_mers.png"),
+                    Path.Combine(dir, $"{fnWithoutExt}_mer.tga"),
+                    Path.Combine(dir, $"{fnWithoutExt}_mer.png")
+                };
+
+                foreach (var cand in candidates)
+                {
+                    var fullCand = Path.GetFullPath(cand);
+                    if (existingFiles.Contains(fullCand))
+                    {
+                        item.MersFullPath = fullCand;
+                        break;
+                    }
+                }
+            }
+        }
 
         // Warm up search index on background thread so UI thread never pauses during indexing
         foreach (var item in sorted)
@@ -847,6 +946,84 @@ public static class PackScanner
 
         return catalog;
     }
+
+    /// <summary>
+    /// Parses a Bedrock *.texture_set.json file and extracts absolute filepaths
+    /// referenced by color, metalness_emissive_roughness, and heightmap.
+    /// </summary>
+    public static List<string> ParseTextureSetJson(
+        string textureSetFilePath,
+        string packRoot,
+        HashSet<string> existingFiles,
+        string? texturesDirNormalized)
+    {
+        var resolvedPaths = new List<string>();
+        if (!File.Exists(textureSetFilePath)) return resolvedPaths;
+
+        try
+        {
+            using var stream = File.OpenRead(textureSetFilePath);
+            using var doc = JsonDocument.Parse(stream, ScanDocOptions);
+
+            if (!doc.RootElement.TryGetProperty("minecraft:texture_set", out var textureSet) ||
+                textureSet.ValueKind != JsonValueKind.Object)
+            {
+                return resolvedPaths;
+            }
+
+            var dir = Path.GetDirectoryName(textureSetFilePath) ?? packRoot;
+
+            // Enumerate all properties in minecraft:texture_set dynamically (covers color,
+            // metalness_emissive_roughness, metalness_emissive_roughness_subsurface, heightmap, normal, etc.)
+            foreach (var prop in textureSet.EnumerateObject())
+            {
+                if (prop.Value.ValueKind == JsonValueKind.String)
+                {
+                    var relOrName = prop.Value.GetString();
+                    if (string.IsNullOrWhiteSpace(relOrName)) continue;
+
+                    var normName = relOrName.Trim().Replace('\\', '/').TrimStart('/');
+
+                    // Check relative to current directory of the texture_set.json file
+                    var candidatesInDir = new List<string>();
+                    if (Path.HasExtension(normName))
+                    {
+                        candidatesInDir.Add(Path.GetFullPath(Path.Combine(dir, normName)));
+                    }
+                    else
+                    {
+                        candidatesInDir.Add(Path.GetFullPath(Path.Combine(dir, normName + ".tga")));
+                        candidatesInDir.Add(Path.GetFullPath(Path.Combine(dir, normName + ".png")));
+                    }
+
+                    bool matchedInDir = false;
+                    foreach (var cand in candidatesInDir)
+                    {
+                        if (existingFiles.Contains(cand))
+                        {
+                            resolvedPaths.Add(cand);
+                            matchedInDir = true;
+                            break;
+                        }
+                    }
+
+                    if (matchedInDir) continue;
+
+                    // Try resolving via general ResolveTexture relative to packRoot (.png or .tga)
+                    var (fullPath, _, exists) = ResolveTexture(packRoot, normName, existingFiles, texturesDirNormalized, "blocks");
+                    if (exists)
+                    {
+                        resolvedPaths.Add(fullPath);
+                    }
+                }
+            }
+        }
+        catch { }
+
+        return resolvedPaths;
+    }
+
+
 
     /// <summary>
     /// Constructs a 3-level hierarchical catalog tree (Block -> AliasGroup -> Leaves)
