@@ -3,6 +3,7 @@ import {
   ChevronRight,
   ChevronDown,
   Folder,
+  Box,
   AlertTriangle,
   FileJson,
   FileText,
@@ -41,6 +42,15 @@ function renderNodeIcon(node: PackFolderItemDto, isSelected: boolean) {
     return <File size={16} className={iconClass} />;
   }
 
+  if (nameLower === 'blocks') {
+    return (
+      <Box
+        size={16}
+        className={isSelected ? styles.folderIconSelected : styles.folderIcon}
+      />
+    );
+  }
+
   return (
     <Folder
       size={16}
@@ -63,10 +73,7 @@ export const DirectoryTreeNode: React.FC<DirectoryTreeNodeProps> = ({
   onOpenManifest,
 }) => {
   const hasChildren = Boolean(node.subFolders && node.subFolders.length > 0);
-  const [isExpanded, setIsExpanded] = useState<boolean>(() => {
-    // Default expand top-level (depth 0) and 'textures' node
-    return (node.depth ?? 0) === 0 || node.name?.toLowerCase() === 'textures';
-  });
+  const [isExpanded, setIsExpanded] = useState<boolean>(false);
 
   const nodePath = (node.relativePath || node.name).replace(/\\/g, '/');
   const isSelected = Boolean(

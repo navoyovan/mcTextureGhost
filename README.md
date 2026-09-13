@@ -54,7 +54,7 @@ Sidebar tree of your pack's directory structure with live texture and ghost coun
 - [X] Context menu: block state formatting and deletion
 - [ ] Entity texture atlas and model texture mapping
 - [ ] UI and particle texture support
-- [ ] `.tga` format decoding and preview
+- [X] `.tga` format decoding and preview
 - [ ] Per-texture vanilla reference preview alongside stubs
 - [ ] Target Bedrock engine version selector
 

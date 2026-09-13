@@ -1,6 +1,6 @@
-// frontend/src/components/common/FlipbookThumbnail.tsx
 import React, { useEffect, useRef, useState } from 'react';
 import { FlipbookDefinitionDto } from '../../types/ipc';
+import { isTgaUrl, loadTgaAsDataUrl } from '../../utils/tgaDecoder';
 import styles from './FlipbookThumbnail.module.css';
 
 type RenderCallback = (totalTicks: number) => void;
@@ -97,12 +97,33 @@ export const FlipbookThumbnail: React.FC<FlipbookThumbnailProps> = ({
     progress: number;
   }>({ frameA: -1, frameB: -1, progress: -1 });
 
+  const [resolvedSrc, setResolvedSrc] = useState<string>(src);
+
+  // Resolve TGA if needed
+  useEffect(() => {
+    let active = true;
+    if (isTgaUrl(src)) {
+      loadTgaAsDataUrl(src)
+        .then((dataUrl) => {
+          if (active) setResolvedSrc(dataUrl);
+        })
+        .catch(() => {
+          if (active) setImageState((prev) => ({ ...prev, hasError: true }));
+        });
+    } else {
+      setResolvedSrc(src);
+    }
+    return () => {
+      active = false;
+    };
+  }, [src]);
+
   // Load and inspect image dimensions
   useEffect(() => {
     let active = true;
     const img = new Image();
     img.crossOrigin = 'anonymous';
-    img.src = src;
+    img.src = resolvedSrc;
 
     img.onload = () => {
       if (!active) return;
@@ -128,7 +149,7 @@ export const FlipbookThumbnail: React.FC<FlipbookThumbnailProps> = ({
     return () => {
       active = false;
     };
-  }, [src, isFlipbook]);
+  }, [resolvedSrc, isFlipbook]);
 
   // Handle animation loop subscription and frame drawing
   useEffect(() => {
@@ -149,6 +170,7 @@ export const FlipbookThumbnail: React.FC<FlipbookThumbnailProps> = ({
 
     const ticksPerFrame = Math.max(1, flipbook?.ticksPerFrame ?? 1);
     const blendFrames = flipbook?.blendFrames !== false;
+    const replicate = Math.max(1, flipbook?.replicate ?? 1);
     const seq = flipbook?.frames && flipbook.frames.length > 0 ? flipbook.frames : null;
     const seqLen = seq ? seq.length : frameCount;
 
@@ -158,17 +180,42 @@ export const FlipbookThumbnail: React.FC<FlipbookThumbnailProps> = ({
       const progress = stepFloat - currentStep;
 
       const idxA = ((currentStep % seqLen) + seqLen) % seqLen;
-      const frameA: number = (seq ? seq[idxA] : idxA) ?? 0;
+      const rawFrameA: number = (seq ? seq[idxA] : idxA) ?? 0;
+      const frameA = ((rawFrameA % frameCount) + frameCount) % frameCount;
+
+      const renderTiled = (frameIndex: number) => {
+        if (replicate === 1) {
+          ctx.drawImage(img, 0, frameIndex * frameWidth, frameWidth, frameWidth, 0, 0, frameWidth, frameWidth);
+        } else {
+          const subSize = frameWidth / replicate;
+          for (let rx = 0; rx < replicate; rx++) {
+            for (let ry = 0; ry < replicate; ry++) {
+              ctx.drawImage(
+                img,
+                0,
+                frameIndex * frameWidth,
+                frameWidth,
+                frameWidth,
+                rx * subSize,
+                ry * subSize,
+                subSize,
+                subSize
+              );
+            }
+          }
+        }
+      };
 
       if (!blendFrames) {
         if (lastRenderedRef.current.frameA === frameA) return;
         lastRenderedRef.current.frameA = frameA;
 
         ctx.clearRect(0, 0, frameWidth, frameWidth);
-        ctx.drawImage(img, 0, frameA * frameWidth, frameWidth, frameWidth, 0, 0, frameWidth, frameWidth);
+        renderTiled(frameA);
       } else {
         const idxB = (((currentStep + 1) % seqLen) + seqLen) % seqLen;
-        const frameB: number = (seq ? seq[idxB] : idxB) ?? 0;
+        const rawFrameB: number = (seq ? seq[idxB] : idxB) ?? 0;
+        const frameB = ((rawFrameB % frameCount) + frameCount) % frameCount;
 
         // Skip redraw if identical frame with zero progress change
         if (
@@ -183,11 +230,11 @@ export const FlipbookThumbnail: React.FC<FlipbookThumbnailProps> = ({
 
         ctx.clearRect(0, 0, frameWidth, frameWidth);
         ctx.globalAlpha = 1.0;
-        ctx.drawImage(img, 0, frameA * frameWidth, frameWidth, frameWidth, 0, 0, frameWidth, frameWidth);
+        renderTiled(frameA);
 
         if (frameA !== frameB && progress > 0.01) {
           ctx.globalAlpha = Math.min(1.0, Math.max(0.0, progress));
-          ctx.drawImage(img, 0, frameB * frameWidth, frameWidth, frameWidth, 0, 0, frameWidth, frameWidth);
+          renderTiled(frameB);
           ctx.globalAlpha = 1.0;
         }
       }
@@ -229,7 +276,7 @@ export const FlipbookThumbnail: React.FC<FlipbookThumbnailProps> = ({
   if (imageState.hasError) {
     return (
       <img
-        src={src}
+        src={resolvedSrc}
         alt={alt}
         className={`${styles.thumbnailImg} ${className || ''}`}
         loading={loading}
@@ -251,7 +298,7 @@ export const FlipbookThumbnail: React.FC<FlipbookThumbnailProps> = ({
 
   return (
     <img
-      src={src}
+      src={resolvedSrc}
       alt={alt}
       className={`${styles.thumbnailImg} ${className || ''}`}
       loading={loading}

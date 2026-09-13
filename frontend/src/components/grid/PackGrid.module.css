@@ -124,6 +124,20 @@
   margin-left: auto;
 }
 
+.mersBadge {
+  font-family: var(--font-pixel);
+  font-size: 7.5px;
+  line-height: 1;
+  padding: 2px 4px;
+  border-radius: 2px;
+  background: rgba(56, 189, 248, 0.25);
+  border: 1px solid rgba(56, 189, 248, 0.45);
+  color: #7dd3fc;
+  letter-spacing: 0.05em;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
 .tileTitle {
   font-family: var(--font-mono);
   font-size: 11px;
@@ -137,7 +151,7 @@
 }
 
 .fileExt {
-  font-size: 9.5px;
+  font-size: inherit;
   font-weight: 400;
   color: var(--text-dimmed, #71717a);
   opacity: 0.75;

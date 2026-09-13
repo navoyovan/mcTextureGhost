@@ -112,6 +112,9 @@ export const BlockWorkspace: React.FC = () => {
     const textures: Record<string, string | null> = {
       up: null, down: null, north: null, south: null, east: null, west: null, all: null,
     };
+    const flipbooks: Record<string, any> = {
+      up: null, down: null, north: null, south: null, east: null, west: null, all: null,
+    };
 
     for (const ag of selectedBlock.aliasGroups) {
       if (ag.faceNodes) {
@@ -121,20 +124,28 @@ export const BlockWorkspace: React.FC = () => {
           // Only pass real texture URLs for existing files; ghost/missing textures must not trigger 3D texture fetches
           if (firstLeaf && firstLeaf.status !== 'GHOST' && firstLeaf.imageUrl) {
             textures[label] = firstLeaf.imageUrl;
+            flipbooks[label] = firstLeaf.flipbook ?? null;
             if (label === 'side') {
               textures.north = textures.north ?? firstLeaf.imageUrl;
               textures.south = textures.south ?? firstLeaf.imageUrl;
               textures.east = textures.east ?? firstLeaf.imageUrl;
               textures.west = textures.west ?? firstLeaf.imageUrl;
+              flipbooks.north = flipbooks.north ?? firstLeaf.flipbook ?? null;
+              flipbooks.south = flipbooks.south ?? firstLeaf.flipbook ?? null;
+              flipbooks.east = flipbooks.east ?? firstLeaf.flipbook ?? null;
+              flipbooks.west = flipbooks.west ?? firstLeaf.flipbook ?? null;
             }
           }
         }
       } else if (ag.leaves && ag.leaves.length > 0) {
         const first = ag.leaves[0];
-        if (first && first.status !== 'GHOST' && first.imageUrl) textures.all = first.imageUrl;
+        if (first && first.status !== 'GHOST' && first.imageUrl) {
+          textures.all = first.imageUrl;
+          flipbooks.all = first.flipbook ?? null;
+        }
       }
     }
-    return textures;
+    return { textures, flipbooks };
   }, [selectedBlock]);
 
   const handleLeafClick = (leaf: CatalogLeafDto) => {
@@ -174,9 +185,12 @@ export const BlockWorkspace: React.FC = () => {
     };
 
     const rawFileName = getLeafTitle(primary);
-    const dotIdx = rawFileName.lastIndexOf('.');
-    const fileBase = dotIdx > 0 ? rawFileName.substring(0, dotIdx) : rawFileName;
-    const fileExt = dotIdx > 0 ? rawFileName.substring(dotIdx) : '.png';
+    const sourceForExt = primary.fullPath || primary.relativePath || primary.imageUrl || rawFileName;
+    const dotIdx = sourceForExt.lastIndexOf('.');
+    const cleanExt = dotIdx > 0 ? (sourceForExt.substring(dotIdx).split('?')[0] ?? '').split('#')[0] ?? '' : '';
+    const fileExt = cleanExt && cleanExt.length <= 5 ? cleanExt : '.png';
+    const rawDotIdx = rawFileName.lastIndexOf('.');
+    const fileBase = rawDotIdx > 0 ? rawFileName.substring(0, rawDotIdx) : rawFileName;
     const primaryFileName = `${fileBase}${fileExt}`;
 
     const blockVariantSuffix = primary.blockVariantIndex && primary.totalBlockVariants
@@ -416,7 +430,11 @@ export const BlockWorkspace: React.FC = () => {
           </div>
 
           <div className={styles.previewSection}>
-            <Block3DViewer faceTextures={faceTextures} />
+            <Block3DViewer
+              blockId={selectedBlock.blockId}
+              faceTextures={faceTextures.textures}
+              faceFlipbooks={faceTextures.flipbooks}
+            />
           </div>
 
           <div className={styles.hierarchySection}>

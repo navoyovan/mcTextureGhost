@@ -12,6 +12,8 @@ import {
   RotateCw,
   Layers,
   ArrowRight,
+  Box,
+  Package,
 } from 'lucide-react';
 import { usePackStore } from '../../store/packStore';
 import { useIpc } from '../../hooks/useIpc';
@@ -595,28 +597,52 @@ export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose })
         role="dialog"
         aria-label="Vanilla Catalog"
       >
-        {/* Floating Action Cluster: 2 connected buttons detached from the drawer on the left */}
+        {/* Floating Action Cluster: 3 connected buttons detached from drawer on left: All (top), Blocks, Items */}
         <div className={styles.floatingActionCluster}>
           <button
             type="button"
-            className={styles.floatingBtn}
-            title="Action 1"
-            aria-label="Action 1"
-            onClick={(e) => e.stopPropagation()}
+            className={`${styles.floatingBtn} ${categoryFilter === 'all' ? styles.floatingBtnActive : ''}`}
+            title="Show All"
+            aria-label="Show All"
+            onClick={(e) => {
+              e.stopPropagation();
+              setCategoryFilter('all');
+            }}
           >
-            <span className={styles.floatingBtnIcon}>✦</span>
-            <span className={styles.floatingBtnTooltip}>Action 1</span>
+            <span className={styles.floatingBtnText}>All</span>
+            <span className={styles.floatingBtnTooltip}>Show All</span>
           </button>
           <div className={styles.floatingBtnDivider} />
           <button
             type="button"
-            className={styles.floatingBtn}
-            title="Action 2"
-            aria-label="Action 2"
-            onClick={(e) => e.stopPropagation()}
+            className={`${styles.floatingBtn} ${categoryFilter === 'block' ? styles.floatingBtnActive : ''}`}
+            title="Filter Blocks"
+            aria-label="Filter Blocks"
+            onClick={(e) => {
+              e.stopPropagation();
+              setCategoryFilter((prev) => (prev === 'block' ? 'all' : 'block'));
+            }}
           >
-            <span className={styles.floatingBtnIcon}>❖</span>
-            <span className={styles.floatingBtnTooltip}>Action 2</span>
+            <span className={styles.floatingBtnIcon}>
+              <Box size={16} />
+            </span>
+            <span className={styles.floatingBtnTooltip}>Filter Blocks</span>
+          </button>
+          <div className={styles.floatingBtnDivider} />
+          <button
+            type="button"
+            className={`${styles.floatingBtn} ${categoryFilter === 'item' ? styles.floatingBtnActive : ''}`}
+            title="Filter Items"
+            aria-label="Filter Items"
+            onClick={(e) => {
+              e.stopPropagation();
+              setCategoryFilter((prev) => (prev === 'item' ? 'all' : 'item'));
+            }}
+          >
+            <span className={styles.floatingBtnIcon}>
+              <Package size={16} />
+            </span>
+            <span className={styles.floatingBtnTooltip}>Filter Items</span>
           </button>
         </div>
 
@@ -649,18 +675,25 @@ export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose })
             </div>
           </div>
 
-          <button
-            type="button"
-            className={styles.closeButton}
-            onClick={handleClose}
-            title="Close drawer (Esc)"
-            aria-label="Close catalog drawer"
-          >
-            <X size={15} />
-          </button>
+          <div className={styles.headerRightActions}>
+            <span className={styles.resultCountBadge} data-testid="result-count-badge">
+              {isSearching
+                ? `${visibleBlocks.length} / ${filteredBlocks.length}`
+                : `${visibleBlocks.length} / ${totalCatalogCount}`}
+            </span>
+            <button
+              type="button"
+              className={styles.closeButton}
+              onClick={handleClose}
+              title="Close drawer (Esc)"
+              aria-label="Close catalog drawer"
+            >
+              <X size={15} />
+            </button>
+          </div>
         </div>
 
-        {/* Search & Category Filter Toolbar */}
+        {/* Search Toolbar */}
         <div className={styles.searchToolbar}>
           <div className={styles.searchInputRow}>
             <Search size={14} className={styles.searchIcon} />
@@ -686,40 +719,6 @@ export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose })
             )}
           </div>
 
-          <div className={styles.filterControlsRow}>
-            <div className={styles.categoryToggleGroup} role="group" aria-label="Category filter">
-              <button
-                type="button"
-                className={`${styles.categoryToggleBtn} ${categoryFilter === 'all' ? styles.categoryToggleBtnActive : ''}`}
-                onClick={() => setCategoryFilter('all')}
-                data-testid="category-filter-all"
-              >
-                All
-              </button>
-              <button
-                type="button"
-                className={`${styles.categoryToggleBtn} ${categoryFilter === 'block' ? styles.categoryToggleBtnActive : ''}`}
-                onClick={() => setCategoryFilter('block')}
-                data-testid="category-filter-blocks"
-              >
-                Blocks
-              </button>
-              <button
-                type="button"
-                className={`${styles.categoryToggleBtn} ${categoryFilter === 'item' ? styles.categoryToggleBtnActive : ''}`}
-                onClick={() => setCategoryFilter('item')}
-                data-testid="category-filter-items"
-              >
-                Items
-              </button>
-            </div>
-
-            <span className={styles.resultCountBadge} data-testid="result-count-badge">
-              {isSearching
-                ? `SHOWING ${visibleBlocks.length} OF ${filteredBlocks.length}`
-                : `SHOWING ${visibleBlocks.length} OF ${totalCatalogCount}`}
-            </span>
-          </div>
         </div>
 
         {/* Scrollable Catalog Tree */}

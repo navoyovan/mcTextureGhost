@@ -22,7 +22,7 @@ Fast reference for day-to-day tasks. Consult this file first to conserve context
 - **Host $\rightarrow$ Web:** `MainViewModel` posts JSON string via `CoreWebView2.PostWebMessageAsString`.
 - **Web $\rightarrow$ Host:** React components post message via `window.chrome?.webview?.postMessage({ type, payload })`.
 - **Catalog Reference Switching (`CATALOG:*`):**
-  - `CATALOG:PICK_REFERENCE`: Open file/folder dialog to import a custom resource pack reference profile.
+  - `CATALOG:PICK_REFERENCE`: Open file/folder dialog to import a custom resource pack reference profile (UI entry currently deferred as "Coming Soon").
   - `CATALOG:SET_REFERENCE`: Switch active catalog profile (Vanilla vs Custom) with optimistic UI updates.
   - `CATALOG:REMOVE_REFERENCE`: Remove custom pack reference profile and revert to Vanilla.
 - **WebView2 Virtual Hosts:**

@@ -342,14 +342,27 @@ public sealed class IpcBridgeService : IIpcBridgeService
 
                 if (!File.Exists(fullPath) && !Path.HasExtension(fullPath))
                 {
-                    fullPath += ".png";
+                    if (File.Exists(fullPath + ".png"))
+                        fullPath += ".png";
+                    else if (File.Exists(fullPath + ".tga"))
+                        fullPath += ".tga";
+                    else
+                        fullPath += ".png";
                 }
 
                 // If still not found, check if it was missing the "textures" prefix
                 if (!File.Exists(fullPath) && !relPath.StartsWith("textures", StringComparison.OrdinalIgnoreCase))
                 {
                     var altPath = Path.Combine(targetFolder, "textures", relPath.Replace('/', Path.DirectorySeparatorChar));
-                    if (!Path.HasExtension(altPath)) altPath += ".png";
+                    if (!Path.HasExtension(altPath))
+                    {
+                        if (File.Exists(altPath + ".png"))
+                            altPath += ".png";
+                        else if (File.Exists(altPath + ".tga"))
+                            altPath += ".tga";
+                        else
+                            altPath += ".png";
+                    }
                     if (File.Exists(altPath)) fullPath = altPath;
                 }
 
