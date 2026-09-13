@@ -59,6 +59,9 @@ public static class IpcMessageTypes
     public const string TintSet          = "TINT:SET";
     public const string VanillaAdd       = "VANILLA:ADD";
     public const string VanillaLoadCatalog = "VANILLA:LOAD_CATALOG";
+    public const string CatalogPickReference = "CATALOG:PICK_REFERENCE";
+    public const string CatalogSetReference  = "CATALOG:SET_REFERENCE";
+    public const string CatalogRemoveReference = "CATALOG:REMOVE_REFERENCE";
     public const string OpenInExplorer   = "OPEN_IN_EXPLORER";
     public const string PackOpenExplorer = "PACK:OPEN_EXPLORER";
     public const string PackClose        = "PACK:CLOSE";
@@ -72,6 +75,7 @@ public static class IpcMessageTypes
     public const string TextureUpdated   = "TEXTURE:UPDATED";
     public const string AppConfig        = "APP:CONFIG";
     public const string ErrorNotify      = "ERROR:NOTIFY";
+    public const string CatalogReferencesUpdated = "CATALOG:REFERENCES_UPDATED";
 }
 
 #endregion
@@ -218,9 +222,40 @@ public record AddVanillaEntryPayload(
     [property: JsonPropertyName("category")] string? Category = null
 );
 
+/// <summary>
+/// Payload for "CATALOG:PICK_REFERENCE". Optional path or null to open folder dialog.
+/// </summary>
+public record CatalogPickReferencePayload(
+    [property: JsonPropertyName("folderPath")] string? FolderPath = null
+);
+
+/// <summary>
+/// Payload for "CATALOG:SET_REFERENCE". Selects active reference pack by Id.
+/// </summary>
+public record CatalogSetReferencePayload(
+    [property: JsonPropertyName("id")] string Id
+);
+
+/// <summary>
+/// Payload for "CATALOG:REMOVE_REFERENCE". Removes a custom reference pack by Id.
+/// </summary>
+public record CatalogRemoveReferencePayload(
+    [property: JsonPropertyName("id")] string Id
+);
+
 #endregion
 
 #region Outgoing Event Payloads (C# -> Web)
+
+public record ReferencePackProfileDto(
+    [property: JsonPropertyName("id")] string Id,
+    [property: JsonPropertyName("name")] string Name,
+    [property: JsonPropertyName("version")] string Version,
+    [property: JsonPropertyName("description")] string? Description,
+    [property: JsonPropertyName("packPath")] string? PackPath,
+    [property: JsonPropertyName("iconUrl")] string IconUrl,
+    [property: JsonPropertyName("isVanilla")] bool IsVanilla
+);
 
 /// <summary>
 /// Payload for "PACK:STATE_CHANGED". Pushed on pack open, reload, or structure change.
@@ -237,7 +272,9 @@ public record PackStatePayload(
     [property: JsonPropertyName("packFolders")] List<PackFolderItemDto> PackFolders,
     [property: JsonPropertyName("recentPacks")] List<RecentPackItemDto> RecentPacks,
     [property: JsonPropertyName("stats")] PackStatsDto Stats,
-    [property: JsonPropertyName("catalogTree")] List<BlockGroupNodeDto>? CatalogTree = null
+    [property: JsonPropertyName("catalogTree")] List<BlockGroupNodeDto>? CatalogTree = null,
+    [property: JsonPropertyName("referencePacks")] List<ReferencePackProfileDto>? ReferencePacks = null,
+    [property: JsonPropertyName("activeReferenceId")] string? ActiveReferenceId = null
 );
 
 /// <summary>
@@ -523,9 +560,26 @@ public static class IpcContractMapper
 
     public static CatalogLeafDto ToDto(this CatalogLeaf leaf, string? packRoot = null)
     {
-        var url = leaf.Status == CatalogEntryStatus.NotAdded
-            ? BuildVirtualVanillaUrl(leaf.RelativePath)
-            : BuildVirtualTextureUrl(leaf.RelativePath, leaf.FullPath, packRoot);
+        var activeProfile = CatalogReferenceService.GetActiveProfile();
+        string url;
+        if (leaf.Status == CatalogEntryStatus.NotAdded)
+        {
+            if (activeProfile != null && !activeProfile.IsVanilla)
+            {
+                var norm = leaf.RelativePath.Replace('\\', '/').TrimStart('/');
+                if (!norm.EndsWith(".png", StringComparison.OrdinalIgnoreCase) && !norm.EndsWith(".tga", StringComparison.OrdinalIgnoreCase))
+                    norm += ".png";
+                url = $"https://reference.local/{norm}";
+            }
+            else
+            {
+                url = BuildVirtualVanillaUrl(leaf.RelativePath);
+            }
+        }
+        else
+        {
+            url = BuildVirtualTextureUrl(leaf.RelativePath, leaf.FullPath, packRoot);
+        }
 
         return new CatalogLeafDto(
             Alias: leaf.Alias,

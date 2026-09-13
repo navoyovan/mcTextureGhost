@@ -104,6 +104,16 @@ export const PackGrid: React.FC = () => {
           {filteredAliases.map((alias, index) => {
             const isGhost = alias.status === 'GHOST';
             const uniqueKey = `${alias.category}:${alias.alias}:${alias.relativePath || ''}:${alias.textureVariantIndex ?? ''}:${alias.blockVariantIndex ?? ''}:${index}`;
+
+            // Always show file name including extension with lower visual weight on extension
+            const rawFileName = alias.relativePath
+              ? (alias.relativePath.split(/[/\\]/).pop() ?? alias.displayName ?? alias.alias)
+              : (alias.displayName ?? alias.alias);
+            const dotIdx = rawFileName.lastIndexOf('.');
+            const fileBase = dotIdx > 0 ? rawFileName.substring(0, dotIdx) : rawFileName;
+            const fileExt = dotIdx > 0 ? rawFileName.substring(dotIdx) : '.png';
+            const fullFileName = `${fileBase}${fileExt}`;
+
             return (
               <div
                 key={uniqueKey}
@@ -114,7 +124,7 @@ export const PackGrid: React.FC = () => {
                   e.stopPropagation();
                   setActiveMenuKey(uniqueKey);
                 }}
-                title={`${alias.displayName || alias.alias}\nStatus: ${alias.status}\nPath: ${alias.relativePath}`}
+                title={`${fullFileName}\nAlias: ${alias.alias}\nStatus: ${alias.status}\nPath: ${alias.relativePath}`}
               >
                 {/* 3-Dots Hover Menu Trigger */}
                 <button
@@ -182,7 +192,9 @@ export const PackGrid: React.FC = () => {
                 )}
 
                 {/* Thumbnail Container - 100% clean texture display without overlays */}
-                <div className={styles.tileThumbnailWrapper}>
+                <div
+                  className={`${styles.tileThumbnailWrapper} ${!isGhost ? styles.tileThumbnailAdded : ''}`}
+                >
                   {!isGhost && alias.imageUrl ? (
                     <FlipbookThumbnail
                       src={alias.imageUrl}
@@ -201,7 +213,10 @@ export const PackGrid: React.FC = () => {
                 <div className={styles.tileMeta}>
                   <div className={styles.tileHeaderRow}>
                     <span className={`${styles.statusDot} ${getStatusDotClass(alias.status)}`} />
-                    <span className={styles.tileTitle}>{alias.displayName || alias.alias}</span>
+                    <span className={styles.tileTitle} title={fullFileName}>
+                      <span>{fileBase}</span>
+                      <span className={styles.fileExt}>{fileExt}</span>
+                    </span>
                     {alias.isFlipbook && (
                       <span className={styles.animBadge} title="Animated flipbook sprite-sheet">
                         ANIM

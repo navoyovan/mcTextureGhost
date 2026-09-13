@@ -24,6 +24,9 @@ export const IpcMessageTypes = {
   TintSet: 'TINT:SET',
   VanillaAdd: 'VANILLA:ADD',
   VanillaLoadCatalog: 'VANILLA:LOAD_CATALOG',
+  CatalogPickReference: 'CATALOG:PICK_REFERENCE',
+  CatalogSetReference: 'CATALOG:SET_REFERENCE',
+  CatalogRemoveReference: 'CATALOG:REMOVE_REFERENCE',
   OpenInExplorer: 'OPEN_IN_EXPLORER',
   PackOpenExplorer: 'PACK:OPEN_EXPLORER',
   PackClose: 'PACK:CLOSE',
@@ -37,6 +40,7 @@ export const IpcMessageTypes = {
   TextureUpdated: 'TEXTURE:UPDATED',
   AppConfig: 'APP:CONFIG',
   ErrorNotify: 'ERROR:NOTIFY',
+  CatalogReferencesUpdated: 'CATALOG:REFERENCES_UPDATED',
 } as const;
 
 export type IpcMessageType = (typeof IpcMessageTypes)[keyof typeof IpcMessageTypes];
@@ -271,6 +275,16 @@ export interface ManifestModelDto {
   moduleVersion?: number[] | null;
 }
 
+export interface ReferencePackProfile {
+  id: string;
+  name: string;
+  version: string;
+  description?: string | null;
+  packPath?: string | null;
+  iconUrl: string;
+  isVanilla: boolean;
+}
+
 // C# -> Web Payloads
 export interface PackStatePayload {
   packRoot: string | null;
@@ -285,6 +299,8 @@ export interface PackStatePayload {
   recentPacks: RecentPackItemDto[];
   stats: PackStatsDto;
   catalogTree?: BlockGroupNodeDto[] | null;
+  referencePacks?: ReferencePackProfile[] | null;
+  activeReferenceId?: string | null;
 }
 
 export interface ScanProgressPayload {

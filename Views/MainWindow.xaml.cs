@@ -701,9 +701,10 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         // 17. VANILLA:LOAD_CATALOG
         _ipcBridge.RegisterHandler(IpcMessageTypes.VanillaLoadCatalog, async (payload, corrId) =>
         {
-            if (ViewModel.CatalogTree.Count == 0 && ViewModel.VanillaData != null)
+            var activeData = CatalogReferenceService.GetActiveData(ViewModel.VanillaData);
+            if (activeData != null)
             {
-                var cat = await Task.Run(() => PackScanner.BuildCatalogTree(ViewModel.Aliases.ToList(), ViewModel.VanillaData, ViewModel.PackRootPath));
+                var cat = await Task.Run(() => PackScanner.BuildCatalogTree(ViewModel.Aliases.ToList(), activeData, ViewModel.PackRootPath));
                 Dispatcher.Invoke(() =>
                 {
                     ViewModel.CatalogTree.Clear();
@@ -717,6 +718,127 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
             {
                 _ipcBridge.PushPackState(CreatePackStatePayload());
             });
+        });
+
+        // 18. CATALOG:PICK_REFERENCE
+        _ipcBridge.RegisterHandler<CatalogPickReferencePayload>(IpcMessageTypes.CatalogPickReference, async (payload, corrId) =>
+        {
+            await Dispatcher.InvokeAsync(async () =>
+            {
+                string? selectedFolder = payload?.FolderPath;
+                if (string.IsNullOrWhiteSpace(selectedFolder))
+                {
+                    // Open dialog allowing either folder picking or manifest.json picking
+                    var fileDlg = new Microsoft.Win32.OpenFileDialog
+                    {
+                        Title = "Select Reference Resource Pack (manifest.json or pack folder)",
+                        Filter = "Minecraft Pack Files (manifest.json;pack_icon.png)|manifest.json;pack_icon.png|All Files (*.*)|*.*",
+                        CheckFileExists = false,
+                        FileName = "Select Folder"
+                    };
+
+                    if (fileDlg.ShowDialog() == true)
+                    {
+                        var picked = fileDlg.FileName;
+                        selectedFolder = MainViewModel.ResolvePackFolder(picked)
+                                         ?? (Directory.Exists(picked) ? picked : Path.GetDirectoryName(picked));
+                    }
+                }
+
+                if (!string.IsNullOrWhiteSpace(selectedFolder))
+                {
+                    var resolved = MainViewModel.ResolvePackFolder(selectedFolder) ?? selectedFolder;
+                    if (Directory.Exists(resolved))
+                    {
+                        var added = CatalogReferenceService.AddCustomPack(resolved);
+                        if (added != null)
+                        {
+                            _ipcBridge.SetReferenceVirtualHost(added.PackPath);
+                            var activeData = CatalogReferenceService.GetActiveData(ViewModel.VanillaData);
+                            if (activeData != null)
+                            {
+                                var cat = await Task.Run(() => PackScanner.BuildCatalogTree(ViewModel.Aliases.ToList(), activeData, ViewModel.PackRootPath));
+                                ViewModel.CatalogTree.Clear();
+                                foreach (var node in cat)
+                                {
+                                    ViewModel.CatalogTree.Add(node);
+                                }
+                            }
+                        }
+                    }
+                }
+                _ipcBridge.PushPackState(CreatePackStatePayload());
+            });
+        });
+
+        // 19. CATALOG:SET_REFERENCE
+        _ipcBridge.RegisterHandler<CatalogSetReferencePayload>(IpcMessageTypes.CatalogSetReference, async (payload, corrId) =>
+        {
+            if (payload != null && !string.IsNullOrWhiteSpace(payload.Id))
+            {
+                await Dispatcher.InvokeAsync(async () =>
+                {
+                    if (CatalogReferenceService.SetActiveReference(payload.Id))
+                    {
+                        var active = CatalogReferenceService.GetActiveProfile();
+                        if (active != null && !active.IsVanilla)
+                        {
+                            _ipcBridge.SetReferenceVirtualHost(active.PackPath);
+                        }
+                        else
+                        {
+                            _ipcBridge.SetReferenceVirtualHost(null);
+                        }
+
+                        var activeData = CatalogReferenceService.GetActiveData(ViewModel.VanillaData);
+                        if (activeData != null)
+                        {
+                            var cat = await Task.Run(() => PackScanner.BuildCatalogTree(ViewModel.Aliases.ToList(), activeData, ViewModel.PackRootPath));
+                            ViewModel.CatalogTree.Clear();
+                            foreach (var node in cat)
+                            {
+                                ViewModel.CatalogTree.Add(node);
+                            }
+                        }
+                    }
+                    _ipcBridge.PushPackState(CreatePackStatePayload());
+                });
+            }
+        });
+
+        // 20. CATALOG:REMOVE_REFERENCE
+        _ipcBridge.RegisterHandler<CatalogRemoveReferencePayload>(IpcMessageTypes.CatalogRemoveReference, async (payload, corrId) =>
+        {
+            if (payload != null && !string.IsNullOrWhiteSpace(payload.Id))
+            {
+                await Dispatcher.InvokeAsync(async () =>
+                {
+                    if (CatalogReferenceService.RemoveCustomPack(payload.Id))
+                    {
+                        var active = CatalogReferenceService.GetActiveProfile();
+                        if (active != null && !active.IsVanilla)
+                        {
+                            _ipcBridge.SetReferenceVirtualHost(active.PackPath);
+                        }
+                        else
+                        {
+                            _ipcBridge.SetReferenceVirtualHost(null);
+                        }
+
+                        var activeData = CatalogReferenceService.GetActiveData(ViewModel.VanillaData);
+                        if (activeData != null)
+                        {
+                            var cat = await Task.Run(() => PackScanner.BuildCatalogTree(ViewModel.Aliases.ToList(), activeData, ViewModel.PackRootPath));
+                            ViewModel.CatalogTree.Clear();
+                            foreach (var node in cat)
+                            {
+                                ViewModel.CatalogTree.Add(node);
+                            }
+                        }
+                    }
+                    _ipcBridge.PushPackState(CreatePackStatePayload());
+                });
+            }
         });
     }
 
@@ -756,6 +878,16 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
 
     private PackStatePayload CreatePackStatePayload()
     {
+        var refProfiles = CatalogReferenceService.GetAllProfiles().Select(p => new ReferencePackProfileDto(
+            Id: p.Id,
+            Name: p.Name,
+            Version: p.Version,
+            Description: p.Description,
+            PackPath: p.PackPath,
+            IconUrl: p.IconUrl,
+            IsVanilla: p.IsVanilla
+        )).ToList();
+
         return new PackStatePayload(
             PackRoot: ViewModel.PackRootPath,
             PackName: ViewModel.PackName,
@@ -768,7 +900,9 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
             PackFolders: ViewModel.PackFolders.Select(f => f.ToDto()).ToList(),
             RecentPacks: ViewModel.RecentPacks.Select(r => r.ToDto(ViewModel.PackRootPath)).ToList(),
             Stats: ViewModel.ExtractStats(),
-            CatalogTree: ViewModel.CatalogTree.Select(c => c.ToDto(ViewModel.PackRootPath)).ToList()
+            CatalogTree: ViewModel.CatalogTree.Select(c => c.ToDto(ViewModel.PackRootPath)).ToList(),
+            ReferencePacks: refProfiles,
+            ActiveReferenceId: CatalogReferenceService.ActiveReferenceId
         );
     }
 

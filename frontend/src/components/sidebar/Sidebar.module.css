@@ -285,20 +285,172 @@
 }
 
 
+.catalogCardContainer {
+  position: relative;
+  display: flex;
+  margin: auto 12px 10px 12px;
+  width: calc(100% - 24px);
+  flex-shrink: 0;
+}
+
 .exploreCatalogCard {
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 8px 10px;
-  margin: auto 12px 10px 12px;
+  margin: 0;
   border-radius: 6px;
-  background: linear-gradient(135deg, rgba(139, 92, 246, 0.14) 0%, rgba(99, 102, 241, 0.08) 100%);
-  border: 1px solid rgba(139, 92, 246, 0.3);
+  background: rgba(26, 26, 34, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   cursor: pointer;
   text-align: left;
-  transition: background 0.15s, border-color 0.15s, transform 0.1s;
-  width: calc(100% - 24px);
+  transition: background 0.15s, border-color 0.15s, transform 0.1s, box-shadow 0.15s;
+  width: 100%;
   flex-shrink: 0;
+}
+
+/* Floating Buttons Stacked vertically above the Explore Catalog card (revealed on Hover) */
+.sidebarFloatingStack {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(6px);
+  transition: opacity 0.2s ease, transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  z-index: 1005;
+}
+
+.catalogCardContainer:hover .sidebarFloatingStack,
+.catalogCardContainerHovered .sidebarFloatingStack {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
+.sidebarFloatingCard {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  margin: 0;
+  border-radius: 6px;
+  background: rgba(18, 18, 24, 0.96);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s, border-color 0.15s, transform 0.1s, box-shadow 0.15s;
+  width: 100%;
+  flex-shrink: 0;
+}
+
+.sidebarFloatingCard:hover {
+  background: rgba(28, 28, 38, 0.98);
+  border-color: rgba(255, 255, 255, 0.2);
+  transform: translateY(-1px);
+}
+
+.sidebarFloatingCard:active {
+  transform: translateY(0) scale(0.98);
+}
+
+/* Selected Reference Card: only color the outline */
+.sidebarFloatingCardActive {
+  background: rgba(24, 22, 36, 0.98);
+  border: 1px solid #8b5cf6 !important;
+  box-shadow: 0 0 0 1px rgba(139, 92, 246, 0.35), 0 4px 16px rgba(0, 0, 0, 0.5);
+}
+
+.sidebarFloatingCardEmpty {
+  background: rgba(16, 16, 22, 0.85);
+  border: 1px dashed rgba(255, 255, 255, 0.16);
+}
+
+.sidebarFloatingCardEmpty:hover {
+  background: rgba(26, 26, 36, 0.95);
+  border-color: rgba(139, 92, 246, 0.5);
+}
+
+.customCardWrapper {
+  position: relative;
+  width: 100%;
+  display: flex;
+  align-items: center;
+}
+
+.removeReferenceBtn {
+  position: absolute;
+  right: -8px;
+  top: 50%;
+  transform: translateY(-50%) scale(0.85);
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: rgba(30, 30, 38, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #a1a1aa;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease, transform 0.15s ease, background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  z-index: 1010;
+}
+
+.customCardWrapper:hover .removeReferenceBtn {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(-50%) scale(1);
+}
+
+.removeReferenceBtn:hover {
+  background: rgba(239, 68, 68, 0.25);
+  border-color: rgba(239, 68, 68, 0.7);
+  color: #fca5a5;
+  transform: translateY(-50%) scale(1.1);
+}
+
+.removeReferenceBtn:active {
+  transform: translateY(-50%) scale(0.95);
+}
+
+.floatingCardIconWrapper {
+  width: 28px;
+  height: 28px;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #c4b5fd;
+  flex-shrink: 0;
+  font-size: 13px;
+}
+
+.floatingCardEmptyIconWrapper {
+  width: 28px;
+  height: 28px;
+  border-radius: 5px;
+  background: rgba(139, 92, 246, 0.15);
+  border: 1px dashed rgba(139, 92, 246, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #c4b5fd;
+  flex-shrink: 0;
+  font-size: 15px;
+  font-weight: 700;
 }
 
 .exploreCatalogCard:hover {
@@ -321,6 +473,15 @@
   justify-content: center;
   color: #c4b5fd;
   flex-shrink: 0;
+  overflow: hidden;
+}
+
+.catalogCardPackImg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
 }
 
 .catalogCardMeta {
@@ -337,10 +498,100 @@
   color: #ffffff;
 }
 
+.referenceVersionBadge {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-weight: 700;
+  color: #e4e4e7;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  padding: 1px 5px;
+  border-radius: 4px;
+  line-height: 1.1;
+  letter-spacing: 0.02em;
+}
+
 .catalogCardSubtitle {
   font-size: 10px;
   color: #a1a1aa;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* Floating Reference Picker Popover attached to the hover button */
+.floatingPickerMenu {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  width: 100%;
+  min-width: 230px;
+  background: rgba(18, 18, 24, 0.98);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 8px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.65);
+  padding: 5px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  z-index: 1060;
+}
+
+.floatingPickerItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 5px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-primary, #f4f4f5);
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s ease;
+  width: 100%;
+}
+
+.floatingPickerItem:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.floatingPickerItemActive {
+  background: rgba(139, 92, 246, 0.2);
+  border-color: rgba(139, 92, 246, 0.4);
+}
+
+.floatingPickerIcon {
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  object-fit: cover;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  flex-shrink: 0;
+}
+
+.floatingPickerMeta {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  flex: 1;
+}
+
+.floatingPickerName {
+  font-family: var(--font-brand);
+  font-size: 11px;
+  font-weight: 700;
+  color: #f4f4f5;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.floatingPickerVer {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--text-muted, #71717a);
 }

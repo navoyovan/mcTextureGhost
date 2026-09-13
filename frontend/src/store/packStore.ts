@@ -10,6 +10,7 @@ import {
   ManifestModelDto,
   ScanProgressPayload,
   AppConfigPayload,
+  ReferencePackProfile,
 } from '../types/ipc';
 
 export interface PackStoreState {
@@ -40,6 +41,8 @@ export interface PackStoreState {
   selectedFolderPath: string | null;
   isCatalogOpen: boolean;
   catalogTree: BlockGroupNodeDto[] | null;
+  referencePacks: ReferencePackProfile[];
+  activeReferenceId: string;
   /** Tile thumbnail size in px: 80 | 120 | 160 | 200 */
   tileZoom: number;
 
@@ -66,6 +69,8 @@ export interface PackStoreActions {
   setIsCatalogOpen: (open: boolean) => void;
   toggleCatalog: () => void;
   setCatalogTree: (tree: BlockGroupNodeDto[] | null) => void;
+  setReferencePacks: (packs: ReferencePackProfile[]) => void;
+  setActiveReferenceId: (id: string) => void;
   setTileZoom: (zoom: number) => void;
   setAppConfig: (config: Partial<AppConfigPayload>) => void;
 }
@@ -112,6 +117,17 @@ const initialState: PackStoreState = {
   selectedFolderPath: null,
   isCatalogOpen: false,
   catalogTree: null,
+  referencePacks: [
+    {
+      id: 'vanilla',
+      name: 'Vanilla Bedrock',
+      version: '1.21.x',
+      description: 'Mojang bedrock-samples official reference database',
+      iconUrl: 'https://vanilla.local/pack_icon.png',
+      isVanilla: true,
+    },
+  ],
+  activeReferenceId: 'vanilla',
   tileZoom: 120,
 
   tintOpacity: 85,
@@ -176,6 +192,8 @@ export const packStoreActions: PackStoreActions = {
       packFolders: Array.isArray(dto.packFolders) ? dto.packFolders : currentState.packFolders,
       recentPacks: Array.isArray(dto.recentPacks) ? dto.recentPacks : currentState.recentPacks,
       catalogTree: dto.catalogTree !== undefined ? dto.catalogTree : currentState.catalogTree,
+      referencePacks: Array.isArray(dto.referencePacks) && dto.referencePacks.length > 0 ? dto.referencePacks : currentState.referencePacks,
+      activeReferenceId: dto.activeReferenceId ?? currentState.activeReferenceId,
       selectedFolderPath: dto.packRoot !== undefined && dto.packRoot !== currentState.packRoot ? null : currentState.selectedFolderPath,
       stats,
       isScanning: false,
@@ -279,6 +297,16 @@ export const packStoreActions: PackStoreActions = {
 
   setCatalogTree(tree: BlockGroupNodeDto[] | null): void {
     currentState = { ...currentState, catalogTree: tree };
+    notify();
+  },
+
+  setReferencePacks(packs: ReferencePackProfile[]): void {
+    currentState = { ...currentState, referencePacks: packs };
+    notify();
+  },
+
+  setActiveReferenceId(id: string): void {
+    currentState = { ...currentState, activeReferenceId: id };
     notify();
   },
 

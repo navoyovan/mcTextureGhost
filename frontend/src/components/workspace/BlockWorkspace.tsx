@@ -165,7 +165,7 @@ export const BlockWorkspace: React.FC = () => {
     const numVariations = leaves.length;
     const hasTexVariants = numVariations > 1;
 
-    // Display title: use file name or variant caption
+    // Display title: use file name or variant caption with separate base and extension
     const getLeafTitle = (l: CatalogLeafDto) => {
       if (l.relativePath) {
         return l.relativePath.split(/[/\\]/).pop() ?? l.displayName ?? alias;
@@ -173,7 +173,11 @@ export const BlockWorkspace: React.FC = () => {
       return l.displayName ?? alias;
     };
 
-    const primaryFileName = getLeafTitle(primary);
+    const rawFileName = getLeafTitle(primary);
+    const dotIdx = rawFileName.lastIndexOf('.');
+    const fileBase = dotIdx > 0 ? rawFileName.substring(0, dotIdx) : rawFileName;
+    const fileExt = dotIdx > 0 ? rawFileName.substring(dotIdx) : '.png';
+    const primaryFileName = `${fileBase}${fileExt}`;
 
     const blockVariantSuffix = primary.blockVariantIndex && primary.totalBlockVariants
       ? ` (block state ${primary.blockVariantIndex}/${primary.totalBlockVariants})`
@@ -285,17 +289,20 @@ export const BlockWorkspace: React.FC = () => {
         )}
 
         {/* Thumbnail area: single thumb or side-by-side texture variations */}
-        <div className={hasTexVariants ? styles.texVariantThumbRow : styles.leafThumbWrapper}>
+        <div
+          className={`${hasTexVariants ? styles.texVariantThumbRow : styles.leafThumbWrapper} ${!isGhost ? styles.leafThumbWrapperAdded : ''}`}
+        >
           {leaves.map((leaf, i) => {
             const leafName = getLeafTitle(leaf);
+            const isLeafGhost = leaf.status === 'GHOST';
             return (
               <div
                 key={`${leaf.relativePath}-${i}`}
-                className={hasTexVariants ? styles.texVarThumbSlot : styles.leafThumbInner}
+                className={`${hasTexVariants ? styles.texVarThumbSlot : styles.leafThumbInner} ${!isLeafGhost ? styles.texVarThumbSlotAdded : ''}`}
                 onClick={() => handleLeafClick(leaf)}
                 title={leafName}
               >
-                {leaf.status !== 'GHOST' && leaf.imageUrl ? (
+                {!isLeafGhost && leaf.imageUrl ? (
                   <FlipbookThumbnail
                     src={leaf.imageUrl}
                     alt={leafName}
@@ -317,7 +324,8 @@ export const BlockWorkspace: React.FC = () => {
           <div className={styles.leafHeaderRow}>
             <span className={`${styles.leafStatusDot} ${getStatusDotClass(primary.status)}`} />
             <span className={styles.leafName} title={primaryFileName}>
-              {primaryFileName}
+              <span>{fileBase}</span>
+              <span className={styles.fileExt}>{fileExt}</span>
             </span>
             {hasTexVariants && (
               <span className={styles.variantCountBadge}>

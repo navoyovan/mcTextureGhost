@@ -50,6 +50,9 @@ public interface IIpcBridgeService : IDisposable
     /// <summary>Maps the virtual host "https://vanilla.local/" to the vanilla reference cache directory.</summary>
     void SetVanillaVirtualHost(string? vanillaCacheDir = null);
 
+    /// <summary>Maps the virtual host "https://reference.local/" to a custom reference pack folder.</summary>
+    void SetReferenceVirtualHost(string? referencePackPath);
+
     /// <summary>Maps the virtual host "https://app.local/" to the production frontend bundle directory.</summary>
     void SetAppVirtualHost(string distPath);
 
@@ -243,6 +246,44 @@ public sealed class IpcBridgeService : IIpcBridgeService
         catch (Exception ex)
         {
             RaiseError("Virtual Host Error", $"Failed to map vanilla.local: {ex.Message}", ex);
+        }
+    }
+
+    public void SetReferenceVirtualHost(string? referencePackPath)
+    {
+        if (_coreWebView2 == null || _dispatcher == null) return;
+
+        if (!_dispatcher.CheckAccess())
+        {
+            _dispatcher.Invoke(() => SetReferenceVirtualHost(referencePackPath));
+            return;
+        }
+
+        try
+        {
+            try
+            {
+                _coreWebView2.ClearVirtualHostNameToFolderMapping("reference.local");
+            }
+            catch { /* Ignore if not mapped */ }
+
+            if (!string.IsNullOrWhiteSpace(referencePackPath) && Directory.Exists(referencePackPath))
+            {
+                _coreWebView2.SetVirtualHostNameToFolderMapping(
+                    "reference.local",
+                    Path.GetFullPath(referencePackPath),
+                    CoreWebView2HostResourceAccessKind.Allow
+                );
+                Debug.WriteLine($"[IPC Bridge] Mapped 'https://reference.local/' to '{referencePackPath}'");
+            }
+            else
+            {
+                Debug.WriteLine("[IPC Bridge] Cleared mapping for 'reference.local'");
+            }
+        }
+        catch (Exception ex)
+        {
+            RaiseError("Virtual Host Error", $"Failed to map reference.local: {ex.Message}", ex);
         }
     }
 

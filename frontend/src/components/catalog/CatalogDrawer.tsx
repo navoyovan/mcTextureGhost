@@ -32,10 +32,34 @@ export interface CatalogDrawerProps {
 const LeafThumbnail: React.FC<{ leaf: CatalogLeafDto }> = ({ leaf }) => {
   const [hasError, setHasError] = useState(false);
   const src = leaf.imageUrl;
+  // Vanilla reference textures and ghost textures do not exist as image files on disk yet.
+  // Only attempt loading when status is not GHOST/VANILLA, not vanilla.local, and valid file exists.
+  const canLoadImage =
+    !hasError &&
+    Boolean(src) &&
+    leaf.status !== 'GHOST' &&
+    leaf.status !== 'VANILLA' &&
+    !src.includes('vanilla.local');
+
+  const getFallbackStatusClass = (status: string) => {
+    switch (status) {
+      case 'OK':
+        return styles.leafThumbFallbackOk;
+      case 'GHOST':
+        return styles.leafThumbFallbackGhost;
+      case 'OVERRIDE':
+        return styles.leafThumbFallbackOverride;
+      case 'ORPHAN':
+        return styles.leafThumbFallbackOrphan;
+      case 'VANILLA':
+      default:
+        return styles.leafThumbFallbackVanilla;
+    }
+  };
 
   return (
     <div className={styles.leafThumbWrapper}>
-      {!hasError && src && !src.includes('vanilla.local') ? (
+      {canLoadImage ? (
         <FlipbookThumbnail
           src={src}
           alt={leaf.alias}
@@ -46,7 +70,9 @@ const LeafThumbnail: React.FC<{ leaf: CatalogLeafDto }> = ({ leaf }) => {
           loading="lazy"
         />
       ) : (
-        <span className={styles.leafThumbFallback}>?</span>
+        <span className={`${styles.leafThumbFallback} ${getFallbackStatusClass(leaf.status)}`}>
+          ?
+        </span>
       )}
     </div>
   );
@@ -58,40 +84,22 @@ const LeafThumbnail: React.FC<{ leaf: CatalogLeafDto }> = ({ leaf }) => {
 const CatalogLeafRow: React.FC<{
   leaf: CatalogLeafDto;
   blockDisplayName?: string;
-  category?: string;
-  onAdd?: (id: string, category: string) => void;
-}> = ({ leaf, blockDisplayName, category = 'block', onAdd }) => {
+}> = ({ leaf, blockDisplayName }) => {
   const isAdded = leaf.status !== 'VANILLA';
 
-  const getStatusClass = (status: string) => {
+  const getCheckStatusClass = (status: string) => {
     switch (status) {
       case 'OK':
-        return styles.statusOk;
+        return styles.leafCheckOk;
       case 'GHOST':
-        return styles.statusGhost;
+        return styles.leafCheckGhost;
       case 'OVERRIDE':
-        return styles.statusOverride;
+        return styles.leafCheckOverride;
       case 'ORPHAN':
-        return styles.statusOrphan;
+        return styles.leafCheckOrphan;
       case 'VANILLA':
       default:
-        return styles.statusVanilla;
-    }
-  };
-
-  const getStatusDotClass = (status: string) => {
-    switch (status) {
-      case 'OK':
-        return styles.statusDotOk;
-      case 'GHOST':
-        return styles.statusDotGhost;
-      case 'ORPHAN':
-        return styles.statusDotOrphan;
-      case 'OVERRIDE':
-        return styles.statusDotOverride;
-      case 'VANILLA':
-      default:
-        return styles.statusDotNew;
+        return styles.leafCheckGhost;
     }
   };
 
@@ -120,21 +128,12 @@ const CatalogLeafRow: React.FC<{
         <LeafThumbnail leaf={leaf} />
         <div className={styles.leafMeta}>
           <div className={styles.leafHeaderRow}>
-            <span className={`${styles.leafStatusDot} ${getStatusDotClass(leaf.status)}`} />
             <span className={styles.leafName} title={fileName}>
               {fileName}
             </span>
             {leaf.totalTextureVariants && leaf.totalTextureVariants > 1 && (
               <span className={styles.variantCountBadge}>
                 {leaf.totalTextureVariants}v
-              </span>
-            )}
-            {leaf.blockVariantIndex && (
-              <span
-                className={styles.blockVariantBadge}
-                title={`Block variant ${leaf.blockVariantIndex} of ${leaf.totalBlockVariants ?? '?'}`}
-              >
-                #{leaf.blockVariantIndex}
               </span>
             )}
             {leaf.isFlipbook && (
@@ -157,28 +156,14 @@ const CatalogLeafRow: React.FC<{
       </div>
 
       <div className={styles.leafRight}>
-        {isAdded ? (
-          <>
-            <span
-              className={`${styles.statusPill} ${getStatusClass(leaf.status)}`}
-              data-testid={`status-pill-${leaf.status.toLowerCase()}`}
-            >
-              {leaf.status === 'GHOST' ? '👻 GHOST' : leaf.status}
-            </span>
-            <span className={styles.addedBadge} title="This texture is already in your pack">
-              ✓ Added
-            </span>
-          </>
-        ) : (
-          <button
-            type="button"
-            className={styles.addLeafBtn}
-            onClick={() => onAdd?.(leaf.alias, leaf.category || category)}
-            title={`Add alias '${leaf.alias}' to pack`}
-            aria-label={`Add ${leaf.alias}`}
+        {isAdded && (
+          <span
+            className={`${styles.leafAddedCheck} ${getCheckStatusClass(leaf.status)}`}
+            title={`Added (${leaf.status})`}
+            aria-label={`Added (${leaf.status})`}
           >
-            + Add
-          </button>
+            ✓
+          </span>
         )}
       </div>
     </div>
@@ -247,8 +232,6 @@ const CatalogAliasGroup: React.FC<{
               key={`${leaf.relativePath || aliasGroup.alias}:${leaf.blockVariantIndex ?? ''}:${leaf.textureVariantIndex ?? ''}:${index}`}
               leaf={leaf}
               blockDisplayName={blockDisplayName}
-              category={aliasGroup.category || category}
-              onAdd={onAdd}
             />
           ))}
         </div>
@@ -383,6 +366,8 @@ const CatalogBlockGroup: React.FC<{
 export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose }) => {
   const catalogTree = usePackStore((s) => s.catalogTree);
   const blockWorkspaceTree = usePackStore((s) => s.blockWorkspaceTree);
+  const referencePacks = usePackStore((s) => s.referencePacks);
+  const activeReferenceId = usePackStore((s) => s.activeReferenceId);
   const { postCommand, loadCatalog } = useIpc();
 
   const [searchText, setSearchText] = useState('');
@@ -392,6 +377,17 @@ export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose })
   const overlayRef = useRef<HTMLDivElement | null>(null);
   const drawerRef = useRef<HTMLElement | null>(null);
   const animationRef = useRef<gsap.core.Timeline | null>(null);
+
+  const activeReference = useMemo(() => {
+    return referencePacks?.find((p) => p.id === activeReferenceId) || referencePacks?.[0] || {
+      id: 'vanilla',
+      name: 'Vanilla Bedrock',
+      version: '1.21.x',
+      description: 'Mojang bedrock-samples official reference database',
+      iconUrl: 'https://vanilla.local/pack_icon.png',
+      isVanilla: true,
+    };
+  }, [referencePacks, activeReferenceId]);
 
   const isBlockInWorkspace = useCallback(
     (blockId: string): boolean => {
@@ -597,18 +593,58 @@ export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose })
         onClick={(e) => e.stopPropagation()}
         data-testid="catalog-drawer"
         role="dialog"
-        aria-label="Vanilla Bedrock Reference Catalog"
+        aria-label="Vanilla Catalog"
       >
+        {/* Floating Action Cluster: 2 connected buttons detached from the drawer on the left */}
+        <div className={styles.floatingActionCluster}>
+          <button
+            type="button"
+            className={styles.floatingBtn}
+            title="Action 1"
+            aria-label="Action 1"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <span className={styles.floatingBtnIcon}>✦</span>
+            <span className={styles.floatingBtnTooltip}>Action 1</span>
+          </button>
+          <div className={styles.floatingBtnDivider} />
+          <button
+            type="button"
+            className={styles.floatingBtn}
+            title="Action 2"
+            aria-label="Action 2"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <span className={styles.floatingBtnIcon}>❖</span>
+            <span className={styles.floatingBtnTooltip}>Action 2</span>
+          </button>
+        </div>
+
         {/* Drawer Header */}
         <div className={styles.drawerHeader}>
           <div className={styles.headerTitleGroup}>
             <div className={styles.headerIconBadge}>
-              <BookOpen size={17} />
+              {activeReference.iconUrl ? (
+                <img
+                  src={activeReference.iconUrl}
+                  alt={activeReference.name}
+                  style={{ width: '100%', height: '100%', borderRadius: 4, objectFit: 'cover', imageRendering: 'pixelated' }}
+                  onError={(e) => {
+                    // Fallback to vanilla icon on error
+                    (e.currentTarget as HTMLImageElement).src = 'https://vanilla.local/pack_icon.png';
+                  }}
+                />
+              ) : (
+                <BookOpen size={17} />
+              )}
             </div>
             <div className={styles.headerTextGroup}>
-              <h2 className={styles.headerTitle}>Vanilla Bedrock Reference Catalog</h2>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <h2 className={styles.headerTitle}>{activeReference.name}</h2>
+                <span className={styles.versionBadge}>{activeReference.version}</span>
+              </div>
               <span className={styles.headerSubtitle}>
-                Mojang bedrock-samples offline reference database
+                {activeReference.description || (activeReference.isVanilla ? 'Mojang bedrock-samples offline reference database' : 'Custom local resource pack reference')}
               </span>
             </div>
           </div>

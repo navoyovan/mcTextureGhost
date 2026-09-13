@@ -23,7 +23,6 @@ export const Block3DViewer: React.FC<Block3DViewerProps> = ({ faceTextures = {} 
 
   // Track rotation state
   const isDraggingRef = useRef(false);
-  const prevMousePos = useRef({ x: 0, y: 0 });
 
   useEffect(() => {
     if (!containerRef.current || !canvasRef.current) return;
@@ -37,14 +36,20 @@ export const Block3DViewer: React.FC<Block3DViewerProps> = ({ faceTextures = {} 
     camera.position.set(2.2, 1.8, 2.2);
     camera.lookAt(0, 0, 0);
 
-    // 2. Renderer
-    const renderer = new THREE.WebGLRenderer({
-      canvas: canvasRef.current,
-      alpha: true,
-      antialias: true,
-    });
-    renderer.setSize(width, height);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    let renderer: THREE.WebGLRenderer;
+    try {
+      renderer = new THREE.WebGLRenderer({
+        canvas: canvasRef.current,
+        alpha: true,
+        antialias: true,
+        powerPreference: 'default',
+      });
+      renderer.setSize(width, height);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    } catch (e) {
+      console.warn('[Block3DViewer] Failed to initialize WebGLRenderer:', e);
+      return;
+    }
 
     // 3. Lighting
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.9);
@@ -90,7 +95,11 @@ export const Block3DViewer: React.FC<Block3DViewerProps> = ({ faceTextures = {} 
           mat.map = tex;
           mat.color.setHex(0xffffff);
           mat.needsUpdate = true;
-          renderer.render(scene, camera);
+          if (isMounted) {
+            try {
+              renderer.render(scene, camera);
+            } catch { }
+          }
         },
         undefined,
         () => {
@@ -125,54 +134,105 @@ export const Block3DViewer: React.FC<Block3DViewerProps> = ({ faceTextures = {} 
     scene.add(cube);
     cubeRef.current = cube;
 
-    // Initial default isometric angle
-    cube.rotation.y = Math.PI / 4;
-    cube.rotation.x = Math.atan(1 / Math.SQRT2) * 0.5;
+    // Initial default isometric orientation
+    const initEuler = new THREE.Euler(Math.atan(1 / Math.SQRT2) * 0.5, Math.PI / 4, 0, 'YXZ');
+    cube.quaternion.setFromEuler(initEuler);
+
+    let isMounted = true;
 
     // Render loop
     let animId: number;
     const render = () => {
-      renderer.render(scene, camera);
-      animId = requestAnimationFrame(render);
+      if (!isMounted) return;
+      try {
+        renderer.render(scene, camera);
+        animId = requestAnimationFrame(render);
+      } catch (err) {
+        console.warn('[Block3DViewer] Render loop stopped:', err);
+      }
     };
     render();
 
     // Resize Handler
     const handleResize = () => {
-      if (!containerRef.current) return;
-      const w = containerRef.current.clientWidth;
-      const h = containerRef.current.clientHeight;
-      camera.aspect = w / h;
-      camera.updateProjectionMatrix();
-      renderer.setSize(w, h);
+      if (!containerRef.current || !isMounted) return;
+      try {
+        const w = containerRef.current.clientWidth;
+        const h = containerRef.current.clientHeight;
+        camera.aspect = w / h;
+        camera.updateProjectionMatrix();
+        renderer.setSize(w, h);
+      } catch { }
     };
     window.addEventListener('resize', handleResize);
 
     return () => {
+      isMounted = false;
       cancelAnimationFrame(animId);
       window.removeEventListener('resize', handleResize);
-      geometry.dispose();
-      materials.forEach((m) => m.dispose());
+      materials.forEach((m) => {
+        const mat = m as any;
+        if (mat.map && typeof mat.map.dispose === 'function') {
+          mat.map.dispose();
+        }
+        if (typeof mat.dispose === 'function') {
+          mat.dispose();
+        }
+      });
       renderer.dispose();
     };
   }, [faceTextures]);
 
-  // Orbit rotation interaction via mouse drag
+  // Project 2D client coordinates onto a virtual unit hemisphere (Trackball / Arcball)
+  const projectToTrackballSphere = (clientX: number, clientY: number): THREE.Vector3 => {
+    if (!containerRef.current) return new THREE.Vector3(0, 0, 1);
+    const rect = containerRef.current.getBoundingClientRect();
+    const w = rect.width || 300;
+    const h = rect.height || 220;
+    const r = Math.min(w, h) * 0.5;
+
+    // Center-relative coordinates normalized by radius
+    const x = (clientX - rect.left - w * 0.5) / r;
+    const y = -(clientY - rect.top - h * 0.5) / r;
+
+    const lenSq = x * x + y * y;
+    let z = 0;
+    if (lenSq <= 1.0) {
+      z = Math.sqrt(1.0 - lenSq);
+    } else {
+      // Hyperbolic fallback outside virtual sphere
+      z = 0.5 / Math.sqrt(lenSq);
+    }
+
+    return new THREE.Vector3(x, y, z).normalize();
+  };
+
+  const lastTrackballVecRef = useRef<THREE.Vector3>(new THREE.Vector3(0, 0, 1));
+
+  // Orbit rotation interaction via virtual trackball (arcball)
   const handleMouseDown = (e: React.MouseEvent) => {
     isDraggingRef.current = true;
-    prevMousePos.current = { x: e.clientX, y: e.clientY };
+    lastTrackballVecRef.current = projectToTrackballSphere(e.clientX, e.clientY);
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
     if (!isDraggingRef.current || !cubeRef.current) return;
 
-    const deltaX = e.clientX - prevMousePos.current.x;
-    const deltaY = e.clientY - prevMousePos.current.y;
+    const currentVec = projectToTrackballSphere(e.clientX, e.clientY);
+    const prevVec = lastTrackballVecRef.current;
 
-    cubeRef.current.rotation.y += deltaX * 0.012;
-    cubeRef.current.rotation.x += deltaY * 0.012;
+    // Angle of rotation around the cross-product axis
+    const dot = Math.min(1.0, Math.max(-1.0, prevVec.dot(currentVec)));
+    const angle = Math.acos(dot);
 
-    prevMousePos.current = { x: e.clientX, y: e.clientY };
+    if (angle > 0.001) {
+      const axis = new THREE.Vector3().crossVectors(prevVec, currentVec).normalize();
+      // Incremental rotation in camera view space
+      const deltaQuat = new THREE.Quaternion().setFromAxisAngle(axis, angle * 1.5);
+      // Pre-multiply quaternion so rotation happens relative to current viewing perspective
+      cubeRef.current.quaternion.premultiply(deltaQuat);
+      lastTrackballVecRef.current = currentVec;
+    }
   };
 
   const handleMouseUp = () => {
@@ -181,15 +241,8 @@ export const Block3DViewer: React.FC<Block3DViewerProps> = ({ faceTextures = {} 
 
   const handleResetRotation = () => {
     if (cubeRef.current) {
-      cubeRef.current.rotation.y = Math.PI / 4;
-      cubeRef.current.rotation.x = Math.atan(1 / Math.SQRT2) * 0.5;
-    }
-  };
-
-  const handleInspectBottom = () => {
-    if (cubeRef.current) {
-      cubeRef.current.rotation.y = 0;
-      cubeRef.current.rotation.x = Math.PI * 0.45; // Tilt up to see bottom face
+      const initEuler = new THREE.Euler(Math.atan(1 / Math.SQRT2) * 0.5, Math.PI / 4, 0, 'YXZ');
+      cubeRef.current.quaternion.setFromEuler(initEuler);
     }
   };
 
@@ -205,14 +258,6 @@ export const Block3DViewer: React.FC<Block3DViewerProps> = ({ faceTextures = {} 
       <canvas ref={canvasRef} className={styles.canvas} />
 
       <div className={styles.overlayControls}>
-        <button
-          type="button"
-          className={styles.controlButton}
-          onClick={handleInspectBottom}
-          title="Inspect bottom face"
-        >
-          View Bottom
-        </button>
         <button
           type="button"
           className={styles.controlButton}

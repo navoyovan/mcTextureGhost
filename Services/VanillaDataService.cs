@@ -80,6 +80,8 @@ public static class VanillaDataService
     private const string FlipbookUrl = $"{BaseRawUrl}/textures/flipbook_textures.json";
     private const string LangUrl     = $"{BaseRawUrl}/texts/en_US.lang";
 
+    private const string PackIconUrl = $"{BaseRawUrl}/pack_icon.png";
+
     private static readonly HttpClient HttpClient = new()
     {
         Timeout = TimeSpan.FromSeconds(25)
@@ -140,7 +142,8 @@ public static class VanillaDataService
                File.Exists(Path.Combine(cacheDir, "terrain_texture.json")) &&
                File.Exists(Path.Combine(cacheDir, "item_texture.json")) &&
                File.Exists(Path.Combine(cacheDir, "flipbook_textures.json")) &&
-               File.Exists(Path.Combine(cacheDir, "en_US.lang"));
+               File.Exists(Path.Combine(cacheDir, "en_US.lang")) &&
+               File.Exists(Path.Combine(cacheDir, "pack_icon.png"));
     }
 
     private static async Task<bool> DownloadAndCacheAsync(string cacheDir, Action<string>? onProgress)
@@ -168,6 +171,17 @@ public static class VanillaDataService
             onProgress?.Invoke("Fetching en_US.lang...");
             var langContent = await HttpClient.GetStringAsync(LangUrl);
             await File.WriteAllTextAsync(Path.Combine(cacheDir, "en_US.lang"), langContent);
+
+            try
+            {
+                onProgress?.Invoke("Fetching vanilla pack_icon.png...");
+                var iconBytes = await HttpClient.GetByteArrayAsync(PackIconUrl);
+                await File.WriteAllBytesAsync(Path.Combine(cacheDir, "pack_icon.png"), iconBytes);
+            }
+            catch
+            {
+                // Non-fatal if icon download fails, but try to keep cache consistent
+            }
 
             var meta = $"Downloaded on {DateTime.UtcNow:O} from Mojang/bedrock-samples (main)";
             await File.WriteAllTextAsync(Path.Combine(cacheDir, "version.txt"), meta);
