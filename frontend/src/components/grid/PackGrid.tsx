@@ -105,13 +105,16 @@ export const PackGrid: React.FC = () => {
             const isGhost = alias.status === 'GHOST';
             const uniqueKey = `${alias.category}:${alias.alias}:${alias.relativePath || ''}:${alias.textureVariantIndex ?? ''}:${alias.blockVariantIndex ?? ''}:${index}`;
 
-            // Always show file name including extension with lower visual weight on extension
+            // Show file name including extension with matching font size and muted weight
             const rawFileName = alias.relativePath
               ? (alias.relativePath.split(/[/\\]/).pop() ?? alias.displayName ?? alias.alias)
               : (alias.displayName ?? alias.alias);
-            const dotIdx = rawFileName.lastIndexOf('.');
-            const fileBase = dotIdx > 0 ? rawFileName.substring(0, dotIdx) : rawFileName;
-            const fileExt = dotIdx > 0 ? rawFileName.substring(dotIdx) : '.png';
+            const sourceForExt = alias.fullPath || alias.relativePath || alias.imageUrl || rawFileName;
+            const dotIdx = sourceForExt.lastIndexOf('.');
+            const cleanExt = dotIdx > 0 ? (sourceForExt.substring(dotIdx).split('?')[0] ?? '').split('#')[0] ?? '' : '';
+            const fileExt = cleanExt && cleanExt.length <= 5 ? cleanExt : '.png';
+            const rawDotIdx = rawFileName.lastIndexOf('.');
+            const fileBase = rawDotIdx > 0 ? rawFileName.substring(0, rawDotIdx) : rawFileName;
             const fullFileName = `${fileBase}${fileExt}`;
 
             return (

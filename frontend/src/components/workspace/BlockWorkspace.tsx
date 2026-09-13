@@ -185,9 +185,12 @@ export const BlockWorkspace: React.FC = () => {
     };
 
     const rawFileName = getLeafTitle(primary);
-    const dotIdx = rawFileName.lastIndexOf('.');
-    const fileBase = dotIdx > 0 ? rawFileName.substring(0, dotIdx) : rawFileName;
-    const fileExt = dotIdx > 0 ? rawFileName.substring(dotIdx) : '.png';
+    const sourceForExt = primary.fullPath || primary.relativePath || primary.imageUrl || rawFileName;
+    const dotIdx = sourceForExt.lastIndexOf('.');
+    const cleanExt = dotIdx > 0 ? (sourceForExt.substring(dotIdx).split('?')[0] ?? '').split('#')[0] ?? '' : '';
+    const fileExt = cleanExt && cleanExt.length <= 5 ? cleanExt : '.png';
+    const rawDotIdx = rawFileName.lastIndexOf('.');
+    const fileBase = rawDotIdx > 0 ? rawFileName.substring(0, rawDotIdx) : rawFileName;
     const primaryFileName = `${fileBase}${fileExt}`;
 
     const blockVariantSuffix = primary.blockVariantIndex && primary.totalBlockVariants

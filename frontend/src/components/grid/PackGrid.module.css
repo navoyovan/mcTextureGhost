@@ -137,7 +137,7 @@
 }
 
 .fileExt {
-  font-size: 9.5px;
+  font-size: inherit;
   font-weight: 400;
   color: var(--text-dimmed, #71717a);
   opacity: 0.75;
