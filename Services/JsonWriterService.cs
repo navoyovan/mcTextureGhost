@@ -328,6 +328,100 @@ public static class JsonWriterService
         return new JsonArray();
     }
 
+    public static void DeleteTextureEntries(string packRoot, string alias, string category, string? relativePath = null)
+    {
+        if (string.Equals(category, "item", StringComparison.OrdinalIgnoreCase))
+        {
+            var itemTexturePath = Path.Combine(packRoot, "textures", "item_texture.json");
+            if (File.Exists(itemTexturePath))
+            {
+                var itemObj = LoadOrCreateItemTexture(packRoot);
+                var texData = GetTextureData(itemObj);
+                if (texData.ContainsKey(alias))
+                {
+                    texData.Remove(alias);
+                    SaveItemTexture(packRoot, itemObj);
+                }
+            }
+        }
+        else
+        {
+            var terrainPath = Path.Combine(packRoot, "textures", "terrain_texture.json");
+            if (File.Exists(terrainPath))
+            {
+                var terrainObj = LoadOrCreateTerrainTexture(packRoot);
+                var texData = GetTextureData(terrainObj);
+                if (texData.ContainsKey(alias))
+                {
+                    texData.Remove(alias);
+                    SaveTerrainTexture(packRoot, terrainObj);
+                }
+            }
+
+            var blocksPath = Path.Combine(packRoot, "blocks.json");
+            if (File.Exists(blocksPath))
+            {
+                var blocks = LoadOrCreateBlocksJson(packRoot);
+                var keysToRemove = new List<string>();
+                foreach (var kvp in blocks)
+                {
+                    if (kvp.Value is JsonObject bObj)
+                    {
+                        if (bObj.TryGetPropertyValue("textures", out var tVal))
+                        {
+                            if (tVal is JsonValue jVal && string.Equals(jVal.ToString(), alias, StringComparison.OrdinalIgnoreCase))
+                            {
+                                keysToRemove.Add(kvp.Key);
+                            }
+                            else if (tVal is JsonObject fObj)
+                            {
+                                bool matches = false;
+                                foreach (var face in fObj)
+                                {
+                                    if (string.Equals(face.Value?.ToString(), alias, StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        matches = true;
+                                        break;
+                                    }
+                                }
+                                if (matches) keysToRemove.Add(kvp.Key);
+                            }
+                        }
+                    }
+                }
+                if (keysToRemove.Count > 0)
+                {
+                    foreach (var k in keysToRemove) blocks.Remove(k);
+                    SaveBlocksJson(packRoot, blocks);
+                }
+            }
+        }
+
+        // Clean flipbook if present
+        var flipbookPath = Path.Combine(packRoot, "textures", "flipbook_textures.json");
+        if (File.Exists(flipbookPath))
+        {
+            var flipbook = LoadOrCreateJsonArray(flipbookPath);
+            int countBefore = flipbook.Count;
+            for (int i = flipbook.Count - 1; i >= 0; i--)
+            {
+                if (flipbook[i] is JsonObject fbObj)
+                {
+                    bool match = false;
+                    if (fbObj.TryGetPropertyValue("atlas_tile", out var at) && string.Equals(at?.ToString(), alias, StringComparison.OrdinalIgnoreCase))
+                        match = true;
+                    if (fbObj.TryGetPropertyValue("flipbook_texture", out var ft) && (string.Equals(ft?.ToString(), alias, StringComparison.OrdinalIgnoreCase) || (relativePath != null && string.Equals(ft?.ToString(), relativePath, StringComparison.OrdinalIgnoreCase))))
+                        match = true;
+                    if (match) flipbook.RemoveAt(i);
+                }
+            }
+            if (flipbook.Count != countBefore)
+            {
+                File.WriteAllText(flipbookPath, flipbook.ToJsonString(WriteOptions));
+            }
+        }
+    }
+
     private static string Sanitize(string alias) =>
         alias.Trim().Replace(" ", "_").ToLowerInvariant();
 }

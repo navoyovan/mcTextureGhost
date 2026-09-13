@@ -37,7 +37,7 @@ export const Sidebar: React.FC = () => {
 
   useEffect(() => {
     setIconLoadError(false);
-  }, [packIconUrl]);
+  }, [packIconUrl, packRoot]);
 
   useEffect(() => {
     if (isCatalogOpen) {
@@ -120,6 +120,7 @@ export const Sidebar: React.FC = () => {
           >
             {showIconImage ? (
               <img
+                key={packIconUrl || packRoot || 'icon'}
                 src={packIconUrl}
                 alt="Pack Icon"
                 className={styles.packIconImg96}
@@ -133,30 +134,31 @@ export const Sidebar: React.FC = () => {
             )}
           </button>
 
-          <div className={styles.packMeta}>
-            <span className={styles.packTitle} title={packName || 'Resource Pack'}>
-              {packName || 'Resource Pack'}
+          {/* Retro Status Badge Pills on the side */}
+          <div className={styles.statusPillsRow}>
+            <span className={styles.pillTotal} title="Total declared textures">
+              {stats.totalCount || stats.total || 0} total
             </span>
-            <span className={styles.packPath} title={packRoot || ''}>
-              {formatPackPath(packRoot)}
+            <span className={styles.pillOk} title="Textures with valid artwork on disk">
+              {stats.okCount || stats.done || 0} done
             </span>
-
-            {/* Retro Status Badge Pills */}
-            <div className={styles.statusPillsRow}>
-              <span className={styles.pillTotal} title="Total declared textures">
-                {stats.totalCount || stats.total || 0} total
-              </span>
-              <span className={styles.pillOk} title="Textures with valid artwork on disk">
-                {stats.okCount || stats.done || 0} done
-              </span>
-              <span className={styles.pillGhost} title="Missing texture artwork (Ghosts)">
-                👻 {stats.ghostCount || stats.ghosts || 0}
-              </span>
-              <span className={styles.pillOrphan} title="Unlinked/orphan textures">
-                ◈ {stats.orphanCount || stats.orphans || 0}
-              </span>
-            </div>
+            <span className={styles.pillGhost} title="Missing texture artwork (Ghosts)">
+              👻 {stats.ghostCount || stats.ghosts || 0}
+            </span>
+            <span className={styles.pillOrphan} title="Unlinked/orphan textures">
+              ◈ {stats.orphanCount || stats.orphans || 0}
+            </span>
           </div>
+        </div>
+
+        {/* Pack name and directory under the icon */}
+        <div className={styles.packMeta}>
+          <span className={styles.packTitle} title={packName || 'Resource Pack'}>
+            {packName || 'Resource Pack'}
+          </span>
+          <span className={styles.packPath} title={packRoot || ''}>
+            {formatPackPath(packRoot)}
+          </span>
         </div>
       </div>
 

@@ -63,6 +63,7 @@ public class CatalogLeaf : INotifyPropertyChanged
     public int? TextureVariantIndex { get; init; }
     public int? TotalTextureVariants { get; init; }
     public int? Weight { get; init; }
+    public string FileName => !string.IsNullOrEmpty(RelativePath) ? System.IO.Path.GetFileName(RelativePath) : DisplayName;
 
     private CatalogEntryStatus _status;
     public CatalogEntryStatus Status

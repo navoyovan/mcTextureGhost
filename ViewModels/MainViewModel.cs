@@ -257,9 +257,9 @@ public class MainViewModel : INotifyPropertyChanged
             {
                 if (node.SearchFilterKey.Contains(_appliedSearchQueryLower, StringComparison.Ordinal))
                 {
-                    node.IsExpanded = true;
+                    node.IsExpanded = false;
                     foreach (var ag in node.AliasGroups)
-                        ag.IsExpanded = true;
+                        ag.IsExpanded = false;
                 }
             }
         }
@@ -2161,9 +2161,9 @@ public class MainViewModel : INotifyPropertyChanged
             {
                 if (node.SearchFilterKey.Contains(query, StringComparison.Ordinal))
                 {
-                    node.IsExpanded = true;
+                    node.IsExpanded = false;
                     foreach (var ag in node.AliasGroups)
-                        ag.IsExpanded = true;
+                        ag.IsExpanded = false;
                 }
             }
         }

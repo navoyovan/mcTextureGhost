@@ -11,6 +11,7 @@ import {
   Zap,
   RotateCw,
   Layers,
+  ArrowRight,
 } from 'lucide-react';
 import { usePackStore } from '../../store/packStore';
 import { useIpc } from '../../hooks/useIpc';
@@ -56,7 +57,8 @@ const LeafThumbnail: React.FC<{ leaf: CatalogLeafDto }> = ({ leaf }) => {
  */
 const CatalogLeafRow: React.FC<{
   leaf: CatalogLeafDto;
-}> = ({ leaf }) => {
+  blockDisplayName?: string;
+}> = ({ leaf, blockDisplayName }) => {
   const isAdded = leaf.status !== 'VANILLA';
 
   const getStatusClass = (status: string) => {
@@ -75,26 +77,80 @@ const CatalogLeafRow: React.FC<{
     }
   };
 
+  const getStatusDotClass = (status: string) => {
+    switch (status) {
+      case 'OK':
+        return styles.statusDotOk;
+      case 'GHOST':
+        return styles.statusDotGhost;
+      case 'ORPHAN':
+        return styles.statusDotOrphan;
+      case 'OVERRIDE':
+        return styles.statusDotOverride;
+      case 'VANILLA':
+      default:
+        return styles.statusDotNew;
+    }
+  };
+
+  const fileName = leaf.relativePath
+    ? (leaf.relativePath.split(/[/\\]/).pop() ?? leaf.displayName ?? leaf.alias)
+    : (leaf.displayName ?? leaf.alias);
+
+  const blockVariantSuffix = leaf.blockVariantIndex && leaf.totalBlockVariants
+    ? ` (block state ${leaf.blockVariantIndex}/${leaf.totalBlockVariants})`
+    : '';
+
+  const tooltipText = [
+    (blockDisplayName || leaf.displayName || leaf.alias) + blockVariantSuffix,
+    `terrain textures: ${leaf.alias}`,
+    `path: ${leaf.relativePath}`,
+    leaf.subtitleCaption ? `info: ${leaf.subtitleCaption}` : '',
+  ].filter(Boolean).join('\n');
+
   return (
-    <div className={styles.leafRow} data-testid={`leaf-row-${leaf.alias}`}>
+    <div
+      className={styles.leafRow}
+      data-testid={`leaf-row-${leaf.alias}`}
+      title={tooltipText}
+    >
       <div className={styles.leafLeft}>
         <LeafThumbnail leaf={leaf} />
         <div className={styles.leafMeta}>
-          <div className={styles.leafPathRow}>
-            <span className={styles.leafPath} title={leaf.relativePath}>
-              {leaf.relativePath}
+          <div className={styles.leafHeaderRow}>
+            <span className={`${styles.leafStatusDot} ${getStatusDotClass(leaf.status)}`} />
+            <span className={styles.leafName} title={fileName}>
+              {fileName}
             </span>
+            {leaf.totalTextureVariants && leaf.totalTextureVariants > 1 && (
+              <span className={styles.variantCountBadge}>
+                {leaf.totalTextureVariants}v
+              </span>
+            )}
+            {leaf.blockVariantIndex && (
+              <span
+                className={styles.blockVariantBadge}
+                title={`Block variant ${leaf.blockVariantIndex} of ${leaf.totalBlockVariants ?? '?'}`}
+              >
+                #{leaf.blockVariantIndex}
+              </span>
+            )}
             {leaf.isFlipbook && (
               <span className={styles.animBadge} title="Animated flipbook texture">
                 ANIM
               </span>
             )}
           </div>
-          {leaf.subtitleCaption && (
-            <span className={styles.leafSubtitle} title={leaf.subtitleCaption}>
-              {leaf.subtitleCaption}
+          <div className={styles.leafPathRow}>
+            <span className={styles.leafPathSub} title={leaf.relativePath}>
+              {leaf.relativePath}
             </span>
-          )}
+            {leaf.subtitleCaption && (
+              <span className={styles.leafSubtitle} title={leaf.subtitleCaption}>
+                • {leaf.subtitleCaption}
+              </span>
+            )}
+          </div>
         </div>
       </div>
 
@@ -121,8 +177,9 @@ const CatalogLeafRow: React.FC<{
 const CatalogAliasGroup: React.FC<{
   aliasGroup: AliasGroupNodeDto;
   category: string;
+  blockDisplayName?: string;
   onAdd: (id: string, category: string) => void;
-}> = ({ aliasGroup, category, onAdd }) => {
+}> = ({ aliasGroup, category, blockDisplayName, onAdd }) => {
   const isAdded =
     (aliasGroup.notAddedCount ?? 0) === 0 &&
     (aliasGroup.leaves?.length ?? 0) > 0 &&
@@ -132,15 +189,17 @@ const CatalogAliasGroup: React.FC<{
     <div className={styles.aliasGroupCard} data-testid={`alias-group-${aliasGroup.alias}`}>
       <div className={styles.aliasGroupHeader}>
         <div className={styles.aliasHeaderLeft}>
+          <Layers size={13} className={styles.aliasIcon} />
           <span className={styles.aliasNameText} title={aliasGroup.alias}>
-            {aliasGroup.alias}
+            Alias: {aliasGroup.alias}
           </span>
           {aliasGroup.faceSummary && (
             <span
-              className={styles.faceSummaryBadge}
+              className={styles.faceLabelBadge}
               title={`Face mapping: ${aliasGroup.faceSummary}`}
             >
-              {aliasGroup.faceSummary}
+              <ArrowRight size={9} />
+              <span>Face: {aliasGroup.faceSummary}</span>
             </span>
           )}
           {aliasGroup.ghostCount > 0 && (
@@ -171,8 +230,9 @@ const CatalogAliasGroup: React.FC<{
         <div className={styles.leavesList}>
           {aliasGroup.leaves.map((leaf, index) => (
             <CatalogLeafRow
-              key={leaf.relativePath || `${aliasGroup.alias}-${index}`}
+              key={`${leaf.relativePath || aliasGroup.alias}:${leaf.blockVariantIndex ?? ''}:${leaf.textureVariantIndex ?? ''}:${index}`}
               leaf={leaf}
+              blockDisplayName={blockDisplayName}
             />
           ))}
         </div>
@@ -186,11 +246,12 @@ const CatalogAliasGroup: React.FC<{
  */
 const CatalogBlockGroup: React.FC<{
   block: BlockGroupNodeDto;
+  blockKey: string;
   isExpanded: boolean;
   onToggleExpand: () => void;
   onAdd: (id: string, category: string) => void;
   isBlockInWorkspace: (blockId: string) => boolean;
-}> = ({ block, isExpanded, onToggleExpand, onAdd, isBlockInWorkspace }) => {
+}> = ({ block, blockKey, isExpanded, onToggleExpand, onAdd, isBlockInWorkspace }) => {
   const isItem = block.category.toLowerCase() === 'item';
 
   const allAliasesAdded =
@@ -237,7 +298,7 @@ const CatalogBlockGroup: React.FC<{
               {block.displayName}
             </span>
             <span className={styles.blockIdText} title={block.blockId}>
-              ({block.blockId})
+              {block.blockId}
             </span>
           </div>
         </div>
@@ -251,7 +312,7 @@ const CatalogBlockGroup: React.FC<{
 
           {block.ghostCount > 0 && (
             <span className={styles.ghostBadge} title={`${block.ghostCount} ghost textures`}>
-              👻 {block.ghostCount}
+              👻 {block.ghostCount} {block.ghostCount === 1 ? 'ghost' : 'ghosts'}
             </span>
           )}
 
@@ -285,11 +346,12 @@ const CatalogBlockGroup: React.FC<{
 
       {isExpanded && block.aliasGroups && block.aliasGroups.length > 0 && (
         <div className={styles.aliasGroupList}>
-          {block.aliasGroups.map((aliasGroup) => (
+          {block.aliasGroups.map((aliasGroup, agIndex) => (
             <CatalogAliasGroup
-              key={aliasGroup.alias}
+              key={`${blockKey}:${aliasGroup.alias || agIndex}`}
               aliasGroup={aliasGroup}
               category={block.category}
+              blockDisplayName={block.displayName}
               onAdd={onAdd}
             />
           ))}
@@ -414,10 +476,15 @@ export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose })
   }, [isOpen, handleClose]);
 
   const [displayLimit, setDisplayLimit] = useState(100);
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 
-  // Reset display limit when query or filter changes
+  // Reset display limit and collapse items when query or filter changes
   useEffect(() => {
     setDisplayLimit(100);
+    setExpandedIds(new Set());
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTop = 0;
+    }
   }, [searchText, categoryFilter]);
 
   const filteredBlocks = useMemo(() => {
@@ -458,24 +525,21 @@ export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose })
     [filteredBlocks.length]
   );
 
-  // Auto-expand all matching blocks if searching
+  // Search indexes are minimized by default; only items explicitly clicked are expanded
   const isBlockExpanded = useCallback(
-    (blockId: string) => {
-      if (searchText.trim().length > 0) {
-        return true;
-      }
-      return expandedIds.has(blockId);
+    (blockKey: string) => {
+      return expandedIds.has(blockKey);
     },
-    [searchText, expandedIds]
+    [expandedIds]
   );
 
-  const toggleExpand = useCallback((blockId: string) => {
+  const toggleExpand = useCallback((blockKey: string) => {
     setExpandedIds((prev) => {
       const next = new Set(prev);
-      if (next.has(blockId)) {
-        next.delete(blockId);
+      if (next.has(blockKey)) {
+        next.delete(blockKey);
       } else {
-        next.add(blockId);
+        next.add(blockKey);
       }
       return next;
     });
@@ -608,22 +672,27 @@ export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose })
 
         {/* Scrollable Catalog Tree */}
         <div
+          ref={scrollContainerRef}
           className={styles.catalogTreeScroll}
           onScroll={handleScroll}
           data-testid="catalog-tree-scroll"
         >
           {visibleBlocks.length > 0 ? (
             <>
-              {visibleBlocks.map((block) => (
-                <CatalogBlockGroup
-                  key={block.blockId}
-                  block={block}
-                  isExpanded={isBlockExpanded(block.blockId)}
-                  onToggleExpand={() => toggleExpand(block.blockId)}
-                  onAdd={handleAdd}
-                  isBlockInWorkspace={isBlockInWorkspace}
-                />
-              ))}
+              {visibleBlocks.map((block) => {
+                const blockKey = `${block.category}:${block.blockId}`;
+                return (
+                  <CatalogBlockGroup
+                    key={blockKey}
+                    blockKey={blockKey}
+                    block={block}
+                    isExpanded={isBlockExpanded(blockKey)}
+                    onToggleExpand={() => toggleExpand(blockKey)}
+                    onAdd={handleAdd}
+                    isBlockInWorkspace={isBlockInWorkspace}
+                  />
+                );
+              })}
               {displayLimit < filteredBlocks.length && (
                 <div className={styles.loadMoreTrigger}>
                   <button

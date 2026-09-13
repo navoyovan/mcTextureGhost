@@ -63,6 +63,8 @@ public static class IpcMessageTypes
     public const string PackOpenExplorer = "PACK:OPEN_EXPLORER";
     public const string PackClose        = "PACK:CLOSE";
     public const string AddVanillaEntry  = "ADD_VANILLA_ENTRY";
+    public const string TextureDeleteFile = "TEXTURE:DELETE_FILE";
+    public const string TextureDeleteEntries = "TEXTURE:DELETE_ENTRIES";
 
     // Outgoing from C# to Web
     public const string PackStateChanged = "PACK:STATE_CHANGED";
@@ -103,6 +105,23 @@ public record TextureEditPayload(
     [property: JsonPropertyName("aliasKey")] string AliasKey,
     [property: JsonPropertyName("fullPath")] string FullPath,
     [property: JsonPropertyName("isGhost")] bool IsGhost = false
+);
+
+/// <summary>
+/// Payload for "TEXTURE:DELETE_FILE". Deletes the physical PNG file from disk.
+/// </summary>
+public record TextureDeleteFilePayload(
+    [property: JsonPropertyName("fullPath")] string FullPath,
+    [property: JsonPropertyName("aliasKey")] string? AliasKey = null
+);
+
+/// <summary>
+/// Payload for "TEXTURE:DELETE_ENTRIES". Removes declarations from terrain/item and blocks JSON.
+/// </summary>
+public record TextureDeleteEntriesPayload(
+    [property: JsonPropertyName("aliasKey")] string AliasKey,
+    [property: JsonPropertyName("category")] string Category,
+    [property: JsonPropertyName("relativePath")] string? RelativePath = null
 );
 
 /// <summary>
@@ -580,7 +599,7 @@ public static class IpcContractMapper
             if (currentPackRoot != null &&
                 string.Equals(item.FolderPath, currentPackRoot, StringComparison.OrdinalIgnoreCase))
             {
-                iconUrl = "https://pack.local/pack_icon.png";
+                iconUrl = BuildVirtualTextureUrl("pack_icon.png", item.PackIconPath, currentPackRoot);
             }
             else
             {

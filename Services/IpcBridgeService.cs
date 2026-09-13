@@ -187,6 +187,12 @@ public sealed class IpcBridgeService : IIpcBridgeService
 
         try
         {
+            try
+            {
+                _coreWebView2.ClearVirtualHostNameToFolderMapping("pack.local");
+            }
+            catch { /* Ignore if not mapped */ }
+
             if (!string.IsNullOrWhiteSpace(packRoot) && Directory.Exists(packRoot))
             {
                 _coreWebView2.SetVirtualHostNameToFolderMapping(
@@ -199,11 +205,6 @@ public sealed class IpcBridgeService : IIpcBridgeService
             }
             else
             {
-                try
-                {
-                    _coreWebView2.ClearVirtualHostNameToFolderMapping("pack.local");
-                }
-                catch { /* Ignore if not mapped */ }
                 _currentPackRoot = null;
                 Debug.WriteLine("[IPC Bridge] Cleared mapping for 'pack.local'");
             }

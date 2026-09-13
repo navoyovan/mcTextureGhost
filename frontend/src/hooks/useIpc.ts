@@ -189,6 +189,14 @@ export function useIpc() {
     return postCommand<TextureEditPayload>(IpcMessageTypes.TextureEdit, { aliasKey, fullPath, isGhost });
   }, []);
 
+  const deleteTextureFile = useCallback((fullPath: string, aliasKey?: string) => {
+    return postCommand(IpcMessageTypes.TextureDeleteFile, { fullPath, aliasKey });
+  }, []);
+
+  const deleteTextureEntries = useCallback((aliasKey: string, category: string, relativePath?: string) => {
+    return postCommand(IpcMessageTypes.TextureDeleteEntries, { aliasKey, category, relativePath });
+  }, []);
+
   const windowAction = useCallback((action: 'minimize' | 'maximize' | 'close' | 'drag') => {
     return postCommand<WindowActionPayload>(IpcMessageTypes.WindowAction, { action });
   }, []);
@@ -226,6 +234,8 @@ export function useIpc() {
     reloadPack,
     createPack,
     editTexture,
+    deleteTextureFile,
+    deleteTextureEntries,
     windowAction,
     setTint,
     openInExplorer,

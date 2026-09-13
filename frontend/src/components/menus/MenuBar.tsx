@@ -16,7 +16,6 @@ import {
 import { createPortal } from 'react-dom';
 import { usePackStore } from '../../store/packStore';
 import { useIpc } from '../../hooks/useIpc';
-import { IpcMessageTypes } from '../../types/ipc';
 import styles from './MenuBar.module.css';
 
 interface MenuItemDef {

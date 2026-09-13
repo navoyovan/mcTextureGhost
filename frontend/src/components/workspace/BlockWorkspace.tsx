@@ -126,6 +126,7 @@ export const BlockWorkspace: React.FC = () => {
   const renderTileCard = (group: VariantTileGroup, cardKey: string) => {
     const { alias, leaves } = group;
     const primary = leaves[0];
+    if (!primary) return null;
     const numVariations = leaves.length;
     const hasTexVariants = numVariations > 1;
 
@@ -140,7 +141,7 @@ export const BlockWorkspace: React.FC = () => {
     const primaryFileName = getLeafTitle(primary);
 
     const blockVariantSuffix = primary.blockVariantIndex && primary.totalBlockVariants
-      ? ` (block ${primary.blockVariantIndex}/${primary.totalBlockVariants})`
+      ? ` (block state ${primary.blockVariantIndex}/${primary.totalBlockVariants})`
       : '';
 
     const tooltipLines = [

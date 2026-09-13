@@ -1,5 +1,6 @@
 // frontend/src/components/grid/PackGrid.tsx
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
+import { MoreVertical, Edit3, Trash2, FileX } from 'lucide-react';
 import { usePackStore, pathMatchesFolder } from '../../store/packStore';
 import { useIpc } from '../../hooks/useIpc';
 import { TextureAliasDto } from '../../types/ipc';
@@ -13,7 +14,25 @@ export const PackGrid: React.FC = () => {
   const statusFilter = usePackStore((s) => s.statusFilter);
   const selectedFolderPath = usePackStore((s) => s.selectedFolderPath);
   const tileZoom = usePackStore((s) => s.tileZoom);
-  const { editTexture } = useIpc();
+  const { editTexture, deleteTextureFile, deleteTextureEntries } = useIpc();
+
+  // Tracks active open menu by tile uniqueKey
+  const [activeMenuKey, setActiveMenuKey] = useState<string | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setActiveMenuKey(null);
+      }
+    };
+    if (activeMenuKey) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [activeMenuKey]);
 
   const filteredAliases = useMemo(() => {
     if (!aliases || !Array.isArray(aliases)) return [];
@@ -67,70 +86,132 @@ export const PackGrid: React.FC = () => {
     }
   };
 
-  if (filteredAliases.length === 0) {
-    return (
-      <div className={styles.gridContainer}>
+  return (
+    <div className={styles.gridContainer}>
+      {filteredAliases.length === 0 ? (
         <div className={styles.emptyState}>
           <span className={styles.emptyIcon}>🔍</span>
           <span className={styles.emptyText}>No textures match the current filter</span>
         </div>
-      </div>
-    );
-  }
+      ) : (
+        <div
+          className={styles.tileGrid}
+          style={{
+            '--tile-zoom': `${tileZoom}px`,
+            '--tile-card-width': `${tileZoom + 40}px`,
+          } as React.CSSProperties}
+        >
+          {filteredAliases.map((alias, index) => {
+            const isGhost = alias.status === 'GHOST';
+            const uniqueKey = `${alias.category}:${alias.alias}:${alias.relativePath || ''}:${alias.textureVariantIndex ?? ''}:${alias.blockVariantIndex ?? ''}:${index}`;
+            return (
+              <div
+                key={uniqueKey}
+                className={styles.tileCard}
+                onClick={() => handleTileClick(alias)}
+                title={`${alias.displayName || alias.alias}\nStatus: ${alias.status}\nPath: ${alias.relativePath}`}
+              >
+                {/* 3-Dots Hover Menu Trigger */}
+                <button
+                  type="button"
+                  className={`${styles.moreButton} ${activeMenuKey === uniqueKey ? styles.moreButtonActive : ''}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setActiveMenuKey((prev) => (prev === uniqueKey ? null : uniqueKey));
+                  }}
+                  title="Texture options"
+                  aria-label="Texture options"
+                >
+                  <MoreVertical size={14} />
+                </button>
 
-  return (
-    <div className={styles.gridContainer}>
-      <div
-        className={styles.tileGrid}
-        style={{
-          '--tile-zoom': `${tileZoom}px`,
-          '--tile-card-width': `${tileZoom + 40}px`,
-        } as React.CSSProperties}
-      >
-        {filteredAliases.map((alias) => {
-          const isGhost = alias.status === 'GHOST';
-          return (
-            <div
-              key={alias.alias + (alias.relativePath || '')}
-              className={styles.tileCard}
-              onClick={() => handleTileClick(alias)}
-              title={`${alias.displayName || alias.alias}\nStatus: ${alias.status}\nPath: ${alias.relativePath}`}
-            >
-              {/* Thumbnail Container - 100% clean texture display without overlays */}
-              <div className={styles.tileThumbnailWrapper}>
-                {!isGhost && alias.imageUrl ? (
-                  <FlipbookThumbnail
-                    src={alias.imageUrl}
-                    alt={alias.alias}
-                    className={styles.tileThumbnail}
-                    isFlipbook={alias.isFlipbook}
-                    flipbook={alias.flipbook}
-                    loading="lazy"
-                  />
-                ) : (
-                  <span className={styles.placeholderGhost}>?</span>
+                {/* Dropdown Menu */}
+                {activeMenuKey === uniqueKey && (
+                  <div
+                    ref={menuRef}
+                    className={styles.dropdownMenu}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <button
+                      type="button"
+                      className={styles.menuItem}
+                      onClick={() => {
+                        setActiveMenuKey(null);
+                        handleTileClick(alias);
+                      }}
+                    >
+                      <Edit3 size={13} className={styles.menuIcon} />
+                      <span>Edit Texture</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      className={`${styles.menuItem} ${styles.menuItemDanger}`}
+                      disabled={isGhost || !alias.fullPath}
+                      onClick={() => {
+                        setActiveMenuKey(null);
+                        if (alias.fullPath) {
+                          deleteTextureFile(alias.fullPath, alias.alias);
+                        }
+                      }}
+                      title={isGhost ? 'Texture file does not exist on disk' : 'Delete PNG file from disk'}
+                    >
+                      <Trash2 size={13} className={styles.menuIcon} />
+                      <span>Delete Texture</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      className={`${styles.menuItem} ${styles.menuItemDanger}`}
+                      disabled={alias.status === 'ORPHAN'}
+                      onClick={() => {
+                        setActiveMenuKey(null);
+                        deleteTextureEntries(alias.alias, alias.category, alias.relativePath);
+                      }}
+                      title={alias.status === 'ORPHAN' ? 'Orphan has no JSON declarations' : 'Remove declarations from JSON schemas'}
+                    >
+                      <FileX size={13} className={styles.menuIcon} />
+                      <span>Delete Entries</span>
+                    </button>
+                  </div>
                 )}
-              </div>
 
-              {/* Tile Metadata with Status Dot and Badges separated from artwork */}
-              <div className={styles.tileMeta}>
-                <div className={styles.tileHeaderRow}>
-                  <span className={`${styles.statusDot} ${getStatusDotClass(alias.status)}`} />
-                  <span className={styles.tileTitle}>{alias.displayName || alias.alias}</span>
-                  {alias.isFlipbook && (
-                    <span className={styles.animBadge} title="Animated flipbook sprite-sheet">
-                      ANIM
-                    </span>
+                {/* Thumbnail Container - 100% clean texture display without overlays */}
+                <div className={styles.tileThumbnailWrapper}>
+                  {!isGhost && alias.imageUrl ? (
+                    <FlipbookThumbnail
+                      src={alias.imageUrl}
+                      alt={alias.alias}
+                      className={styles.tileThumbnail}
+                      isFlipbook={alias.isFlipbook}
+                      flipbook={alias.flipbook}
+                      loading="lazy"
+                    />
+                  ) : (
+                    <span className={styles.placeholderGhost}>?</span>
                   )}
                 </div>
-                <span className={styles.tileSubtitle}>
-                  {alias.subtitleCaption || alias.relativePath || alias.category}
-                </span>
+
+                {/* Tile Metadata with Status Dot and Badges separated from artwork */}
+                <div className={styles.tileMeta}>
+                  <div className={styles.tileHeaderRow}>
+                    <span className={`${styles.statusDot} ${getStatusDotClass(alias.status)}`} />
+                    <span className={styles.tileTitle}>{alias.displayName || alias.alias}</span>
+                    {alias.isFlipbook && (
+                      <span className={styles.animBadge} title="Animated flipbook sprite-sheet">
+                        ANIM
+                      </span>
+                    )}
+                  </div>
+                  <span className={styles.tileSubtitle}>
+                    {alias.subtitleCaption || alias.relativePath || alias.category}
+                  </span>
+                </div>
               </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 };

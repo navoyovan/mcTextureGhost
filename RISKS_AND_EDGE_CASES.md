@@ -1,0 +1,36 @@
+# Risks & Edge Cases — McTextureGhost
+
+Review this document before implementing state changes, IPC bridges, or file system logic.
+
+## 1. Windows File Locks & Process Hazards
+- **`McTextureGhost.exe` Lock (`MSB3021` / `MSB3027`):**
+  - **Risk:** When testing the app, Windows keeps the executable loaded in memory. Running `dotnet build` fails after 10 retry timeouts.
+  - **Remedy:** Always terminate existing processes (`Get-Process McTextureGhost -ErrorAction SilentlyContinue | Stop-Process -Force`) before rebuilding.
+- **External Image Editor File Contention:**
+  - **Risk:** External graphic editors (Aseprite, Photoshop) fail to save if McTextureGhost holds open handles to PNG files.
+  - **Remedy:** All texture reading must use in-memory decoding with `BitmapCacheOption.OnLoad` or `FileShare.ReadWrite`. Never hold open `FileStream` objects.
+
+## 2. WPF-UI 4.x & DWM Invariants
+- **Non-Client TitleBar Hit Testing:**
+  - Standard WPF `IsMouseOver` fails on non-client caption areas because DWM manages hit testing.
+  - Setting `ButtonsBackground="Transparent"` breaks hover highlights by suppressing WPF-UI's `HwndSourceHook` WM_NCMOUSEMOVE handler.
+  - Always keep `ButtonsBackground="#2EFFFFFF"` and set `CommandParameter` on all `TitleBarButton` triggers to avoid fatal `ElementNotEnabledException`.
+- **Button Appearance:**
+  - `Appearance="Subtle"` throws a runtime `FormatException` in WPF-UI 4.x. Use `Appearance="Transparent"`.
+
+## 3. WebView2 & IPC Synchronization
+- **Early Message Dispatch:**
+  - **Risk:** C# sending messages before WebView2 DOM and React listeners are mounted drops messages silently.
+  - **Remedy:** Queue initial state payloads until React sends an explicit `FRONTEND_READY` message to the host.
+- **Payload Deserialization Errors:**
+  - Keep payload schema versioned or strictly typed with fallback error handling to avoid white-screen crashes in WebView2.
+
+## 4. Minecraft Bedrock JSON Schema Quirks
+- **Polymorphic Texture Declarations in `terrain_texture.json`:**
+  - Textures can be declared as:
+    1. A single string path: `"textures/blocks/stone"`
+    2. An array of paths: `["textures/blocks/dirt_1", "textures/blocks/dirt_2"]`
+    3. An object with variations: `{"variations": [{"path": "textures/blocks/grass", "weight": 1}]}`
+  - The scanner and writer must handle all three shapes without throwing `JsonException`.
+- **Relative Path Conventions:**
+  - Bedrock schemas omit the `.png` extension in `terrain_texture.json` and `item_texture.json` (e.g. `textures/blocks/stone` points to `textures/blocks/stone.png`).

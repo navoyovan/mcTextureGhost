@@ -372,34 +372,87 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
             });
         });
 
+        // 4b. TEXTURE:DELETE_FILE
+        _ipcBridge.RegisterHandler<TextureDeleteFilePayload>(IpcMessageTypes.TextureDeleteFile, async (payload, corrId) =>
+        {
+            await Dispatcher.InvokeAsync(async () =>
+            {
+                if (payload != null && !string.IsNullOrWhiteSpace(payload.FullPath))
+                {
+                    try
+                    {
+                        if (File.Exists(payload.FullPath))
+                        {
+                            File.Delete(payload.FullPath);
+                        }
+                        ImagePathConverter.ClearCache();
+                        await ViewModel.RescanAsync();
+                    }
+                    catch (Exception ex)
+                    {
+                        _ipcBridge.PushError("Delete Texture File", $"Failed to delete texture: {ex.Message}", "warning");
+                    }
+                }
+            });
+        });
+
+        // 4c. TEXTURE:DELETE_ENTRIES
+        _ipcBridge.RegisterHandler<TextureDeleteEntriesPayload>(IpcMessageTypes.TextureDeleteEntries, async (payload, corrId) =>
+        {
+            await Dispatcher.InvokeAsync(async () =>
+            {
+                if (payload != null && ViewModel.PackRootPath != null && !string.IsNullOrWhiteSpace(payload.AliasKey))
+                {
+                    try
+                    {
+                        JsonWriterService.DeleteTextureEntries(ViewModel.PackRootPath, payload.AliasKey, payload.Category, payload.RelativePath);
+                        await ViewModel.RescanAsync();
+                    }
+                    catch (Exception ex)
+                    {
+                        _ipcBridge.PushError("Delete JSON Entries", $"Failed to delete entries: {ex.Message}", "warning");
+                    }
+                }
+            });
+        });
+
         // 5. SCAFFOLD:PLAIN
         _ipcBridge.RegisterHandler<ScaffoldPlainPayload>(IpcMessageTypes.ScaffoldPlain, async (payload, corrId) =>
         {
-            if (payload != null && ViewModel.PackRootPath != null)
+            await Dispatcher.InvokeAsync(async () =>
             {
-                JsonWriterService.AddPlainBlock(ViewModel.PackRootPath, payload.AliasName, payload.BlockId);
-                await Dispatcher.InvokeAsync(async () => await ViewModel.RescanAsync());
-            }
+                if (payload != null && ViewModel.PackRootPath != null)
+                {
+                    JsonWriterService.AddPlainBlock(ViewModel.PackRootPath, payload.AliasName, payload.BlockId);
+                    await ViewModel.RescanAsync();
+                }
+            });
         });
 
         // 6. SCAFFOLD:PER_FACE
         _ipcBridge.RegisterHandler<ScaffoldPerFacePayload>(IpcMessageTypes.ScaffoldPerFace, async (payload, corrId) =>
         {
-            if (payload != null && ViewModel.PackRootPath != null)
+            await Dispatcher.InvokeAsync(async () =>
             {
-                JsonWriterService.AddPerFaceBlock(ViewModel.PackRootPath, payload.AliasName, payload.BlockId);
-                await Dispatcher.InvokeAsync(async () => await ViewModel.RescanAsync());
-            }
+                if (payload != null && ViewModel.PackRootPath != null)
+                {
+                    JsonWriterService.AddPerFaceBlock(ViewModel.PackRootPath, payload.AliasName, payload.BlockId);
+                    await ViewModel.RescanAsync();
+                }
+            });
         });
 
         // 7. SCAFFOLD:FLIPBOOK
         _ipcBridge.RegisterHandler<ScaffoldFlipbookPayload>(IpcMessageTypes.ScaffoldFlipbook, async (payload, corrId) =>
         {
-            if (payload != null && ViewModel.PackRootPath != null)
+            await Dispatcher.InvokeAsync(async () =>
             {
-                JsonWriterService.AddFlipbookBlock(ViewModel.PackRootPath, payload.AliasName, payload.BlockId, payload.TicksPerFrame ?? 10);
-                await Dispatcher.InvokeAsync(async () => await ViewModel.RescanAsync());
-            }
+                if (payload != null && ViewModel.PackRootPath != null)
+                {
+                    JsonWriterService.AddFlipbookBlock(ViewModel.PackRootPath, payload.AliasName, payload.BlockId, payload.TicksPerFrame ?? 10);
+                    await ViewModel.RescanAsync();
+                }
+            });
         });
 
         // 8. ORPHAN:REGISTER
@@ -670,7 +723,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
             PackName: ViewModel.PackName,
             HasManifest: ViewModel.HasManifest,
             HasPackIcon: ViewModel.HasPackIcon,
-            PackIconUrl: ViewModel.HasPackIcon ? "https://pack.local/pack_icon.png" : null,
+            PackIconUrl: ViewModel.HasPackIcon ? IpcContractMapper.BuildVirtualTextureUrl("pack_icon.png", ViewModel.PackIconPath, ViewModel.PackRootPath) : null,
             Manifest: ViewModel.CurrentManifest?.ToDto(),
             Aliases: ViewModel.Aliases.Select(a => a.ToDto(ViewModel.PackRootPath)).ToList(),
             BlockWorkspaceTree: ViewModel.BlockWorkspaceTree.Select(b => b.ToDto(ViewModel.PackRootPath)).ToList(),

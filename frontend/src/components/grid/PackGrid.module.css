@@ -154,3 +154,108 @@
 .emptyText {
   font-size: 14px;
 }
+
+/* ─── 3-Dots Hover Menu & Popover ─── */
+.moreButton {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  background: rgba(18, 18, 20, 0.75);
+  backdrop-filter: blur(8px);
+  color: var(--text-secondary, #a1a1aa);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  cursor: pointer;
+  z-index: 10;
+  transition: opacity 0.15s ease, background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.tileCard:hover .moreButton,
+.moreButtonActive {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.moreButton:hover,
+.moreButtonActive {
+  background: #2a2a32;
+  color: #f4f4f5;
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+.dropdownMenu {
+  position: absolute;
+  top: 32px;
+  right: 6px;
+  min-width: 140px;
+  background: #202026;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 6px;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.65);
+  z-index: 50;
+  animation: menuAppear 0.12s ease-out;
+}
+
+@keyframes menuAppear {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.menuItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  border-radius: 4px;
+  border: none;
+  background: transparent;
+  color: var(--text-primary, #f4f4f5);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+  transition: background-color 0.12s ease, color 0.12s ease;
+}
+
+.menuItem:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+}
+
+.menuItem:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+}
+
+.menuItemDanger {
+  color: #fb7185;
+}
+
+.menuItemDanger:hover:not(:disabled) {
+  background: rgba(244, 63, 94, 0.15);
+  color: #fda4af;
+}
+
+.menuIcon {
+  flex-shrink: 0;
+  opacity: 0.85;
+}
+

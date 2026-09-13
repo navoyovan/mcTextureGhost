@@ -247,7 +247,7 @@ export const packStoreActions: PackStoreActions = {
     notify();
   },
 
-  setActiveView(view: 'grid' | 'workspace'): void {
+  setActiveView(view: 'grid' | 'workspace' | 'manifest'): void {
     currentState = { ...currentState, activeView: view };
     notify();
   },

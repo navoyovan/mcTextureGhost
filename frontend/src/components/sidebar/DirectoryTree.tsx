@@ -33,16 +33,16 @@ function renderNodeIcon(node: PackFolderItemDto, isSelected: boolean) {
 
   if (!node.isDirectory || isJson || isImage || isText || isCode) {
     const iconClass = isSelected ? styles.fileIconSelected : styles.fileIcon;
-    if (isJson) return <FileJson size={13} className={iconClass} />;
-    if (isImage) return <FileImage size={13} className={iconClass} />;
-    if (isText) return <FileText size={13} className={iconClass} />;
-    if (isCode) return <FileCode size={13} className={iconClass} />;
-    return <File size={13} className={iconClass} />;
+    if (isJson) return <FileJson size={16} className={iconClass} />;
+    if (isImage) return <FileImage size={16} className={iconClass} />;
+    if (isText) return <FileText size={16} className={iconClass} />;
+    if (isCode) return <FileCode size={16} className={iconClass} />;
+    return <File size={16} className={iconClass} />;
   }
 
   return (
     <Folder
-      size={13}
+      size={16}
       className={isSelected ? styles.folderIconSelected : styles.folderIcon}
     />
   );
@@ -109,7 +109,7 @@ export const DirectoryTreeNode: React.FC<DirectoryTreeNodeProps> = ({
             title={isExpanded ? 'Collapse directory' : 'Expand directory'}
             aria-label={isExpanded ? 'Collapse directory' : 'Expand directory'}
           >
-            {isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+            {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
           </button>
         ) : (
           <span className={styles.chevronSpacer} />

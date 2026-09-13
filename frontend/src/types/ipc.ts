@@ -28,6 +28,8 @@ export const IpcMessageTypes = {
   PackOpenExplorer: 'PACK:OPEN_EXPLORER',
   PackClose: 'PACK:CLOSE',
   AddVanillaEntry: 'ADD_VANILLA_ENTRY',
+  TextureDeleteFile: 'TEXTURE:DELETE_FILE',
+  TextureDeleteEntries: 'TEXTURE:DELETE_ENTRIES',
 
   // Outgoing from C# to Web
   PackStateChanged: 'PACK:STATE_CHANGED',
@@ -57,6 +59,17 @@ export interface TextureEditPayload {
   aliasKey: string;
   fullPath: string;
   isGhost?: boolean;
+}
+
+export interface TextureDeleteFilePayload {
+  fullPath: string;
+  aliasKey?: string;
+}
+
+export interface TextureDeleteEntriesPayload {
+  aliasKey: string;
+  category: string;
+  relativePath?: string;
 }
 
 export interface ScaffoldPlainPayload {

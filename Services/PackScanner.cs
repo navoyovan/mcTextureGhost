@@ -936,7 +936,7 @@ public static class PackScanner
                         {
                             var entry = vData.Entries[i];
                             var caption = entry.TotalBlockVariants.HasValue
-                                ? $"block {entry.BlockVariantIndex}/{entry.TotalBlockVariants}"
+                                ? $"block state {entry.BlockVariantIndex}/{entry.TotalBlockVariants}"
                                 : (entry.TotalTextureVariants.HasValue
                                     ? $"tex {entry.TextureVariantIndex}/{entry.TotalTextureVariants}"
                                     : "vanilla default");
