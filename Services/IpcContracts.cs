@@ -348,7 +348,8 @@ public record FlipbookDefinitionDto(
     [property: JsonPropertyName("frames")] int[]? Frames = null,
     [property: JsonPropertyName("blendFrames")] bool BlendFrames = true,
     [property: JsonPropertyName("atlasIndex")] int? AtlasIndex = null,
-    [property: JsonPropertyName("atlasTileVariant")] int? AtlasTileVariant = null
+    [property: JsonPropertyName("atlasTileVariant")] int? AtlasTileVariant = null,
+    [property: JsonPropertyName("replicate")] int Replicate = 1
 );
 
 public record TextureAliasDto(
@@ -555,7 +556,8 @@ public static class IpcContractMapper
             Frames: fb.Frames,
             BlendFrames: fb.BlendFrames,
             AtlasIndex: fb.AtlasIndex,
-            AtlasTileVariant: fb.AtlasTileVariant
+            AtlasTileVariant: fb.AtlasTileVariant,
+            Replicate: fb.Replicate
         );
 
     public static CatalogLeafDto ToDto(this CatalogLeaf leaf, string? packRoot = null)

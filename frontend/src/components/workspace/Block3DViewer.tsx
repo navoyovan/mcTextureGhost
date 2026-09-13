@@ -134,10 +134,17 @@ export const Block3DViewer: React.FC<Block3DViewerProps> = ({
               tex.wrapS = THREE.ClampToEdgeWrapping;
               tex.wrapT = THREE.ClampToEdgeWrapping;
 
+              const replicate = Math.max(1, flipbook?.replicate ?? 1);
               const inset = 0.05 / img.height;
               const frameH = 1 / frameCount;
 
-              tex.repeat.set(1, frameH - 2 * inset);
+              if (replicate > 1) {
+                tex.wrapS = THREE.RepeatWrapping;
+                tex.wrapT = THREE.RepeatWrapping;
+                tex.repeat.set(replicate, (frameH - 2 * inset) * replicate);
+              } else {
+                tex.repeat.set(1, frameH - 2 * inset);
+              }
               tex.offset.set(0, 1 - frameH + inset);
 
               if (frameCount > 1) {
@@ -263,7 +270,8 @@ export const Block3DViewer: React.FC<Block3DViewerProps> = ({
           const seqLen = frames && frames.length > 0 ? frames.length : frameCount;
           const currentStep = Math.floor(totalTicks / ticksPerFrame);
           const seqIdx = ((currentStep % seqLen) + seqLen) % seqLen;
-          const frameIndex = frames && frames.length > 0 ? (frames[seqIdx] ?? 0) : seqIdx;
+          const rawFrame = frames && frames.length > 0 ? (frames[seqIdx] ?? 0) : seqIdx;
+          const frameIndex = ((rawFrame % frameCount) + frameCount) % frameCount;
 
           if (frameIndex !== item.lastFrame) {
             item.lastFrame = frameIndex;

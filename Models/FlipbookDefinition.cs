@@ -10,5 +10,6 @@ public record FlipbookDefinition(
     int[]? Frames = null,
     bool BlendFrames = true,
     int? AtlasIndex = null,
-    int? AtlasTileVariant = null
+    int? AtlasTileVariant = null,
+    int Replicate = 1
 );

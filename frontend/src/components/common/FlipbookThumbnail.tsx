@@ -170,6 +170,7 @@ export const FlipbookThumbnail: React.FC<FlipbookThumbnailProps> = ({
 
     const ticksPerFrame = Math.max(1, flipbook?.ticksPerFrame ?? 1);
     const blendFrames = flipbook?.blendFrames !== false;
+    const replicate = Math.max(1, flipbook?.replicate ?? 1);
     const seq = flipbook?.frames && flipbook.frames.length > 0 ? flipbook.frames : null;
     const seqLen = seq ? seq.length : frameCount;
 
@@ -179,17 +180,42 @@ export const FlipbookThumbnail: React.FC<FlipbookThumbnailProps> = ({
       const progress = stepFloat - currentStep;
 
       const idxA = ((currentStep % seqLen) + seqLen) % seqLen;
-      const frameA: number = (seq ? seq[idxA] : idxA) ?? 0;
+      const rawFrameA: number = (seq ? seq[idxA] : idxA) ?? 0;
+      const frameA = ((rawFrameA % frameCount) + frameCount) % frameCount;
+
+      const renderTiled = (frameIndex: number) => {
+        if (replicate === 1) {
+          ctx.drawImage(img, 0, frameIndex * frameWidth, frameWidth, frameWidth, 0, 0, frameWidth, frameWidth);
+        } else {
+          const subSize = frameWidth / replicate;
+          for (let rx = 0; rx < replicate; rx++) {
+            for (let ry = 0; ry < replicate; ry++) {
+              ctx.drawImage(
+                img,
+                0,
+                frameIndex * frameWidth,
+                frameWidth,
+                frameWidth,
+                rx * subSize,
+                ry * subSize,
+                subSize,
+                subSize
+              );
+            }
+          }
+        }
+      };
 
       if (!blendFrames) {
         if (lastRenderedRef.current.frameA === frameA) return;
         lastRenderedRef.current.frameA = frameA;
 
         ctx.clearRect(0, 0, frameWidth, frameWidth);
-        ctx.drawImage(img, 0, frameA * frameWidth, frameWidth, frameWidth, 0, 0, frameWidth, frameWidth);
+        renderTiled(frameA);
       } else {
         const idxB = (((currentStep + 1) % seqLen) + seqLen) % seqLen;
-        const frameB: number = (seq ? seq[idxB] : idxB) ?? 0;
+        const rawFrameB: number = (seq ? seq[idxB] : idxB) ?? 0;
+        const frameB = ((rawFrameB % frameCount) + frameCount) % frameCount;
 
         // Skip redraw if identical frame with zero progress change
         if (
@@ -204,11 +230,11 @@ export const FlipbookThumbnail: React.FC<FlipbookThumbnailProps> = ({
 
         ctx.clearRect(0, 0, frameWidth, frameWidth);
         ctx.globalAlpha = 1.0;
-        ctx.drawImage(img, 0, frameA * frameWidth, frameWidth, frameWidth, 0, 0, frameWidth, frameWidth);
+        renderTiled(frameA);
 
         if (frameA !== frameB && progress > 0.01) {
           ctx.globalAlpha = Math.min(1.0, Math.max(0.0, progress));
-          ctx.drawImage(img, 0, frameB * frameWidth, frameWidth, frameWidth, 0, 0, frameWidth, frameWidth);
+          renderTiled(frameB);
           ctx.globalAlpha = 1.0;
         }
       }

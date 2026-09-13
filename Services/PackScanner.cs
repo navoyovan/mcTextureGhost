@@ -804,6 +804,12 @@ public static class PackScanner
                 blendFrames = blendProp.GetBoolean();
             }
 
+            int replicate = 1;
+            if (item.TryGetProperty("replicate", out var repProp) && repProp.ValueKind == JsonValueKind.Number && repProp.TryGetInt32(out var rep) && rep > 0)
+            {
+                replicate = rep;
+            }
+
             if (string.IsNullOrWhiteSpace(texturePath) && string.IsNullOrWhiteSpace(atlasTile))
                 continue;
 
@@ -814,7 +820,8 @@ public static class PackScanner
                 Frames: frames,
                 BlendFrames: blendFrames,
                 AtlasIndex: atlasIndex,
-                AtlasTileVariant: atlasTileVariant
+                AtlasTileVariant: atlasTileVariant,
+                Replicate: replicate
             );
 
             if (!string.IsNullOrWhiteSpace(texturePath))

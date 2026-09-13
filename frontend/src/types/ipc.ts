@@ -152,6 +152,7 @@ export interface FlipbookDefinitionDto {
   blendFrames: boolean;
   atlasIndex?: number | null;
   atlasTileVariant?: number | null;
+  replicate?: number;
 }
 
 export interface TextureAliasDto {
