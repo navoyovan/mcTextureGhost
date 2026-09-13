@@ -1,134 +1,72 @@
 # McTextureGhost
-Ghost Resource Manager for Minecraft (`mc-ghost-resource-manager`)
 
-## About
-McTextureGhost is a desktop tool designed for Minecraft Bedrock Edition resource pack creators, texture artists, and technical pack developers. It eliminates manual JSON boilerplate, identifies missing textures ("ghosts"), and provides real-time live reloading with instant external image editor integration.
+**A texture workspace for Minecraft Bedrock resource pack creators.**
+
+Stop hunting for missing textures by hand. McTextureGhost scans your pack, shows you every declared texture that doesn't exist on disk yet ("ghosts"), and gets you into your image editor in one click — no JSON wrangling required.
+
+---
+
+## What it does
+
+### Ghost Detection
+Every texture alias declared in your `terrain_texture.json` or `item_texture.json` that has no artwork on disk is flagged as a **ghost** 👻. The pack grid surfaces all of them at a glance. Click any ghost to generate a placeholder stub and jump straight into your editor.
+
+### Live Reload
+Save in Aseprite, Photoshop, or Paint.NET and the tile updates instantly — no app restart, no manual refresh. The watcher debounces properly so it doesn't fire mid-save.
+
+### Block Workspace
+A relational 4-tier view of your pack's block texture hierarchy: Block → Alias → Variant → Face. Useful when a single block alias has state variants, random cosmetic variations, or multiple directional faces that need to be managed together.
+
+### Vanilla Reference Catalog
+Browse the full official Bedrock texture catalog (`Mojang/bedrock-samples`) without leaving the app. Find any block or item, see its in-game name, face assignments, and variants — then add it to your pack's JSON with one click. The catalog caches locally so it works offline.
+
+### Flipbook Animation Previews
+Animated textures (`flipbook_textures.json`) play back at the real Minecraft 20 tick/s rate with GPU frame blending, so what you see in the app is what you'll see in-game.
+
+### Manifest Editor
+Create new packs or edit `manifest.json` without touching raw JSON. Name, description, format version, min engine version, and one-click UUID regeneration.
+
+### Folder Explorer
+Sidebar tree of your pack's directory structure with live texture and ghost counts per folder. Click a folder to scope the main view to just that directory.
+
+---
+
+## Views
+
+| View | What it's for |
+|---|---|
+| **Pack Grid** | Full texture atlas — all blocks and items, filterable by status |
+| **Block Workspace** | Deep per-block editing: variants, faces, animations |
+| **Manifest Editor** | Pack metadata — accessible from the sidebar or File menu |
+
+---
 
 ## Roadmap
 
-- [x] **v0.0 - Block Textures & Ghost Workflow**
-  - [x] read `terrain_texture.json` and display texture aliases
-  - [x] ghost tile identification for declared-but-missing textures
-  - [x] 16×16 checkerboard stub generation with native "Open With" launcher
-  - [x] live reload on external editor save (<kbd>Ctrl</kbd> + <kbd>S</kbd>)
-- [x] **Variant & Animation Engine**
-  - [x] differentiate block state variants and texture face variations
-  - [x] support for `flipbook_textures.json` (20Hz global tick, custom frame sequences, blending)
-- [x] **v0.1 - Item Atlas Support**
-  - [x] read `textures/item_texture.json`
-  - [x] 3-way atlas filtering (All / Blocks / Items)
-  - [x] separate item orphan registration
-- [x] **Vanilla Bedrock Reference Catalog**
-  - [x] fetches reference catalog from `Mojang/bedrock-samples` (`main` branch)
-  - [x] offline local cache in `%AppData%\McTextureGhost\vanilla_cache\`
-  - [x] in-game display name from `texts/en_US.lang`
-  - [x] JSON scaffolding for blocks, aliases, and items
-  - [x] Bug: Resolved false-positive orphans
-- [x] **Pack & Manifest Tooling**
-  - [x] pack creation wizard with auto boilerplate
-  - [x] `manifest.json` editor along with UUID generator
-
-- [ ] **Upcoming Features**
-  - [ ] replace current prototype ui with an actual ui
-  - [ ] v0.2 - Entity textures atlas and model texture mapping
-  - [ ] v0.3 - UI and Particle textures support
-  - [ ] Support for `.tga` texture format decoding and preview
-  - [ ] Pack version switcher / target Bedrock engine version selector
-  - [ ] Option to preview or fetch individual vanilla reference textures alongside stubs
-
-
-## Key Features
-
-### 1. Vanilla Reference Catalog (`Mojang/bedrock-samples`)
-- **Remote Vanilla Integration**: queries the official [`Mojang/bedrock-samples`](https://github.com/Mojang/bedrock-samples) repository for the latest Bedrock resource pack schemas (`blocks.json`, `terrain_texture.json`, `item_texture.json`, `flipbook_textures.json`, and `en_US.lang`).
-- **Offline Caching**: caches reference data under `%AppData%\McTextureGhost\vanilla_cache\` so the app launches and operates offline instantly.
-- **Hierarchical Tree View**: browse textures organized in an intuitive 3-level tree:
-  1. **Block / Item** (readable in-game names from `en_US.lang` + namespace ID)
-  2. **Texture Alias** (atlas key with face summary badge, e.g. `top/btm`, `side`)
-  3. **Texture Variants** (data-value slots, randomized variations with weights, and flipbook animations)
-- **JSON Scaffolding**: add any vanilla block, alias, or item texture directly into your pack with one click. Scaffolds `blocks.json`, `terrain_texture.json`, `item_texture.json`, and flipbook definitions simultaneously.
-- **Override Detection**: textures placed on disk matching vanilla paths are recognized as valid overrides (`OK`), avoiding false-positive orphan warnings even in packs without JSON files.
-
-### 2. Live Texture Reloading & External Editor Integration
-- **Zero-Lock Image Decoding**: decodes texture files through in-memory streams with `BitmapCacheOption.OnLoad`, instantly releasing disk file handles so external editors (Aseprite, Photoshop, Paint.NET, Blockbench) never encounter `file in use` errors.
-- **Bypasses WPF URI Cache**: implements custom cache invalidation bypassing WPF's unmanaged WIC URI imaging cache. When you press <kbd>Ctrl</kbd> + <kbd>S</kbd> in your image editor, the app immediately re-reads raw pixels and re-renders the tile live.
-- **Debounced FileSystemWatcher**: 150ms debouncer prevents race conditions during editor file flush and multi-pass save cycles.
-- **Ghost-to-Real Workflow**: clicking any missing texture ("Ghost") generates a 16×16 placeholder stub PNG and immediately opens the native Windows "Open With" dialog. once painted and saved, the tile flips to `OK` in real time.
-
-### 3. 1:1 Bedrock Flipbook Animation Engine
-- **Synchronized Global Tick Clock**: Emulates 20 world tick per second Minecraft game engine.
-- **Seamless GPU Crossfade**: `blend_frames` with 60 FPS GPU crossfading between animation frames, accurately reproducing in-game rendering.
-- **Frame Sequences & Slicing**: parses vertically stacked sprite sheets into zero-copy frame views, honoring custom `frames` index sequences and `ticks_per_frame` animation speeds.
-- **Automatic Pausing**: stop animation when no animated tiles are currently visible on screen to conserve CPU and GPU resources.
-
-### 4. Atlas & Variant Support
-- **Multi-Atlas Filtering**: Seamless 3-way toggle between **All Textures**, **Blocks** (`atlas.terrain`), and **Items** (`atlas.items`).
-- **Block Variants vs. Texture Variations**:
-  - distinguishes block state / data-value variant arrays (`textures: [ ... ]`, e.g., `cobblestone_wall`).
-  - distinguishes random cosmetic variation arrays with spawn weights (`variations: [ ... ]`, e.g., `cobblestone`).
-  - full support for nested combinations (e.g., block state slots containing weighted variations like `dirt`).
-- **Face Badge Summaries**: auto cross-references `blocks.json` geometry to display directional face tags (`top`, `btm`, `side`, `sides`, `e/w`, `n/s`, `hand`).
-
-### 5. Pack Creation & Manifest Management
-- **New Pack Wizard**: Create brand-new Bedrock resource packs from scratch with directory structure (`textures/blocks`, `textures/items`) and automatically generated UUIDs.
-- **Manifest Editor View**: dedicated tab to view and edit `manifest.json` metadata (pack name, description, format version, min engine version).
-- **UUID Tools**: regenerate Header or Module UUIDs with a single click and copy them straight to your clipboard.
-- **Folder Explorer Sidebar**: sidebar tree showing folder hierarchy with live item and ghost count badges for quick scoped filtering.
+- [x] Block and item texture scanning with ghost detection
+- [x] Live reload on external editor save
+- [x] Flipbook animation playback (20Hz, GPU blending)
+- [x] Vanilla Bedrock reference catalog with offline cache
+- [x] JSON scaffolding (blocks, aliases, items, flipbooks)
+- [x] Pack creation wizard and manifest editor
+- [x] Block Workspace — 4-tier relational hierarchy view
+- [x] Context menu: block state formatting and deletion
+- [ ] Entity texture atlas and model texture mapping
+- [ ] UI and particle texture support
+- [ ] `.tga` format decoding and preview
+- [ ] Per-texture vanilla reference preview alongside stubs
+- [ ] Target Bedrock engine version selector
 
 ---
 
 ## Getting Started
 
-### Prerequisites
-- **Windows 10 or Windows 11**
-- **.NET 8.0 SDK** (Desktop Runtime / WPF)
-- (Optional) **Visual Studio 2022** (with *.NET desktop development* workload) or VS Code / JetBrains Rider
+**Requirements:** Windows 10 / 11, [.NET 8.0 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/8.0)
 
-### Building & Running
-
-1. **Clone the repository:**
-   ```bash
-   git clone https://github.com/navoyovan/mcTextureGhost.git
-   cd McTextureGhost
-   ```
-
-2. **Build the project:**
-   ```powershell
-   dotnet build McTextureGhost.csproj
-   ```
-
-3. **Run the application:**
-   ```powershell
-   dotnet run --project McTextureGhost.csproj
-   ```
-
----
-
-## Project Architecture
-
-```
-McTextureGhost/
-├── Models/
-│   ├── BlockGroupNode.cs        # 3-level hierarchical catalog data models (Block, Alias, Leaf)
-│   ├── FlipbookDefinition.cs    # Flipbook animation metadata schema
-│   ├── ManifestModel.cs         # manifest.json model with UUID regeneration and parsing
-│   ├── PackFolderItem.cs        # Folder tree nodes with live item/ghost counts
-│   └── TextureAlias.cs          # Consolidated texture tile model (Status, variants, faces, brushes)
-├── Services/
-│   ├── FlipbookAnimationManager.cs # Synchronized 20Hz animation clock and GPU frame crossfader
-│   ├── JsonWriterService.cs     # Scaffolding logic for blocks, aliases, items, and flipbooks
-│   ├── OpenWithLauncher.cs      # Native Windows "Open With" dialog launcher
-│   ├── PackScanner.cs           # Pack inspection, orphan detection, and catalog tree builder
-│   ├── PlaceholderImageFactory.cs # 16x16 checkerboard stub PNG generator
-│   └── VanillaDataService.cs    # Remote Mojang/bedrock-samples downloader, cache, & lang parser
-├── ViewModels/
-│   ├── MainViewModel.cs         # Master ViewModel (state, commands, filtering, debounced watcher)
-│   └── RelayCommand.cs          # Standard ICommand implementation
-└── Views/
-    ├── BoolToVisibilityConverters.cs # Converters & ImagePathConverter (memory-stream cache bypass)
-    ├── CreatePackManifestDialog.xaml # Pack creation modal dialog
-    ├── FlipbookThumbnail.cs     # Custom WPF control for NearestNeighbor pixel art & animation
-    └── MainWindow.xaml          # Windows 11 Fluent dark interface (grid, catalog tree, manifest tab)
+```powershell
+git clone https://github.com/navoyovan/mcTextureGhost.git
+cd McTextureGhost
+dotnet run --project McTextureGhost.csproj
 ```
 
 ---
@@ -137,29 +75,12 @@ McTextureGhost/
 
 McTextureGhost is source-available under the [Business Source License 1.1](./LICENSE).
 
-**In short:**
-- Free to use, modify, and share for personal, educational, or internal
-  non-commercial purposes.
-- You may **not** sell it, or a modified version of it, as a commercial
-  product or paid/hosted service without a separate agreement.
-- Each release automatically converts to the fully open **Apache License
-  2.0** four years after its publication date.
+- Free for personal, educational, and non-commercial use.
+- Cannot be resold or repackaged as a commercial product without a separate agreement.
+- Automatically converts to **Apache 2.0** four years after each release date.
 
-This isn't OSI "open source" in the strict sense, but it's not closed
-either — the code is public, contributions are welcome, and every version
-becomes permanently open on a fixed timeline regardless of what happens to
-the project. It's meant to keep the tool free for the community that
-actually uses it, while leaving room for the project to become sustainable
-without someone else selling a repackaged copy out from under it first.
+Contributions welcome — first-time contributors will be prompted to sign the [CLA](./CLA.md) when opening a pull request. Questions about commercial licensing? Open an issue.
 
-Contributions are accepted under the project's [Contributor License
-Agreement](./CLA.md) — first-time contributors will be prompted to sign it
-automatically when opening a pull request.
+---
 
-Questions about commercial use or licensing exceptions? Open an issue or
-reach out directly.
-
-
-## Disclaimer
 > **NOT AN OFFICIAL MINECRAFT PRODUCT. NOT APPROVED BY OR ASSOCIATED WITH MOJANG OR MICROSOFT.**
-

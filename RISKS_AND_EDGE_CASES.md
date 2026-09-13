@@ -34,3 +34,11 @@ Review this document before implementing state changes, IPC bridges, or file sys
   - The scanner and writer must handle all three shapes without throwing `JsonException`.
 - **Relative Path Conventions:**
   - Bedrock schemas omit the `.png` extension in `terrain_texture.json` and `item_texture.json` (e.g. `textures/blocks/stone` points to `textures/blocks/stone.png`).
+
+## 5. `activeView` Union Type Contract
+- **Risk:** Adding a new view string (e.g. `'manifest'`) to the `PackState` type or the `PackStore` interface without also updating the `setActiveView` method *implementation* signature in `packStore.ts` causes a **TypeScript contravariance error** at the assignment site.
+- **Rule:** When a new view is added, update all three locations atomically:
+  1. `PackState.activeView` field type
+  2. `PackStore.setActiveView` interface method parameter type
+  3. `setActiveView(view: ...)` implementation signature in `packStore.ts`
+
