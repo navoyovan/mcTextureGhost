@@ -281,20 +281,17 @@ export const Sidebar: React.FC = () => {
           ) : (
             <button
               type="button"
-              className={`${styles.sidebarFloatingCard} ${styles.sidebarFloatingCardEmpty}`}
-              title="Click to select a resource pack folder or manifest to use as reference"
-              aria-label="Pick Reference Pack Folder"
-              onClick={(e) => {
-                e.stopPropagation();
-                postCommand(IpcMessageTypes.CatalogPickReference, {});
-              }}
+              className={`${styles.sidebarFloatingCard} ${styles.sidebarFloatingCardEmpty} ${styles.sidebarFloatingCardDisabled}`}
+              title="Custom Reference packs are coming soon"
+              aria-label="Custom Reference Coming Soon"
+              disabled
             >
               <div className={styles.floatingCardEmptyIconWrapper}>
                 <span>+</span>
               </div>
               <div className={styles.catalogCardMeta}>
                 <span className={styles.catalogCardTitle}>Custom Reference</span>
-                <span className={styles.catalogCardSubtitle}>Click to pick pack folder...</span>
+                <span className={styles.catalogCardSubtitle}>Coming Soon</span>
               </div>
             </button>
           )}
