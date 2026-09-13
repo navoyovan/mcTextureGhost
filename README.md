@@ -1,8 +1,10 @@
 # McTextureGhost
 
-**A texture workspace for Minecraft Bedrock resource pack creators.**
+**Minecraft texture pack workspace for resource pack creators or to curate your own texture collection.**
 
 Stop hunting for missing textures by hand. McTextureGhost scans your pack, shows you every declared texture that doesn't exist on disk yet ("ghosts"), and gets you into your image editor in one click — no JSON wrangling required.
+
+This program is for you to make the process of texturing a Minecraft pack easier and faster. I wanted an app to see all my textures in one place, and to see all the textures I need to make in one place, for now this app only supports bedrock `resource-pack` format
 
 ---
 
