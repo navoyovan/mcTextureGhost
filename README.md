@@ -1,20 +1,23 @@
-# McTextureGhost
+# mcTextureGhost
 
 **Minecraft texture pack workspace for resource pack creators or to curate your own texture collection.**
 
-Stop hunting for missing textures by hand. McTextureGhost scans your pack, shows you every declared texture that doesn't exist on disk yet ("ghosts"), and gets you into your image editor in one click — no JSON wrangling required.
+Stop chasing "ghost". mcTextureGhost scans your pack, shows you every declared texture entries that doesn't exist yet ("ghosts"). No JSON wrangling required.
+
+![mcTextureGhost screenshot](frontend/public/ss1.png)
 
 This program is for you to make the process of texturing a Minecraft pack easier and faster. I wanted an app to see all my textures in one place, and to see all the textures I need to make in one place, for now this app only supports bedrock `resource-pack` format
 
 ---
 
+
 ## What it does
 
 ### Ghost Detection
-Every texture alias declared in your `terrain_texture.json` or `item_texture.json` that has no artwork on disk is flagged as a **ghost** 👻. The pack grid surfaces all of them at a glance. Click any ghost to generate a placeholder stub and jump straight into your editor.
+Every texture alias declared in your ex: `terrain_texture.json` or `item_texture.json` that has no artwork on disk is flagged as a **ghost** 👻. The pack grid surfaces all of them at a glance. Click any ghost to generate a placeholder stub and jump into your editor.
 
 ### Live Reload
-Save in Aseprite, Photoshop, or Paint.NET and the tile updates instantly — no app restart, no manual refresh. The watcher debounces properly so it doesn't fire mid-save.
+Save in Aseprite, Photoshop, or Paint and the tile updates instantly — no app restart, no manual refresh. The watcher debounces properly so it doesn't fire mid-save.
 
 ### Block Workspace
 A relational 4-tier view of your pack's block texture hierarchy: Block → Alias → Variant → Face. Useful when a single block alias has state variants, random cosmetic variations, or multiple directional faces that need to be managed together.
@@ -23,23 +26,13 @@ A relational 4-tier view of your pack's block texture hierarchy: Block → Alias
 Browse the full official Bedrock texture catalog (`Mojang/bedrock-samples`) without leaving the app. Find any block or item, see its in-game name, face assignments, and variants — then add it to your pack's JSON with one click. The catalog caches locally so it works offline.
 
 ### Flipbook Animation Previews
-Animated textures (`flipbook_textures.json`) play back at the real Minecraft 20 tick/s rate with GPU frame blending, so what you see in the app is what you'll see in-game.
+Animated textures (`flipbook_textures.json`) so what you see in the app is what you'll see in-game.
 
 ### Manifest Editor
 Create new packs or edit `manifest.json` without touching raw JSON. Name, description, format version, min engine version, and one-click UUID regeneration.
 
 ### Folder Explorer
-Sidebar tree of your pack's directory structure with live texture and ghost counts per folder. Click a folder to scope the main view to just that directory.
-
----
-
-## Views
-
-| View | What it's for |
-|---|---|
-| **Pack Grid** | Full texture atlas — all blocks and items, filterable by status |
-| **Block Workspace** | Deep per-block editing: variants, faces, animations |
-| **Manifest Editor** | Pack metadata — accessible from the sidebar or File menu |
+Sidebar tree of your pack's directory structure with live texture and ghost counts per folder. Click a folder to filter the main view to just that directory.
 
 ---
 
@@ -63,6 +56,7 @@ Sidebar tree of your pack's directory structure with live texture and ghost coun
 
 ## Getting Started
 
+### Environment
 **Requirements:** Windows 10 / 11, [.NET 8.0 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/8.0)
 
 ```powershell
@@ -70,6 +64,9 @@ git clone https://github.com/navoyovan/mcTextureGhost.git
 cd McTextureGhost
 dotnet run --project McTextureGhost.csproj
 ```
+### App Release
+
+No releases yet :(
 
 ---
 
