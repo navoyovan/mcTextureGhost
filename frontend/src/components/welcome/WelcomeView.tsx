@@ -2,11 +2,10 @@
 import React from 'react';
 import {
   FolderOpen,
-  FolderPlus,
+  Plus,
   BookOpen,
   Clock,
   Package,
-  ChevronRight,
 } from 'lucide-react';
 import { usePackStore } from '../../store/packStore';
 import { useIpc } from '../../hooks/useIpc';
@@ -21,11 +20,10 @@ export const WelcomeView: React.FC<WelcomeViewProps> = ({ onOpenNewPackDialog })
   const { openPackFolder, createPack } = useIpc();
   const recentPacks = usePackStore((s) => s.recentPacks);
 
-  // Maximum 3 recent packs per PROJECT.md § Milestones & Interfaces
-  const visibleRecentPacks = (recentPacks || []).slice(0, 3);
+  // Show up to 5 recent workspaces
+  const visibleRecentPacks = (recentPacks || []).slice(0, 5);
 
   const handleOpenExisting = () => {
-    // null folderPath triggers native OpenFolderDialog in C# host
     openPackFolder(null);
   };
 
@@ -33,7 +31,6 @@ export const WelcomeView: React.FC<WelcomeViewProps> = ({ onOpenNewPackDialog })
     if (onOpenNewPackDialog) {
       onOpenNewPackDialog();
     } else {
-      // Direct IPC trigger if modal dialog handler is not mounted
       createPack('');
     }
   };
@@ -45,88 +42,80 @@ export const WelcomeView: React.FC<WelcomeViewProps> = ({ onOpenNewPackDialog })
   };
 
   const handleOpenTutorial = () => {
-    window.open('https://learn.microsoft.com/en-us/minecraft/creator/documents/resourcepack', '_blank');
+    window.open(
+      'https://learn.microsoft.com/en-us/minecraft/creator/documents/resourcepack',
+      '_blank'
+    );
   };
 
-  // Safe truncation for very long paths (> 260 characters)
   const formatPath = (fullPath: string): string => {
     if (!fullPath) return '';
-    if (fullPath.length > 55) {
+    if (fullPath.length > 56) {
       return '...' + fullPath.slice(-52);
     }
     return fullPath;
   };
 
   return (
-    <div className={styles.welcomeLayout} data-testid="welcome-view">
-      {/* Main Content Hero */}
-      <main className={styles.mainContent}>
-        {/* Top Hero Bar */}
-        <header className={styles.heroHeader}>
-          <div className={styles.welcomeHeadingGroup}>
-            <h1 className={styles.welcomeTitle}>Welcome</h1>
-            <p className={styles.welcomeSubtitle}>
-              Minecraft Bedrock Texture Ghost & Scaffolding Studio
-            </p>
+    <div className={styles.welcomeContainer} data-testid="welcome-view">
+      <div className={styles.launcherCard}>
+        {/* Launcher Header */}
+        <header className={styles.header}>
+          <div className={styles.brandGroup}>
+            <h1 className={styles.brandTitle}>mcTextureGhost</h1>
+            <span className={styles.brandTag}>Minecraft Bedrock Texture Studio</span>
           </div>
 
           <button
             type="button"
-            className={styles.tutorialButton}
+            className={styles.docsLink}
             onClick={handleOpenTutorial}
             title="Open Minecraft Creator documentation"
           >
-            <BookOpen className={styles.tutorialButtonIcon} />
-            <span>Tutorial & Docs</span>
+            <BookOpen className={styles.docsIcon} />
+            <span>Docs & Guides</span>
           </button>
         </header>
 
-        {/* Primary Action Cards Grid */}
-        <section className={styles.actionCardGrid} aria-label="Resource Pack Actions">
-          {/* Card 1: Open existing pack */}
+        {/* Action Bar: Primary Open Pack & Secondary Create Pack */}
+        <div className={styles.actionRow}>
           <button
             type="button"
-            className={styles.actionCard}
+            className={styles.primaryAction}
             onClick={handleOpenExisting}
             data-testid="open-pack-card"
           >
-            <div className={styles.actionIconWrapper}>
-              <FolderOpen className={styles.actionIcon} />
+            <FolderOpen className={styles.primaryActionIcon} />
+            <div className={styles.actionText}>
+              <span className={styles.primaryActionLabel}>Open Existing Pack</span>
+              <span className={styles.primaryActionSub}>Select a folder containing manifest.json</span>
             </div>
-            <div className={styles.actionCardContent}>
-              <h2 className={styles.actionCardTitle}>Open Existing Resource Pack</h2>
-              <p className={styles.actionCardDescription}>
-                Browse for an existing Bedrock resource pack directory containing manifest.json.
-              </p>
-            </div>
-            <ChevronRight className={styles.recentItemChevron} />
           </button>
 
-          {/* Card 2: Create new pack */}
           <button
             type="button"
-            className={styles.actionCard}
+            className={styles.secondaryAction}
             onClick={handleCreateNew}
             data-testid="create-pack-card"
           >
-            <div className={`${styles.actionIconWrapper} ${styles.actionIconWrapperCreate}`}>
-              <FolderPlus className={styles.actionIcon} />
+            <Plus className={styles.secondaryActionIcon} />
+            <div className={styles.actionText}>
+              <span className={styles.secondaryActionLabel}>Create New Pack</span>
+              <span className={styles.secondaryActionSub}>Initialize fresh scaffold</span>
             </div>
-            <div className={styles.actionCardContent}>
-              <h2 className={styles.actionCardTitle}>Create New Resource Pack</h2>
-              <p className={styles.actionCardDescription}>
-                Initialize a fresh Bedrock resource pack scaffold with default directory hierarchy.
-              </p>
-            </div>
-            <ChevronRight className={styles.recentItemChevron} />
           </button>
-        </section>
+        </div>
 
-        {/* Recent Packs History */}
-        <section className={styles.recentSection} aria-label="Recent Resource Packs">
-          <div className={styles.recentSectionHeader}>
-            <Clock className={styles.recentSectionIcon} />
-            <span>Recent Packs</span>
+        {/* Main Focus: Recent Workspaces */}
+        <section className={styles.recentSection} aria-label="Recent Workspaces">
+          <div className={styles.sectionHeading}>
+            <div className={styles.headingTitle}>
+              <Clock className={styles.headingIcon} />
+              <span>Recent Workspaces</span>
+            </div>
+            {visibleRecentPacks.length > 0 && (
+              <span className={styles.countBadge}>{visibleRecentPacks.length}</span>
+            )}
           </div>
 
           {visibleRecentPacks.length > 0 ? (
@@ -134,7 +123,7 @@ export const WelcomeView: React.FC<WelcomeViewProps> = ({ onOpenNewPackDialog })
               {visibleRecentPacks.map((pack) => (
                 <div
                   key={pack.folderPath}
-                  className={styles.recentItemCard}
+                  className={styles.recentRow}
                   onClick={() => handleOpenRecent(pack)}
                   role="button"
                   tabIndex={0}
@@ -146,48 +135,49 @@ export const WelcomeView: React.FC<WelcomeViewProps> = ({ onOpenNewPackDialog })
                   }}
                   title={pack.folderPath}
                 >
-                  <div className={styles.recentItemIcon}>
+                  <div className={styles.packThumbnailWrapper}>
                     {pack.packIconUrl ? (
                       <img
                         src={pack.packIconUrl}
                         alt=""
-                        className={styles.recentPackThumbnail}
+                        className={styles.packThumbnail}
                       />
                     ) : (
-                      <Package className={styles.sidebarHeaderIcon} />
+                      <Package className={styles.packFallbackIcon} />
                     )}
                   </div>
 
-                  <div className={styles.recentItemInfo}>
-                    <div className={styles.recentItemNameRow}>
-                      <span className={styles.recentItemName}>
+                  <div className={styles.packDetails}>
+                    <div className={styles.packTitleRow}>
+                      <span className={styles.packTitle}>
                         {pack.packName || pack.displayFolder || 'Unnamed Pack'}
                       </span>
                       {pack.version && (
-                        <span className={styles.recentItemVersion}>v{pack.version}</span>
+                        <span className={styles.versionTag}>v{pack.version}</span>
                       )}
                     </div>
-                    <span className={styles.recentItemPath}>
+                    <span className={styles.packPath}>
                       {formatPath(pack.folderPath)}
                     </span>
                   </div>
 
-                  <div className={styles.recentItemMeta}>
-                    <span className={styles.recentItemTime}>
-                      {pack.relativeTime || 'recently'}
-                    </span>
-                    <ChevronRight className={styles.recentItemChevron} />
-                  </div>
+                  <span className={styles.timeLabel}>
+                    {pack.relativeTime || 'recently'}
+                  </span>
                 </div>
               ))}
             </div>
           ) : (
-            <div className={styles.emptyRecentMessage} data-testid="recent-packs-empty">
-              No recent packs opened yet
+            <div className={styles.emptyRecent} data-testid="recent-packs-empty">
+              <Package className={styles.emptyIcon} />
+              <div className={styles.emptyTexts}>
+                <span className={styles.emptyTitle}>No recent packs opened</span>
+                <span className={styles.emptySub}>Packs you open or scaffold will appear here for fast access.</span>
+              </div>
             </div>
           )}
         </section>
-      </main>
+      </div>
     </div>
   );
 };

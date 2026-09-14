@@ -13,6 +13,7 @@ import { BlockWorkspace } from './components/workspace/BlockWorkspace';
 import { ManifestEditor } from './components/manifest/ManifestEditor';
 import { CatalogDrawer } from './components/catalog/CatalogDrawer';
 import { MenuBar } from './components/menus/MenuBar';
+import { ComponentLibrary } from './components/common/ComponentLibrary';
 import { IconMinus, IconMaximize, IconX } from './components/common/TablerWindowIcons';
 import styles from './App.module.css';
 
@@ -29,6 +30,33 @@ export const App: React.FC = () => {
 
 
   const [activeToast, setActiveToast] = useState<ErrorPayload | null>(null);
+  const [isComponentLibraryOpen, setIsComponentLibraryOpen] = useState<boolean>(false);
+
+  // Global keypress listener: ` (backtick) toggles Component Library
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Toggle on backtick (`), ignore if typing inside an input or textarea unless it's an Esc press
+      if (e.key === '`') {
+        const target = e.target as HTMLElement;
+        const isInputField =
+          target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.isContentEditable;
+
+        // If inside an input inside the component library modal or elsewhere, don't hijack typing backtick unless user wants to toggle
+        if (!isInputField) {
+          e.preventDefault();
+          setIsComponentLibraryOpen((prev) => !prev);
+        }
+      } else if (e.key === 'Escape' && isComponentLibraryOpen) {
+        e.preventDefault();
+        setIsComponentLibraryOpen(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isComponentLibraryOpen]);
 
   const packFolderName = packRoot?.split(/[\\/]/).filter(Boolean).pop() || 'Resource Pack';
   const activeFolderSuffix = usePackStore((s) => s.selectedFolderPath)
@@ -183,6 +211,12 @@ export const App: React.FC = () => {
       <CatalogDrawer
         isOpen={isCatalogOpen}
         onClose={() => setIsCatalogOpen(false)}
+      />
+
+      {/* Component Library Overlay (Toggled via backtick `) */}
+      <ComponentLibrary
+        isOpen={isComponentLibraryOpen}
+        onClose={() => setIsComponentLibraryOpen(false)}
       />
 
       {/* Error / Notification Toast */}
