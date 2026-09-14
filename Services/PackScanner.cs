@@ -1650,6 +1650,14 @@ public static class PackScanner
 
             foreach (var aliasItem in untracked)
             {
+                // Orphan files on disk are not declared in terrain_texture.json;
+                // do not match them against vanilla blocks simply by filename.
+                if (aliasItem.Status == TextureStatus.Orphan)
+                {
+                    remainingUntracked.Add(aliasItem);
+                    continue;
+                }
+
                 var aliasName = aliasItem.Alias;
                 if (vanilla.BlockUsage.TryGetValue(aliasName, out var vFaces) && vFaces.Count > 0)
                 {

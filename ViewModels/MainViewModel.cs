@@ -867,7 +867,7 @@ public class MainViewModel : INotifyPropertyChanged
         if (string.IsNullOrWhiteSpace(folderPath) || !Directory.Exists(folderPath)) return;
         _packRoot = folderPath;
         _cachedPackName = null;
-        Rescan();
+        Rescan(isInitialLoad: true);
         StartWatching();
 
         if (File.Exists(Path.Combine(folderPath, "manifest.json")))
@@ -1060,7 +1060,7 @@ public class MainViewModel : INotifyPropertyChanged
 
             _packRoot = targetFolder;
             _cachedPackName = null;
-            Rescan();
+            Rescan(isInitialLoad: true);
             StartWatching();
 
             if (manifestDialog.ShouldGenerateManifest)
@@ -1279,12 +1279,12 @@ public class MainViewModel : INotifyPropertyChanged
         PackStateChanged?.Invoke();
     }
 
-    public async void Rescan()
+    public async void Rescan(bool isInitialLoad = false)
     {
-        await RescanAsync();
+        await RescanAsync(isInitialLoad);
     }
 
-    public async Task RescanAsync()
+    public async Task RescanAsync(bool isInitialLoad = false)
     {
         if (_packRoot is null) return;
 
@@ -1295,7 +1295,10 @@ public class MainViewModel : INotifyPropertyChanged
             _cachedPackName = null;
             IsScanning = true;
             StatusMessage = "Scanning pack textures...";
-            ScanProgressChanged?.Invoke("scan_start", 1, 5, "Initializing pack scan...");
+            if (isInitialLoad)
+            {
+                ScanProgressChanged?.Invoke("scan_start", 1, 5, "Initializing pack scan...");
+            }
 
             // Clear the current snapshot before rebuilding it so deleted entries cannot remain visible.
             Aliases.Clear();
@@ -1313,7 +1316,10 @@ public class MainViewModel : INotifyPropertyChanged
 
             try
             {
-                ScanProgressChanged?.Invoke("scanning", 2, 5, "Scanning atlas textures & JSON declarations...");
+                if (isInitialLoad)
+                {
+                    ScanProgressChanged?.Invoke("scanning", 2, 5, "Scanning atlas textures & JSON declarations...");
+                }
                 var results = await Task.Run(() => PackScanner.Scan(packRoot, _vanillaData));
 
                 foreach (var alias in results)
@@ -1322,7 +1328,10 @@ public class MainViewModel : INotifyPropertyChanged
 
                 if (_vanillaData != null)
                 {
-                    ScanProgressChanged?.Invoke("building_trees", 3, 5, "Building catalog & workspace models...");
+                    if (isInitialLoad)
+                    {
+                        ScanProgressChanged?.Invoke("building_trees", 3, 5, "Building catalog & workspace models...");
+                    }
                     var (catalogNodes, workspaceNodes) = await Task.Run(() =>
                     {
                         var cat = PackScanner.BuildCatalogTree(results, _vanillaData, packRoot);
@@ -1352,7 +1361,10 @@ public class MainViewModel : INotifyPropertyChanged
             }
             finally
             {
-                ScanProgressChanged?.Invoke("building_folders", 4, 5, "Indexing folder tree & pack manifest...");
+                if (isInitialLoad)
+                {
+                    ScanProgressChanged?.Invoke("building_folders", 4, 5, "Indexing folder tree & pack manifest...");
+                }
                 var manifestPath = Path.Combine(packRoot, "manifest.json");
                 if (File.Exists(manifestPath))
                 {
@@ -1365,7 +1377,10 @@ public class MainViewModel : INotifyPropertyChanged
 
                 BuildFolderTree();
                 NotifyPackStateChanged();
-                ScanProgressChanged?.Invoke("scan_done", 5, 5, "Pack ready");
+                if (isInitialLoad)
+                {
+                    ScanProgressChanged?.Invoke("scan_done", 5, 5, "Pack ready");
+                }
                 IsScanning = false;
             }
         }

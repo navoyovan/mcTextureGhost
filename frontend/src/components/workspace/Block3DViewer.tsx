@@ -85,7 +85,7 @@ interface Block3DViewerProps {
   onSelectVariationIndex?: (index: number) => void;
 }
 
-export const Block3DViewer: React.FC<Block3DViewerProps> = ({
+export const Block3DViewer: React.FC<Block3DViewerProps> = React.memo(({
   blockId,
   faceTextures = {},
   faceFlipbooks = {},
@@ -686,4 +686,4 @@ export const Block3DViewer: React.FC<Block3DViewerProps> = ({
       <span className={styles.hintText}>Drag to rotate • Middle-drag to pan • Scroll to zoom</span>
     </div>
   );
-};
+});
