@@ -49,6 +49,8 @@ function groupLeavesByVariantSlot(leaves: CatalogLeafDto[]): VariantTileGroup[] 
 
 export const BlockWorkspace: React.FC = () => {
   const blockWorkspaceTree = usePackStore((s) => s.blockWorkspaceTree);
+  const searchQuery = usePackStore((s) => s.searchQuery);
+  const statusFilter = usePackStore((s) => s.statusFilter);
   const { editTexture, deleteTextureFile, deleteTextureEntries } = useIpc();
 
   const [activeMenuKey, setActiveMenuKey] = useState<string | null>(null);
@@ -68,20 +70,66 @@ export const BlockWorkspace: React.FC = () => {
     };
   }, [activeMenuKey]);
 
-  const [selectedBlockId, setSelectedBlockId] = useState<string | null>(() => {
-    return blockWorkspaceTree && blockWorkspaceTree.length > 0
-      ? blockWorkspaceTree[0]?.blockId ?? null
-      : null;
-  });
+  // Filter block list by toolbar searchQuery and statusFilter
+  const filteredBlockWorkspaceTree = useMemo(() => {
+    if (!blockWorkspaceTree) return [];
+    const query = searchQuery.trim().toLowerCase();
 
+    return blockWorkspaceTree.filter((block) => {
+      // 1. Status filter
+      if (statusFilter === 'ghosts' && (block.ghostCount ?? 0) <= 0) {
+        return false;
+      }
+      if (statusFilter === 'added') {
+        const hasAdded = block.aliasGroups?.some((ag) =>
+          (ag.leaves?.some((l) => l.status === 'OK') ?? false) ||
+          (ag.faceNodes?.some((fn) => fn.leaves?.some((l) => l.status === 'OK') ?? false) ?? false)
+        );
+        if (!hasAdded) return false;
+      }
+      if (statusFilter === 'orphans') {
+        const hasOrphan = block.aliasGroups?.some((ag) =>
+          (ag.leaves?.some((l) => l.status === 'ORPHAN') ?? false) ||
+          (ag.faceNodes?.some((fn) => fn.leaves?.some((l) => l.status === 'ORPHAN') ?? false) ?? false)
+        );
+        if (!hasOrphan) return false;
+      }
+
+      // 2. Search query filter
+      if (!query) return true;
+
+      const blockIdMatches = (block.blockId || '').toLowerCase().includes(query);
+      const dispNameMatches = (block.displayName || '').toLowerCase().includes(query);
+      if (blockIdMatches || dispNameMatches) return true;
+
+      // Check inner aliases, paths, or leaf display names
+      return block.aliasGroups?.some((ag) => {
+        if ((ag.alias || '').toLowerCase().includes(query)) return true;
+        const allLeaves = [
+          ...(ag.leaves ?? []),
+          ...(ag.faceNodes ? ag.faceNodes.flatMap((fn) => fn.leaves ?? []) : []),
+        ];
+        return allLeaves.some(
+          (l) =>
+            (l.relativePath || '').toLowerCase().includes(query) ||
+            (l.displayName || '').toLowerCase().includes(query) ||
+            (l.alias || '').toLowerCase().includes(query)
+        );
+      });
+    });
+  }, [blockWorkspaceTree, searchQuery, statusFilter]);
+
+  const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
+
+  // Keep selectedBlock pointed to a valid block in the filtered list
   const selectedBlock = useMemo<BlockGroupNodeDto | null>(() => {
-    if (!blockWorkspaceTree || blockWorkspaceTree.length === 0) return null;
+    if (!filteredBlockWorkspaceTree || filteredBlockWorkspaceTree.length === 0) return null;
     return (
-      blockWorkspaceTree.find((b) => b.blockId === selectedBlockId) ??
-      blockWorkspaceTree[0] ??
+      filteredBlockWorkspaceTree.find((b) => b.blockId === selectedBlockId) ??
+      filteredBlockWorkspaceTree[0] ??
       null
     );
-  }, [blockWorkspaceTree, selectedBlockId]);
+  }, [filteredBlockWorkspaceTree, selectedBlockId]);
 
   const [activeBlockStateIndex, setActiveBlockStateIndex] = useState<number>(0);
   const [activeVariationIndex, setActiveVariationIndex] = useState<number>(0);
@@ -90,7 +138,7 @@ export const BlockWorkspace: React.FC = () => {
   useEffect(() => {
     setActiveBlockStateIndex(0);
     setActiveVariationIndex(0);
-  }, [selectedBlockId]);
+  }, [selectedBlock?.blockId]);
 
   // Reset activeVariationIndex when switching blockstate
   useEffect(() => {
@@ -272,32 +320,41 @@ export const BlockWorkspace: React.FC = () => {
     <div className={styles.workspaceContainer}>
       {/* Left List */}
       <aside className={styles.blockListPane} aria-label="Blocks List">
-        <div className={styles.blockListHeader}>Pack Blocks ({blockWorkspaceTree.length})</div>
-        {blockWorkspaceTree.map((block) => {
-          const isActive = selectedBlock?.blockId === block.blockId;
-          const isCustom = block.isUserDefined !== false;
-          return (
-            <button
-              key={block.blockId}
-              type="button"
-              className={`${styles.blockItem} ${isActive ? styles.blockItemActive : ''} ${!isCustom ? styles.blockItemVanilla : ''}`}
-              onClick={() => setSelectedBlockId(block.blockId)}
-            >
-              <div className={styles.blockItemLeft}>
-                <Box size={14} className={!isCustom ? styles.blockIconMuted : undefined} />
-                <span className={styles.blockItemName}>{block.displayName || block.blockId}</span>
-              </div>
-              <div className={styles.blockItemBadges}>
-                {!isCustom && block.blockId !== 'uncategorized' && (
-                  <span className={styles.vanillaTag} title="Inferred from vanilla blocks.json">vanilla</span>
-                )}
-                {block.ghostCount > 0 && (
-                  <span className={styles.ghostBadge}>👻 {block.ghostCount}</span>
-                )}
-              </div>
-            </button>
-          );
-        })}
+        <div className={styles.blockListHeader}>
+          Pack Blocks ({filteredBlockWorkspaceTree.length}
+          {filteredBlockWorkspaceTree.length !== blockWorkspaceTree.length ? ` / ${blockWorkspaceTree.length}` : ''})
+        </div>
+        {filteredBlockWorkspaceTree.length > 0 ? (
+          filteredBlockWorkspaceTree.map((block) => {
+            const isActive = selectedBlock?.blockId === block.blockId;
+            const isCustom = block.isUserDefined !== false;
+            return (
+              <button
+                key={block.blockId}
+                type="button"
+                className={`${styles.blockItem} ${isActive ? styles.blockItemActive : ''} ${!isCustom ? styles.blockItemVanilla : ''}`}
+                onClick={() => setSelectedBlockId(block.blockId)}
+              >
+                <div className={styles.blockItemLeft}>
+                  <Box size={14} className={!isCustom ? styles.blockIconMuted : undefined} />
+                  <span className={styles.blockItemName}>{block.displayName || block.blockId}</span>
+                </div>
+                <div className={styles.blockItemBadges}>
+                  {!isCustom && block.blockId !== 'uncategorized' && (
+                    <span className={styles.vanillaTag} title="Inferred from vanilla blocks.json">vanilla</span>
+                  )}
+                  {block.ghostCount > 0 && (
+                    <span className={styles.ghostBadge}>{block.ghostCount}</span>
+                  )}
+                </div>
+              </button>
+            );
+          })
+        ) : (
+          <div className={styles.noMatches}>
+            <span>No blocks match your search or filter</span>
+          </div>
+        )}
       </aside>
 
       {/* Right Detail Pane */}
@@ -316,7 +373,7 @@ export const BlockWorkspace: React.FC = () => {
               <span className={styles.blockIdSub}>{selectedBlock.blockId}</span>
             </div>
             {selectedBlock.ghostCount > 0 && (
-              <span className={styles.ghostBadge}>👻 {selectedBlock.ghostCount} ghosts</span>
+              <span className={styles.ghostBadge}>{selectedBlock.ghostCount} ghosts</span>
             )}
           </div>
 
@@ -356,7 +413,7 @@ export const BlockWorkspace: React.FC = () => {
                             <ArrowRight size={10} />
                             <span>Face: {fn.faceLabel}</span>
                             {fn.ghostCount > 0 && (
-                              <span className={styles.faceGhostCount}>• 👻 {fn.ghostCount}</span>
+                              <span className={styles.faceGhostCount}>• {fn.ghostCount}</span>
                             )}
                           </div>
                           <div className={styles.variantStrip}>

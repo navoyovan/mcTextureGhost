@@ -136,7 +136,7 @@ export const DirectoryTreeNode: React.FC<DirectoryTreeNodeProps> = ({
           )}
           {node.ghostCount > 0 && (
             <span className={styles.ghostPill} title={`${node.ghostCount} ghost textures`}>
-              👻 {node.ghostCount}
+              {node.ghostCount}
             </span>
           )}
           {node.textureCount > 0 && (

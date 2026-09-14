@@ -15,6 +15,7 @@
 
 /* Custom Title Bar Frame (WPF Window Drag region) */
 .titleBar {
+  position: relative;
   display: flex;
   justify-content: flex-start;
   align-items: center;
@@ -120,6 +121,7 @@
 
 .dragHandle:active {
   cursor: grabbing;
+  opacity: 0.9;
 }
 
 .titleBarControls {
