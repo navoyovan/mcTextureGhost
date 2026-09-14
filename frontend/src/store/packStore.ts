@@ -59,6 +59,7 @@ export interface PackStoreActions {
   resetPackState: () => void;
   updateTexture: (aliasKey: string, newStatus: string, fullPath: string, imageUrl?: string | null) => void;
   setScanProgress: (progress: ScanProgressPayload | null) => void;
+  setIsScanning: (scanning: boolean) => void;
   setActiveTab: (tab: 'all' | 'blocks' | 'items') => void;
   setSearchQuery: (query: string) => void;
   setStatusFilter: (filter: 'all' | 'ghosts' | 'added' | 'orphans') => void;
@@ -197,6 +198,7 @@ export const packStoreActions: PackStoreActions = {
       selectedFolderPath: dto.packRoot !== undefined && dto.packRoot !== currentState.packRoot ? null : currentState.selectedFolderPath,
       stats,
       isScanning: false,
+      scanProgress: null,
     };
     notify();
   },
@@ -244,8 +246,17 @@ export const packStoreActions: PackStoreActions = {
   setScanProgress(progress: ScanProgressPayload | null): void {
     currentState = {
       ...currentState,
-      isScanning: progress !== null,
+      isScanning: progress !== null && progress.stage !== 'scan_done',
       scanProgress: progress,
+    };
+    notify();
+  },
+
+  setIsScanning(scanning: boolean): void {
+    currentState = {
+      ...currentState,
+      isScanning: scanning,
+      scanProgress: scanning ? currentState.scanProgress : null,
     };
     notify();
   },
@@ -398,3 +409,10 @@ export function usePackStore<T = PackStore>(selector?: (state: PackStore) => T):
     getSnapshot
   );
 }
+
+usePackStore.getState = (): PackStore => {
+  if (!cachedSnapshot) {
+    cachedSnapshot = { ...currentState, ...packStoreActions };
+  }
+  return cachedSnapshot;
+};

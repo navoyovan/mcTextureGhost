@@ -26,6 +26,7 @@ public class MainViewModel : INotifyPropertyChanged
 {
     public event Action? PackStateChanged;
     public event Action<TextureAlias>? TextureUpdated;
+    public event Action<string, int, int, string>? ScanProgressChanged;
 
     private FileSystemWatcher? _watcher;
     private readonly DispatcherTimer _watchDebounceTimer;
@@ -1294,6 +1295,7 @@ public class MainViewModel : INotifyPropertyChanged
             _cachedPackName = null;
             IsScanning = true;
             StatusMessage = "Scanning pack textures...";
+            ScanProgressChanged?.Invoke("scan_start", 1, 5, "Initializing pack scan...");
 
             // Clear the current snapshot before rebuilding it so deleted entries cannot remain visible.
             Aliases.Clear();
@@ -1311,6 +1313,7 @@ public class MainViewModel : INotifyPropertyChanged
 
             try
             {
+                ScanProgressChanged?.Invoke("scanning", 2, 5, "Scanning atlas textures & JSON declarations...");
                 var results = await Task.Run(() => PackScanner.Scan(packRoot, _vanillaData));
 
                 foreach (var alias in results)
@@ -1319,6 +1322,7 @@ public class MainViewModel : INotifyPropertyChanged
 
                 if (_vanillaData != null)
                 {
+                    ScanProgressChanged?.Invoke("building_trees", 3, 5, "Building catalog & workspace models...");
                     var (catalogNodes, workspaceNodes) = await Task.Run(() =>
                     {
                         var cat = PackScanner.BuildCatalogTree(results, _vanillaData, packRoot);
@@ -1348,6 +1352,7 @@ public class MainViewModel : INotifyPropertyChanged
             }
             finally
             {
+                ScanProgressChanged?.Invoke("building_folders", 4, 5, "Indexing folder tree & pack manifest...");
                 var manifestPath = Path.Combine(packRoot, "manifest.json");
                 if (File.Exists(manifestPath))
                 {
@@ -1360,6 +1365,7 @@ public class MainViewModel : INotifyPropertyChanged
 
                 BuildFolderTree();
                 NotifyPackStateChanged();
+                ScanProgressChanged?.Invoke("scan_done", 5, 5, "Pack ready");
                 IsScanning = false;
             }
         }

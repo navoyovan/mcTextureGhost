@@ -11,7 +11,11 @@ export type ShapeKind =
   | 'post_frame'
   | 'cross_plane'
   | 'pane_cross'
-  | 'fire';
+  | 'fire'
+  | 'button'
+  | 'pressure_plate'
+  | 'fence_gate'
+  | 'fence';
 
 export interface ShapeDefinition {
   kind: ShapeKind;
@@ -79,6 +83,26 @@ export const SHAPES: Record<ShapeKind, ShapeDefinition> = {
     box: [16, 22.4, 16],
     offset: [0, 0, 0],
     doubleSided: true,
+  },
+  button: {
+    kind: 'button',
+    box: [6, 4, 2], // 6 wide, 4 high, 2 deep (official Bedrock unpressed wall button)
+    offset: [0, 0, 0],
+  },
+  pressure_plate: {
+    kind: 'pressure_plate',
+    box: [14, 1, 14], // 14 wide x 1 high x 14 deep (1px inset from each outer edge: [1/16, 0, 1/16] to [15/16, 1/16, 15/16])
+    offset: [0, 0, 0],
+  },
+  fence_gate: {
+    kind: 'fence_gate',
+    box: [16, 11, 4], // 16 wide, 11 high (from y=4 to y=15), 4 deep (z: 6 to 10)
+    offset: [0, 0, 0],
+  },
+  fence: {
+    kind: 'fence',
+    box: [16, 16, 4], // 16 wide with side connecting rails, 16 high, 4 deep (post 4x16x4, rails 2x3x1)
+    offset: [0, 0, 0],
   },
 };
 
@@ -157,11 +181,23 @@ export function resolveBlockShape(rawBlockId?: string | null): ShapeDefinition {
   if (id.endsWith('_carpet') || id.endsWith('carpet')) {
     return SHAPES.flat_layer;
   }
-  if (id.endsWith('_wall') || id.endsWith('_fence') || id.endsWith('fence') || id.endsWith('wall')) {
+  if (id.endsWith('_fence_gate') || id.endsWith('fence_gate') || id.endsWith('_gate') || id.endsWith('gate')) {
+    return SHAPES.fence_gate;
+  }
+  if (id.endsWith('_fence') || id.endsWith('fence')) {
+    return SHAPES.fence;
+  }
+  if (id.endsWith('_wall') || id.endsWith('wall')) {
     return SHAPES.post_frame;
   }
   if (id.endsWith('_pane') || id.endsWith('pane')) {
     return SHAPES.pane_cross;
+  }
+  if (id.endsWith('_button') || id.endsWith('button')) {
+    return SHAPES.button;
+  }
+  if (id.endsWith('_pressure_plate') || id.endsWith('pressure_plate')) {
+    return SHAPES.pressure_plate;
   }
   if (
     id.includes('sapling') ||

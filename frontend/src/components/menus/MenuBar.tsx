@@ -111,7 +111,15 @@ export const MenuBar: React.FC = () => {
         {
           label: 'Reload Pack',
           icon: <RotateCw size={13} />,
-          action: () => reloadPack(),
+          action: () => {
+            usePackStore.getState().setScanProgress({
+              stage: 'scan_start',
+              current: 1,
+              total: 5,
+              message: 'Reloading pack textures...',
+            });
+            reloadPack();
+          },
           disabled: !isPackLoaded,
         },
         {

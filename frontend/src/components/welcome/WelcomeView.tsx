@@ -37,6 +37,12 @@ export const WelcomeView: React.FC<WelcomeViewProps> = ({ onOpenNewPackDialog })
 
   const handleOpenRecent = (pack: RecentPackItemDto) => {
     if (pack.folderPath) {
+      usePackStore.getState().setScanProgress({
+        stage: 'scan_start',
+        current: 1,
+        total: 5,
+        message: `Opening ${pack.packName || 'pack'}...`,
+      });
       openPackFolder(pack.folderPath);
     }
   };
@@ -64,19 +70,13 @@ export const WelcomeView: React.FC<WelcomeViewProps> = ({ onOpenNewPackDialog })
           <div className={styles.brandGroup}>
             <div className={styles.brandTitleRow}>
               <img src="/icon.png" alt="mcTextureGhost icon" className={styles.brandIcon} />
-              <h1 className={styles.brandTitle}>mcTextureGhost</h1>
+              <h1 className={styles.brandTitle}>
+                <span>mc</span>
+                <span className={styles.brandTitlePixel}>Texture</span>
+                <span>Ghost</span>
+              </h1>
             </div>
           </div>
-
-          <button
-            type="button"
-            className={styles.docsLink}
-            onClick={handleOpenTutorial}
-            title="Open Minecraft Creator documentation"
-          >
-            <BookOpen className={styles.docsIcon} />
-            <span>Docs & Guides</span>
-          </button>
         </header>
 
         {/* Action Bar: Primary Open Pack & Secondary Create Pack */}
@@ -180,6 +180,16 @@ export const WelcomeView: React.FC<WelcomeViewProps> = ({ onOpenNewPackDialog })
           )}
         </section>
       </div>
+
+      <button
+        type="button"
+        className={styles.docsLinkBottomRight}
+        onClick={handleOpenTutorial}
+        title="Open Minecraft Creator documentation"
+      >
+        <BookOpen className={styles.docsIcon} />
+        <span>Docs & Guides</span>
+      </button>
     </div>
   );
 };

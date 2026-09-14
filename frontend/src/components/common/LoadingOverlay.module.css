@@ -1,0 +1,207 @@
+/* frontend/src/components/common/LoadingOverlay.module.css */
+
+.fullOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: rgba(10, 10, 14, 0.78);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  animation: overlayFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  user-select: none;
+}
+
+.compactOverlay {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  background: rgba(15, 15, 20, 0.85);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  animation: overlayFadeIn 0.15s ease-out;
+  user-select: none;
+}
+
+@keyframes overlayFadeIn {
+  from {
+    opacity: 0;
+    backdrop-filter: blur(0px);
+  }
+  to {
+    opacity: 1;
+    backdrop-filter: blur(16px);
+  }
+}
+
+.loadingCard {
+  width: 100%;
+  max-width: 440px;
+  background: rgba(22, 22, 28, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
+  padding: 32px 28px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.65), 0 0 30px -5px rgba(140, 235, 31, 0.2);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  text-align: center;
+  animation: cardPopIn 0.24s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes cardPopIn {
+  from {
+    opacity: 0;
+    transform: scale(0.92) translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* Spinner Visual */
+.spinnerContainer {
+  position: relative;
+  width: 72px;
+  height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pulseRing {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2px solid var(--accent-primary, #8ceb1f);
+  opacity: 0.3;
+  animation: pulseRingAnim 2s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+}
+
+@keyframes pulseRingAnim {
+  0% {
+    transform: scale(0.85);
+    opacity: 0.8;
+  }
+  50% {
+    transform: scale(1.18);
+    opacity: 0.15;
+  }
+  100% {
+    transform: scale(0.85);
+    opacity: 0.8;
+  }
+}
+
+.spinnerCore {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: rgba(140, 235, 31, 0.1);
+  border: 2px solid rgba(140, 235, 31, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 16px rgba(140, 235, 31, 0.25);
+  animation: floatGhost 2.4s ease-in-out infinite alternate;
+}
+
+@keyframes floatGhost {
+  from {
+    transform: translateY(-2px);
+  }
+  to {
+    transform: translateY(3px);
+  }
+}
+
+.ghostIcon {
+  font-size: 26px;
+  line-height: 1;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.5));
+}
+
+/* Text Group */
+.textGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.title {
+  margin: 0;
+  font-family: var(--font-brand, 'Syne', sans-serif);
+  font-size: 19px;
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: -0.01em;
+}
+
+.packName {
+  margin: 0;
+  font-size: 13px;
+  color: #a1a1aa;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  font-family: var(--font-mono, Consolas, monospace);
+}
+
+/* Progress Bar */
+.progressBarTrack {
+  width: 100%;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 9999px;
+  overflow: hidden;
+  position: relative;
+}
+
+.progressBarFill {
+  height: 100%;
+  background: linear-gradient(90deg, #8ceb1f 0%, #a3e635 100%);
+  border-radius: 9999px;
+  transition: width 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 0 12px rgba(140, 235, 31, 0.6);
+}
+
+/* Status Row */
+.statusRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 12px;
+}
+
+.statusMessage {
+  font-size: 12px;
+  color: #a1a1aa;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+
+.stepCounter {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent-primary, #8ceb1f);
+  font-family: var(--font-mono, Consolas, monospace);
+  background: rgba(140, 235, 31, 0.1);
+  padding: 2px 8px;
+  border-radius: 9999px;
+  flex-shrink: 0;
+}
