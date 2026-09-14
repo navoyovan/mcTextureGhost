@@ -48,7 +48,7 @@
   height: 96px;
   object-fit: contain;
   image-rendering: pixelated;
-  filter: drop-shadow(0 6px 20px rgba(140, 235, 31, 0.45));
+  filter: drop-shadow(0 0 10px rgba(140, 235, 31, 0.75)) drop-shadow(0 0 24px rgba(140, 235, 31, 0.4));
   display: block;
   transform: translateY(26px);
 }
