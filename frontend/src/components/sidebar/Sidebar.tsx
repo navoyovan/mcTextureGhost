@@ -212,7 +212,7 @@ export const Sidebar: React.FC = () => {
               </span>
             </div>
             {activeReferenceId === 'vanilla' && (
-              <span style={{ marginLeft: 'auto', color: '#c4b5fd', fontSize: 12 }}>✓</span>
+              <span className={styles.floatingCardCheck}>✓</span>
             )}
           </button>
 
@@ -260,7 +260,7 @@ export const Sidebar: React.FC = () => {
                   </span>
                 </div>
                 {activeReferenceId === customReference.id && (
-                  <span style={{ marginLeft: 'auto', color: '#c4b5fd', fontSize: 12 }}>✓</span>
+                  <span className={styles.floatingCardCheck}>✓</span>
                 )}
               </button>
 
@@ -331,16 +331,20 @@ export const Sidebar: React.FC = () => {
           {/* Retro Status Badge Pills on the side */}
           <div className={styles.statusPillsRow}>
             <span className={styles.pillTotal} title="Total declared textures">
-              {stats.totalCount || stats.total || 0} total
+              <span className={styles.pillIcon}>Σ</span>
+              <span className={styles.pillText}>{stats.totalCount || stats.total || 0} total</span>
             </span>
-            <span className={styles.pillOk} title="Textures with valid artwork on disk">
-              {stats.okCount || stats.done || 0} done
+            <span className={styles.pillOk} title="Textures with valid artwork on disk (done)">
+              <span className={styles.pillIcon}>✓</span>
+              <span className={styles.pillText}>{stats.okCount || stats.done || 0} done</span>
             </span>
             <span className={styles.pillGhost} title="Missing texture artwork (Ghosts)">
-              👻 {stats.ghostCount || stats.ghosts || 0}
+              <span className={styles.pillGhostIcon}>👻</span>
+              <span className={styles.pillGhostCount}>{stats.ghostCount || stats.ghosts || 0}</span>
             </span>
             <span className={styles.pillOrphan} title="Unlinked/orphan textures">
-              ◈ {stats.orphanCount || stats.orphans || 0}
+              <span className={styles.pillIcon}>◈</span>
+              <span className={styles.pillText}>{stats.orphanCount || stats.orphans || 0} orphan</span>
             </span>
           </div>
         </div>

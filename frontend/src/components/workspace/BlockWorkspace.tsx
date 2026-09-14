@@ -176,7 +176,6 @@ export const BlockWorkspace: React.FC = () => {
     const numVariations = leaves.length;
     const hasTexVariants = numVariations > 1;
 
-    // Display title: use file name or variant caption with separate base and extension
     const getLeafTitle = (l: CatalogLeafDto) => {
       if (l.relativePath) {
         return l.relativePath.split(/[/\\]/).pop() ?? l.displayName ?? alias;
@@ -184,14 +183,18 @@ export const BlockWorkspace: React.FC = () => {
       return l.displayName ?? alias;
     };
 
-    const rawFileName = getLeafTitle(primary);
-    const sourceForExt = primary.fullPath || primary.relativePath || primary.imageUrl || rawFileName;
-    const dotIdx = sourceForExt.lastIndexOf('.');
-    const cleanExt = dotIdx > 0 ? (sourceForExt.substring(dotIdx).split('?')[0] ?? '').split('#')[0] ?? '' : '';
-    const fileExt = cleanExt && cleanExt.length <= 5 ? cleanExt : '.png';
-    const rawDotIdx = rawFileName.lastIndexOf('.');
-    const fileBase = rawDotIdx > 0 ? rawFileName.substring(0, rawDotIdx) : rawFileName;
-    const primaryFileName = `${fileBase}${fileExt}`;
+    const parseFileName = (l: CatalogLeafDto) => {
+      const raw = getLeafTitle(l);
+      const sourceForExt = l.fullPath || l.relativePath || l.imageUrl || raw;
+      const dotIdx = sourceForExt.lastIndexOf('.');
+      const cleanExt = dotIdx > 0 ? (sourceForExt.substring(dotIdx).split('?')[0] ?? '').split('#')[0] ?? '' : '';
+      const fileExt = cleanExt && cleanExt.length <= 5 ? cleanExt : '.png';
+      const rawDotIdx = raw.lastIndexOf('.');
+      const fileBase = rawDotIdx > 0 ? raw.substring(0, rawDotIdx) : raw;
+      return { fileBase, fileExt, fullFileName: `${fileBase}${fileExt}` };
+    };
+
+    const primaryFile = parseFileName(primary);
 
     const blockVariantSuffix = primary.blockVariantIndex && primary.totalBlockVariants
       ? ` (block state ${primary.blockVariantIndex}/${primary.totalBlockVariants})`
@@ -206,13 +209,12 @@ export const BlockWorkspace: React.FC = () => {
       hasTexVariants ? `${numVariations} texture variations (side-by-side)` : '',
     ].filter(Boolean);
 
-    // Dynamic width calculation based on tileZoom and number of variations:
-    // Base tile matches grid proportions (tileZoom + 40px width, tileZoom thumbnail).
-    // Each additional variation adds tileZoom thumb + gap (4px), expanding horizontally.
-    const baseCardWidth = tileZoom + 40;
+    // Dynamic width calculation: each slot has width = tileZoom.
+    // Card padding is 10px on each side (20px total) + 2px for left/right card borders.
+    // Plus 8px gap between each variation.
     const cardWidth = hasTexVariants
-      ? baseCardWidth + (numVariations - 1) * (tileZoom + 4)
-      : baseCardWidth;
+      ? 22 + numVariations * tileZoom + (numVariations - 1) * 8
+      : tileZoom + 22;
 
     const cardStyle = {
       '--tile-zoom': `${tileZoom}px`,
@@ -302,7 +304,7 @@ export const BlockWorkspace: React.FC = () => {
           </div>
         )}
 
-        {/* Thumbnail area: single thumb or side-by-side texture variations */}
+        {/* Thumbnail area: single thumb or side-by-side texture variations with dividers */}
         <div
           className={`${hasTexVariants ? styles.texVariantThumbRow : styles.leafThumbWrapper} ${!isGhost ? styles.leafThumbWrapperAdded : ''}`}
         >
@@ -310,49 +312,73 @@ export const BlockWorkspace: React.FC = () => {
             const leafName = getLeafTitle(leaf);
             const isLeafGhost = leaf.status === 'GHOST';
             return (
-              <div
-                key={`${leaf.relativePath}-${i}`}
-                className={`${hasTexVariants ? styles.texVarThumbSlot : styles.leafThumbInner} ${!isLeafGhost ? styles.texVarThumbSlotAdded : ''}`}
-                onClick={() => handleLeafClick(leaf)}
-                title={leafName}
-              >
-                {!isLeafGhost && leaf.imageUrl ? (
-                  <FlipbookThumbnail
-                    src={leaf.imageUrl}
-                    alt={leafName}
-                    className={styles.leafThumb}
-                    isFlipbook={leaf.isFlipbook}
-                    flipbook={leaf.flipbook}
-                    loading="lazy"
-                  />
-                ) : (
-                  <span className={styles.leafGhost}>?</span>
-                )}
-              </div>
+              <React.Fragment key={`${leaf.relativePath}-${i}`}>
+                {i > 0 && <div className={styles.texVarDivider} />}
+                <div
+                  className={`${hasTexVariants ? styles.texVarThumbSlot : styles.leafThumbInner} ${!isLeafGhost ? styles.texVarThumbSlotAdded : ''}`}
+                  onClick={() => handleLeafClick(leaf)}
+                  title={leafName}
+                >
+                  {!isLeafGhost && leaf.imageUrl ? (
+                    <FlipbookThumbnail
+                      src={leaf.imageUrl}
+                      alt={leafName}
+                      className={styles.leafThumb}
+                      isFlipbook={leaf.isFlipbook}
+                      flipbook={leaf.flipbook}
+                      loading="lazy"
+                    />
+                  ) : (
+                    <span className={styles.leafGhost}>?</span>
+                  )}
+                </div>
+              </React.Fragment>
             );
           })}
         </div>
 
-        {/* Label row */}
-        <div className={styles.leafMeta}>
-          <div className={styles.leafHeaderRow}>
-            <span className={`${styles.leafStatusDot} ${getStatusDotClass(primary.status)}`} />
-            <span className={styles.leafName} title={primaryFileName}>
-              <span>{fileBase}</span>
-              <span className={styles.fileExt}>{fileExt}</span>
-            </span>
-            {hasTexVariants && (
-              <span className={styles.variantCountBadge}>
-                {numVariations}v
-              </span>
-            )}
-            {primary.blockVariantIndex && (
-              <span className={styles.blockVariantBadge} title={`Block variant ${primary.blockVariantIndex} of ${primary.totalBlockVariants}`}>
-                #{primary.blockVariantIndex}
-              </span>
-            )}
+        {/* Meta / Names Area */}
+        {hasTexVariants ? (
+          <div className={styles.texVariantMetaRow}>
+            {leaves.map((leaf, i) => {
+              const file = parseFileName(leaf);
+              return (
+                <React.Fragment key={`meta-${leaf.relativePath}-${i}`}>
+                  {i > 0 && <div className={styles.texVarMetaDivider} />}
+                  <div className={styles.texVarMetaCol} style={{ width: `${tileZoom}px` }}>
+                    <div className={styles.leafHeaderRow}>
+                      <span className={styles.leafName} title={file.fullFileName}>
+                        <span>{file.fileBase}</span>
+                        <span className={styles.fileExt}>{file.fileExt}</span>
+                      </span>
+                    </div>
+                    <div className={styles.leafSubRow}>
+                      <span className={`${styles.leafStatusDot} ${getStatusDotClass(leaf.status)}`} />
+                      <span className={styles.leafSubtitle}>
+                        {leaf.relativePath || leaf.alias}
+                      </span>
+                    </div>
+                  </div>
+                </React.Fragment>
+              );
+            })}
           </div>
-        </div>
+        ) : (
+          <div className={styles.leafMeta}>
+            <div className={styles.leafHeaderRow}>
+              <span className={styles.leafName} title={primaryFile.fullFileName}>
+                <span>{primaryFile.fileBase}</span>
+                <span className={styles.fileExt}>{primaryFile.fileExt}</span>
+              </span>
+            </div>
+            <div className={styles.leafSubRow}>
+              <span className={`${styles.leafStatusDot} ${getStatusDotClass(primary.status)}`} />
+              <span className={styles.leafSubtitle}>
+                {primary.relativePath || primary.alias}
+              </span>
+            </div>
+          </div>
+        )}
       </div>
     );
   };

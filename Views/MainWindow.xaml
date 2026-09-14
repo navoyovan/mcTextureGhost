@@ -21,7 +21,7 @@
     <Grid Background="Transparent">
         <wv2:WebView2 Name="WebView"
                       DefaultBackgroundColor="Transparent"
-                      Margin="4"
+                      Margin="0"
                       HorizontalAlignment="Stretch"
                       VerticalAlignment="Stretch" />
     </Grid>

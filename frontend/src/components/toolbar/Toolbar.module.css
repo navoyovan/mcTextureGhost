@@ -53,14 +53,20 @@
 }
 
 .ghostBadge {
-  font-family: var(--font-pixel);
-  font-size: var(--font-size-pixel-badge, 8px);
+  font-family: var(--font-brand, 'Syne', sans-serif);
+  font-size: 9.5px;
+  font-weight: 700;
   line-height: 1;
-  letter-spacing: 0.02em;
-  padding: 2px 5px;
+  letter-spacing: 0.03em;
+  padding: 2.5px 6px;
+  height: 18px;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
   border-radius: 4px;
-  background: rgba(244, 114, 182, 0.18);
-  color: var(--status-ghost, #f472b6);
+  background: rgba(68, 38, 56, 0.75);
+  border: 1px solid rgba(168, 85, 247, 0.35);
+  color: var(--accent-primary, #8CEB1F);
 }
 
 .searchWrapper {
@@ -91,7 +97,7 @@
 }
 
 .searchInput:focus {
-  border-color: rgba(168, 85, 247, 0.6);
+  border-color: var(--accent-primary, #8CEB1F);
 }
 
 .searchClear {
@@ -120,6 +126,10 @@
   font-size: 11.5px;
   outline: none;
   cursor: pointer;
+}
+
+.filterSelect:focus {
+  border-color: var(--accent-primary, #8CEB1F);
 }
 
 /* ─── Zoom Controls ─── */
@@ -165,8 +175,8 @@
 }
 
 .zoomPresetBtnActive {
-  background: rgba(139, 92, 246, 0.25);
-  color: #c4b5fd;
+  background: rgba(140, 235, 31, 0.2);
+  color: var(--accent-primary, #8CEB1F);
 }
 
 .zoomSlider {
@@ -186,14 +196,14 @@
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  background: #a78bfa;
+  background: var(--accent-primary, #8CEB1F);
   cursor: pointer;
-  border: 2px solid rgba(255, 255, 255, 0.15);
+  border: 2px solid rgba(255, 255, 255, 0.2);
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
 }
 
 .zoomSlider::-webkit-slider-thumb:hover {
-  background: #c4b5fd;
+  background: #a3f446;
 }
 
 .rightControls {
@@ -230,9 +240,9 @@
 }
 
 .viewModeButtonActive {
-  background: rgba(139, 92, 246, 0.25);
-  border: 1px solid rgba(139, 92, 246, 0.4);
-  color: #c4b5fd;
+  background: rgba(140, 235, 31, 0.18);
+  border: 1px solid rgba(140, 235, 31, 0.35);
+  color: var(--accent-primary, #8CEB1F);
   font-weight: 600;
 }
 
@@ -241,8 +251,8 @@
   align-items: center;
   gap: 4px;
   padding: 3px 8px;
-  background: rgba(139, 92, 246, 0.12);
-  border: 1px solid rgba(139, 92, 246, 0.3);
+  background: rgba(140, 235, 31, 0.1);
+  border: 1px solid rgba(140, 235, 31, 0.25);
   border-radius: 6px;
   height: 30px;
 }
@@ -253,7 +263,7 @@
   border: none;
   font-family: var(--font-mono);
   font-size: 11px;
-  color: #c4b5fd;
+  color: var(--accent-primary, #8CEB1F);
   cursor: pointer;
   padding: 1px 3px;
   border-radius: 3px;
@@ -262,14 +272,14 @@
 
 .breadcrumbRootBtn:hover,
 .breadcrumbBtn:hover {
-  background: rgba(139, 92, 246, 0.25);
+  background: rgba(140, 235, 31, 0.2);
   color: #ffffff;
 }
 
 .breadcrumbSeparator {
   font-family: var(--font-mono);
   font-size: 10px;
-  color: rgba(196, 181, 253, 0.5);
+  color: rgba(140, 235, 31, 0.45);
   user-select: none;
 }
 
@@ -284,7 +294,7 @@
 .breadcrumbClearBtn {
   background: transparent;
   border: none;
-  color: #a78bfa;
+  color: var(--accent-primary, #8CEB1F);
   cursor: pointer;
   padding: 2px;
   display: flex;

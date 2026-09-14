@@ -227,10 +227,9 @@ export const PackGrid: React.FC = () => {
                   )}
                 </div>
 
-                {/* Tile Metadata with Status Dot and Badges separated from artwork */}
+                {/* Tile Metadata with Status Dot placed under the filename row */}
                 <div className={styles.tileMeta}>
                   <div className={styles.tileHeaderRow}>
-                    <span className={`${styles.statusDot} ${getStatusDotClass(alias.status)}`} />
                     <span className={styles.tileTitle} title={fullFileName}>
                       <span>{fileBase}</span>
                       <span className={styles.fileExt}>{fileExt}</span>
@@ -246,9 +245,12 @@ export const PackGrid: React.FC = () => {
                       </span>
                     )}
                   </div>
-                  <span className={styles.tileSubtitle}>
-                    {alias.subtitleCaption || alias.relativePath || alias.category}
-                  </span>
+                  <div className={styles.tileSubRow}>
+                    <span className={`${styles.statusDot} ${getStatusDotClass(alias.status)}`} />
+                    <span className={styles.tileSubtitle}>
+                      {alias.subtitleCaption || alias.relativePath || alias.category}
+                    </span>
+                  </div>
                 </div>
               </div>
             );

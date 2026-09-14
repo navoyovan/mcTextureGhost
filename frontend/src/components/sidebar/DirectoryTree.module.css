@@ -35,7 +35,7 @@
 }
 
 .treeRowSelected {
-  background: rgba(139, 92, 246, 0.18) !important;
+  background: rgba(140, 235, 31, 0.15) !important;
   color: #ffffff !important;
 }
 
@@ -87,7 +87,7 @@
 }
 
 .folderIconSelected {
-  color: #a78bfa;
+  color: var(--accent-primary, #8CEB1F);
   flex-shrink: 0;
 }
 
@@ -98,7 +98,7 @@
 }
 
 .fileIconSelected {
-  color: #a78bfa;
+  color: var(--accent-primary, #8CEB1F);
   flex-shrink: 0;
 }
 
@@ -125,37 +125,53 @@
 }
 
 .missingBadge {
-  font-family: var(--font-pixel);
-  font-size: 8px;
+  font-family: var(--font-brand, 'Syne', sans-serif);
+  font-size: 9.5px;
+  font-weight: 600;
   line-height: 1;
-  letter-spacing: 0.02em;
-  padding: 2.5px 5px;
-  border-radius: 3px;
+  letter-spacing: 0.03em;
+  padding: 2.5px 6px;
+  height: 18px;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 4px;
   background: rgba(245, 158, 11, 0.18);
   border: 1px solid rgba(245, 158, 11, 0.35);
   color: #fbbf24;
 }
 
 .ghostPill {
-  font-family: var(--font-pixel);
-  font-size: 9px;
+  font-family: var(--font-brand, 'Syne', sans-serif);
+  font-size: 9.5px;
+  font-weight: 600;
   line-height: 1;
-  letter-spacing: 0.02em;
-  padding: 2.5px 5px;
-  border-radius: 3px;
-  background: rgba(244, 114, 182, 0.18);
-  border: 1px solid rgba(244, 114, 182, 0.3);
-  color: var(--status-ghost, #f472b6);
+  letter-spacing: 0.03em;
+  padding: 2.5px 6px;
+  height: 18px;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 4px;
+  background: rgba(168, 85, 247, 0.18);
+  border: 1px solid rgba(168, 85, 247, 0.35);
+  color: #c4b5fd;
 }
 
 .countPill {
-  font-family: var(--font-brand);
-  font-size: 11px;
-  font-weight: 700;
+  font-family: var(--font-brand, 'Syne', sans-serif);
+  font-size: 9.5px;
+  font-weight: 600;
   line-height: 1;
-  padding: 3px 6px;
-  border-radius: 3px;
+  letter-spacing: 0.03em;
+  padding: 2.5px 6px;
+  height: 18px;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 4px;
   background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   color: #a1a1aa;
 }
 

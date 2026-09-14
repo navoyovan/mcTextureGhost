@@ -18,11 +18,10 @@
   display: flex;
   justify-content: flex-start;
   align-items: center;
-  height: 57px;
-  padding: 0 12px;
-  background: var(--bg-primary, rgba(18, 18, 20, 0.85));
-  backdrop-filter: blur(20px);
-  border-bottom: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+  height: 52px;
+  padding: 0 16px;
+  background: rgba(255, 255, 255, 0.02);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
   -webkit-app-region: drag;
   flex-shrink: 0;
   z-index: 100;
@@ -39,10 +38,19 @@
 }
 
 .appIcon {
-  width: 18px;
-  height: 18px;
-  color: var(--color-ok, #22c55e);
+  width: 26px;
+  height: 26px;
+  color: var(--accent-primary, #8CEB1F);
   flex-shrink: 0;
+}
+
+.appIconImg {
+  width: 26px;
+  height: 26px;
+  object-fit: contain;
+  image-rendering: pixelated;
+  flex-shrink: 0;
+  filter: drop-shadow(0 2px 6px rgba(140, 235, 31, 0.35));
 }
 
 .appTitle {
@@ -52,6 +60,25 @@
   letter-spacing: 0.03em;
   color: var(--text-primary, #f4f4f5);
   white-space: nowrap;
+  margin-right: 8px;
+  display: inline-block;
+  overflow: hidden;
+  animation: titleReintroduce 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes titleReintroduce {
+  0% {
+    opacity: 0;
+    max-width: 0;
+    transform: translateX(-10px);
+    margin-right: 0;
+  }
+  100% {
+    opacity: 1;
+    max-width: 200px;
+    transform: translateX(0);
+    margin-right: 8px;
+  }
 }
 
 .packBadge {
@@ -62,9 +89,9 @@
   margin-left: 8px;
   letter-spacing: 0.02em;
   border-radius: 4px;
-  background: rgba(34, 197, 94, 0.15);
-  border: 1px solid rgba(34, 197, 94, 0.3);
-  color: var(--color-ok, #22c55e);
+  background: var(--status-ok-bg, rgba(140, 235, 31, 0.15));
+  border: 1px solid rgba(140, 235, 31, 0.35);
+  color: var(--accent-primary, #8CEB1F);
   font-weight: 500;
   max-width: 240px;
   overflow: hidden;
@@ -77,18 +104,17 @@
   align-items: center;
   justify-content: center;
   gap: 3px;
-  width: 16px;
+  width: 14px;
   height: 24px;
-  margin: 0 12px 0 4px;
+  margin: 0 10px 0 2px;
   cursor: grab;
   opacity: 0.45;
 }
 
 .dragHandle span {
   display: block;
-  width: 2px;
-  height: 12px;
-  border-radius: 2px;
+  width: 1px;
+  height: 14px;
   background: var(--text-secondary, #a1a1aa);
 }
 

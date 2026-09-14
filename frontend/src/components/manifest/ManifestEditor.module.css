@@ -144,12 +144,13 @@
 }
 
 .primaryBtn {
-  background: #6366f1;
-  color: #ffffff;
+  background: var(--accent-primary, #8CEB1F);
+  color: #0c1406;
+  font-weight: 600;
 }
 
 .primaryBtn:hover {
-  background: #4f46e5;
+  background: var(--accent-primary-hover, #a3f446);
 }
 
 .primaryBtn:disabled {
@@ -198,7 +199,7 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: #818cf8;
+  color: var(--accent-primary, #8CEB1F);
   display: flex;
   align-items: center;
   gap: 6px;
@@ -245,7 +246,7 @@
 }
 
 .input:focus {
-  border-color: #6366f1;
+  border-color: var(--accent-primary, #8CEB1F);
 }
 
 .textarea {
@@ -320,7 +321,7 @@
 }
 
 .versionNumberInput:focus {
-  border-color: #6366f1;
+  border-color: var(--accent-primary, #8CEB1F);
 }
 
 .versionDot {
