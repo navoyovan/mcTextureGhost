@@ -251,7 +251,7 @@
 .leafCard {
   display: flex;
   flex-direction: column;
-  width: calc(var(--tile-zoom, 120px) + 40px);
+  width: calc(var(--tile-zoom, 120px) + 20px);
   background: #18181c;
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 8px;
@@ -261,7 +261,7 @@
   position: relative;
   transition: transform 0.15s, border-color 0.15s, background-color 0.15s, box-shadow 0.15s;
   content-visibility: auto;
-  contain-intrinsic-size: auto calc(var(--tile-zoom, 120px) + 40px);
+  contain-intrinsic-size: auto calc(var(--tile-zoom, 120px) + 20px);
 }
 
 /* Card that contains texture variants — spans horizontally */
@@ -389,18 +389,20 @@
 }
 
 /* texVariantThumbRow — flex row for side-by-side texture variant thumbs with equal height */
+/* texVariantThumbRow — flex row with spacing between texture variations */
 .texVariantThumbRow {
-  width: 100%;
+  width: fit-content;
+  max-width: 100%;
   height: var(--tile-zoom, 120px);
-  background: #0d0d10;
+  background: transparent;
   display: flex;
   flex-direction: row;
-  gap: 4px;
+  gap: 8px;
   padding: 0;
-  overflow: hidden;
+  box-sizing: border-box;
 }
 
-/* texVarThumbSlot — one equal-size square cell in the side-by-side row */
+/* texVarThumbSlot — one equal-size square cell in the side-by-side row, strictly 1:1 ratio */
 .texVarThumbSlot {
   width: var(--tile-zoom, 120px);
   height: var(--tile-zoom, 120px);
@@ -411,48 +413,40 @@
   align-items: center;
   justify-content: center;
   background: #0d0d10;
-  transition: opacity 0.1s, transform 0.1s;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0;
+  transition: opacity 0.1s, transform 0.1s, border-color 0.15s;
 }
 
 .texVarThumbSlot:hover {
-  opacity: 0.85;
+  opacity: 0.9;
+  border-color: rgba(255, 255, 255, 0.25);
 }
 
-.variantCountBadge {
-  font-size: 9.5px;
-  font-family: var(--font-brand, 'Syne', sans-serif);
-  font-weight: 700;
-  line-height: 1;
-  color: #c084fc;
-  background: rgba(168, 85, 247, 0.18);
-  border: 1px solid rgba(168, 85, 247, 0.35);
-  padding: 2.5px 6px;
-  height: 18px;
-  box-sizing: border-box;
-  display: inline-flex;
-  align-items: center;
-  border-radius: 4px;
-  margin-left: auto;
-  flex-shrink: 0;
-  letter-spacing: 0.03em;
+/* Vertical divider between texture variations in the thumbnail row */
+.texVarDivider {
+  display: none;
 }
 
-.blockVariantBadge {
-  font-size: 9.5px;
-  font-family: var(--font-brand, 'Syne', sans-serif);
-  font-weight: 700;
-  line-height: 1;
-  color: #a1a1aa;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  padding: 2.5px 6px;
-  height: 18px;
-  box-sizing: border-box;
-  display: inline-flex;
-  align-items: center;
-  border-radius: 4px;
+/* Row containing per-variation metadata aligned underneath each thumbnail */
+.texVariantMetaRow {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
+}
+
+.texVarMetaCol {
   flex-shrink: 0;
-  letter-spacing: 0.03em;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.texVarMetaDivider {
+  display: none;
 }
 
 /* Fixed-position floating tooltip — bypasses overflow clipping */
@@ -545,7 +539,7 @@
 }
 
 .statusDotOk {
-  background: #38bdf8;
+  background: #06b6d4;
 }
 
 .statusDotGhost {
@@ -561,7 +555,7 @@
 }
 
 .statusDotNew {
-  background: #38bdf8;
+  background: #06b6d4;
 }
 
 .leafSubtitle {
