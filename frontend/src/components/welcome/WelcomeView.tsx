@@ -62,8 +62,10 @@ export const WelcomeView: React.FC<WelcomeViewProps> = ({ onOpenNewPackDialog })
         {/* Launcher Header */}
         <header className={styles.header}>
           <div className={styles.brandGroup}>
-            <h1 className={styles.brandTitle}>mcTextureGhost</h1>
-            <span className={styles.brandTag}>Minecraft Bedrock Texture Studio</span>
+            <div className={styles.brandTitleRow}>
+              <img src="/icon.png" alt="mcTextureGhost icon" className={styles.brandIcon} />
+              <h1 className={styles.brandTitle}>mcTextureGhost</h1>
+            </div>
           </div>
 
           <button

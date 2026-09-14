@@ -5,7 +5,7 @@
 @font-face {
   font-family: 'Syne';
   font-style: normal;
-  font-weight: 700;
+  font-weight: 100 900;
   font-display: swap;
   src: url('/fonts/Syne.ttf') format('truetype'),
        url('./fonts/Syne.ttf') format('truetype');
@@ -43,7 +43,12 @@
   --bg-surface-elevated: #282830;
   --bg-hover: #2a2a32;
   --bg-active: #32323c;
-  --bg-selected: rgba(56, 189, 248, 0.12);
+  --accent-primary: #8CEB1F;
+  --accent-primary-rgb: 140, 235, 31;
+  --accent-primary-hover: #a3f446;
+  --accent-primary-subtle: rgba(140, 235, 31, 0.12);
+  --accent-primary-glow: rgba(140, 235, 31, 0.22);
+  --bg-selected: rgba(140, 235, 31, 0.12);
   --bg-input: rgba(18, 18, 20, 0.60);
   --bg-input-focus: rgba(24, 24, 28, 0.85);
 
@@ -58,29 +63,29 @@
   --border-subtle: rgba(255, 255, 255, 0.08);
   --border-default: rgba(255, 255, 255, 0.12);
   --border-strong: rgba(255, 255, 255, 0.20);
-  --border-focus: #38bdf8;
+  --border-focus: #8CEB1F;
 
   /* ─── 5. Status & Semantic Colors ─── */
-  --status-ok: #22c55e;
-  --status-ghost: #f472b6;
+  --status-ok: #8CEB1F;
+  --status-ghost: #8CEB1F;
   --status-orphan: #f59e0b;
   --status-override: #2dd4bf;
-  --status-new: #38bdf8;
+  --status-new: #8CEB1F;
   --status-error: #ef4444;
 
   /* Test Compatibility Aliases */
-  --color-ok: #22C55E;
-  --color-ghost: #F472B6;
+  --color-ok: #8CEB1F;
+  --color-ghost: #8CEB1F;
   --color-orphan: #F59E0B;
   --color-override: #2DD4BF;
-  --color-new: #38BDF8;
+  --color-new: #8CEB1F;
 
   /* Status Background Tints */
-  --status-ok-bg: rgba(34, 197, 94, 0.15);
-  --status-ghost-bg: rgba(244, 114, 182, 0.15);
+  --status-ok-bg: rgba(140, 235, 31, 0.15);
+  --status-ghost-bg: rgba(140, 235, 31, 0.15);
   --status-orphan-bg: rgba(245, 158, 11, 0.15);
   --status-override-bg: rgba(45, 212, 191, 0.15);
-  --status-new-bg: rgba(56, 189, 248, 0.15);
+  --status-new-bg: rgba(140, 235, 31, 0.15);
 
   /* ─── 6. Typography ─── */
   /* Font Family Stacks */
@@ -108,6 +113,15 @@
   --font-size-2xl: 22px;
   --font-size-3xl: 28px;
   --font-size-hero: 36px;
+
+  /* Standard Badge System Tokens (Syne Font, Unified Sizing) */
+  --badge-font: var(--font-brand);
+  --badge-font-size: 10px;
+  --badge-font-weight: 700;
+  --badge-letter-spacing: 0.03em;
+  --badge-padding: 2px 7px;
+  --badge-height: 18px;
+  --badge-radius: 4px;
 
   /* Line Heights */
   --line-height-pixel: 1.15;

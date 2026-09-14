@@ -336,7 +336,6 @@ export const BlockWorkspace: React.FC = () => {
         {/* Label row */}
         <div className={styles.leafMeta}>
           <div className={styles.leafHeaderRow}>
-            <span className={`${styles.leafStatusDot} ${getStatusDotClass(primary.status)}`} />
             <span className={styles.leafName} title={primaryFileName}>
               <span>{fileBase}</span>
               <span className={styles.fileExt}>{fileExt}</span>
@@ -351,6 +350,12 @@ export const BlockWorkspace: React.FC = () => {
                 #{primary.blockVariantIndex}
               </span>
             )}
+          </div>
+          <div className={styles.leafSubRow}>
+            <span className={`${styles.leafStatusDot} ${getStatusDotClass(primary.status)}`} />
+            <span className={styles.leafSubtitle}>
+              {primary.relativePath || primary.alias}
+            </span>
           </div>
         </div>
       </div>

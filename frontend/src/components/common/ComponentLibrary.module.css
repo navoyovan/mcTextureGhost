@@ -25,7 +25,7 @@
   background: rgba(18, 18, 22, 0.96);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 16px;
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6), 0 0 40px -10px rgba(56, 189, 248, 0.12);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6), 0 0 40px -10px rgba(140, 235, 31, 0.14);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -51,14 +51,14 @@
   width: 36px;
   height: 36px;
   border-radius: 9px;
-  background: rgba(56, 189, 248, 0.12);
+  background: rgba(140, 235, 31, 0.12);
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
 .headerIcon {
-  color: #38bdf8;
+  color: var(--accent-primary, #8CEB1F);
 }
 
 .title {
@@ -86,7 +86,7 @@
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 4px;
-  color: #38bdf8;
+  color: var(--accent-primary, #8CEB1F);
 }
 
 .closeButton {
@@ -134,8 +134,8 @@
 }
 
 .tabBtnActive {
-  color: #38bdf8;
-  background: rgba(56, 189, 248, 0.1);
+  color: var(--accent-primary, #8CEB1F);
+  background: rgba(140, 235, 31, 0.12);
   font-weight: 600;
 }
 
@@ -164,7 +164,7 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: #38bdf8;
+  color: var(--accent-primary, #8CEB1F);
 }
 
 .componentGrid {
@@ -203,8 +203,8 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background: #38bdf8;
-  color: #0f172a;
+  background: var(--accent-primary, #8CEB1F);
+  color: #0c1406;
   font-weight: 600;
   font-size: 12px;
   padding: 7px 14px;
@@ -215,7 +215,7 @@
 }
 
 .primaryBtn:hover:not(:disabled) {
-  background: #7dd3fc;
+  background: var(--accent-primary-hover, #a3f446);
 }
 
 .primaryBtn:disabled {
@@ -257,8 +257,8 @@
 }
 
 .subtleBtn:hover {
-  color: #38bdf8;
-  background: rgba(56, 189, 248, 0.08);
+  color: var(--accent-primary, #8CEB1F);
+  background: rgba(140, 235, 31, 0.08);
 }
 
 .dangerBtn {
@@ -287,15 +287,15 @@
   padding: 14px 18px;
   border-radius: 12px;
   background: 
-    radial-gradient(ellipse 90% 75% at 8% 8%, rgba(56, 189, 248, 0.16) 0%, rgba(56, 189, 248, 0.04) 55%, transparent 80%),
-    linear-gradient(145deg, rgba(28, 38, 52, 0.75) 0%, rgba(18, 24, 34, 0.7) 50%, rgba(12, 16, 22, 0.78) 100%);
-  box-shadow: 0 4px 18px -2px rgba(0, 0, 0, 0.4), 0 0 24px -6px rgba(56, 189, 248, 0.12);
+    radial-gradient(ellipse 90% 75% at 8% 8%, rgba(140, 235, 31, 0.18) 0%, rgba(140, 235, 31, 0.04) 55%, transparent 80%),
+    linear-gradient(145deg, rgba(32, 42, 30, 0.75) 0%, rgba(20, 26, 20, 0.7) 50%, rgba(14, 18, 14, 0.78) 100%);
+  box-shadow: 0 4px 18px -2px rgba(0, 0, 0, 0.4), 0 0 24px -6px rgba(140, 235, 31, 0.14);
   cursor: pointer;
 }
 
 .litPrimaryIcon {
-  color: #38bdf8;
-  filter: drop-shadow(0 2px 6px rgba(56, 189, 248, 0.35));
+  color: var(--accent-primary, #8CEB1F);
+  filter: drop-shadow(0 2px 6px rgba(140, 235, 31, 0.35));
 }
 
 .litPrimaryTitle {
@@ -307,7 +307,7 @@
 
 .litPrimarySub {
   font-size: 11px;
-  color: #94a3b8;
+  color: #a1a1aa;
 }
 
 /* Lit Surface Secondary Action */
@@ -370,8 +370,8 @@
 }
 
 .viewModeButtonActive {
-  background: rgba(255, 255, 255, 0.1);
-  color: #38bdf8;
+  background: rgba(140, 235, 31, 0.14);
+  color: var(--accent-primary, #8CEB1F);
   font-weight: 600;
 }
 
@@ -402,7 +402,7 @@
 }
 
 .searchInput:focus {
-  border-color: #38bdf8;
+  border-color: var(--accent-primary, #8CEB1F);
 }
 
 .searchClear {
@@ -430,7 +430,7 @@
 }
 
 .select:focus {
-  border-color: #38bdf8;
+  border-color: var(--accent-primary, #8CEB1F);
 }
 
 .textInput {
@@ -444,7 +444,7 @@
 }
 
 .textInput:focus {
-  border-color: #38bdf8;
+  border-color: var(--accent-primary, #8CEB1F);
 }
 
 .checkboxLabel {
@@ -457,7 +457,7 @@
 }
 
 .checkboxInput {
-  accent-color: #38bdf8;
+  accent-color: var(--accent-primary, #8CEB1F);
   width: 16px;
   height: 16px;
   cursor: pointer;
@@ -489,7 +489,7 @@
 }
 
 .rowThumbnailIcon {
-  color: #38bdf8;
+  color: var(--accent-primary, #8CEB1F);
 }
 
 .rowDetails {
@@ -565,8 +565,8 @@
   font-weight: 600;
   padding: 3px 8px;
   border-radius: 6px;
-  background: rgba(168, 85, 247, 0.15);
-  color: #c084fc;
+  background: rgba(140, 235, 31, 0.15);
+  color: var(--accent-primary, #8CEB1F);
 }
 
 .badgeAdded {
@@ -574,8 +574,8 @@
   font-weight: 600;
   padding: 3px 8px;
   border-radius: 6px;
-  background: rgba(34, 197, 94, 0.15);
-  color: #4ade80;
+  background: rgba(140, 235, 31, 0.15);
+  color: var(--accent-primary, #8CEB1F);
 }
 
 .badgeOrphan {
@@ -601,8 +601,8 @@
   font-weight: 600;
   padding: 2px 7px;
   border-radius: 4px;
-  background: rgba(34, 197, 94, 0.15);
-  color: #22c55e;
+  background: rgba(140, 235, 31, 0.15);
+  color: var(--accent-primary, #8CEB1F);
 }
 
 .badgeMissing {
@@ -654,7 +654,7 @@
 .typePixel {
   font-family: var(--font-pixel, 'Press Start 2P', monospace);
   font-size: 12px;
-  color: #38bdf8;
+  color: var(--accent-primary, #8CEB1F);
   letter-spacing: 0.02em;
 }
 

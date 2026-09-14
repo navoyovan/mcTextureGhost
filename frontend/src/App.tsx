@@ -1,6 +1,6 @@
 // frontend/src/App.tsx
 import React, { useEffect, useState } from 'react';
-import { Sparkles, AlertCircle, AlertTriangle, Info, X } from 'lucide-react';
+import { AlertCircle, AlertTriangle, Info, X } from 'lucide-react';
 import { usePackStore } from './store/packStore';
 import { useIpc } from './hooks/useIpc';
 import { IpcMessageTypes, ErrorPayload } from './types/ipc';
@@ -139,10 +139,11 @@ export const App: React.FC = () => {
         </div>
 
         <div className={styles.titleBarLeft}>
-          <Sparkles className={styles.appIcon} />
-          <span className={styles.appTitle}>
-            mcTextureGhost
-          </span>
+          {packRoot && (
+            <span className={styles.appTitle}>
+              mcTextureGhost
+            </span>
+          )}
 
           {/* File / Dev Menus */}
           <MenuBar />

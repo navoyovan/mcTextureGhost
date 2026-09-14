@@ -18,7 +18,7 @@ public static class PlaceholderImageFactory
 
         using var bitmap = new Bitmap(size, size);
         var half = size / 2;
-        var magenta = Color.FromArgb(255, 0xFC, 0x00, 0xFF);
+        var green = Color.FromArgb(255, 0x8C, 0xEB, 0x1F);
         var black = Color.Black;
 
         for (var y = 0; y < size; y++)
@@ -26,7 +26,7 @@ public static class PlaceholderImageFactory
             for (var x = 0; x < size; x++)
             {
                 var isTopLeftOrBottomRightQuadrant = (x < half) == (y < half);
-                bitmap.SetPixel(x, y, isTopLeftOrBottomRightQuadrant ? black : magenta);
+                bitmap.SetPixel(x, y, isTopLeftOrBottomRightQuadrant ? black : green);
             }
         }
 

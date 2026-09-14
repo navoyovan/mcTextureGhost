@@ -13,7 +13,10 @@ import {
   Layers,
   ArrowRight,
   Box,
-  Package,
+  Sword,
+  Check,
+  Plus,
+  Minus,
 } from 'lucide-react';
 import { usePackStore } from '../../store/packStore';
 import { useIpc } from '../../hooks/useIpc';
@@ -164,7 +167,7 @@ const CatalogLeafRow: React.FC<{
             title={`Added (${leaf.status})`}
             aria-label={`Added (${leaf.status})`}
           >
-            ✓
+            {leaf.status === 'GHOST' ? <Minus size={11} strokeWidth={2.5} /> : <Check size={11} strokeWidth={2.5} />}
           </span>
         )}
       </div>
@@ -205,14 +208,15 @@ const CatalogAliasGroup: React.FC<{
           )}
           {aliasGroup.ghostCount > 0 && (
             <span className={styles.ghostBadge}>
-              👻 {aliasGroup.ghostCount}
+              {aliasGroup.ghostCount}
             </span>
           )}
         </div>
 
         {isAdded ? (
           <span className={styles.addedBadge} title="This alias is already in your pack">
-            ✓ Added
+            <Check size={11} />
+            <span>Added</span>
           </span>
         ) : (
           <button
@@ -222,7 +226,8 @@ const CatalogAliasGroup: React.FC<{
             title={`Add alias '${aliasGroup.alias}' to pack`}
             aria-label={`Add alias ${aliasGroup.alias}`}
           >
-            + Add Alias
+            <Plus size={11} />
+            <span>Add Alias</span>
           </button>
         )}
       </div>
@@ -307,25 +312,33 @@ const CatalogBlockGroup: React.FC<{
         <div className={styles.blockBadgesAndActions}>
           <span
             className={`${styles.categoryBadge} ${isItem ? styles.categoryBadgeItem : ''}`}
+            title={block.category}
           >
-            {block.category}
+            {isItem ? (
+              <Sword size={11} className={styles.badgeIcon} />
+            ) : (
+              <Box size={11} className={styles.badgeIcon} />
+            )}
           </span>
 
           {block.ghostCount > 0 && (
             <span className={styles.ghostBadge} title={`${block.ghostCount} ghost textures`}>
-              👻 {block.ghostCount} {block.ghostCount === 1 ? 'ghost' : 'ghosts'}
+              {block.ghostCount}
             </span>
           )}
 
           {block.totalVariants > 0 && (
             <span className={styles.variantsBadge} title={`${block.totalVariants} total variants`}>
-              {block.totalVariants} var
+              {block.totalVariants}
             </span>
           )}
 
+
+
           {isAdded ? (
             <span className={styles.addedBadge} title="This block is already in your pack">
-              ✓ Added
+              <Check size={11} />
+              <span>Added</span>
             </span>
           ) : (
             <button
@@ -640,7 +653,7 @@ export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose })
             }}
           >
             <span className={styles.floatingBtnIcon}>
-              <Package size={16} />
+              <Sword size={16} />
             </span>
             <span className={styles.floatingBtnTooltip}>Filter Items</span>
           </button>

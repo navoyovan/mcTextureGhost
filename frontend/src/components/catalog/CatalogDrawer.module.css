@@ -54,7 +54,7 @@
 .floatingActionCluster:hover {
   transform: translateX(-3px);
   box-shadow: -6px 8px 24px rgba(0, 0, 0, 0.6);
-  border-color: rgba(139, 92, 246, 0.4);
+  border-color: rgba(140, 235, 31, 0.4);
 }
 
 .floatingBtn {
@@ -82,14 +82,14 @@
 }
 
 .floatingBtn:hover {
-  background: rgba(139, 92, 246, 0.2);
-  color: #c4b5fd;
+  background: rgba(140, 235, 31, 0.15);
+  color: var(--accent-primary, #8CEB1F);
 }
 
 .floatingBtnActive {
-  background: rgba(139, 92, 246, 0.35) !important;
+  background: rgba(140, 235, 31, 0.25) !important;
   color: #ffffff !important;
-  box-shadow: inset 0 0 0 1px rgba(167, 139, 250, 0.6);
+  box-shadow: inset 0 0 0 1px rgba(140, 235, 31, 0.6);
 }
 
 .floatingBtn:active {
@@ -173,12 +173,12 @@
   width: 32px;
   height: 32px;
   border-radius: var(--radius-md);
-  background: linear-gradient(135deg, rgba(139, 92, 246, 0.35) 0%, rgba(59, 130, 246, 0.35) 100%);
-  border: 1px solid rgba(139, 92, 246, 0.45);
+  background: rgba(140, 235, 31, 0.15);
+  border: 1px solid rgba(140, 235, 31, 0.35);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #c4b5fd;
+  color: var(--accent-primary, #8CEB1F);
 }
 
 .headerTextGroup {
@@ -200,7 +200,7 @@
 }
 
 .referenceSwitcherTrigger:hover .headerTitle {
-  color: #c4b5fd;
+  color: var(--accent-primary, #8CEB1F);
 }
 
 .headerTitle {
@@ -215,14 +215,20 @@
 }
 
 .versionBadge {
-  font-family: var(--font-mono);
+  font-family: var(--font-brand, 'Syne', sans-serif);
   font-size: 9.5px;
-  padding: 1px 5px;
+  font-weight: 700;
+  padding: 2.5px 6px;
+  height: 18px;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
   border-radius: 4px;
-  background: rgba(139, 92, 246, 0.25);
-  border: 1px solid rgba(139, 92, 246, 0.4);
-  color: #ddd6fe;
-  font-weight: 600;
+  background: rgba(140, 235, 31, 0.18);
+  border: 1px solid rgba(140, 235, 31, 0.35);
+  color: var(--accent-primary, #8CEB1F);
+  line-height: 1;
+  letter-spacing: 0.03em;
 }
 
 .switcherChevron {
@@ -281,8 +287,8 @@
 }
 
 .referenceDropdownItemActive {
-  background: rgba(139, 92, 246, 0.18);
-  border-color: rgba(139, 92, 246, 0.35);
+  background: rgba(140, 235, 31, 0.15);
+  border-color: rgba(140, 235, 31, 0.35);
 }
 
 .referenceItemIcon {
@@ -327,9 +333,9 @@
   gap: 6px;
   padding: 8px 10px;
   border-radius: 6px;
-  background: rgba(139, 92, 246, 0.15);
-  border: 1px dashed rgba(139, 92, 246, 0.4);
-  color: #c4b5fd;
+  background: rgba(140, 235, 31, 0.12);
+  border: 1px dashed rgba(140, 235, 31, 0.4);
+  color: var(--accent-primary, #8CEB1F);
   font-family: var(--font-brand);
   font-size: 11.5px;
   font-weight: 600;
@@ -339,8 +345,8 @@
 }
 
 .referenceAddCustomBtn:hover {
-  background: rgba(139, 92, 246, 0.28);
-  border-color: rgba(139, 92, 246, 0.6);
+  background: rgba(140, 235, 31, 0.22);
+  border-color: rgba(140, 235, 31, 0.6);
   color: #ffffff;
 }
 
@@ -468,8 +474,8 @@
 }
 
 .categoryToggleBtnActive {
-  background: rgba(56, 189, 248, 0.22);
-  color: #38bdf8;
+  background: rgba(140, 235, 31, 0.2);
+  color: var(--accent-primary, #8CEB1F);
   font-weight: 600;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
 }
@@ -595,9 +601,10 @@
 }
 
 .blockDisplayName {
-  font-family: var(--font-brand);
-  font-size: 13.5px;
-  font-weight: 700;
+  font-family: var(--font-pixel, 'Press Start 2P', monospace);
+  font-size: 11px;
+  line-height: 1.35;
+  letter-spacing: 0.02em;
   color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
@@ -621,15 +628,27 @@
 }
 
 .categoryBadge {
-  font-family: var(--font-pixel);
-  font-size: 8px;
+  font-family: var(--font-brand, 'Syne', sans-serif);
+  font-size: 9.5px;
+  font-weight: 700;
+  line-height: 1;
   padding: 2.5px 6px;
-  border-radius: 3px;
-  letter-spacing: 0.04em;
+  height: 18px;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 4px;
+  letter-spacing: 0.03em;
   text-transform: uppercase;
   background: rgba(139, 92, 246, 0.18);
   border: 1px solid rgba(139, 92, 246, 0.35);
   color: #c4b5fd;
+}
+
+.badgeIcon {
+  flex-shrink: 0;
+  opacity: 0.9;
 }
 
 .categoryBadgeItem {
@@ -639,22 +658,34 @@
 }
 
 .ghostBadge {
-  font-family: var(--font-pixel);
-  font-size: 8px;
+  font-family: var(--font-brand, 'Syne', sans-serif);
+  font-size: 9.5px;
+  font-weight: 700;
+  line-height: 1;
   padding: 2.5px 6px;
-  border-radius: 3px;
-  letter-spacing: 0.04em;
-  background: var(--status-ghost-bg);
-  border: 1px solid rgba(244, 114, 182, 0.35);
-  color: var(--status-ghost);
+  height: 18px;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 4px;
+  letter-spacing: 0.03em;
+  background: rgba(68, 38, 56, 0.75);
+  border: 1px solid rgba(168, 85, 247, 0.35);
+  color: var(--accent-primary, #8CEB1F);
 }
 
 .variantsBadge {
-  font-family: var(--font-pixel);
-  font-size: 8px;
+  font-family: var(--font-brand, 'Syne', sans-serif);
+  font-size: 9.5px;
+  font-weight: 700;
+  line-height: 1;
   padding: 2.5px 6px;
-  border-radius: 3px;
-  letter-spacing: 0.04em;
+  height: 18px;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 4px;
+  letter-spacing: 0.03em;
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid var(--border-subtle);
   color: var(--text-secondary);
@@ -664,12 +695,15 @@
   font-family: var(--font-brand);
   font-size: 11px;
   font-weight: 700;
-  padding: 4px 10px;
+  line-height: 1;
+  padding: 0 10px;
+  height: 24px;
+  box-sizing: border-box;
   border-radius: var(--radius-sm);
   border: 1px solid rgba(34, 197, 94, 0.45);
   background: rgba(34, 197, 94, 0.18);
   color: #4ade80;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 4px;
   cursor: pointer;
@@ -739,27 +773,37 @@
 .faceSummaryBadge {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  font-size: 10.5px;
+  gap: 5px;
+  font-family: var(--font-brand, 'Syne', sans-serif);
+  font-size: 9.5px;
   font-weight: 700;
   text-transform: uppercase;
   color: #a1a1aa;
   background: rgba(255, 255, 255, 0.06);
-  padding: 3px 8px;
+  padding: 2.5px 7px;
+  height: 18px;
+  box-sizing: border-box;
   border-radius: 4px;
   width: fit-content;
   border: none;
+  letter-spacing: 0.03em;
 }
 
 .addAliasBtn {
-  font-family: var(--font-sans);
-  font-size: 10.5px;
-  font-weight: 600;
-  padding: 3px 8px;
-  border-radius: var(--radius-xs);
+  font-family: var(--font-brand);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 0 10px;
+  height: 24px;
+  box-sizing: border-box;
+  border-radius: var(--radius-sm);
   border: 1px solid var(--border-default);
   background: rgba(255, 255, 255, 0.06);
   color: var(--text-secondary);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   cursor: pointer;
   transition: all var(--transition-fast);
 }
@@ -768,6 +812,7 @@
   background: rgba(255, 255, 255, 0.12);
   border-color: var(--border-strong);
   color: var(--text-primary);
+  transform: translateY(-1px);
 }
 
 /* ─── 7. Tier 3: Variant Slots / Leaves ─── */
@@ -898,27 +943,38 @@
 }
 
 .variantCountBadge {
-  font-size: 8px;
-  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-family: var(--font-brand, 'Syne', sans-serif);
   font-weight: 700;
+  line-height: 1;
   color: #c084fc;
-  background: rgba(168, 85, 247, 0.15);
-  border: 1px solid rgba(168, 85, 247, 0.3);
-  padding: 0 4px;
-  border-radius: 3px;
-  line-height: 13px;
+  background: rgba(168, 85, 247, 0.18);
+  border: 1px solid rgba(168, 85, 247, 0.35);
+  padding: 2.5px 6px;
+  height: 18px;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 4px;
+  letter-spacing: 0.03em;
   flex-shrink: 0;
 }
 
 .blockVariantBadge {
-  font-size: 8px;
-  font-family: var(--font-mono);
-  font-weight: 600;
+  font-size: 9.5px;
+  font-family: var(--font-brand, 'Syne', sans-serif);
+  font-weight: 700;
+  line-height: 1;
   color: #a1a1aa;
   background: rgba(255, 255, 255, 0.08);
-  padding: 0 4px;
-  border-radius: 3px;
-  line-height: 13px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 2.5px 6px;
+  height: 18px;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 4px;
+  letter-spacing: 0.03em;
   flex-shrink: 0;
 }
 
@@ -940,10 +996,16 @@
 }
 
 .animBadge {
-  font-family: var(--font-pixel);
-  font-size: 7px;
-  padding: 1px 4px;
-  border-radius: 2px;
+  font-family: var(--font-brand, 'Syne', sans-serif);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 2px 5px;
+  height: 17px;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 4px;
   letter-spacing: 0.04em;
   background: rgba(168, 85, 247, 0.22);
   border: 1px solid rgba(168, 85, 247, 0.4);
@@ -1027,14 +1089,17 @@
 }
 
 .addedBadge {
-  font-family: var(--font-sans);
-  font-size: 10px;
-  font-weight: 600;
-  padding: 2.5px 7px;
-  border-radius: var(--radius-xs);
-  border: 1px solid rgba(34, 197, 94, 0.4);
-  background: rgba(34, 197, 94, 0.12);
-  color: rgba(34, 197, 94, 0.9);
+  font-family: var(--font-brand);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 0 10px;
+  height: 24px;
+  box-sizing: border-box;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-default);
+  background: rgba(255, 255, 255, 0.06);
+  color: #4ade80;
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -1053,9 +1118,9 @@
 }
 
 .leafCheckGhost {
-  background: rgba(244, 114, 182, 0.15);
-  border: 1px solid rgba(244, 114, 182, 0.35);
-  color: var(--status-ghost, #f472b6);
+  background: rgba(68, 38, 56, 0.75);
+  border: 1px solid rgba(168, 85, 247, 0.4);
+  color: var(--accent-primary, #8CEB1F);
 }
 
 .leafCheckOk {
