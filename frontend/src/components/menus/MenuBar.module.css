@@ -1,4 +1,4 @@
-﻿/* frontend/src/components/menus/MenuBar.module.css */
+/* frontend/src/components/menus/MenuBar.module.css */
 
 .menuBar {
   display: flex;
@@ -87,7 +87,7 @@
 .betaButton,
 .betaZoomButton {
   flex: 1;
-  padding: 5px 4px;
+  padding: 5px 6px;
   background: transparent;
   border: none;
   border-radius: 3px;
@@ -95,6 +95,10 @@
   cursor: pointer;
   font-size: 10px;
   white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
 }
 
 .betaButton:hover,
@@ -102,6 +106,18 @@
 .betaButtonActive {
   background: rgba(139, 92, 246, 0.28);
   color: #ddd6fe;
+}
+
+.betaGhostBadge {
+  font-family: var(--font-brand, 'Syne', sans-serif);
+  font-size: 8.5px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: rgba(68, 38, 56, 0.8);
+  border: 1px solid rgba(168, 85, 247, 0.4);
+  color: var(--accent-primary, #8CEB1F);
 }
 
 .betaZoomButton {

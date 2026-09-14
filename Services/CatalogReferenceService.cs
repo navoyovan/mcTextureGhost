@@ -439,6 +439,43 @@ public static class CatalogReferenceService
             }
         }
 
+        var entityDefinitions = defaultVanilla != null
+            ? new Dictionary<string, Dictionary<string, string>>(defaultVanilla.EntityDefinitions, StringComparer.OrdinalIgnoreCase)
+            : new Dictionary<string, Dictionary<string, string>>(StringComparer.OrdinalIgnoreCase);
+
+        var declaredEntityPaths = defaultVanilla != null
+            ? new HashSet<string>(defaultVanilla.DeclaredEntityPaths, StringComparer.OrdinalIgnoreCase)
+            : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        var entityDir = Path.Combine(packPath, "entity");
+        var attachablesDir = Path.Combine(packPath, "attachables");
+        var customEntityFiles = new List<string>();
+        if (Directory.Exists(entityDir))
+        {
+            try { customEntityFiles.AddRange(Directory.EnumerateFiles(entityDir, "*.json", SearchOption.AllDirectories)); } catch { }
+        }
+        if (Directory.Exists(attachablesDir))
+        {
+            try { customEntityFiles.AddRange(Directory.EnumerateFiles(attachablesDir, "*.json", SearchOption.AllDirectories)); } catch { }
+        }
+
+        foreach (var ef in customEntityFiles)
+        {
+            var parsed = PackScanner.ParseClientEntityFile(ef);
+            foreach (var (entId, texDict) in parsed)
+            {
+                if (!entityDefinitions.TryGetValue(entId, out var existing))
+                {
+                    entityDefinitions[entId] = existing = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                }
+                foreach (var (slot, texPath) in texDict)
+                {
+                    existing[slot] = texPath;
+                    declaredEntityPaths.Add(VanillaDataService.NormalizeTexturePath(texPath));
+                }
+            }
+        }
+
         return new VanillaData(
             rawBlocks,
             blockUsage,
@@ -452,6 +489,8 @@ public static class CatalogReferenceService
             langKeys,
             declaredBlockPaths,
             declaredItemPaths,
+            entityDefinitions,
+            declaredEntityPaths,
             DateTime.Now,
             $"Custom Pack: {packName}"
         );

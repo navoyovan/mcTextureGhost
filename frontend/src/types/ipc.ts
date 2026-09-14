@@ -131,8 +131,10 @@ export interface PackStatsDto {
   orphanCount: number;
   blocksCount: number;
   itemsCount: number;
+  entitiesCount: number;
   blocksGhostCount: number;
   itemsGhostCount: number;
+  entitiesGhostCount: number;
   total: number;
   done: number;
   ghosts: number;
@@ -160,7 +162,9 @@ export interface TextureAliasDto {
   displayName: string;
   relativePath: string;
   fullPath: string;
-  category: 'block' | 'item';
+  category: 'block' | 'item' | 'entity';
+  entityId?: string | null;
+  textureKey?: string | null;
   status: 'OK' | 'GHOST' | 'ORPHAN' | 'NEW' | 'OVERRIDE';
   exists: boolean;
   imageUrl: string;

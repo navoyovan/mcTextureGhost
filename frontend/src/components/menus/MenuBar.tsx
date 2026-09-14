@@ -51,6 +51,7 @@ export const MenuBar: React.FC = () => {
   const toggleCatalog = usePackStore((s) => s.toggleCatalog);
   const activeTab = usePackStore((s) => s.activeTab);
   const setActiveTab = usePackStore((s) => s.setActiveTab);
+  const stats = usePackStore((s) => s.stats);
   const tileZoom = usePackStore((s) => s.tileZoom);
   const setTileZoom = usePackStore((s) => s.setTileZoom);
 
@@ -243,14 +244,24 @@ export const MenuBar: React.FC = () => {
                   <div className={styles.betaSection}>
                     <span className={styles.betaSectionLabel}>Textures</span>
                     <div className={styles.betaCategoryGroup} role="group" aria-label="Texture category">
-                      {(['all', 'blocks', 'items'] as const).map((tab) => (
+                      {(
+                        [
+                          { id: 'all', label: 'All', ghostCount: 0 },
+                          { id: 'blocks', label: 'Blocks', ghostCount: stats.blocksGhostCount },
+                          { id: 'items', label: 'Items', ghostCount: stats.itemsGhostCount },
+                          { id: 'entities', label: 'Entities', ghostCount: stats.entitiesGhostCount },
+                        ] as const
+                      ).map((item) => (
                         <button
-                          key={tab}
+                          key={item.id}
                           type="button"
-                          className={`${styles.betaButton} ${activeTab === tab ? styles.betaButtonActive : ''}`}
-                          onClick={() => runItem(() => setActiveTab(tab))}
+                          className={`${styles.betaButton} ${activeTab === item.id ? styles.betaButtonActive : ''}`}
+                          onClick={() => runItem(() => setActiveTab(item.id))}
                         >
-                          {tab === 'all' ? 'All' : tab === 'blocks' ? '🧱 Blocks' : '🗡 Items'}
+                          <span>{item.label}</span>
+                          {item.ghostCount > 0 && (
+                            <span className={styles.betaGhostBadge}>{item.ghostCount}</span>
+                          )}
                         </button>
                       ))}
                     </div>

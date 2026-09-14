@@ -175,7 +175,63 @@ public static class PackScanner
             }
         }
 
-        // ─── 3. Discover and parse *.texture_set.json companion files ─────────────────
+        // ─── 3. Discover and parse Entity & Attachable client definitions ─────────────
+        var entityDir = Path.Combine(packRoot, "entity");
+        var attachablesDir = Path.Combine(packRoot, "attachables");
+        var packEntityFiles = new List<string>();
+
+        if (Directory.Exists(entityDir))
+        {
+            try
+            {
+                packEntityFiles.AddRange(Directory.EnumerateFiles(entityDir, "*.json", SearchOption.AllDirectories));
+            }
+            catch { }
+        }
+
+        if (Directory.Exists(attachablesDir))
+        {
+            try
+            {
+                packEntityFiles.AddRange(Directory.EnumerateFiles(attachablesDir, "*.json", SearchOption.AllDirectories));
+            }
+            catch { }
+        }
+
+        foreach (var entFile in packEntityFiles)
+        {
+            var parsedEntities = ParseClientEntityFile(entFile);
+            foreach (var (entId, texDict) in parsedEntities)
+            {
+                var cleanEntityId = entId.StartsWith("minecraft:", StringComparison.OrdinalIgnoreCase)
+                    ? entId.Substring("minecraft:".Length)
+                    : entId;
+
+                var entityDisplayName = vanilla?.GetEntityDisplayName(entId) ?? cleanEntityId;
+
+                foreach (var (slotKey, rawTexPath) in texDict)
+                {
+                    var (fullPath, finalRel, exists) = ResolveTexture(packRoot, rawTexPath, existingFiles, texturesDirNormalized, "entity");
+                    if (exists) matchedFiles.Add(fullPath);
+
+                    results.Add(new TextureAlias
+                    {
+                        Category = TextureCategory.Entity,
+                        EntityId = entId,
+                        TextureKey = slotKey,
+                        Alias = $"{cleanEntityId}:{slotKey}",
+                        DisplayName = entityDisplayName,
+                        RelativePath = finalRel,
+                        FullPath = fullPath,
+                        Status = exists ? TextureStatus.Ok : TextureStatus.Ghost,
+                        VariantKind = VariantKind.None,
+                        BlockFaces = new List<BlockFaceUsage>()
+                    });
+                }
+            }
+        }
+
+        // ─── 4. Discover and parse *.texture_set.json companion files ─────────────────
         // PBR companion maps (metalness_emissive_roughness, heightmap/normal) referenced
         // inside *.texture_set.json files are valid texture components, not orphan files.
         foreach (var file in existingFiles)
@@ -245,10 +301,69 @@ public static class PackScanner
                 ? relFromPack.Substring(0, relFromPack.Length - ext.Length)
                 : relFromPack;
 
-            bool isItem = relFromPack.StartsWith("textures/items/", StringComparison.OrdinalIgnoreCase) ||
-                          relFromPack.StartsWith("items/", StringComparison.OrdinalIgnoreCase);
+            bool isEntity = relFromPack.StartsWith("textures/entity/", StringComparison.OrdinalIgnoreCase) ||
+                            relFromPack.StartsWith("entity/", StringComparison.OrdinalIgnoreCase);
+            bool isItem = !isEntity && (relFromPack.StartsWith("textures/items/", StringComparison.OrdinalIgnoreCase) ||
+                          relFromPack.StartsWith("items/", StringComparison.OrdinalIgnoreCase));
 
-            if (isItem)
+            if (isEntity)
+            {
+                string? vanillaEntityId = null;
+                string? vanillaEntitySlot = null;
+
+                if (vanilla != null && vanilla.DeclaredEntityPaths.Contains(relNoExt))
+                {
+                    foreach (var (entId, texDict) in vanilla.EntityDefinitions)
+                    {
+                        foreach (var (slotKey, rawPath) in texDict)
+                        {
+                            if (VanillaDataService.NormalizeTexturePath(rawPath).Equals(relNoExt, StringComparison.OrdinalIgnoreCase))
+                            {
+                                vanillaEntityId = entId;
+                                vanillaEntitySlot = slotKey;
+                                break;
+                            }
+                        }
+                        if (vanillaEntityId != null) break;
+                    }
+                }
+
+                if (vanillaEntityId != null && vanillaEntitySlot != null)
+                {
+                    var cleanId = vanillaEntityId.StartsWith("minecraft:", StringComparison.OrdinalIgnoreCase)
+                        ? vanillaEntityId.Substring("minecraft:".Length)
+                        : vanillaEntityId;
+
+                    results.Add(new TextureAlias
+                    {
+                        Category = TextureCategory.Entity,
+                        EntityId = vanillaEntityId,
+                        TextureKey = vanillaEntitySlot,
+                        Alias = $"{cleanId}:{vanillaEntitySlot}",
+                        DisplayName = vanilla!.GetEntityDisplayName(vanillaEntityId),
+                        RelativePath = relNoExt,
+                        FullPath = file,
+                        Status = TextureStatus.Ok,
+                        VariantKind = VariantKind.None,
+                        BlockFaces = new List<BlockFaceUsage>()
+                    });
+                }
+                else
+                {
+                    results.Add(new TextureAlias
+                    {
+                        Category = TextureCategory.Entity,
+                        Alias = fileNameWithoutExt,
+                        DisplayName = fileNameWithoutExt,
+                        RelativePath = relNoExt,
+                        FullPath = file,
+                        Status = TextureStatus.Orphan,
+                        VariantKind = VariantKind.None,
+                        BlockFaces = new List<BlockFaceUsage>()
+                    });
+                }
+            }
+            else if (isItem)
             {
                 if (!hasItems && vanilla == null) continue;
 
@@ -1887,5 +2002,103 @@ public static class PackScanner
         if (distinct.Count == 2 && distinct.Contains("up") && distinct.Contains("down")) return "top/btm";
         if (distinct.Count <= 3) return string.Join("/", distinct);
         return "multi";
+    }
+
+    /// <summary>
+    /// Parses a Minecraft Bedrock client entity or attachable JSON file and extracts
+    /// all declared entity IDs and their texture slot dictionary (slotName -> texturePath).
+    /// </summary>
+    public static Dictionary<string, Dictionary<string, string>> ParseClientEntityFile(string filePath)
+    {
+        var result = new Dictionary<string, Dictionary<string, string>>(StringComparer.OrdinalIgnoreCase);
+        if (!File.Exists(filePath)) return result;
+
+        try
+        {
+            using var stream = File.OpenRead(filePath);
+            using var doc = JsonDocument.Parse(stream, ScanDocOptions);
+            return ParseClientEntity(doc);
+        }
+        catch
+        {
+            return result;
+        }
+    }
+
+    /// <summary>
+    /// Parses a Minecraft Bedrock client entity or attachable JsonDocument and extracts
+    /// all declared entity IDs and their texture slot dictionary (slotName -> texturePath).
+    /// </summary>
+    public static Dictionary<string, Dictionary<string, string>> ParseClientEntity(JsonDocument doc)
+    {
+        var result = new Dictionary<string, Dictionary<string, string>>(StringComparer.OrdinalIgnoreCase);
+        if (doc.RootElement.ValueKind != JsonValueKind.Object) return result;
+
+        foreach (var rootProp in doc.RootElement.EnumerateObject())
+        {
+            if (!rootProp.Name.Equals("minecraft:client_entity", StringComparison.OrdinalIgnoreCase) &&
+                !rootProp.Name.Equals("minecraft:attachable", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (rootProp.Value.ValueKind != JsonValueKind.Object) continue;
+
+            if (rootProp.Value.TryGetProperty("description", out var desc) && desc.ValueKind == JsonValueKind.Object)
+            {
+                string? identifier = null;
+                if (desc.TryGetProperty("identifier", out var idProp) && idProp.ValueKind == JsonValueKind.String)
+                {
+                    identifier = idProp.GetString();
+                }
+
+                if (string.IsNullOrWhiteSpace(identifier)) continue;
+
+                var texturesDict = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+                if (desc.TryGetProperty("textures", out var texProp))
+                {
+                    if (texProp.ValueKind == JsonValueKind.Object)
+                    {
+                        foreach (var slot in texProp.EnumerateObject())
+                        {
+                            if (slot.Value.ValueKind == JsonValueKind.String)
+                            {
+                                var val = slot.Value.GetString();
+                                if (!string.IsNullOrWhiteSpace(val))
+                                {
+                                    texturesDict[slot.Name] = val;
+                                }
+                            }
+                        }
+                    }
+                    else if (texProp.ValueKind == JsonValueKind.String)
+                    {
+                        var val = texProp.GetString();
+                        if (!string.IsNullOrWhiteSpace(val))
+                        {
+                            texturesDict["default"] = val;
+                        }
+                    }
+                }
+
+                if (texturesDict.Count > 0)
+                {
+                    if (!result.TryGetValue(identifier, out var existing))
+                    {
+                        result[identifier] = texturesDict;
+                    }
+                    else
+                    {
+                        foreach (var (k, v) in texturesDict)
+                        {
+                            existing[k] = v;
+                        }
+                    }
+                }
+            }
+        }
+
+        return result;
     }
 }

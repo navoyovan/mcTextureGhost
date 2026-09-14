@@ -20,7 +20,7 @@ namespace McTextureGhost.ViewModels;
 public enum TileSizeMode { Compact, Comfortable, Large }
 
 /// <summary>Specifies the active category tab in the texture manager.</summary>
-public enum TextureTab { All, Blocks, Items }
+public enum TextureTab { All, Blocks, Items, Entities }
 
 public class MainViewModel : INotifyPropertyChanged
 {
@@ -97,18 +97,21 @@ public class MainViewModel : INotifyPropertyChanged
     public bool IsAllTab => _activeTab == TextureTab.All;
     public bool IsBlocksTab => _activeTab == TextureTab.Blocks;
     public bool IsItemsTab => _activeTab == TextureTab.Items;
+    public bool IsEntitiesTab => _activeTab == TextureTab.Entities;
     public TextureCategory? CurrentCategory => _activeTab switch
     {
-        TextureTab.Blocks => TextureCategory.Block,
-        TextureTab.Items  => TextureCategory.Item,
-        _                 => null
+        TextureTab.Blocks   => TextureCategory.Block,
+        TextureTab.Items    => TextureCategory.Item,
+        TextureTab.Entities => TextureCategory.Entity,
+        _                   => null
     };
 
     public string SearchPlaceholderText => _activeTab switch
     {
-        TextureTab.Blocks => "Search block name, e.g. stone...",
-        TextureTab.Items  => "Search item name, e.g. apple...",
-        _                 => "Search texture name, e.g. stone, apple..."
+        TextureTab.Blocks   => "Search block name, e.g. stone...",
+        TextureTab.Items    => "Search item name, e.g. apple...",
+        TextureTab.Entities => "Search entity name, e.g. zombie...",
+        _                   => "Search texture name, e.g. stone, apple, zombie..."
     };
 
     public string WindowTitle
@@ -182,9 +185,11 @@ public class MainViewModel : INotifyPropertyChanged
 
     public int BlocksGhostCount => Aliases.Count(a => a.Category == TextureCategory.Block && a.Status == TextureStatus.Ghost);
     public int ItemsGhostCount => Aliases.Count(a => a.Category == TextureCategory.Item && a.Status == TextureStatus.Ghost);
+    public int EntitiesGhostCount => Aliases.Count(a => a.Category == TextureCategory.Entity && a.Status == TextureStatus.Ghost);
 
     public int BlocksTotalCount => Aliases.Count(a => a.Category == TextureCategory.Block && a.Status != TextureStatus.NoEntry);
     public int ItemsTotalCount => Aliases.Count(a => a.Category == TextureCategory.Item && a.Status != TextureStatus.NoEntry);
+    public int EntitiesTotalCount => Aliases.Count(a => a.Category == TextureCategory.Entity && a.Status != TextureStatus.NoEntry);
 
     private readonly DispatcherTimer _searchDebounceTimer;
     private string _appliedSearchQuery = "";

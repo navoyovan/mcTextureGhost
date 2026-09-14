@@ -41,6 +41,7 @@ export const PackGrid: React.FC = () => {
       // 1. Category Filter
       if (activeTab === 'blocks' && alias.category !== 'block') return false;
       if (activeTab === 'items' && alias.category !== 'item') return false;
+      if (activeTab === 'entities' && alias.category !== 'entity') return false;
 
       // 2. Status Filter
       if (statusFilter === 'ghosts' && alias.status !== 'GHOST') return false;
@@ -53,7 +54,15 @@ export const PackGrid: React.FC = () => {
         const aliasName = (alias.alias || '').toLowerCase();
         const dispName = (alias.displayName || '').toLowerCase();
         const relPath = (alias.relativePath || '').toLowerCase();
-        if (!aliasName.includes(query) && !dispName.includes(query) && !relPath.includes(query)) {
+        const entId = (alias.entityId || '').toLowerCase();
+        const texKey = (alias.textureKey || '').toLowerCase();
+        if (
+          !aliasName.includes(query) &&
+          !dispName.includes(query) &&
+          !relPath.includes(query) &&
+          !entId.includes(query) &&
+          !texKey.includes(query)
+        ) {
           return false;
         }
       }

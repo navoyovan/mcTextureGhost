@@ -32,7 +32,7 @@ export interface PackStoreState {
   scanProgress: ScanProgressPayload | null;
 
   // UI & Filter State
-  activeTab: 'all' | 'blocks' | 'items';
+  activeTab: 'all' | 'blocks' | 'items' | 'entities';
   searchQuery: string;
   statusFilter: 'all' | 'ghosts' | 'added' | 'orphans';
   activeView: 'grid' | 'workspace' | 'manifest';
@@ -60,7 +60,7 @@ export interface PackStoreActions {
   updateTexture: (aliasKey: string, newStatus: string, fullPath: string, imageUrl?: string | null) => void;
   setScanProgress: (progress: ScanProgressPayload | null) => void;
   setIsScanning: (scanning: boolean) => void;
-  setActiveTab: (tab: 'all' | 'blocks' | 'items') => void;
+  setActiveTab: (tab: 'all' | 'blocks' | 'items' | 'entities') => void;
   setSearchQuery: (query: string) => void;
   setStatusFilter: (filter: 'all' | 'ghosts' | 'added' | 'orphans') => void;
   setActiveView: (view: 'grid' | 'workspace' | 'manifest') => void;
@@ -85,8 +85,10 @@ const initialStats: PackStatsDto = {
   orphanCount: 0,
   blocksCount: 0,
   itemsCount: 0,
+  entitiesCount: 0,
   blocksGhostCount: 0,
   itemsGhostCount: 0,
+  entitiesGhostCount: 0,
   total: 0,
   done: 0,
   ghosts: 0,
@@ -145,6 +147,7 @@ function computeStats(aliases: TextureAliasDto[]): PackStatsDto {
   const orphans = aliases.filter((a) => a.status === 'ORPHAN').length;
   const blocks = aliases.filter((a) => a.category === 'block');
   const items = aliases.filter((a) => a.category === 'item');
+  const entities = aliases.filter((a) => a.category === 'entity');
 
   return {
     totalCount: total,
@@ -153,8 +156,10 @@ function computeStats(aliases: TextureAliasDto[]): PackStatsDto {
     orphanCount: orphans,
     blocksCount: blocks.length,
     itemsCount: items.length,
+    entitiesCount: entities.length,
     blocksGhostCount: blocks.filter((a) => a.status === 'GHOST').length,
     itemsGhostCount: items.filter((a) => a.status === 'GHOST').length,
+    entitiesGhostCount: entities.filter((a) => a.status === 'GHOST').length,
     total,
     done,
     ghosts,
@@ -261,7 +266,7 @@ export const packStoreActions: PackStoreActions = {
     notify();
   },
 
-  setActiveTab(tab: 'all' | 'blocks' | 'items'): void {
+  setActiveTab(tab: 'all' | 'blocks' | 'items' | 'entities'): void {
     currentState = { ...currentState, activeTab: tab };
     notify();
   },

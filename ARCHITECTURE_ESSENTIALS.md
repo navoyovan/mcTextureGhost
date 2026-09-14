@@ -11,7 +11,8 @@ Fast reference for day-to-day tasks. Consult this file first to conserve context
 ## 2. Key Directories & Entrypoints
 - `App.xaml` / `MainWindow.xaml`: WPF root and shell container.
 - `ViewModels/MainViewModel.cs`: Core C# viewmodel and IPC handler.
-- `Services/`: Business logic for scanning (`PackScanner`), vanilla sync (`VanillaDataService`), custom reference packs (`CatalogReferenceService`), and JSON scaffolding (`JsonWriterService`).
+- `Models/TextureAlias.cs`: Core texture models (`Block`, `Item`, `Entity`), variant descriptors, and face bindings.
+- `Services/`: Business logic for scanning (`PackScanner` for terrain, items, and client entities/attachables), vanilla sync (`VanillaDataService`), custom reference packs (`CatalogReferenceService`), and JSON scaffolding (`JsonWriterService`).
 - `frontend/src/App.tsx`: Main React entry point. Renders one of three views: `grid`, `workspace`, or `manifest` based on `activeView` store state.
 - `frontend/src/components/catalog/CatalogDrawer.tsx`: Reference catalog flyout (supports Vanilla and Custom pack profiles).
 - `frontend/src/components/workspace/BlockWorkspace.tsx`: 4-tier block hierarchy view with `Block3DViewer` (Three.js) sub-component.
@@ -30,15 +31,15 @@ Fast reference for day-to-day tasks. Consult this file first to conserve context
   - `https://vanilla.local/*`: Official vanilla bedrock reference files and assets.
   - `https://reference.local/*`: Dynamically mapped to the selected custom reference pack directory when active.
   - All virtual host mappings buffer files into in-memory streams (`MemoryStream`) using `FileShare.ReadWrite | FileShare.Delete` to prevent file handle locks on user textures.
-- Always ensure new actions are typed on both ends.
+  - Always ensure new actions are typed on both ends.
 
-## 5. View Navigation Pattern (`activeView`)
+## 4. View Navigation Pattern (`activeView`)
 - The app has three routed views: `'grid'` | `'workspace'` | `'manifest'`.
 - Navigate between them via `setActiveView(view)` from the packStore.
 - The **Manifest** view is intentionally **not** a toolbar tab — it is accessed from the sidebar directory-tree hover edit button, the missing-manifest warning card, and **File → Edit Manifest…** in the MenuBar.
 - When adding a new view, update **all three** of: the `PackState` type field, the `PackStore` interface method signature, and the method implementation in `packStore.ts`. Keeping them out of sync causes a TypeScript contravariance error.
 
-## 4. Build & Verify Commands
+## 5. Build & Verify Commands
 ```powershell
 # Safe .NET build (kills zombie lock first):
 Get-Process McTextureGhost -ErrorAction SilentlyContinue | Stop-Process -Force

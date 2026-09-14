@@ -21,6 +21,8 @@ public record VanillaData(
     Dictionary<string, string> LangKeys,
     HashSet<string> DeclaredBlockPaths,
     HashSet<string> DeclaredItemPaths,
+    Dictionary<string, Dictionary<string, string>> EntityDefinitions,
+    HashSet<string> DeclaredEntityPaths,
     DateTime CachedAt,
     string VersionInfo
 )
@@ -51,6 +53,20 @@ public record VanillaData(
             return name;
         if (LangKeys.TryGetValue($"tile.{cleanId}.name", out var tName) && !string.IsNullOrWhiteSpace(tName))
             return tName;
+
+        return ToTitleCase(cleanId);
+    }
+
+    public string GetEntityDisplayName(string entityId)
+    {
+        var cleanId = entityId;
+        if (cleanId.StartsWith("minecraft:", StringComparison.OrdinalIgnoreCase))
+            cleanId = cleanId.Substring(10);
+
+        if (LangKeys.TryGetValue($"entity.{cleanId}.name", out var name) && !string.IsNullOrWhiteSpace(name))
+            return name;
+        if (LangKeys.TryGetValue($"item.spawn_egg.entity.{cleanId}.name", out var eggName) && !string.IsNullOrWhiteSpace(eggName))
+            return eggName.Replace(" Spawn Egg", "", StringComparison.OrdinalIgnoreCase);
 
         return ToTitleCase(cleanId);
     }
@@ -347,6 +363,46 @@ public static class VanillaDataService
             }
         }
 
+        // 6. Entity & Attachable Definitions
+        var entityDefinitions = new Dictionary<string, Dictionary<string, string>>(StringComparer.OrdinalIgnoreCase);
+        var declaredEntityPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        var entityCacheDir = Path.Combine(cacheDir, "entity");
+        var attachablesCacheDir = Path.Combine(cacheDir, "attachables");
+
+        var entityDirs = new List<string>();
+        if (Directory.Exists(entityCacheDir)) entityDirs.Add(entityCacheDir);
+        if (Directory.Exists(attachablesCacheDir)) entityDirs.Add(attachablesCacheDir);
+
+        foreach (var ed in entityDirs)
+        {
+            try
+            {
+                foreach (var file in Directory.EnumerateFiles(ed, "*.json", SearchOption.AllDirectories))
+                {
+                    try
+                    {
+                        var parsed = PackScanner.ParseClientEntityFile(file);
+                        foreach (var (entId, texDict) in parsed)
+                        {
+                            if (!entityDefinitions.TryGetValue(entId, out var existing))
+                            {
+                                entityDefinitions[entId] = existing = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                            }
+                            foreach (var (slot, rawTex) in texDict)
+                            {
+                                existing[slot] = rawTex;
+                                var norm = NormalizeTexturePath(rawTex);
+                                declaredEntityPaths.Add(norm);
+                            }
+                        }
+                    }
+                    catch { }
+                }
+            }
+            catch { }
+        }
+
         return new VanillaData(
             rawBlocks,
             blockUsage,
@@ -360,6 +416,8 @@ public static class VanillaDataService
             langKeys,
             declaredBlockPaths,
             declaredItemPaths,
+            entityDefinitions,
+            declaredEntityPaths,
             cachedAt,
             versionInfo
         );

@@ -25,12 +25,13 @@ public enum VariantKind
 }
 
 /// <summary>
-/// Specifies whether a texture belongs to a block or an item atlas.
+/// Specifies whether a texture belongs to a block, item, or entity definition.
 /// </summary>
 public enum TextureCategory
 {
     Block,
-    Item
+    Item,
+    Entity
 }
 
 /// <summary>
@@ -49,8 +50,8 @@ public enum TextureStatus
 }
 
 /// <summary>
-/// One entry from terrain_texture.json's texture_data block, resolved against
-/// the actual filesystem so the UI can tell "real file" from "ghost".
+/// One entry from terrain_texture.json, item_texture.json, or client_entity JSONs,
+/// resolved against the actual filesystem so the UI can tell "real file" from "ghost".
 /// </summary>
 public class TextureAlias : INotifyPropertyChanged
 {
@@ -58,9 +59,7 @@ public class TextureAlias : INotifyPropertyChanged
     private static SolidColorBrush FreezeBrush(string hex, double opacity = 1.0)
     {
         var color = (Color)ColorConverter.ConvertFromString(hex);
-        if (opacity < 1.0)
-            color = Color.FromArgb((byte)(opacity * 255), color.R, color.G, color.B);
-        var b = new SolidColorBrush(color);
+        var b = new SolidColorBrush(color) { Opacity = opacity };
         b.Freeze();
         return b;
     }
@@ -90,10 +89,16 @@ public class TextureAlias : INotifyPropertyChanged
 
     // ─── Properties ──────────────────────────────────────────────────────────
 
-    /// <summary>Specifies whether this alias belongs to blocks or items.</summary>
+    /// <summary>Specifies whether this alias belongs to blocks, items, or entities.</summary>
     public TextureCategory Category { get; init; } = TextureCategory.Block;
 
-    /// <summary>The key in texture_data, e.g. "stone", "demo_stone".</summary>
+    /// <summary>The identifier of the entity if this is an Entity texture (e.g. "minecraft:zombie").</summary>
+    public string? EntityId { get; init; }
+
+    /// <summary>The slot key in the entity textures dict (e.g. "default", "drowned").</summary>
+    public string? TextureKey { get; init; }
+
+    /// <summary>The key in texture_data or entity slot name, e.g. "stone", "demo_stone".</summary>
     public required string Alias { get; init; }
 
     /// <summary>Relative path as declared in JSON, no extension, e.g. "textures/blocks/stone".</summary>
@@ -350,11 +355,20 @@ public class TextureAlias : INotifyPropertyChanged
             if (_searchFilterKey != null) return _searchFilterKey;
 
             var sb = new System.Text.StringBuilder(128);
-            sb.Append(Category == TextureCategory.Item ? "item " : "block ")
+            sb.Append(Category == TextureCategory.Item ? "item " : (Category == TextureCategory.Entity ? "entity " : "block "))
               .Append(Alias).Append(' ')
               .Append(DisplayName).Append(' ')
               .Append(RelativePath).Append(' ')
               .Append(PrimaryFaceBadgeText).Append(' ');
+
+            if (!string.IsNullOrEmpty(EntityId))
+            {
+                sb.Append(EntityId).Append(' ');
+            }
+            if (!string.IsNullOrEmpty(TextureKey))
+            {
+                sb.Append(TextureKey).Append(' ');
+            }
 
             foreach (var face in BlockFaces)
             {
@@ -375,7 +389,7 @@ public class TextureAlias : INotifyPropertyChanged
     /// <summary>
     /// Consolidated, single muted caption line below the alias name.
     /// Distinguishes block data-value variants (block N/M), random texture variations (tex N/M • w:weight),
-    /// and geometry block faces (face: ...).
+    /// geometry block faces (face: ...), and entity slot keys.
     /// </summary>
     public string SubtitleCaption
     {
@@ -383,6 +397,13 @@ public class TextureAlias : INotifyPropertyChanged
         {
             if (Status == TextureStatus.Orphan) return "not in json";
             if (Status == TextureStatus.NoEntry) return "click to generate";
+
+            if (Category == TextureCategory.Entity)
+            {
+                if (!string.IsNullOrEmpty(TextureKey))
+                    return $"entity • {TextureKey}";
+                return "entity";
+            }
 
             if (Category == TextureCategory.Item)
             {
@@ -431,6 +452,16 @@ public class TextureAlias : INotifyPropertyChanged
             {
                 $"Alias: {Alias}"
             };
+
+            if (Category == TextureCategory.Entity)
+            {
+                if (!string.IsNullOrEmpty(EntityId))
+                    lines.Add($"Entity: {EntityId}");
+                if (!string.IsNullOrEmpty(TextureKey))
+                    lines.Add($"Texture Slot: {TextureKey}");
+                lines.Add($"Path: {RelativePath}");
+                return string.Join("\n", lines);
+            }
 
             if (Category == TextureCategory.Item)
             {
