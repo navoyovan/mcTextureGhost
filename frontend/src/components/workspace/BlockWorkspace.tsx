@@ -106,47 +106,161 @@ export const BlockWorkspace: React.FC = () => {
     );
   }, [blockWorkspaceTree, selectedBlockId]);
 
-  const faceTextures = useMemo(() => {
-    if (!selectedBlock || !selectedBlock.aliasGroups) return {};
+  const [activeBlockStateIndex, setActiveBlockStateIndex] = useState<number>(0);
+  const [activeVariationIndex, setActiveVariationIndex] = useState<number>(0);
 
-    const textures: Record<string, string | null> = {
-      up: null, down: null, north: null, south: null, east: null, west: null, all: null,
-    };
-    const flipbooks: Record<string, any> = {
-      up: null, down: null, north: null, south: null, east: null, west: null, all: null,
-    };
+  // Reset active indices when switching block
+  useEffect(() => {
+    setActiveBlockStateIndex(0);
+    setActiveVariationIndex(0);
+  }, [selectedBlockId]);
 
+  // Reset activeVariationIndex when switching blockstate
+  useEffect(() => {
+    setActiveVariationIndex(0);
+  }, [activeBlockStateIndex]);
+
+  // Compute all available blockstates and their texture variations for this block
+  const blockStates = useMemo(() => {
+    if (!selectedBlock || !selectedBlock.aliasGroups) return [];
+
+    // Determine max block variants in this block
+    let totalBV = 1;
     for (const ag of selectedBlock.aliasGroups) {
-      if (ag.faceNodes) {
-        for (const fn of ag.faceNodes) {
-          const label = (fn.faceLabel || '').toLowerCase();
-          const firstLeaf = fn.leaves && fn.leaves.length > 0 ? fn.leaves[0] : null;
-          // Only pass real texture URLs for existing files; ghost/missing textures must not trigger 3D texture fetches
-          if (firstLeaf && firstLeaf.status !== 'GHOST' && firstLeaf.imageUrl) {
-            textures[label] = firstLeaf.imageUrl;
-            flipbooks[label] = firstLeaf.flipbook ?? null;
-            if (label === 'side') {
-              textures.north = textures.north ?? firstLeaf.imageUrl;
-              textures.south = textures.south ?? firstLeaf.imageUrl;
-              textures.east = textures.east ?? firstLeaf.imageUrl;
-              textures.west = textures.west ?? firstLeaf.imageUrl;
-              flipbooks.north = flipbooks.north ?? firstLeaf.flipbook ?? null;
-              flipbooks.south = flipbooks.south ?? firstLeaf.flipbook ?? null;
-              flipbooks.east = flipbooks.east ?? firstLeaf.flipbook ?? null;
-              flipbooks.west = flipbooks.west ?? firstLeaf.flipbook ?? null;
-            }
-          }
-        }
-      } else if (ag.leaves && ag.leaves.length > 0) {
-        const first = ag.leaves[0];
-        if (first && first.status !== 'GHOST' && first.imageUrl) {
-          textures.all = first.imageUrl;
-          flipbooks.all = first.flipbook ?? null;
+      const allLeaves = [
+        ...(ag.leaves ?? []),
+        ...(ag.faceNodes ? ag.faceNodes.flatMap((fn) => fn.leaves ?? []) : []),
+      ];
+      for (const l of allLeaves) {
+        if (l.totalBlockVariants && l.totalBlockVariants > totalBV) {
+          totalBV = l.totalBlockVariants;
         }
       }
     }
-    return { textures, flipbooks };
+
+    const stateList: Array<{
+      index: number;
+      label: string;
+      badgeNumber?: number;
+      textures: Record<string, string | null>;
+      flipbooks: Record<string, any>;
+      variations: Array<{
+        index: number;
+        label: string;
+        badgeNumber?: number;
+        textures: Record<string, string | null>;
+        flipbooks: Record<string, any>;
+      }>;
+    }> = [];
+
+    for (let i = 0; i < totalBV; i++) {
+      // Find maximum variations across faces for this specific blockstate slot
+      let maxVariations = 1;
+      for (const ag of selectedBlock.aliasGroups) {
+        if (ag.faceNodes) {
+          for (const fn of ag.faceNodes) {
+            const groups = groupLeavesByVariantSlot(fn.leaves ?? []);
+            const g = groups[i] ?? groups[0];
+            if (g && g.leaves.length > maxVariations) {
+              maxVariations = g.leaves.length;
+            }
+          }
+        } else if (ag.leaves && ag.leaves.length > 0) {
+          const groups = groupLeavesByVariantSlot(ag.leaves);
+          const g = groups[i] ?? groups[0];
+          if (g && g.leaves.length > maxVariations) {
+            maxVariations = g.leaves.length;
+          }
+        }
+      }
+
+      // Build each variation for this blockstate
+      const variations = [];
+      for (let v = 0; v < maxVariations; v++) {
+        const textures: Record<string, string | null> = {
+          up: null, down: null, north: null, south: null, east: null, west: null, all: null,
+        };
+        const flipbooks: Record<string, any> = {
+          up: null, down: null, north: null, south: null, east: null, west: null, all: null,
+        };
+
+        for (const ag of selectedBlock.aliasGroups) {
+          if (ag.faceNodes) {
+            for (const fn of ag.faceNodes) {
+              const label = (fn.faceLabel || '').toLowerCase();
+              const groups = groupLeavesByVariantSlot(fn.leaves ?? []);
+              const g = groups[i] ?? groups[0];
+              if (g) {
+                const leaf = g.leaves[v] ?? g.leaves[0];
+                if (leaf && leaf.status !== 'GHOST' && leaf.imageUrl) {
+                  textures[label] = leaf.imageUrl;
+                  flipbooks[label] = leaf.flipbook ?? null;
+                  if (label === 'side') {
+                    textures.north = textures.north ?? leaf.imageUrl;
+                    textures.south = textures.south ?? leaf.imageUrl;
+                    textures.east = textures.east ?? leaf.imageUrl;
+                    textures.west = textures.west ?? leaf.imageUrl;
+                    flipbooks.north = flipbooks.north ?? leaf.flipbook ?? null;
+                    flipbooks.south = flipbooks.south ?? leaf.flipbook ?? null;
+                    flipbooks.east = flipbooks.east ?? leaf.flipbook ?? null;
+                    flipbooks.west = flipbooks.west ?? leaf.flipbook ?? null;
+                  }
+                }
+              }
+            }
+          } else if (ag.leaves && ag.leaves.length > 0) {
+            const groups = groupLeavesByVariantSlot(ag.leaves);
+            const g = groups[i] ?? groups[0];
+            if (g) {
+              const leaf = g.leaves[v] ?? g.leaves[0];
+              if (leaf && leaf.status !== 'GHOST' && leaf.imageUrl) {
+                textures.all = leaf.imageUrl;
+                flipbooks.all = leaf.flipbook ?? null;
+              }
+            }
+          }
+        }
+
+        variations.push({
+          index: v,
+          label: `Variation ${v + 1}`,
+          badgeNumber: v + 1,
+          textures,
+          flipbooks,
+        });
+      }
+
+      stateList.push({
+        index: i,
+        label: `State ${i + 1}`,
+        badgeNumber: i + 1,
+        textures: variations[0]?.textures ?? {},
+        flipbooks: variations[0]?.flipbooks ?? {},
+        variations,
+      });
+    }
+
+    return stateList;
   }, [selectedBlock]);
+
+  const activeState = blockStates[activeBlockStateIndex] ?? blockStates[0];
+  const activeVariation = activeState?.variations?.[activeVariationIndex] ?? activeState?.variations?.[0];
+
+  const faceTextures = useMemo(() => {
+    if (activeVariation) {
+      return {
+        textures: activeVariation.textures,
+        flipbooks: activeVariation.flipbooks,
+      };
+    }
+    if (activeState) {
+      return {
+        textures: activeState.textures,
+        flipbooks: activeState.flipbooks,
+      };
+    }
+    return { textures: {}, flipbooks: {} };
+  }, [activeState, activeVariation]);
 
   const handleLeafClick = (leaf: CatalogLeafDto) => {
     editTexture(leaf.alias, leaf.fullPath, leaf.status === 'GHOST');
@@ -460,6 +574,14 @@ export const BlockWorkspace: React.FC = () => {
               blockId={selectedBlock.blockId}
               faceTextures={faceTextures.textures}
               faceFlipbooks={faceTextures.flipbooks}
+              blockStates={blockStates}
+              activeStateIndex={activeBlockStateIndex}
+              onSelectStateIndex={(idx) => {
+                setActiveBlockStateIndex(idx);
+                setActiveVariationIndex(0);
+              }}
+              activeVariationIndex={activeVariationIndex}
+              onSelectVariationIndex={setActiveVariationIndex}
             />
           </div>
 

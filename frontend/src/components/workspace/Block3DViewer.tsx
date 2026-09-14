@@ -9,6 +9,55 @@ import { buildBlockMesh } from './blockGeometryBuilder';
 import { isTgaUrl, loadTgaAsDataUrl } from '../../utils/tgaDecoder';
 import styles from './Block3DViewer.module.css';
 
+export interface TextureVariationOption {
+  index: number;
+  label: string;
+  badgeNumber?: number;
+  textures: {
+    up?: string | null;
+    down?: string | null;
+    north?: string | null;
+    south?: string | null;
+    east?: string | null;
+    west?: string | null;
+    all?: string | null;
+  };
+  flipbooks: {
+    up?: FlipbookDefinitionDto | null;
+    down?: FlipbookDefinitionDto | null;
+    north?: FlipbookDefinitionDto | null;
+    south?: FlipbookDefinitionDto | null;
+    east?: FlipbookDefinitionDto | null;
+    west?: FlipbookDefinitionDto | null;
+    all?: FlipbookDefinitionDto | null;
+  };
+}
+
+export interface BlockStateOption {
+  index: number;
+  label: string;
+  badgeNumber?: number;
+  textures: {
+    up?: string | null;
+    down?: string | null;
+    north?: string | null;
+    south?: string | null;
+    east?: string | null;
+    west?: string | null;
+    all?: string | null;
+  };
+  flipbooks: {
+    up?: FlipbookDefinitionDto | null;
+    down?: FlipbookDefinitionDto | null;
+    north?: FlipbookDefinitionDto | null;
+    south?: FlipbookDefinitionDto | null;
+    east?: FlipbookDefinitionDto | null;
+    west?: FlipbookDefinitionDto | null;
+    all?: FlipbookDefinitionDto | null;
+  };
+  variations?: TextureVariationOption[];
+}
+
 interface Block3DViewerProps {
   blockId?: string | null;
   faceTextures?: {
@@ -29,31 +78,51 @@ interface Block3DViewerProps {
     west?: FlipbookDefinitionDto | null;
     all?: FlipbookDefinitionDto | null;
   };
+  blockStates?: BlockStateOption[];
+  activeStateIndex?: number;
+  onSelectStateIndex?: (index: number) => void;
+  activeVariationIndex?: number;
+  onSelectVariationIndex?: (index: number) => void;
 }
 
 export const Block3DViewer: React.FC<Block3DViewerProps> = ({
   blockId,
   faceTextures = {},
   faceFlipbooks = {},
+  blockStates = [],
+  activeStateIndex = 0,
+  onSelectStateIndex,
+  activeVariationIndex = 0,
+  onSelectVariationIndex,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const cubeRef = useRef<THREE.Object3D | null>(null);
+  const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
 
-  // Track rotation state
-  const isDraggingRef = useRef(false);
+  // Pan & Zoom state
+  const cameraTargetRef = useRef<THREE.Vector3>(new THREE.Vector3(0, 0, 0));
+  const zoomLevelRef = useRef<number>(1.0);
+
+  // Drag state ('rotate' | 'pan' | null)
+  const dragModeRef = useRef<'rotate' | 'pan' | null>(null);
+  const lastMousePosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
 
   useEffect(() => {
     if (!containerRef.current || !canvasRef.current) return;
 
     const width = containerRef.current.clientWidth || 300;
-    const height = containerRef.current.clientHeight || 220;
+    const height = containerRef.current.clientHeight || 320;
 
     // 1. Scene & Camera
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(40, width / height, 0.1, 100);
-    camera.position.set(2.2, 1.8, 2.2);
-    camera.lookAt(0, 0, 0);
+    cameraRef.current = camera;
+    zoomLevelRef.current = 1.0;
+    cameraTargetRef.current.set(0, 0, 0);
+
+    camera.position.set(2.6, 2.1, 2.6);
+    camera.lookAt(cameraTargetRef.current);
 
     let renderer: THREE.WebGLRenderer;
     try {
@@ -225,13 +294,22 @@ export const Block3DViewer: React.FC<Block3DViewerProps> = ({
     const primaryFlip = southFlip || upFlip || eastFlip || northFlip || westFlip || downFlip;
     const primaryMat = createMaterial(primaryTex, shape.doubleSided, primaryFlip);
 
-    const blockObj = buildBlockMesh(shape, faceMats, primaryMat);
-    scene.add(blockObj);
-    cubeRef.current = blockObj;
+    const rawBlockObj = buildBlockMesh(shape, faceMats, primaryMat);
+
+    // Compute bounding box and center geometries inside a pivot group so rotation occurs around the exact geometric center
+    const bbox = new THREE.Box3().setFromObject(rawBlockObj);
+    const center = new THREE.Vector3();
+    bbox.getCenter(center);
+    rawBlockObj.position.sub(center);
+
+    const pivotGroup = new THREE.Group();
+    pivotGroup.add(rawBlockObj);
+    scene.add(pivotGroup);
+    cubeRef.current = pivotGroup;
 
     // Initial default isometric orientation
     const initEuler = new THREE.Euler(Math.atan(1 / Math.SQRT2) * 0.5, Math.PI / 4, 0, 'YXZ');
-    blockObj.quaternion.setFromEuler(initEuler);
+    pivotGroup.quaternion.setFromEuler(initEuler);
 
     let isMounted = true;
 
@@ -296,12 +374,33 @@ export const Block3DViewer: React.FC<Block3DViewerProps> = ({
       });
     }
 
+    // Non-passive wheel event listener to completely block page scrolling when zooming inside the viewer
+    const handleWheelNative = (e: WheelEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!cameraRef.current) return;
+
+      const zoomFactor = e.deltaY < 0 ? 0.9 : 1.1;
+      const newZoom = Math.max(0.2, Math.min(3.5, zoomLevelRef.current * zoomFactor));
+      const ratio = newZoom / zoomLevelRef.current;
+      zoomLevelRef.current = newZoom;
+
+      const cam = cameraRef.current;
+      const target = cameraTargetRef.current;
+      const offset = cam.position.clone().sub(target).multiplyScalar(ratio);
+      cam.position.copy(target).add(offset);
+    };
+
+    const containerEl = containerRef.current;
+    containerEl.addEventListener('wheel', handleWheelNative, { passive: false });
+
     return () => {
       isMounted = false;
       if (unsubscribeFlipbook) unsubscribeFlipbook();
       cancelAnimationFrame(animId);
       window.removeEventListener('resize', handleResize);
-      blockObj.traverse((child) => {
+      containerEl.removeEventListener('wheel', handleWheelNative);
+      pivotGroup.traverse((child) => {
         if (child instanceof THREE.Mesh) {
           if (child.geometry) {
             child.geometry.dispose();
@@ -321,66 +420,84 @@ export const Block3DViewer: React.FC<Block3DViewerProps> = ({
     };
   }, [faceTextures, blockId]);
 
-  // Project 2D client coordinates onto a virtual unit hemisphere (Trackball / Arcball)
-  const projectToTrackballSphere = (clientX: number, clientY: number): THREE.Vector3 => {
-    if (!containerRef.current) return new THREE.Vector3(0, 0, 1);
-    const rect = containerRef.current.getBoundingClientRect();
-    const w = rect.width || 300;
-    const h = rect.height || 220;
-    const r = Math.min(w, h) * 0.5;
-
-    // Center-relative coordinates normalized by radius
-    const x = (clientX - rect.left - w * 0.5) / r;
-    const y = -(clientY - rect.top - h * 0.5) / r;
-
-    const lenSq = x * x + y * y;
-    let z = 0;
-    if (lenSq <= 1.0) {
-      z = Math.sqrt(1.0 - lenSq);
-    } else {
-      // Hyperbolic fallback outside virtual sphere
-      z = 0.5 / Math.sqrt(lenSq);
+  // Drag Start (supports left-click rotation and middle-click pan)
+  const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (e.button === 0) {
+      // Left click = rotate
+      dragModeRef.current = 'rotate';
+      lastMousePosRef.current = { x: e.clientX, y: e.clientY };
+    } else if (e.button === 1) {
+      // Middle click = pan
+      e.preventDefault();
+      dragModeRef.current = 'pan';
+      lastMousePosRef.current = { x: e.clientX, y: e.clientY };
     }
 
-    return new THREE.Vector3(x, y, z).normalize();
-  };
-
-  const lastTrackballVecRef = useRef<THREE.Vector3>(new THREE.Vector3(0, 0, 1));
-
-  // Orbit rotation interaction via virtual trackball (arcball)
-  const handleMouseDown = (e: React.MouseEvent) => {
-    isDraggingRef.current = true;
-    lastTrackballVecRef.current = projectToTrackballSphere(e.clientX, e.clientY);
-  };
-
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (!isDraggingRef.current || !cubeRef.current) return;
-
-    const currentVec = projectToTrackballSphere(e.clientX, e.clientY);
-    const prevVec = lastTrackballVecRef.current;
-
-    // Angle of rotation around the cross-product axis
-    const dot = Math.min(1.0, Math.max(-1.0, prevVec.dot(currentVec)));
-    const angle = Math.acos(dot);
-
-    if (angle > 0.001) {
-      const axis = new THREE.Vector3().crossVectors(prevVec, currentVec).normalize();
-      // Incremental rotation in camera view space
-      const deltaQuat = new THREE.Quaternion().setFromAxisAngle(axis, angle * 1.5);
-      // Pre-multiply quaternion so rotation happens relative to current viewing perspective
-      cubeRef.current.quaternion.premultiply(deltaQuat);
-      lastTrackballVecRef.current = currentVec;
+    if (dragModeRef.current) {
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     }
   };
 
-  const handleMouseUp = () => {
-    isDraggingRef.current = false;
+  // Pointer Move (global capture ensures dragging off container is not interrupted)
+  const handlePointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!dragModeRef.current) return;
+
+    const dx = e.clientX - lastMousePosRef.current.x;
+    const dy = e.clientY - lastMousePosRef.current.y;
+    lastMousePosRef.current = { x: e.clientX, y: e.clientY };
+
+    if (dragModeRef.current === 'rotate') {
+      if (!cubeRef.current || !cameraRef.current) return;
+      if (dx === 0 && dy === 0) return;
+
+      const cam = cameraRef.current;
+      const camRight = new THREE.Vector3();
+      const camUp = new THREE.Vector3();
+      cam.matrixWorld.extractBasis(camRight, camUp, new THREE.Vector3());
+
+      // Rotate around world Y (horizontal mouse motion) and camera right axis (vertical mouse motion)
+      const rotSpeed = 0.012;
+      const yQuat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), dx * rotSpeed);
+      cubeRef.current.quaternion.premultiply(yQuat);
+
+      const xQuat = new THREE.Quaternion().setFromAxisAngle(camRight, dy * rotSpeed);
+      cubeRef.current.quaternion.premultiply(xQuat);
+    } else if (dragModeRef.current === 'pan') {
+      if (!cameraRef.current) return;
+
+      const cam = cameraRef.current;
+      const right = new THREE.Vector3();
+      const up = new THREE.Vector3();
+      cam.matrixWorld.extractBasis(right, up, new THREE.Vector3());
+
+      const panSpeed = 0.0035 * zoomLevelRef.current;
+      const panDelta = right.clone().multiplyScalar(-dx * panSpeed).add(up.clone().multiplyScalar(dy * panSpeed));
+
+      cameraTargetRef.current.add(panDelta);
+      cam.position.add(panDelta);
+    }
   };
 
-  const handleResetRotation = () => {
+  const handlePointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    const el = e.currentTarget as HTMLElement;
+    if (el.hasPointerCapture(e.pointerId)) {
+      try {
+        el.releasePointerCapture(e.pointerId);
+      } catch { }
+    }
+    dragModeRef.current = null;
+  };
+
+  const handleReset = () => {
     if (cubeRef.current) {
       const initEuler = new THREE.Euler(Math.atan(1 / Math.SQRT2) * 0.5, Math.PI / 4, 0, 'YXZ');
       cubeRef.current.quaternion.setFromEuler(initEuler);
+    }
+    if (cameraRef.current) {
+      zoomLevelRef.current = 1.0;
+      cameraTargetRef.current.set(0, 0, 0);
+      cameraRef.current.position.set(2.6, 2.1, 2.6);
+      cameraRef.current.lookAt(cameraTargetRef.current);
     }
   };
 
@@ -388,25 +505,185 @@ export const Block3DViewer: React.FC<Block3DViewerProps> = ({
     <div
       ref={containerRef}
       className={styles.viewerContainer}
-      onMouseDown={handleMouseDown}
-      onMouseMove={handleMouseMove}
-      onMouseUp={handleMouseUp}
-      onMouseLeave={handleMouseUp}
+      onContextMenu={(e) => {
+        if (dragModeRef.current === 'pan') e.preventDefault();
+      }}
     >
-      <canvas ref={canvasRef} className={styles.canvas} />
+      <canvas
+        ref={canvasRef}
+        className={styles.canvas}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
+      />
+
+      {/* Side Drag Handle on the right for panning */}
+      <div
+        className={styles.dragHandle}
+        title="Drag to pan camera"
+        onPointerDown={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          let prevX = e.clientX;
+          let prevY = e.clientY;
+
+          const onPointerMove = (moveEv: PointerEvent) => {
+            if (!cameraRef.current) return;
+            const dx = moveEv.clientX - prevX;
+            const dy = moveEv.clientY - prevY;
+            prevX = moveEv.clientX;
+            prevY = moveEv.clientY;
+
+            const cam = cameraRef.current;
+            const right = new THREE.Vector3();
+            const up = new THREE.Vector3();
+            cam.matrixWorld.extractBasis(right, up, new THREE.Vector3());
+
+            const panSpeed = 0.0035 * zoomLevelRef.current;
+            const panDelta = right.clone().multiplyScalar(-dx * panSpeed).add(up.clone().multiplyScalar(dy * panSpeed));
+
+            cameraTargetRef.current.add(panDelta);
+            cam.position.add(panDelta);
+          };
+
+          const onPointerUp = () => {
+            window.removeEventListener('pointermove', onPointerMove);
+            window.removeEventListener('pointerup', onPointerUp);
+            window.removeEventListener('pointercancel', onPointerUp);
+          };
+
+          window.addEventListener('pointermove', onPointerMove, { passive: true });
+          window.addEventListener('pointerup', onPointerUp, { passive: true });
+          window.addEventListener('pointercancel', onPointerUp, { passive: true });
+        }}
+      >
+        <span className={styles.dragHandleBar} />
+        <span className={styles.dragHandleBar} />
+        <span className={styles.dragHandleBar} />
+      </div>
 
       <div className={styles.overlayControls}>
         <button
           type="button"
           className={styles.controlButton}
-          onClick={handleResetRotation}
-          title="Reset to default isometric angle"
+          onClick={handleReset}
+          title="Reset to default isometric angle & position"
         >
           <RotateCcw size={11} />
         </button>
       </div>
 
-      <span className={styles.hintText}>Drag to rotate 360°</span>
+      {/* Blockstate & Texture Variation Odometer Cluster in down-left */}
+      {(() => {
+        const activeSt = blockStates.find((s) => s.index === activeStateIndex) ?? blockStates[0];
+        const variations = activeSt?.variations ?? [];
+        const hasBlockStates = blockStates.length > 1;
+        const hasVariations = variations.length > 1;
+
+        if (!hasBlockStates && !hasVariations) return null;
+
+        return (
+          <div className={styles.odometerCluster}>
+              {/* Vertical stack of blockstates ascending upwards */}
+              {hasBlockStates && (
+                <>
+                  <div
+                    className={styles.verticalOdometerStack}
+                    title="Scroll or click to switch blockstate"
+                    onWheel={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      if (!onSelectStateIndex) return;
+                      const delta = e.deltaY > 0 ? 1 : -1;
+                      const n = blockStates.length;
+                      const nextIdx = (((activeStateIndex + delta) % n) + n) % n;
+                      onSelectStateIndex(nextIdx);
+                    }}
+                  >
+                    {blockStates.map((st) => {
+                      const isSelected = st.index === activeStateIndex;
+                      const stLabel = st.badgeNumber ?? st.index + 1;
+                      return (
+                        <button
+                          key={`st_${st.index}`}
+                          type="button"
+                          className={`${styles.odometerButton} ${isSelected ? styles.odometerButtonActive : ''}`}
+                          onClick={() => onSelectStateIndex?.(st.index)}
+                          title={`Blockstate ${stLabel}: ${st.label}`}
+                        >
+                          {stLabel}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className={styles.odometerDividerH} />
+                </>
+              )}
+
+              {/* Bottom row: Active corner button + Horizontal stack of texture variations */}
+              <div className={styles.bottomOdometerRow}>
+                {/* Active corner button showing compound index (e.g. 1a, 1b or 1, a) */}
+                {activeSt && (
+                  <button
+                    type="button"
+                    className={`${styles.odometerButton} ${styles.odometerButtonActive}`}
+                    onClick={() => {
+                      if (hasBlockStates && onSelectStateIndex) {
+                        onSelectStateIndex((activeStateIndex + 1) % blockStates.length);
+                      } else if (hasVariations && onSelectVariationIndex) {
+                        onSelectVariationIndex((activeVariationIndex + 1) % variations.length);
+                      }
+                    }}
+                    title={`Selected: State ${activeSt.badgeNumber ?? activeSt.index + 1}${hasVariations ? `, Variation ${String.fromCharCode(97 + (activeVariationIndex % 26))}` : ''}`}
+                  >
+                    {hasBlockStates && hasVariations
+                      ? `${activeSt.badgeNumber ?? activeSt.index + 1}${String.fromCharCode(97 + (activeVariationIndex % 26))}`
+                      : hasBlockStates
+                      ? `${activeSt.badgeNumber ?? activeSt.index + 1}`
+                      : `${String.fromCharCode(97 + (activeVariationIndex % 26))}`}
+                  </button>
+                )}
+
+                {/* Horizontal texture variation list extending to the right */}
+                {hasVariations && (
+                  <div
+                    className={styles.horizontalOdometerTrack}
+                    title="Scroll or click to switch texture variation"
+                    onWheel={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      if (!onSelectVariationIndex) return;
+                      const delta = e.deltaY > 0 ? 1 : -1;
+                      const n = variations.length;
+                      const nextIdx = (((activeVariationIndex + delta) % n) + n) % n;
+                      onSelectVariationIndex(nextIdx);
+                    }}
+                  >
+                    <div className={styles.odometerDividerV} />
+                    {variations.map((v) => {
+                      const isSelected = v.index === activeVariationIndex;
+                      const charLabel = String.fromCharCode(97 + (v.index % 26));
+                      return (
+                        <button
+                          key={`v_${v.index}`}
+                          type="button"
+                          className={`${styles.odometerButton} ${isSelected ? styles.odometerButtonActive : ''}`}
+                          onClick={() => onSelectVariationIndex?.(v.index)}
+                          title={`Texture variation ${charLabel}: ${v.label}`}
+                        >
+                          {charLabel}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+          </div>
+        );
+      })()}
+
+      <span className={styles.hintText}>Drag to rotate • Middle-drag to pan • Scroll to zoom</span>
     </div>
   );
 };

@@ -867,6 +867,14 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
             });
         };
 
+        ViewModel.ScanProgressChanged += (stage, current, total, message) =>
+        {
+            Dispatcher.Invoke(() =>
+            {
+                _ipcBridge?.PushScanProgress(stage, current, total, message);
+            });
+        };
+
         ViewModel.PropertyChanged += (s, e) =>
         {
             if (e.PropertyName == nameof(MainViewModel.PackRootPath))
