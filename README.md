@@ -4,9 +4,10 @@
 
 Stop chasing "ghost". mcTextureGhost scans your pack, shows you every declared texture entries that doesn't exist yet ("ghosts"). No JSON wrangling required.
 
+![mcTextureGhost Welcome Screen](frontend/public/welcome.png)
+
 This program is for you to make the process of texturing a Minecraft pack easier and faster. I wanted an app to see all my textures in one place, and to see all the textures I need to make in one place, for now this app only supports bedrock `resource-pack` format
 
-![mcTextureGhost Welcome Screen](frontend/public/welcome.png)
 ![mcTextureGhost Workspace](frontend/public/workspace.png)
 
 ---
