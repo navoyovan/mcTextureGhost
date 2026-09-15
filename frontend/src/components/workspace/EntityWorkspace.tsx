@@ -242,7 +242,11 @@ export const EntityWorkspace: React.FC = () => {
 
       {/* Right Detail Pane */}
       {selectedEntity ? (
-        <section className={styles.detailPane} aria-label="Entity Hierarchy & 3D Preview">
+        <section
+          key={selectedEntity.blockId}
+          className={styles.detailPane}
+          aria-label="Entity Hierarchy & 3D Preview"
+        >
           <div className={styles.detailHeader}>
             <div className={styles.blockTitleGroup}>
               <div className={styles.blockHeaderTitleRow}>
@@ -281,8 +285,8 @@ export const EntityWorkspace: React.FC = () => {
 
           {/* Slots & Texture Variations Hierarchy */}
           <div className={styles.hierarchySection} ref={menuRef}>
-            {selectedEntity.aliasGroups?.map((ag) => (
-              <div key={ag.alias} className={styles.aliasGroupCard}>
+            {selectedEntity.aliasGroups?.map((ag, agIndex) => (
+              <div key={`${selectedEntity.blockId}-${ag.alias}-${agIndex}`} className={styles.aliasGroupCard}>
                 <div className={styles.aliasHeader}>
                   <Layers size={14} />
                   <span>Slot: {ag.alias}</span>
@@ -294,8 +298,8 @@ export const EntityWorkspace: React.FC = () => {
                 </div>
 
                 <div className={styles.variantStrip}>
-                  {groupLeavesByVariantSlot(ag.leaves ?? []).map((grp) => {
-                    const cardKey = `${grp.key}-${ag.alias}`;
+                  {groupLeavesByVariantSlot(ag.leaves ?? []).map((grp, grpIndex) => {
+                    const cardKey = `${selectedEntity.blockId}-${ag.alias}-${grp.key}-${grpIndex}`;
                     return (
                       <WorkspaceTileCard
                         key={cardKey}

@@ -225,18 +225,33 @@ export const Entity3DViewer: React.FC<Entity3DViewerProps> = React.memo(({
 
       const cleanEntity = (entityId || '').replace(/^minecraft:/i, '').toLowerCase();
       const cleanGeo = (geometryId || '').replace(/^geometry\./i, '').toLowerCase();
-      const baseGeo = cleanGeo.split('.')[0];
+      const isBaby = cleanGeo.includes('baby') || (entityId || '').includes('baby');
+      const baseGeo = cleanGeo.replace(/\.baby$/, '').split('.')[0];
 
       // Exact model candidates
       if (cleanGeo) {
         candidates.push(`https://pack.local/models/entity/${cleanGeo}.geo.json`);
         candidates.push(`https://vanilla.local/models/entity/${cleanGeo}.geo.json`);
       }
-      if (baseGeo && baseGeo !== cleanGeo) {
+
+      // If this is a baby model, prioritize baby_<baseGeo> before adult models
+      if (isBaby) {
+        if (baseGeo) {
+          candidates.push(`https://pack.local/models/entity/baby_${baseGeo}.geo.json`);
+          candidates.push(`https://vanilla.local/models/entity/baby_${baseGeo}.geo.json`);
+        }
+        if (cleanEntity && cleanEntity !== baseGeo) {
+          candidates.push(`https://pack.local/models/entity/baby_${cleanEntity}.geo.json`);
+          candidates.push(`https://vanilla.local/models/entity/baby_${cleanEntity}.geo.json`);
+        }
+      }
+
+      // Base geometry (adult) fallback ONLY if NOT a baby request
+      if (!isBaby && baseGeo && baseGeo !== cleanGeo) {
         candidates.push(`https://pack.local/models/entity/${baseGeo}.geo.json`);
         candidates.push(`https://vanilla.local/models/entity/${baseGeo}.geo.json`);
       }
-      if (cleanEntity) {
+      if (!isBaby && cleanEntity) {
         candidates.push(`https://pack.local/models/entity/${cleanEntity}.geo.json`);
         candidates.push(`https://vanilla.local/models/entity/${cleanEntity}.geo.json`);
       }

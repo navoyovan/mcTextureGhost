@@ -213,11 +213,42 @@ public static class PackScanner
 
                 foreach (var (slotKey, rawTexPath) in entityDetail.Textures)
                 {
-                    entityDetail.Geometries.TryGetValue(slotKey, out var geoId);
+                    string? geoId = null;
+
+                    // 1. Exact match on slotKey
+                    if (entityDetail.Geometries.TryGetValue(slotKey, out var exactGeo))
+                    {
+                        geoId = exactGeo;
+                    }
+                    // 2. Baby variant matching: if slot key or texture path has "baby", map to "baby" geometry
+                    else if ((slotKey.Contains("baby", StringComparison.OrdinalIgnoreCase) ||
+                              rawTexPath.Contains("baby", StringComparison.OrdinalIgnoreCase)) &&
+                             entityDetail.Geometries.TryGetValue("baby", out var babyGeo))
+                    {
+                        geoId = babyGeo;
+                    }
+                    // 3. State/variant matching: check if any geometry key is in slotKey (e.g. "cold", "warm", "charged", "sheared")
+                    else
+                    {
+                        foreach (var (geoKey, gId) in entityDetail.Geometries)
+                        {
+                            if (geoKey.Equals("default", StringComparison.OrdinalIgnoreCase)) continue;
+                            if (slotKey.Contains(geoKey, StringComparison.OrdinalIgnoreCase) ||
+                                rawTexPath.Contains(geoKey, StringComparison.OrdinalIgnoreCase))
+                            {
+                                geoId = gId;
+                                break;
+                            }
+                        }
+                    }
+
+                    // 4. Default geometry
                     if (string.IsNullOrEmpty(geoId))
                         entityDetail.Geometries.TryGetValue("default", out geoId);
+
+                    // 5. Vanilla reference fallback (with slotKey and rawTexPath awareness)
                     if (string.IsNullOrEmpty(geoId) && vanilla != null)
-                        geoId = vanilla.GetGeometryForEntity(entId);
+                        geoId = vanilla.GetGeometryForEntity(entId, slotKey, rawTexPath);
 
                     var (fullPath, finalRel, exists) = ResolveTexture(packRoot, rawTexPath, existingFiles, texturesDirNormalized, "entity");
                     if (exists) matchedFiles.Add(fullPath);
@@ -349,6 +380,7 @@ public static class PackScanner
                         Category = TextureCategory.Entity,
                         EntityId = vanillaEntityId,
                         TextureKey = vanillaEntitySlot,
+                        GeometryId = vanilla?.GetGeometryForEntity(vanillaEntityId, vanillaEntitySlot, relNoExt),
                         Alias = $"{cleanId}:{vanillaEntitySlot}",
                         DisplayName = vanilla!.GetEntityDisplayName(vanillaEntityId),
                         RelativePath = relNoExt,
@@ -2033,8 +2065,7 @@ public static class PackScanner
                 ? entityId.Substring("minecraft:".Length)
                 : entityId;
 
-            var firstTile = group.FirstOrDefault();
-            var isAttachable = firstTile?.IsAttachable == true;
+            var isAttachable = group.Any(t => t.IsAttachable);
             var displayName = vanilla?.GetEntityDisplayName(entityId) ?? cleanId;
 
             var entityNode = new BlockGroupNode
@@ -2045,61 +2076,92 @@ public static class PackScanner
                 IsUserDefined = true
             };
 
-            var aliasNode = new AliasGroupNode
-            {
-                Alias = cleanId,
-                Category = TextureCategory.Entity,
-                FaceSummary = isAttachable ? "attachable" : "entity",
-                GeometryId = firstTile?.GeometryId,
-                IsAttachable = isAttachable
-            };
+            // Group tiles by their distinct geometry so adult, baby, and variant geometries are separated cleanly
+            var slotGroups = group
+                .GroupBy(t => t.GeometryId ?? "default", StringComparer.OrdinalIgnoreCase)
+                .OrderBy(g => g.Key.Contains("baby", StringComparison.OrdinalIgnoreCase) ? 1 : 0);
 
-            var faceNode = new FaceNode
+            foreach (var slotGroup in slotGroups)
             {
-                FaceLabel = isAttachable ? "attachable" : "model"
-            };
+                var firstTile = slotGroup.FirstOrDefault();
+                var geoId = firstTile?.GeometryId;
+                var isBabySlot = geoId != null && geoId.Contains("baby", StringComparison.OrdinalIgnoreCase);
 
-            foreach (var tile in group)
-            {
-                var leafStatus = tile.Status switch
+                string slotAlias;
+                if (slotGroups.Count() > 1)
                 {
-                    TextureStatus.Ok => CatalogEntryStatus.Ok,
-                    TextureStatus.Ghost => CatalogEntryStatus.Ghost,
-                    _ => CatalogEntryStatus.Orphan
-                };
-
-                var slotCaption = !string.IsNullOrEmpty(tile.TextureKey)
-                    ? tile.TextureKey
-                    : "default";
-
-                var leaf = new CatalogLeaf
+                    if (isBabySlot)
+                    {
+                        slotAlias = $"{cleanId} (baby)";
+                    }
+                    else
+                    {
+                        var suffix = !string.IsNullOrEmpty(firstTile?.TextureKey) && !firstTile.TextureKey.Equals("default", StringComparison.OrdinalIgnoreCase)
+                            ? firstTile.TextureKey
+                            : (geoId?.Replace("geometry.", "", StringComparison.OrdinalIgnoreCase) ?? "variant");
+                        slotAlias = $"{cleanId} ({suffix})";
+                    }
+                }
+                else
                 {
-                    Alias = tile.Alias,
-                    DisplayName = tile.DisplayName,
-                    RelativePath = tile.RelativePath,
-                    FullPath = tile.FullPath,
+                    slotAlias = cleanId;
+                }
+
+                var aliasNode = new AliasGroupNode
+                {
+                    Alias = slotAlias,
                     Category = TextureCategory.Entity,
-                    Status = leafStatus,
-                    TextureAlias = tile,
-                    EntityId = tile.EntityId,
-                    TextureKey = tile.TextureKey,
-                    GeometryId = tile.GeometryId,
-                    IsAttachable = tile.IsAttachable,
-                    VariantKind = tile.VariantKind,
-                    SubtitleCaption = !string.IsNullOrEmpty(tile.SubtitleCaption) ? tile.SubtitleCaption : slotCaption,
-                    PrimaryFaceBadgeText = slotCaption
+                    FaceSummary = isAttachable ? "attachable" : (isBabySlot ? "baby" : "entity"),
+                    GeometryId = geoId,
+                    IsAttachable = isAttachable
                 };
 
-                faceNode.Leaves.Add(leaf);
-                aliasNode.Leaves.Add(leaf);
+                var faceNode = new FaceNode
+                {
+                    FaceLabel = isAttachable ? "attachable" : (isBabySlot ? "baby" : "model")
+                };
+
+                foreach (var tile in slotGroup)
+                {
+                    var leafStatus = tile.Status switch
+                    {
+                        TextureStatus.Ok => CatalogEntryStatus.Ok,
+                        TextureStatus.Ghost => CatalogEntryStatus.Ghost,
+                        _ => CatalogEntryStatus.Orphan
+                    };
+
+                    var slotCaption = !string.IsNullOrEmpty(tile.TextureKey)
+                        ? tile.TextureKey
+                        : "default";
+
+                    var leaf = new CatalogLeaf
+                    {
+                        Alias = tile.Alias,
+                        DisplayName = tile.DisplayName,
+                        RelativePath = tile.RelativePath,
+                        FullPath = tile.FullPath,
+                        Category = TextureCategory.Entity,
+                        Status = leafStatus,
+                        TextureAlias = tile,
+                        EntityId = tile.EntityId,
+                        TextureKey = tile.TextureKey,
+                        GeometryId = tile.GeometryId,
+                        IsAttachable = tile.IsAttachable,
+                        VariantKind = tile.VariantKind,
+                        SubtitleCaption = !string.IsNullOrEmpty(tile.SubtitleCaption) ? tile.SubtitleCaption : slotCaption,
+                        PrimaryFaceBadgeText = slotCaption
+                    };
+
+                    faceNode.Leaves.Add(leaf);
+                    aliasNode.Leaves.Add(leaf);
+                }
+
+                aliasNode.FaceNodes.Add(faceNode);
+                aliasNode.NotifyCountsChanged();
+                entityNode.AliasGroups.Add(aliasNode);
             }
 
-            aliasNode.FaceNodes.Add(faceNode);
-            aliasNode.NotifyCountsChanged();
-
-            entityNode.AliasGroups.Add(aliasNode);
             entityNode.NotifyCountsChanged();
-
             result.Add(entityNode);
         }
 

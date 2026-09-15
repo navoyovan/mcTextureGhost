@@ -45,7 +45,13 @@ export function parseBedrockGeometryJson(rawJson: string, targetGeometryId?: str
     if (Array.isArray(doc['minecraft:geometry'])) {
       const list = doc['minecraft:geometry'] as Array<{ description?: { identifier?: string; texture_width?: number; texture_height?: number }; bones?: BedrockBone[] }>;
       if (targetGeometryId) {
-        const found = list.find((g) => g.description?.identifier?.toLowerCase() === targetGeometryId.toLowerCase());
+        const targetLower = targetGeometryId.toLowerCase();
+        const found =
+          list.find((g) => g.description?.identifier?.toLowerCase() === targetLower) ||
+          list.find((g) => {
+            const id = (g.description?.identifier || '').toLowerCase();
+            return id.endsWith(targetLower) || targetLower.endsWith(id);
+          });
         if (found) {
           return {
             texturewidth: found.description?.texture_width ?? 64,
@@ -54,12 +60,18 @@ export function parseBedrockGeometryJson(rawJson: string, targetGeometryId?: str
           };
         }
       }
-      if (list.length > 0 && list[0]) {
-        return {
-          texturewidth: list[0].description?.texture_width ?? 64,
-          textureheight: list[0].description?.texture_height ?? 64,
-          bones: list[0].bones ?? [],
-        };
+
+      // Do NOT fall back to list[0] if targetGeometryId specifically requested a baby model and list[0] is not a baby
+      const wantsBaby = targetGeometryId && targetGeometryId.toLowerCase().includes('baby');
+      const firstIsBaby = list[0]?.description?.identifier?.toLowerCase().includes('baby');
+      if (!wantsBaby || firstIsBaby) {
+        if (list.length > 0 && list[0]) {
+          return {
+            texturewidth: list[0].description?.texture_width ?? 64,
+            textureheight: list[0].description?.texture_height ?? 64,
+            bones: list[0].bones ?? [],
+          };
+        }
       }
     }
 

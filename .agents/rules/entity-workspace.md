@@ -18,7 +18,9 @@ Bedrock geometry JSON models exist primarily in two formats:
    - Each object has `description: { identifier, texture_width, texture_height }` and `bones: [ ... ]`.
 
 ### Parser Invariant
-All geometry parsing routines (e.g. `entityGeometryBuilder.ts`) must support both `1.8.0` and `1.12.0+` structures, falling back gracefully to the first available geometry block if an exact identifier match is omitted.
+All geometry parsing routines (e.g. `entityGeometryBuilder.ts`) must support both `1.8.0` and `1.12.0+` structures:
+- If an exact identifier match is omitted, default to the first available geometry block.
+- **Baby Variant Invariant:** When a baby geometry is requested (identifier contains `"baby"`), the parser must NOT fall back to adult `list[0]`. It must return `null` so secondary baby candidates (`baby_${baseGeo}.geo.json`, `baby_${cleanEntity}.geo.json`) can be evaluated without silently substituting the adult model.
 
 ---
 
@@ -54,3 +56,11 @@ Bedrock standard box-UV 6-face net (at `[u0, v0]`):
   2. Call `dispose()` on all `BufferGeometry` instances.
   3. Call `dispose()` on all `Material` and `Texture` instances.
   4. Dispose of the `WebGLRenderer` on unmount to prevent GPU context leaks.
+
+---
+
+## 4. Entity Workspace DOM Lifecycle & Key Isolation
+- **Detail Pane Keying:** `<section className={styles.detailPane}>` must be keyed by `selectedEntity.blockId`. This forces React to unmount the previous entity's detail DOM when switching entities, guaranteeing that vertical scroll resets (`scrollTop = 0`) and previous cards cannot linger or accumulate above the selected entity.
+- **Slot Group & Card Keys:**
+  - Alias group cards must key on `${selectedEntity.blockId}-${ag.alias}-${agIndex}` to prevent React reconciliation key collisions when an entity contains multiple distinct geometry slot groups with the same base name.
+  - `WorkspaceTileCard` instances must key on `${selectedEntity.blockId}-${ag.alias}-${grp.key}-${grpIndex}` so `React.memo` instances are strictly scoped per entity.

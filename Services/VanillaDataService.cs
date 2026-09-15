@@ -29,13 +29,38 @@ public record VanillaData(
     string VersionInfo
 )
 {
-    public string? GetGeometryForEntity(string entityId)
+    public string? GetGeometryForEntity(string entityId, string? slotKey = null, string? rawTexPath = null)
     {
-        if (EntityGeometryMap.TryGetValue(entityId, out var geoId))
-            return geoId;
         var cleanId = entityId.StartsWith("minecraft:", StringComparison.OrdinalIgnoreCase)
             ? entityId.Substring(10)
             : entityId;
+
+        bool isBaby = (slotKey != null && slotKey.Contains("baby", StringComparison.OrdinalIgnoreCase)) ||
+                      (rawTexPath != null && rawTexPath.Contains("baby", StringComparison.OrdinalIgnoreCase));
+
+        if (isBaby)
+        {
+            if (EntityGeometryMap.TryGetValue($"{entityId}:baby", out var bGeo))
+                return bGeo;
+            if (EntityGeometryMap.TryGetValue($"{cleanId}:baby", out bGeo))
+                return bGeo;
+
+            // Direct fallback to baby identifier if known
+            var testId = $"geometry.{cleanId}.baby";
+            if (RawGeometryJson.ContainsKey(testId) || RawGeometryJson.ContainsKey($"baby_{cleanId}"))
+                return testId;
+        }
+
+        if (!string.IsNullOrEmpty(slotKey))
+        {
+            if (EntityGeometryMap.TryGetValue($"{entityId}:{slotKey}", out var sGeo))
+                return sGeo;
+            if (EntityGeometryMap.TryGetValue($"{cleanId}:{slotKey}", out sGeo))
+                return sGeo;
+        }
+
+        if (EntityGeometryMap.TryGetValue(entityId, out var geoId))
+            return geoId;
         if (EntityGeometryMap.TryGetValue(cleanId, out geoId))
             return geoId;
         return null;
@@ -48,6 +73,15 @@ public record VanillaData(
         var clean = geometryId.Replace("geometry.", "", StringComparison.OrdinalIgnoreCase);
         if (RawGeometryJson.TryGetValue(clean, out json))
             return json;
+
+        // If geometry is baby (e.g. "geometry.axolotl.baby" or "axolotl.baby"), look for "baby_axolotl"
+        if (clean.EndsWith(".baby", StringComparison.OrdinalIgnoreCase))
+        {
+            var baseName = clean.Substring(0, clean.Length - 5);
+            if (RawGeometryJson.TryGetValue($"baby_{baseName}", out json))
+                return json;
+        }
+
         // Check without version suffix (e.g. "zombie.v1.8" -> "zombie")
         var dotIdx = clean.IndexOf('.');
         if (dotIdx > 0)
@@ -523,6 +557,11 @@ public static class VanillaDataService
                                 existing[slot] = rawTex;
                                 var norm = NormalizeTexturePath(rawTex);
                                 declaredEntityPaths.Add(norm);
+                            }
+
+                            foreach (var (geoSlot, geoVal) in detail.Geometries)
+                            {
+                                entityGeometryMap[$"{detail.Identifier}:{geoSlot}"] = geoVal;
                             }
 
                             if (detail.Geometries.TryGetValue("default", out var defaultGeo) && !string.IsNullOrWhiteSpace(defaultGeo))
