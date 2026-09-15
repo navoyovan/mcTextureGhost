@@ -93,6 +93,18 @@
   color: #a1a1aa;
 }
 
+.attachableTag {
+  font-family: var(--font-pixel);
+  font-size: 7px;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  padding: 2px 4px;
+  border-radius: 3px;
+  background: rgba(168, 85, 247, 0.12);
+  border: 1px solid rgba(168, 85, 247, 0.25);
+  color: #c084fc;
+}
+
 .blockHeaderTitleRow {
   display: flex;
   align-items: center;

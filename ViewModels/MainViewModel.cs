@@ -559,6 +559,12 @@ public class MainViewModel : INotifyPropertyChanged
     /// </summary>
     public ObservableCollection<BlockGroupNode> BlockWorkspaceTree { get; } = new();
 
+    /// <summary>
+    /// 4-tier tree (Entity → AliasGroup → FaceNode → CatalogLeaf) sourced
+    /// from the user's entity/ and attachables/ definitions.
+    /// </summary>
+    public ObservableCollection<BlockGroupNode> EntityWorkspaceTree { get; } = new();
+
     // ─── Vanilla Reference Data ───────────────────────────────────────────────
     private VanillaData? _vanillaData;
     public VanillaData? VanillaData => _vanillaData;
@@ -1172,6 +1178,7 @@ public class MainViewModel : INotifyPropertyChanged
         Aliases.Clear();
         CatalogTree.Clear();
         BlockWorkspaceTree.Clear();
+        EntityWorkspaceTree.Clear();
         PackFolders.Clear();
         SelectedFolder = null;
         SearchText = "";
@@ -1309,6 +1316,7 @@ public class MainViewModel : INotifyPropertyChanged
             Aliases.Clear();
             CatalogTree.Clear();
             BlockWorkspaceTree.Clear();
+            EntityWorkspaceTree.Clear();
             PackFolders.Clear();
             FilteredAliases.Refresh();
             FilteredCatalogTree.Refresh();
@@ -1337,11 +1345,12 @@ public class MainViewModel : INotifyPropertyChanged
                     {
                         ScanProgressChanged?.Invoke("building_trees", 3, 5, "Building catalog & workspace models...");
                     }
-                    var (catalogNodes, workspaceNodes) = await Task.Run(() =>
+                    var (catalogNodes, workspaceNodes, entityNodes) = await Task.Run(() =>
                     {
                         var cat = PackScanner.BuildCatalogTree(results, _vanillaData, packRoot);
                         var ws  = PackScanner.BuildBlockWorkspaceTree(results, _vanillaData, packRoot);
-                        return (cat, ws);
+                        var ent = PackScanner.BuildEntityWorkspaceTree(results, _vanillaData, packRoot);
+                        return (cat, ws, ent);
                     });
 
                     foreach (var node in catalogNodes)
@@ -1350,6 +1359,9 @@ public class MainViewModel : INotifyPropertyChanged
 
                     foreach (var node in workspaceNodes)
                         BlockWorkspaceTree.Add(node);
+
+                    foreach (var node in entityNodes)
+                        EntityWorkspaceTree.Add(node);
                 }
 
                 var blockCount = results.Count(a => a.Category == TextureCategory.Block);

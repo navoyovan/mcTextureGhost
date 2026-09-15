@@ -200,17 +200,25 @@ public static class PackScanner
 
         foreach (var entFile in packEntityFiles)
         {
-            var parsedEntities = ParseClientEntityFile(entFile);
-            foreach (var (entId, texDict) in parsedEntities)
+            var isAttachableFile = entFile.Contains("attachables", StringComparison.OrdinalIgnoreCase);
+            var parsedEntities = ParseClientEntityDetails(entFile);
+            foreach (var entityDetail in parsedEntities)
             {
+                var entId = entityDetail.Identifier;
                 var cleanEntityId = entId.StartsWith("minecraft:", StringComparison.OrdinalIgnoreCase)
                     ? entId.Substring("minecraft:".Length)
                     : entId;
 
                 var entityDisplayName = vanilla?.GetEntityDisplayName(entId) ?? cleanEntityId;
 
-                foreach (var (slotKey, rawTexPath) in texDict)
+                foreach (var (slotKey, rawTexPath) in entityDetail.Textures)
                 {
+                    entityDetail.Geometries.TryGetValue(slotKey, out var geoId);
+                    if (string.IsNullOrEmpty(geoId))
+                        entityDetail.Geometries.TryGetValue("default", out geoId);
+                    if (string.IsNullOrEmpty(geoId) && vanilla != null)
+                        geoId = vanilla.GetGeometryForEntity(entId);
+
                     var (fullPath, finalRel, exists) = ResolveTexture(packRoot, rawTexPath, existingFiles, texturesDirNormalized, "entity");
                     if (exists) matchedFiles.Add(fullPath);
 
@@ -219,6 +227,8 @@ public static class PackScanner
                         Category = TextureCategory.Entity,
                         EntityId = entId,
                         TextureKey = slotKey,
+                        GeometryId = geoId,
+                        IsAttachable = entityDetail.IsAttachable || isAttachableFile,
                         Alias = $"{cleanEntityId}:{slotKey}",
                         DisplayName = entityDisplayName,
                         RelativePath = finalRel,
@@ -1993,6 +2003,109 @@ public static class PackScanner
         return result;
     }
 
+    /// <summary>
+    /// Builds the hierarchical 4-tier tree for the Entity Workspace view from all entity
+    /// and attachable TextureAlias entries discovered in the active resource pack.
+    /// </summary>
+    public static List<BlockGroupNode> BuildEntityWorkspaceTree(
+        IList<TextureAlias> userAliases,
+        VanillaData? vanilla,
+        string? packRoot)
+    {
+        var result = new List<BlockGroupNode>();
+
+        var entityAliases = userAliases
+            .Where(a => a.Category == TextureCategory.Entity && a.Status != TextureStatus.NoEntry)
+            .ToList();
+
+        if (entityAliases.Count == 0)
+            return result;
+
+        // Group by EntityId (e.g. "minecraft:zombie", "minecraft:elytra")
+        var groups = entityAliases
+            .GroupBy(a => !string.IsNullOrEmpty(a.EntityId) ? a.EntityId : a.Alias, StringComparer.OrdinalIgnoreCase)
+            .OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase);
+
+        foreach (var group in groups)
+        {
+            var entityId = group.Key;
+            var cleanId = entityId.StartsWith("minecraft:", StringComparison.OrdinalIgnoreCase)
+                ? entityId.Substring("minecraft:".Length)
+                : entityId;
+
+            var firstTile = group.FirstOrDefault();
+            var isAttachable = firstTile?.IsAttachable == true;
+            var displayName = vanilla?.GetEntityDisplayName(entityId) ?? cleanId;
+
+            var entityNode = new BlockGroupNode
+            {
+                BlockId = entityId,
+                DisplayName = displayName,
+                Category = TextureCategory.Entity,
+                IsUserDefined = true
+            };
+
+            var aliasNode = new AliasGroupNode
+            {
+                Alias = cleanId,
+                Category = TextureCategory.Entity,
+                FaceSummary = isAttachable ? "attachable" : "entity",
+                GeometryId = firstTile?.GeometryId,
+                IsAttachable = isAttachable
+            };
+
+            var faceNode = new FaceNode
+            {
+                FaceLabel = isAttachable ? "attachable" : "model"
+            };
+
+            foreach (var tile in group)
+            {
+                var leafStatus = tile.Status switch
+                {
+                    TextureStatus.Ok => CatalogEntryStatus.Ok,
+                    TextureStatus.Ghost => CatalogEntryStatus.Ghost,
+                    _ => CatalogEntryStatus.Orphan
+                };
+
+                var slotCaption = !string.IsNullOrEmpty(tile.TextureKey)
+                    ? tile.TextureKey
+                    : "default";
+
+                var leaf = new CatalogLeaf
+                {
+                    Alias = tile.Alias,
+                    DisplayName = tile.DisplayName,
+                    RelativePath = tile.RelativePath,
+                    FullPath = tile.FullPath,
+                    Category = TextureCategory.Entity,
+                    Status = leafStatus,
+                    TextureAlias = tile,
+                    EntityId = tile.EntityId,
+                    TextureKey = tile.TextureKey,
+                    GeometryId = tile.GeometryId,
+                    IsAttachable = tile.IsAttachable,
+                    VariantKind = tile.VariantKind,
+                    SubtitleCaption = !string.IsNullOrEmpty(tile.SubtitleCaption) ? tile.SubtitleCaption : slotCaption,
+                    PrimaryFaceBadgeText = slotCaption
+                };
+
+                faceNode.Leaves.Add(leaf);
+                aliasNode.Leaves.Add(leaf);
+            }
+
+            aliasNode.FaceNodes.Add(faceNode);
+            aliasNode.NotifyCountsChanged();
+
+            entityNode.AliasGroups.Add(aliasNode);
+            entityNode.NotifyCountsChanged();
+
+            result.Add(entityNode);
+        }
+
+        return result;
+    }
+
     private static string SummarizeFaces(List<BlockFaceUsage> faces)
     {
         if (faces.Count == 0) return string.Empty;
@@ -2005,19 +2118,29 @@ public static class PackScanner
     }
 
     /// <summary>
-    /// Parses a Minecraft Bedrock client entity or attachable JSON file and extracts
-    /// all declared entity IDs and their texture slot dictionary (slotName -> texturePath).
+    /// Parsed detail for a Minecraft Bedrock client entity or attachable definition.
     /// </summary>
-    public static Dictionary<string, Dictionary<string, string>> ParseClientEntityFile(string filePath)
+    public record ClientEntityDetails(
+        string Identifier,
+        Dictionary<string, string> Textures,
+        Dictionary<string, string> Geometries,
+        bool IsAttachable
+    );
+
+    /// <summary>
+    /// Parses a Minecraft Bedrock client entity or attachable JSON file and extracts
+    /// all declared entity IDs, texture slots, geometry mappings, and attachable state.
+    /// </summary>
+    public static List<ClientEntityDetails> ParseClientEntityDetails(string filePath)
     {
-        var result = new Dictionary<string, Dictionary<string, string>>(StringComparer.OrdinalIgnoreCase);
+        var result = new List<ClientEntityDetails>();
         if (!File.Exists(filePath)) return result;
 
         try
         {
             using var stream = File.OpenRead(filePath);
             using var doc = JsonDocument.Parse(stream, ScanDocOptions);
-            return ParseClientEntity(doc);
+            return ParseClientEntityDetails(doc);
         }
         catch
         {
@@ -2027,21 +2150,19 @@ public static class PackScanner
 
     /// <summary>
     /// Parses a Minecraft Bedrock client entity or attachable JsonDocument and extracts
-    /// all declared entity IDs and their texture slot dictionary (slotName -> texturePath).
+    /// all declared entity IDs, texture slots, geometry mappings, and attachable state.
     /// </summary>
-    public static Dictionary<string, Dictionary<string, string>> ParseClientEntity(JsonDocument doc)
+    public static List<ClientEntityDetails> ParseClientEntityDetails(JsonDocument doc)
     {
-        var result = new Dictionary<string, Dictionary<string, string>>(StringComparer.OrdinalIgnoreCase);
+        var result = new List<ClientEntityDetails>();
         if (doc.RootElement.ValueKind != JsonValueKind.Object) return result;
 
         foreach (var rootProp in doc.RootElement.EnumerateObject())
         {
-            if (!rootProp.Name.Equals("minecraft:client_entity", StringComparison.OrdinalIgnoreCase) &&
-                !rootProp.Name.Equals("minecraft:attachable", StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
+            bool isClientEntity = rootProp.Name.Equals("minecraft:client_entity", StringComparison.OrdinalIgnoreCase);
+            bool isAttachable = rootProp.Name.Equals("minecraft:attachable", StringComparison.OrdinalIgnoreCase);
 
+            if (!isClientEntity && !isAttachable) continue;
             if (rootProp.Value.ValueKind != JsonValueKind.Object) continue;
 
             if (rootProp.Value.TryGetProperty("description", out var desc) && desc.ValueKind == JsonValueKind.Object)
@@ -2055,7 +2176,6 @@ public static class PackScanner
                 if (string.IsNullOrWhiteSpace(identifier)) continue;
 
                 var texturesDict = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-
                 if (desc.TryGetProperty("textures", out var texProp))
                 {
                     if (texProp.ValueKind == JsonValueKind.Object)
@@ -2082,23 +2202,70 @@ public static class PackScanner
                     }
                 }
 
-                if (texturesDict.Count > 0)
+                var geometriesDict = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                if (desc.TryGetProperty("geometry", out var geoProp))
                 {
-                    if (!result.TryGetValue(identifier, out var existing))
+                    if (geoProp.ValueKind == JsonValueKind.Object)
                     {
-                        result[identifier] = texturesDict;
-                    }
-                    else
-                    {
-                        foreach (var (k, v) in texturesDict)
+                        foreach (var slot in geoProp.EnumerateObject())
                         {
-                            existing[k] = v;
+                            if (slot.Value.ValueKind == JsonValueKind.String)
+                            {
+                                var val = slot.Value.GetString();
+                                if (!string.IsNullOrWhiteSpace(val))
+                                {
+                                    geometriesDict[slot.Name] = val;
+                                }
+                            }
                         }
                     }
+                    else if (geoProp.ValueKind == JsonValueKind.String)
+                    {
+                        var val = geoProp.GetString();
+                        if (!string.IsNullOrWhiteSpace(val))
+                        {
+                            geometriesDict["default"] = val;
+                        }
+                    }
+                }
+
+                if (texturesDict.Count > 0 || geometriesDict.Count > 0)
+                {
+                    result.Add(new ClientEntityDetails(identifier, texturesDict, geometriesDict, isAttachable));
                 }
             }
         }
 
+        return result;
+    }
+
+    /// <summary>
+    /// Legacy compatibility helper: Parses a Minecraft Bedrock client entity or attachable JSON file and extracts
+    /// all declared entity IDs and their texture slot dictionary (slotName -> texturePath).
+    /// </summary>
+    public static Dictionary<string, Dictionary<string, string>> ParseClientEntityFile(string filePath)
+    {
+        var result = new Dictionary<string, Dictionary<string, string>>(StringComparer.OrdinalIgnoreCase);
+        var details = ParseClientEntityDetails(filePath);
+        foreach (var d in details)
+        {
+            result[d.Identifier] = d.Textures;
+        }
+        return result;
+    }
+
+    /// <summary>
+    /// Legacy compatibility helper: Parses a Minecraft Bedrock client entity or attachable JsonDocument and extracts
+    /// all declared entity IDs and their texture slot dictionary (slotName -> texturePath).
+    /// </summary>
+    public static Dictionary<string, Dictionary<string, string>> ParseClientEntity(JsonDocument doc)
+    {
+        var result = new Dictionary<string, Dictionary<string, string>>(StringComparer.OrdinalIgnoreCase);
+        var details = ParseClientEntityDetails(doc);
+        foreach (var d in details)
+        {
+            result[d.Identifier] = d.Textures;
+        }
         return result;
     }
 }

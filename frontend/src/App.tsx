@@ -10,6 +10,7 @@ import { Sidebar } from './components/sidebar/Sidebar';
 import { Toolbar } from './components/toolbar/Toolbar';
 import { PackGrid } from './components/grid/PackGrid';
 import { BlockWorkspace } from './components/workspace/BlockWorkspace';
+import { EntityWorkspace } from './components/workspace/EntityWorkspace';
 import { ManifestEditor } from './components/manifest/ManifestEditor';
 import { CatalogDrawer } from './components/catalog/CatalogDrawer';
 import { MenuBar } from './components/menus/MenuBar';
@@ -199,6 +200,8 @@ export const App: React.FC = () => {
               <Toolbar />
               {activeView === 'workspace' ? (
                 <BlockWorkspace />
+              ) : activeView === 'entity' ? (
+                <EntityWorkspace />
               ) : activeView === 'manifest' ? (
                 <ManifestEditor />
               ) : (

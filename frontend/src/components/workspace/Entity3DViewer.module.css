@@ -1,0 +1,190 @@
+/* frontend/src/components/workspace/Entity3DViewer.module.css */
+
+.viewerContainer {
+  position: relative;
+  width: 100%;
+  height: 380px;
+  background: radial-gradient(circle at center, #1e2029 0%, #101116 100%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+}
+
+.canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+  cursor: grab;
+  touch-action: none;
+}
+
+.canvas:active {
+  cursor: grabbing;
+}
+
+.overlayControls {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  gap: 6px;
+  z-index: 100;
+  pointer-events: auto;
+}
+
+.controlButton {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(24, 24, 30, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  color: #a1a1aa;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  pointer-events: auto;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.controlButton:hover {
+  background: rgba(45, 45, 55, 0.95);
+  border-color: rgba(255, 255, 255, 0.4);
+  color: #ffffff;
+}
+
+.controlButtonActive {
+  background: rgba(59, 130, 246, 0.25);
+  border-color: #3b82f6;
+  color: #60a5fa;
+}
+
+.hintText {
+  position: absolute;
+  bottom: 8px;
+  right: 12px;
+  font-size: 10px;
+  color: #52525b;
+  pointer-events: none;
+}
+
+/* Camera pan drag handle (upper middle horizontal pill) */
+.dragHandle {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 48px;
+  height: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  background: rgba(24, 24, 30, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  backdrop-filter: blur(8px);
+  cursor: grab;
+  z-index: 100;
+  pointer-events: auto;
+  touch-action: none;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.dragHandle:hover {
+  background: rgba(45, 45, 55, 0.95);
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+.dragHandle:active {
+  background: rgba(45, 45, 55, 0.95);
+  border-color: rgba(255, 255, 255, 0.45);
+  cursor: grabbing;
+}
+
+.dragHandleBar {
+  width: 20px;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.45);
+  border-radius: 0.5px;
+}
+
+.dragHandle:hover .dragHandleBar,
+.dragHandle:active .dragHandleBar {
+  background: rgba(255, 255, 255, 0.9);
+}
+
+/* Geometry HUD Tag in bottom-left */
+.geometryInfoTag {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  background: rgba(18, 18, 22, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+  backdrop-filter: blur(8px);
+  pointer-events: none;
+  z-index: 90;
+}
+
+.geometryInfoIcon {
+  color: #38bdf8;
+  flex-shrink: 0;
+}
+
+.geometryInfoDetails {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.geometryInfoId {
+  font-family: var(--font-pixel, monospace);
+  font-size: 9px;
+  color: #e2e8f0;
+  letter-spacing: 0.02em;
+}
+
+.geometryInfoSub {
+  font-size: 8.5px;
+  color: #94a3b8;
+}
+
+.statusNotice {
+  position: absolute;
+  top: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 4px 10px;
+  background: rgba(39, 39, 42, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+  font-size: 10px;
+  color: #a1a1aa;
+  pointer-events: none;
+}
+
+.errorNotice {
+  position: absolute;
+  top: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 4px 10px;
+  background: rgba(239, 68, 68, 0.2);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  border-radius: 4px;
+  font-size: 10px;
+  color: #fca5a5;
+  pointer-events: none;
+}

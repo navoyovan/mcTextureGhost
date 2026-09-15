@@ -491,6 +491,8 @@ public static class CatalogReferenceService
             declaredItemPaths,
             entityDefinitions,
             declaredEntityPaths,
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
             DateTime.Now,
             $"Custom Pack: {packName}"
         );

@@ -86,8 +86,11 @@ public class CatalogLeaf : INotifyPropertyChanged
         }
     }
 
-    /// <summary>Backing TextureAlias if present in user pack, or null if NotAdded.</summary>
     public TextureAlias? TextureAlias { get; set; }
+    public string? EntityId { get; set; }
+    public string? TextureKey { get; set; }
+    public string? GeometryId { get; set; }
+    public bool IsAttachable { get; set; }
 
     public string SubtitleCaption { get; set; } = string.Empty;
     public string PrimaryFaceBadgeText { get; set; } = string.Empty;
@@ -200,6 +203,8 @@ public class AliasGroupNode : INotifyPropertyChanged
     public required string Alias { get; init; }
     public required TextureCategory Category { get; init; }
     public BlockGroupNode? ParentBlock { get; set; }
+    public string? GeometryId { get; init; }
+    public bool IsAttachable { get; init; }
 
     /// <summary>Flat leaf collection — used by the Catalog dialog.</summary>
     public ObservableCollection<CatalogLeaf> Leaves { get; } = new();

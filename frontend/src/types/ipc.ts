@@ -33,6 +33,7 @@ export const IpcMessageTypes = {
   AddVanillaEntry: 'ADD_VANILLA_ENTRY',
   TextureDeleteFile: 'TEXTURE:DELETE_FILE',
   TextureDeleteEntries: 'TEXTURE:DELETE_ENTRIES',
+  GeometryGet: 'GEOMETRY:GET',
 
   // Outgoing from C# to Web
   PackStateChanged: 'PACK:STATE_CHANGED',
@@ -41,6 +42,7 @@ export const IpcMessageTypes = {
   AppConfig: 'APP:CONFIG',
   ErrorNotify: 'ERROR:NOTIFY',
   CatalogReferencesUpdated: 'CATALOG:REFERENCES_UPDATED',
+  GeometryData: 'GEOMETRY:DATA',
 } as const;
 
 export type IpcMessageType = (typeof IpcMessageTypes)[keyof typeof IpcMessageTypes];
@@ -123,6 +125,17 @@ export interface VanillaAddPayload {
   category: 'block' | 'item';
 }
 
+export interface GeometryGetPayload {
+  geometryId?: string | null;
+  entityId?: string | null;
+}
+
+export interface GeometryDataPayload {
+  geometryId: string;
+  rawJson: string;
+  entityId?: string | null;
+}
+
 // Sub-DTOs
 export interface PackStatsDto {
   totalCount: number;
@@ -165,6 +178,8 @@ export interface TextureAliasDto {
   category: 'block' | 'item' | 'entity';
   entityId?: string | null;
   textureKey?: string | null;
+  geometryId?: string | null;
+  isAttachable?: boolean;
   status: 'OK' | 'GHOST' | 'ORPHAN' | 'NEW' | 'OVERRIDE';
   exists: boolean;
   imageUrl: string;
@@ -191,6 +206,10 @@ export interface CatalogLeafDto {
   relativePath: string;
   fullPath: string;
   category: string;
+  entityId?: string | null;
+  textureKey?: string | null;
+  geometryId?: string | null;
+  isAttachable?: boolean;
   status: 'OK' | 'GHOST' | 'OVERRIDE' | 'ORPHAN' | 'VANILLA';
   imageUrl: string;
   subtitleCaption: string;
@@ -220,6 +239,8 @@ export interface AliasGroupNodeDto {
   leaves: CatalogLeafDto[];
   ghostCount: number;
   notAddedCount: number;
+  geometryId?: string | null;
+  isAttachable?: boolean;
 }
 
 export interface BlockGroupNodeDto {
@@ -308,6 +329,7 @@ export interface PackStatePayload {
   catalogTree?: BlockGroupNodeDto[] | null;
   referencePacks?: ReferencePackProfile[] | null;
   activeReferenceId?: string | null;
+  entityWorkspaceTree?: BlockGroupNodeDto[] | null;
 }
 
 export interface ScanProgressPayload {

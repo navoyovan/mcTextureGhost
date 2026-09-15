@@ -23,6 +23,7 @@ export interface PackStoreState {
   manifest: ManifestModelDto | null;
   aliases: TextureAliasDto[];
   blockWorkspaceTree: BlockGroupNodeDto[];
+  entityWorkspaceTree: BlockGroupNodeDto[];
   packFolders: PackFolderItemDto[];
   recentPacks: RecentPackItemDto[];
   stats: PackStatsDto;
@@ -35,7 +36,7 @@ export interface PackStoreState {
   activeTab: 'all' | 'blocks' | 'items' | 'entities';
   searchQuery: string;
   statusFilter: 'all' | 'ghosts' | 'added' | 'orphans';
-  activeView: 'grid' | 'workspace' | 'manifest';
+  activeView: 'grid' | 'workspace' | 'entity' | 'manifest';
   selectedBlockId: string | null;
   selectedAliasKey: string | null;
   selectedFolderPath: string | null;
@@ -63,7 +64,7 @@ export interface PackStoreActions {
   setActiveTab: (tab: 'all' | 'blocks' | 'items' | 'entities') => void;
   setSearchQuery: (query: string) => void;
   setStatusFilter: (filter: 'all' | 'ghosts' | 'added' | 'orphans') => void;
-  setActiveView: (view: 'grid' | 'workspace' | 'manifest') => void;
+  setActiveView: (view: 'grid' | 'workspace' | 'entity' | 'manifest') => void;
   setSelectedBlockId: (id: string | null) => void;
   setSelectedAliasKey: (key: string | null) => void;
   setSelectedFolderPath: (path: string | null) => void;
@@ -104,6 +105,7 @@ const initialState: PackStoreState = {
   manifest: null,
   aliases: [],
   blockWorkspaceTree: [],
+  entityWorkspaceTree: [],
   packFolders: [],
   recentPacks: [],
   stats: initialStats,
@@ -195,6 +197,7 @@ export const packStoreActions: PackStoreActions = {
       manifest: dto.manifest ?? currentState.manifest,
       aliases: sanitizedAliases,
       blockWorkspaceTree: Array.isArray(dto.blockWorkspaceTree) ? dto.blockWorkspaceTree : currentState.blockWorkspaceTree,
+      entityWorkspaceTree: Array.isArray(dto.entityWorkspaceTree) ? dto.entityWorkspaceTree : currentState.entityWorkspaceTree,
       packFolders: Array.isArray(dto.packFolders) ? dto.packFolders : currentState.packFolders,
       recentPacks: Array.isArray(dto.recentPacks) ? dto.recentPacks : currentState.recentPacks,
       catalogTree: dto.catalogTree !== undefined ? dto.catalogTree : currentState.catalogTree,
@@ -281,7 +284,7 @@ export const packStoreActions: PackStoreActions = {
     notify();
   },
 
-  setActiveView(view: 'grid' | 'workspace' | 'manifest'): void {
+  setActiveView(view: 'grid' | 'workspace' | 'entity' | 'manifest'): void {
     currentState = { ...currentState, activeView: view };
     notify();
   },

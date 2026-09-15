@@ -23,10 +23,42 @@ public record VanillaData(
     HashSet<string> DeclaredItemPaths,
     Dictionary<string, Dictionary<string, string>> EntityDefinitions,
     HashSet<string> DeclaredEntityPaths,
+    Dictionary<string, string> RawGeometryJson,
+    Dictionary<string, string> EntityGeometryMap,
     DateTime CachedAt,
     string VersionInfo
 )
 {
+    public string? GetGeometryForEntity(string entityId)
+    {
+        if (EntityGeometryMap.TryGetValue(entityId, out var geoId))
+            return geoId;
+        var cleanId = entityId.StartsWith("minecraft:", StringComparison.OrdinalIgnoreCase)
+            ? entityId.Substring(10)
+            : entityId;
+        if (EntityGeometryMap.TryGetValue(cleanId, out geoId))
+            return geoId;
+        return null;
+    }
+
+    public string? GetGeometryJson(string geometryId)
+    {
+        if (RawGeometryJson.TryGetValue(geometryId, out var json))
+            return json;
+        var clean = geometryId.Replace("geometry.", "", StringComparison.OrdinalIgnoreCase);
+        if (RawGeometryJson.TryGetValue(clean, out json))
+            return json;
+        // Check without version suffix (e.g. "zombie.v1.8" -> "zombie")
+        var dotIdx = clean.IndexOf('.');
+        if (dotIdx > 0)
+        {
+            var baseName = clean.Substring(0, dotIdx);
+            if (RawGeometryJson.TryGetValue(baseName, out json))
+                return json;
+        }
+        return null;
+    }
+
     public string GetBlockDisplayName(string blockId)
     {
         var cleanId = blockId;
@@ -98,6 +130,12 @@ public static class VanillaDataService
 
     private const string PackIconUrl = $"{BaseRawUrl}/pack_icon.png";
 
+    private static readonly string[] KnownSeedDirectories =
+    [
+        @"C:\Users\yovan\Diskette\resource_packs\resource_pack",
+        @"C:\Users\yovan\Diskette\resource_packs\vanilla"
+    ];
+
     private static readonly HttpClient HttpClient = new()
     {
         Timeout = TimeSpan.FromSeconds(25)
@@ -122,6 +160,11 @@ public static class VanillaDataService
 
         if (!forceRefresh && cacheComplete)
         {
+            if (!Directory.Exists(Path.Combine(cacheDir, "models", "entity")) || !Directory.Exists(Path.Combine(cacheDir, "entity")))
+            {
+                TrySeedFromLocalDirectory(cacheDir, onProgress);
+            }
+
             onProgress?.Invoke("Loading vanilla data from cache...");
             try
             {
@@ -129,26 +172,109 @@ public static class VanillaDataService
             }
             catch
             {
-                // Fall back to re-download if cache was corrupt
+                // Fall back to re-download or re-seed if cache was corrupt
             }
         }
 
-        onProgress?.Invoke("Downloading vanilla reference data...");
-        bool downloadSuccess = await DownloadAndCacheAsync(cacheDir, onProgress);
-
-        if (downloadSuccess)
+        // 1. Try seeding from local Bedrock repository clone first (fast, offline, no GitHub rate limits)
+        bool seeded = TrySeedFromLocalDirectory(cacheDir, onProgress);
+        if (seeded || IsCacheComplete(cacheDir))
         {
             onProgress?.Invoke("Parsing vanilla catalog...");
             return await Task.Run(() => LoadFromDisk(cacheDir));
         }
 
-        if (cacheComplete)
+        onProgress?.Invoke("Downloading vanilla reference data...");
+        bool downloadSuccess = await DownloadAndCacheAsync(cacheDir, onProgress);
+
+        if (downloadSuccess || IsCacheComplete(cacheDir))
         {
-            onProgress?.Invoke("Network unavailable; using cached vanilla data.");
+            onProgress?.Invoke("Parsing vanilla catalog...");
             return await Task.Run(() => LoadFromDisk(cacheDir));
         }
 
         return null;
+    }
+
+    public static bool TrySeedFromLocalDirectory(string cacheDir, Action<string>? onProgress = null)
+    {
+        foreach (var seedDir in KnownSeedDirectories)
+        {
+            if (!Directory.Exists(seedDir)) continue;
+
+            try
+            {
+                Directory.CreateDirectory(cacheDir);
+                var seedName = Path.GetFileName(seedDir);
+                onProgress?.Invoke($"Seeding reference catalog from {seedName}...");
+
+                // Master JSON files
+                CopyFileIfExists(Path.Combine(seedDir, "blocks.json"), Path.Combine(cacheDir, "blocks.json"));
+                CopyFileIfExists(Path.Combine(seedDir, "textures", "terrain_texture.json"), Path.Combine(cacheDir, "terrain_texture.json"));
+                CopyFileIfExists(Path.Combine(seedDir, "textures", "item_texture.json"), Path.Combine(cacheDir, "item_texture.json"));
+                CopyFileIfExists(Path.Combine(seedDir, "textures", "flipbook_textures.json"), Path.Combine(cacheDir, "flipbook_textures.json"));
+                CopyFileIfExists(Path.Combine(seedDir, "texts", "en_US.lang"), Path.Combine(cacheDir, "en_US.lang"));
+                CopyFileIfExists(Path.Combine(seedDir, "pack_icon.png"), Path.Combine(cacheDir, "pack_icon.png"));
+
+                // Entity definitions
+                var seedEntityDir = Path.Combine(seedDir, "entity");
+                if (Directory.Exists(seedEntityDir))
+                {
+                    var targetEntityDir = Path.Combine(cacheDir, "entity");
+                    Directory.CreateDirectory(targetEntityDir);
+                    CopyDirectoryContents(seedEntityDir, targetEntityDir, "*.json");
+                }
+
+                // Attachables definitions
+                var seedAttachablesDir = Path.Combine(seedDir, "attachables");
+                if (Directory.Exists(seedAttachablesDir))
+                {
+                    var targetAttachablesDir = Path.Combine(cacheDir, "attachables");
+                    Directory.CreateDirectory(targetAttachablesDir);
+                    CopyDirectoryContents(seedAttachablesDir, targetAttachablesDir, "*.json");
+                }
+
+                // Models & Geometry
+                var seedModelsEntityDir = Path.Combine(seedDir, "models", "entity");
+                if (Directory.Exists(seedModelsEntityDir))
+                {
+                    var targetModelsEntityDir = Path.Combine(cacheDir, "models", "entity");
+                    Directory.CreateDirectory(targetModelsEntityDir);
+                    CopyDirectoryContents(seedModelsEntityDir, targetModelsEntityDir, "*.json");
+                }
+
+                var meta = $"Seeded from {seedDir} on {DateTime.UtcNow:O}";
+                File.WriteAllText(Path.Combine(cacheDir, "version.txt"), meta);
+                return true;
+            }
+            catch
+            {
+                // Continue to next seed candidate
+            }
+        }
+        return false;
+    }
+
+    private static void CopyFileIfExists(string source, string destination)
+    {
+        if (File.Exists(source))
+        {
+            var dir = Path.GetDirectoryName(destination);
+            if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
+            File.Copy(source, destination, true);
+        }
+    }
+
+    private static void CopyDirectoryContents(string sourceDir, string targetDir, string searchPattern)
+    {
+        foreach (var file in Directory.EnumerateFiles(sourceDir, searchPattern, SearchOption.AllDirectories))
+        {
+            var rel = Path.GetRelativePath(sourceDir, file);
+            var dest = Path.Combine(targetDir, rel);
+            var destDir = Path.GetDirectoryName(dest);
+            if (!string.IsNullOrEmpty(destDir)) Directory.CreateDirectory(destDir);
+            File.Copy(file, dest, true);
+        }
     }
 
     private static bool IsCacheComplete(string cacheDir)
@@ -159,7 +285,9 @@ public static class VanillaDataService
                File.Exists(Path.Combine(cacheDir, "item_texture.json")) &&
                File.Exists(Path.Combine(cacheDir, "flipbook_textures.json")) &&
                File.Exists(Path.Combine(cacheDir, "en_US.lang")) &&
-               File.Exists(Path.Combine(cacheDir, "pack_icon.png"));
+               File.Exists(Path.Combine(cacheDir, "pack_icon.png")) &&
+               Directory.Exists(Path.Combine(cacheDir, "models", "entity")) &&
+               Directory.Exists(Path.Combine(cacheDir, "entity"));
     }
 
     private static async Task<bool> DownloadAndCacheAsync(string cacheDir, Action<string>? onProgress)
@@ -363,9 +491,10 @@ public static class VanillaDataService
             }
         }
 
-        // 6. Entity & Attachable Definitions
+        // 6. Entity & Attachable Definitions and Geometry Mappings
         var entityDefinitions = new Dictionary<string, Dictionary<string, string>>(StringComparer.OrdinalIgnoreCase);
         var declaredEntityPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var entityGeometryMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
         var entityCacheDir = Path.Combine(cacheDir, "entity");
         var attachablesCacheDir = Path.Combine(cacheDir, "attachables");
@@ -382,18 +511,90 @@ public static class VanillaDataService
                 {
                     try
                     {
-                        var parsed = PackScanner.ParseClientEntityFile(file);
-                        foreach (var (entId, texDict) in parsed)
+                        var entityDetails = PackScanner.ParseClientEntityDetails(file);
+                        foreach (var detail in entityDetails)
                         {
-                            if (!entityDefinitions.TryGetValue(entId, out var existing))
+                            if (!entityDefinitions.TryGetValue(detail.Identifier, out var existing))
                             {
-                                entityDefinitions[entId] = existing = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                                entityDefinitions[detail.Identifier] = existing = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
                             }
-                            foreach (var (slot, rawTex) in texDict)
+                            foreach (var (slot, rawTex) in detail.Textures)
                             {
                                 existing[slot] = rawTex;
                                 var norm = NormalizeTexturePath(rawTex);
                                 declaredEntityPaths.Add(norm);
+                            }
+
+                            if (detail.Geometries.TryGetValue("default", out var defaultGeo) && !string.IsNullOrWhiteSpace(defaultGeo))
+                            {
+                                entityGeometryMap[detail.Identifier] = defaultGeo;
+                            }
+                            else if (detail.Geometries.Count > 0)
+                            {
+                                entityGeometryMap[detail.Identifier] = detail.Geometries.Values.First();
+                            }
+                        }
+                    }
+                    catch { }
+                }
+            }
+            catch { }
+        }
+
+        // 7. Entity & Attachable Geometry Files (*.geo.json, *.json under models/)
+        var rawGeometryJson = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var modelsEntityDir = Path.Combine(cacheDir, "models", "entity");
+        var modelsDir = Path.Combine(cacheDir, "models");
+
+        var geoDirs = new List<string>();
+        if (Directory.Exists(modelsEntityDir)) geoDirs.Add(modelsEntityDir);
+        if (Directory.Exists(modelsDir) && !geoDirs.Contains(modelsDir)) geoDirs.Add(modelsDir);
+
+        foreach (var gd in geoDirs)
+        {
+            try
+            {
+                foreach (var file in Directory.EnumerateFiles(gd, "*.json", SearchOption.AllDirectories))
+                {
+                    try
+                    {
+                        var jsonText = File.ReadAllText(file);
+                        var fileName = Path.GetFileNameWithoutExtension(file);
+                        rawGeometryJson[fileName] = jsonText;
+                        if (fileName.EndsWith(".geo", StringComparison.OrdinalIgnoreCase))
+                        {
+                            rawGeometryJson[fileName.Substring(0, fileName.Length - 4)] = jsonText;
+                        }
+
+                        using var doc = JsonDocument.Parse(jsonText, PackScanner.ScanDocOptions);
+                        if (doc.RootElement.ValueKind == JsonValueKind.Object)
+                        {
+                            // Check format 1.8.0 ("geometry.zombie.v1.8": { ... })
+                            foreach (var prop in doc.RootElement.EnumerateObject())
+                            {
+                                if (prop.Name.StartsWith("geometry.", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    rawGeometryJson[prop.Name] = jsonText;
+                                }
+                            }
+
+                            // Check format 1.12.0+ ("minecraft:geometry": [ { "description": { "identifier": "..." } } ])
+                            if (doc.RootElement.TryGetProperty("minecraft:geometry", out var mg) && mg.ValueKind == JsonValueKind.Array)
+                            {
+                                foreach (var gObj in mg.EnumerateArray())
+                                {
+                                    if (gObj.ValueKind == JsonValueKind.Object &&
+                                        gObj.TryGetProperty("description", out var desc) &&
+                                        desc.TryGetProperty("identifier", out var idProp) &&
+                                        idProp.ValueKind == JsonValueKind.String)
+                                    {
+                                        var geoId = idProp.GetString();
+                                        if (!string.IsNullOrEmpty(geoId))
+                                        {
+                                            rawGeometryJson[geoId] = jsonText;
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -418,6 +619,8 @@ public static class VanillaDataService
             declaredItemPaths,
             entityDefinitions,
             declaredEntityPaths,
+            rawGeometryJson,
+            entityGeometryMap,
             cachedAt,
             versionInfo
         );

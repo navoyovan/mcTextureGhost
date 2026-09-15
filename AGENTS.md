@@ -11,7 +11,9 @@ Consult these project specification files **only when relevant** to the task at 
    - **When to read:** Only when building complex data pipelines, multi-model state schemas, or deep IPC refactors.
 4. **`RISKS_AND_EDGE_CASES.md`** (Failure Prevention)
    - **When to read:** Only when handling file locks, DWM window hooks, or raw Bedrock polymorphic JSON.
-5. **`AGENTS.md`** (System Instructions & Workflow - THIS FILE)
+5. **`.agents/rules/entity-workspace.md`** (Entity & 3D Geometry Invariants)
+   - **When to read:** Only when modifying Bedrock `.geo.json` parsers, bone hierarchies, Three.js box UVs, or EntityWorkspace.
+6. **`AGENTS.md`** (System Instructions & Workflow - THIS FILE)
    - **Scope:** Execution rules, code style, build safety invariants.
 
 ---

@@ -68,6 +68,7 @@ public static class IpcMessageTypes
     public const string AddVanillaEntry  = "ADD_VANILLA_ENTRY";
     public const string TextureDeleteFile = "TEXTURE:DELETE_FILE";
     public const string TextureDeleteEntries = "TEXTURE:DELETE_ENTRIES";
+    public const string GeometryGet      = "GEOMETRY:GET";
 
     // Outgoing from C# to Web
     public const string PackStateChanged = "PACK:STATE_CHANGED";
@@ -76,6 +77,7 @@ public static class IpcMessageTypes
     public const string AppConfig        = "APP:CONFIG";
     public const string ErrorNotify      = "ERROR:NOTIFY";
     public const string CatalogReferencesUpdated = "CATALOG:REFERENCES_UPDATED";
+    public const string GeometryData     = "GEOMETRY:DATA";
 }
 
 #endregion
@@ -243,9 +245,23 @@ public record CatalogRemoveReferencePayload(
     [property: JsonPropertyName("id")] string Id
 );
 
+/// <summary>
+/// Payload for "GEOMETRY:GET". Requests raw Bedrock geometry JSON for an entity or geometry ID.
+/// </summary>
+public record GeometryGetPayload(
+    [property: JsonPropertyName("geometryId")] string? GeometryId = null,
+    [property: JsonPropertyName("entityId")] string? EntityId = null
+);
+
 #endregion
 
 #region Outgoing Event Payloads (C# -> Web)
+
+public record GeometryDataPayload(
+    [property: JsonPropertyName("geometryId")] string GeometryId,
+    [property: JsonPropertyName("rawJson")] string RawJson,
+    [property: JsonPropertyName("entityId")] string? EntityId = null
+);
 
 public record ReferencePackProfileDto(
     [property: JsonPropertyName("id")] string Id,
@@ -274,7 +290,8 @@ public record PackStatePayload(
     [property: JsonPropertyName("stats")] PackStatsDto Stats,
     [property: JsonPropertyName("catalogTree")] List<BlockGroupNodeDto>? CatalogTree = null,
     [property: JsonPropertyName("referencePacks")] List<ReferencePackProfileDto>? ReferencePacks = null,
-    [property: JsonPropertyName("activeReferenceId")] string? ActiveReferenceId = null
+    [property: JsonPropertyName("activeReferenceId")] string? ActiveReferenceId = null,
+    [property: JsonPropertyName("entityWorkspaceTree")] List<BlockGroupNodeDto>? EntityWorkspaceTree = null
 );
 
 /// <summary>
@@ -359,7 +376,7 @@ public record TextureAliasDto(
     [property: JsonPropertyName("displayName")] string DisplayName,
     [property: JsonPropertyName("relativePath")] string RelativePath,
     [property: JsonPropertyName("fullPath")] string FullPath,
-    [property: JsonPropertyName("category")] string Category, // "block" | "item"
+    [property: JsonPropertyName("category")] string Category, // "block" | "item" | "entity"
     [property: JsonPropertyName("status")] string Status, // "OK" | "GHOST" | "ORPHAN" | "NEW"
     [property: JsonPropertyName("exists")] bool Exists,
     [property: JsonPropertyName("imageUrl")] string ImageUrl,
@@ -377,7 +394,11 @@ public record TextureAliasDto(
     [property: JsonPropertyName("subtitleCaption")] string SubtitleCaption,
     [property: JsonPropertyName("hasMers")] bool HasMers = false,
     [property: JsonPropertyName("mersFullPath")] string? MersFullPath = null,
-    [property: JsonPropertyName("key")] string? Key = null
+    [property: JsonPropertyName("key")] string? Key = null,
+    [property: JsonPropertyName("entityId")] string? EntityId = null,
+    [property: JsonPropertyName("textureKey")] string? TextureKey = null,
+    [property: JsonPropertyName("geometryId")] string? GeometryId = null,
+    [property: JsonPropertyName("isAttachable")] bool IsAttachable = false
 );
 
 public record CatalogLeafDto(
@@ -397,7 +418,11 @@ public record CatalogLeafDto(
     [property: JsonPropertyName("totalBlockVariants")] int? TotalBlockVariants = null,
     [property: JsonPropertyName("textureVariantIndex")] int? TextureVariantIndex = null,
     [property: JsonPropertyName("totalTextureVariants")] int? TotalTextureVariants = null,
-    [property: JsonPropertyName("weight")] int? Weight = null
+    [property: JsonPropertyName("weight")] int? Weight = null,
+    [property: JsonPropertyName("entityId")] string? EntityId = null,
+    [property: JsonPropertyName("textureKey")] string? TextureKey = null,
+    [property: JsonPropertyName("geometryId")] string? GeometryId = null,
+    [property: JsonPropertyName("isAttachable")] bool IsAttachable = false
 );
 
 public record FaceNodeDto(
@@ -414,7 +439,9 @@ public record AliasGroupNodeDto(
     [property: JsonPropertyName("faceNodes")] List<FaceNodeDto> FaceNodes,
     [property: JsonPropertyName("leaves")] List<CatalogLeafDto> Leaves,
     [property: JsonPropertyName("ghostCount")] int GhostCount,
-    [property: JsonPropertyName("notAddedCount")] int NotAddedCount
+    [property: JsonPropertyName("notAddedCount")] int NotAddedCount,
+    [property: JsonPropertyName("geometryId")] string? GeometryId = null,
+    [property: JsonPropertyName("isAttachable")] bool IsAttachable = false
 );
 
 public record BlockGroupNodeDto(
@@ -448,8 +475,8 @@ public record RecentPackItemDto(
     [property: JsonPropertyName("hasPackIcon")] bool HasPackIcon,
     [property: JsonPropertyName("lastOpened")] DateTime LastOpened,
     [property: JsonPropertyName("relativeTime")] string RelativeTime,
-    [property: JsonPropertyName("version")] string? Version,
-    [property: JsonPropertyName("displayFolder")] string DisplayFolder
+    [property: JsonPropertyName("version")] string? Version = null,
+    [property: JsonPropertyName("displayFolder")] string DisplayFolder = ""
 );
 
 public record ManifestModelDto(
@@ -527,12 +554,18 @@ public static class IpcContractMapper
             ? string.Empty
             : BuildVirtualTextureUrl(alias.RelativePath, alias.FullPath, packRoot);
 
+        var catStr = alias.Category == TextureCategory.Entity
+            ? "entity"
+            : alias.Category == TextureCategory.Item
+                ? "item"
+                : "block";
+
         return new TextureAliasDto(
             Alias: alias.Alias,
             DisplayName: alias.DisplayName,
             RelativePath: alias.RelativePath,
             FullPath: alias.FullPath,
-            Category: alias.Category == TextureCategory.Item ? "item" : "block",
+            Category: catStr,
             Status: alias.StatusLabel,
             Exists: alias.Exists,
             ImageUrl: url,
@@ -550,7 +583,11 @@ public static class IpcContractMapper
             SubtitleCaption: alias.SubtitleCaption,
             HasMers: alias.HasMers,
             MersFullPath: alias.MersFullPath,
-            Key: alias.Alias
+            Key: alias.Alias,
+            EntityId: alias.EntityId,
+            TextureKey: alias.TextureKey,
+            GeometryId: alias.GeometryId,
+            IsAttachable: alias.IsAttachable
         );
     }
 
@@ -589,12 +626,18 @@ public static class IpcContractMapper
             url = BuildVirtualTextureUrl(leaf.RelativePath, leaf.FullPath, packRoot);
         }
 
+        var catStr = leaf.Category == TextureCategory.Entity
+            ? "entity"
+            : leaf.Category == TextureCategory.Item
+                ? "item"
+                : "block";
+
         return new CatalogLeafDto(
             Alias: leaf.Alias,
             DisplayName: leaf.DisplayName,
             RelativePath: leaf.RelativePath,
             FullPath: leaf.FullPath,
-            Category: leaf.Category == TextureCategory.Item ? "item" : "block",
+            Category: catStr,
             Status: leaf.StatusLabel,
             ImageUrl: url,
             SubtitleCaption: leaf.SubtitleCaption,
@@ -606,7 +649,11 @@ public static class IpcContractMapper
             TotalBlockVariants: leaf.TotalBlockVariants,
             TextureVariantIndex: leaf.TextureVariantIndex,
             TotalTextureVariants: leaf.TotalTextureVariants,
-            Weight: leaf.Weight
+            Weight: leaf.Weight,
+            EntityId: leaf.EntityId,
+            TextureKey: leaf.TextureKey,
+            GeometryId: leaf.GeometryId,
+            IsAttachable: leaf.IsAttachable
         );
     }
 
@@ -621,19 +668,21 @@ public static class IpcContractMapper
     public static AliasGroupNodeDto ToDto(this AliasGroupNode node, string? packRoot = null) =>
         new(
             Alias: node.Alias,
-            Category: node.Category == TextureCategory.Item ? "item" : "block",
+            Category: node.Category == TextureCategory.Entity ? "entity" : node.Category == TextureCategory.Item ? "item" : "block",
             FaceSummary: node.FaceSummary,
             FaceNodes: node.FaceNodes.Select(f => f.ToDto(packRoot)).ToList(),
             Leaves: node.Leaves.Select(l => l.ToDto(packRoot)).ToList(),
             GhostCount: node.GhostCount,
-            NotAddedCount: node.NotAddedCount
+            NotAddedCount: node.NotAddedCount,
+            GeometryId: node.GeometryId,
+            IsAttachable: node.IsAttachable
         );
 
     public static BlockGroupNodeDto ToDto(this BlockGroupNode node, string? packRoot = null) =>
         new(
             BlockId: node.BlockId,
             DisplayName: node.DisplayName,
-            Category: node.Category == TextureCategory.Item ? "item" : "block",
+            Category: node.Category == TextureCategory.Entity ? "entity" : node.Category == TextureCategory.Item ? "item" : "block",
             AliasGroups: node.AliasGroups.Select(a => a.ToDto(packRoot)).ToList(),
             GhostCount: node.GhostCount,
             TotalVariants: node.TotalVariants,

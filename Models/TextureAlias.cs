@@ -98,6 +98,12 @@ public class TextureAlias : INotifyPropertyChanged
     /// <summary>The slot key in the entity textures dict (e.g. "default", "drowned").</summary>
     public string? TextureKey { get; init; }
 
+    /// <summary>The geometry identifier declared in client_entity/attachable JSON (e.g. "geometry.zombie.v1.8").</summary>
+    public string? GeometryId { get; set; }
+
+    /// <summary>True if this entity texture comes from an attachables/*.json definition.</summary>
+    public bool IsAttachable { get; init; }
+
     /// <summary>The key in texture_data or entity slot name, e.g. "stone", "demo_stone".</summary>
     public required string Alias { get; init; }
 

@@ -840,6 +840,51 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
                 });
             }
         });
+
+        // 20. GEOMETRY:GET
+        _ipcBridge.RegisterHandler<GeometryGetPayload>(IpcMessageTypes.GeometryGet, (payload, corrId) =>
+        {
+            Dispatcher.Invoke(() =>
+            {
+                string? geoJson = null;
+                string? geoId = payload?.GeometryId;
+                var entityId = payload?.EntityId;
+
+                if (!string.IsNullOrEmpty(geoId) && ViewModel.VanillaData != null)
+                {
+                    geoJson = ViewModel.VanillaData.GetGeometryJson(geoId);
+                }
+
+                if (string.IsNullOrEmpty(geoJson) && !string.IsNullOrEmpty(entityId) && ViewModel.VanillaData != null)
+                {
+                    var resolvedGeoId = ViewModel.VanillaData.GetGeometryForEntity(entityId);
+                    if (!string.IsNullOrEmpty(resolvedGeoId))
+                    {
+                        geoId ??= resolvedGeoId;
+                        geoJson = ViewModel.VanillaData.GetGeometryJson(resolvedGeoId);
+                    }
+                }
+
+                // Also check if user pack has models/entity/{geoId}.geo.json
+                if (string.IsNullOrEmpty(geoJson) && ViewModel.PackRootPath != null && Directory.Exists(ViewModel.PackRootPath))
+                {
+                    var packModels = Path.Combine(ViewModel.PackRootPath, "models", "entity");
+                    if (Directory.Exists(packModels))
+                    {
+                        var cleanName = (geoId ?? entityId ?? "").Replace("geometry.", "", StringComparison.OrdinalIgnoreCase);
+                        var file = Path.Combine(packModels, $"{cleanName}.geo.json");
+                        if (File.Exists(file)) geoJson = File.ReadAllText(file);
+                    }
+                }
+
+                geoId ??= entityId ?? "unknown";
+                _ipcBridge.PostMessage(IpcMessageTypes.GeometryData, new GeometryDataPayload(
+                    GeometryId: geoId,
+                    RawJson: geoJson ?? string.Empty,
+                    EntityId: entityId
+                ), corrId);
+            });
+        });
     }
 
 
@@ -910,7 +955,8 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
             Stats: ViewModel.ExtractStats(),
             CatalogTree: ViewModel.CatalogTree.Select(c => c.ToDto(ViewModel.PackRootPath)).ToList(),
             ReferencePacks: refProfiles,
-            ActiveReferenceId: CatalogReferenceService.ActiveReferenceId
+            ActiveReferenceId: CatalogReferenceService.ActiveReferenceId,
+            EntityWorkspaceTree: ViewModel.EntityWorkspaceTree.Select(e => e.ToDto(ViewModel.PackRootPath)).ToList()
         );
     }
 

@@ -1,6 +1,6 @@
 // frontend/src/components/toolbar/Toolbar.tsx
 import React from 'react';
-import { Search, X, LayoutGrid, Box } from 'lucide-react';
+import { Search, X, LayoutGrid, Box, Layers } from 'lucide-react';
 import { usePackStore } from '../../store/packStore';
 import styles from './Toolbar.module.css';
 
@@ -70,9 +70,17 @@ export const Toolbar: React.FC = () => {
             title="Block Workspace (4-Tier relational hierarchy)"
           >
             <Box size={13} />
-            <span>Block Workspace</span>
+            <span>Blocks</span>
           </button>
-
+          <button
+            type="button"
+            className={`${styles.viewModeButton} ${activeView === 'entity' ? styles.viewModeButtonActive : ''}`}
+            onClick={() => setActiveView('entity')}
+            title="Entity Workspace (3D model & slot inspector)"
+          >
+            <Layers size={13} />
+            <span>Entities</span>
+          </button>
         </div>
       </div>
     </div>
