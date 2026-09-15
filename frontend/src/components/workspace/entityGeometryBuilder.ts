@@ -15,6 +15,10 @@ export interface BedrockBone {
   parent?: string;
   pivot?: [number, number, number];
   rotation?: [number, number, number];
+  /** Applied as the resting world-space rotation of the bone (separate from pose rotation). */
+  bind_pose_rotation?: [number, number, number];
+  /** Bone-level mirror flag — mirrors all cubes in this bone along X. */
+  mirror?: boolean;
   cubes?: BedrockCube[];
   neverRender?: boolean;
 }
@@ -114,13 +118,23 @@ export function parseBedrockGeometryJson(rawJson: string, targetGeometryId?: str
 
 /**
  * Adjusts UV coordinates on a Three.js BoxGeometry to match Bedrock box-mapping standards.
- * Three.js BoxGeometry face order:
- * 0: +X (Right / East)
- * 1: -X (Left / West)
- * 2: +Y (Top / Up)
- * 3: -Y (Bottom / Down)
- * 4: +Z (Front / South)
- * 5: -Z (Back / North)
+ *
+ * Bedrock box-UV cross layout (u0, v0):
+ *
+ *         u0       u0+sz      u0+sz+sx     u0+2sz+sx   u0+2sz+2sx
+ *         ┌─────────┬──────────┬────────────┬───────────┐
+ * v0      │         │ Top (+Y) │Bottom (-Y) │           │  ← sz tall
+ *         ├─────────┼──────────┼────────────┼───────────┤
+ * v0+sz   │Right(-X)│Front(-Z) │ Left (+X)  │ Back (+Z) │  ← sy tall
+ *         └─────────┴──────────┴────────────┴───────────┘
+ *
+ * Three.js BoxGeometry face index & local vertex ordering:
+ * Face 0 (+X / Left):  v0: [+X, +Y, +Z], v1: [+X, +Y, -Z], v2: [+X, -Y, +Z], v3: [+X, -Y, -Z]
+ * Face 1 (-X / Right): v0: [-X, +Y, -Z], v1: [-X, +Y, +Z], v2: [-X, -Y, -Z], v3: [-X, -Y, +Z]
+ * Face 2 (+Y / Top):   v0: [-X, +Y, -Z], v1: [+X, +Y, -Z], v2: [-X, +Y, +Z], v3: [+X, +Y, +Z]
+ * Face 3 (-Y / Down):  v0: [-X, -Y, +Z], v1: [+X, -Y, +Z], v2: [-X, -Y, -Z], v3: [+X, -Y, -Z]
+ * Face 4 (+Z / Back):  v0: [-X, +Y, +Z], v1: [+X, +Y, +Z], v2: [-X, -Y, +Z], v3: [+X, -Y, +Z]
+ * Face 5 (-Z / Front): v0: [+X, +Y, -Z], v1: [-X, +Y, -Z], v2: [+X, -Y, -Z], v3: [-X, -Y, -Z]
  */
 function applyBedrockBoxUVs(
   geom: THREE.BoxGeometry,
@@ -138,45 +152,155 @@ function applyBedrockBoxUVs(
     const [u0, v0] = cube.uv;
     const isMirrored = Boolean(cube.mirror);
 
-    type FaceCrop = { uMin: number; uMax: number; vMin: number; vMax: number };
+    // Texture boundaries (normalized 0..1)
+    const u_r_min = (u0) / texWidth;
+    const u_r_max = (u0 + sz) / texWidth;
 
-    let rightCrop: FaceCrop = { uMin: u0, uMax: u0 + sz, vMin: v0 + sz, vMax: v0 + sz + sy };
-    let leftCrop: FaceCrop = { uMin: u0 + sz + sx, uMax: u0 + 2 * sz + sx, vMin: v0 + sz, vMax: v0 + sz + sy };
+    const u_f_min = (u0 + sz) / texWidth;
+    const u_f_max = (u0 + sz + sx) / texWidth;
 
-    if (isMirrored) {
-      const temp = rightCrop;
-      rightCrop = leftCrop;
-      leftCrop = temp;
+    const u_l_min = (u0 + sz + sx) / texWidth;
+    const u_l_max = (u0 + 2 * sz + sx) / texWidth;
+
+    const u_b_min = (u0 + 2 * sz + sx) / texWidth;
+    const u_b_max = (u0 + 2 * sz + 2 * sx) / texWidth;
+
+    const u_t_min = (u0 + sz) / texWidth;
+    const u_t_max = (u0 + sz + sx) / texWidth;
+
+    const u_d_min = (u0 + sz + sx) / texWidth;
+    const u_d_max = (u0 + sz + 2 * sx) / texWidth;
+
+    // V coordinates (Three.js V=1 is image top, V=0 is image bottom)
+    const v_top_high = 1.0 - (v0) / texHeight;
+    const v_top_low  = 1.0 - (v0 + sz) / texHeight;
+
+    const v_side_high = 1.0 - (v0 + sz) / texHeight;
+    const v_side_low  = 1.0 - (v0 + sz + sy) / texHeight;
+
+    // Helper to write UV coordinates for 4 vertices of a face
+    const setFaceUVs = (
+      faceIndex: number,
+      uv0: [number, number],
+      uv1: [number, number],
+      uv2: [number, number],
+      uv3: [number, number]
+    ) => {
+      const o = faceIndex * 8;
+      array[o + 0] = uv0[0]; array[o + 1] = uv0[1];
+      array[o + 2] = uv1[0]; array[o + 3] = uv1[1];
+      array[o + 4] = uv2[0]; array[o + 5] = uv2[1];
+      array[o + 6] = uv3[0]; array[o + 7] = uv3[1];
+    };
+
+    if (!isMirrored) {
+      // Face 0: +X (Character's Left face)
+      // v0: [+X, +Y, +Z] (BACK), v1: [+X, +Y, -Z] (FRONT), v2: [+X, -Y, +Z] (BACK), v3: [+X, -Y, -Z] (FRONT)
+      setFaceUVs(0,
+        [u_l_max, v_side_high],
+        [u_l_min, v_side_high],
+        [u_l_max, v_side_low],
+        [u_l_min, v_side_low]
+      );
+
+      // Face 1: -X (Character's Right face)
+      // v0: [-X, +Y, -Z] (FRONT), v1: [-X, +Y, +Z] (BACK), v2: [-X, -Y, -Z] (FRONT), v3: [-X, -Y, +Z] (BACK)
+      setFaceUVs(1,
+        [u_r_max, v_side_high],
+        [u_r_min, v_side_high],
+        [u_r_max, v_side_low],
+        [u_r_min, v_side_low]
+      );
+
+      // Face 2: +Y (Top face)
+      // v0: [-X, +Y, -Z] (RIGHT, FRONT), v1: [+X, +Y, -Z] (LEFT, FRONT)
+      // v2: [-X, +Y, +Z] (RIGHT, BACK),  v3: [+X, +Y, +Z] (LEFT, BACK)
+      setFaceUVs(2,
+        [u_t_min, v_top_low],
+        [u_t_max, v_top_low],
+        [u_t_min, v_top_high],
+        [u_t_max, v_top_high]
+      );
+
+      // Face 3: -Y (Bottom face)
+      // v0: [-X, -Y, +Z] (RIGHT, BACK),  v1: [+X, -Y, +Z] (LEFT, BACK)
+      // v2: [-X, -Y, -Z] (RIGHT, FRONT), v3: [+X, -Y, -Z] (LEFT, FRONT)
+      setFaceUVs(3,
+        [u_d_min, v_top_high],
+        [u_d_max, v_top_high],
+        [u_d_min, v_top_low],
+        [u_d_max, v_top_low]
+      );
+
+      // Face 4: +Z (Back face)
+      // v0: [-X, +Y, +Z] (RIGHT, UP),   v1: [+X, +Y, +Z] (LEFT, UP)
+      // v2: [-X, -Y, +Z] (RIGHT, DOWN), v3: [+X, -Y, +Z] (LEFT, DOWN)
+      setFaceUVs(4,
+        [u_b_max, v_side_high],
+        [u_b_min, v_side_high],
+        [u_b_max, v_side_low],
+        [u_b_min, v_side_low]
+      );
+
+      // Face 5: -Z (Front face / Face of character)
+      // v0: [+X, +Y, -Z] (LEFT, UP),   v1: [-X, +Y, -Z] (RIGHT, UP)
+      // v2: [+X, -Y, -Z] (LEFT, DOWN), v3: [-X, -Y, -Z] (RIGHT, DOWN)
+      setFaceUVs(5,
+        [u_f_max, v_side_high],
+        [u_f_min, v_side_high],
+        [u_f_max, v_side_low],
+        [u_f_min, v_side_low]
+      );
+    } else {
+      // Mirrored limbs: swap Left & Right side crops and flip U horizontally
+      // Face 0: +X uses Right crop
+      setFaceUVs(0,
+        [u_r_min, v_side_high],
+        [u_r_max, v_side_high],
+        [u_r_min, v_side_low],
+        [u_r_max, v_side_low]
+      );
+
+      // Face 1: -X uses Left crop
+      setFaceUVs(1,
+        [u_l_min, v_side_high],
+        [u_l_max, v_side_high],
+        [u_l_min, v_side_low],
+        [u_l_max, v_side_low]
+      );
+
+      // Face 2: +Y (Top) flipped horizontally along X
+      setFaceUVs(2,
+        [u_t_max, v_top_low],
+        [u_t_min, v_top_low],
+        [u_t_max, v_top_high],
+        [u_t_min, v_top_high]
+      );
+
+      // Face 3: -Y (Bottom) flipped horizontally along X
+      setFaceUVs(3,
+        [u_d_max, v_top_high],
+        [u_d_min, v_top_high],
+        [u_d_max, v_top_low],
+        [u_d_min, v_top_low]
+      );
+
+      // Face 4: +Z (Back) flipped horizontally along X
+      setFaceUVs(4,
+        [u_b_min, v_side_high],
+        [u_b_max, v_side_high],
+        [u_b_min, v_side_low],
+        [u_b_max, v_side_low]
+      );
+
+      // Face 5: -Z (Front) flipped horizontally along X
+      setFaceUVs(5,
+        [u_f_min, v_side_high],
+        [u_f_max, v_side_high],
+        [u_f_min, v_side_low],
+        [u_f_max, v_side_low]
+      );
     }
-
-    const faceCrops: FaceCrop[] = [
-      rightCrop, // 0: +X (Right)
-      leftCrop,  // 1: -X (Left)
-      { uMin: u0 + sz, uMax: u0 + sz + sx, vMin: v0, vMax: v0 + sz }, // 2: +Y (Top)
-      { uMin: u0 + sz + sx, uMax: u0 + sz + 2 * sx, vMin: v0, vMax: v0 + sz }, // 3: -Y (Bottom)
-      { uMin: u0 + sz, uMax: u0 + sz + sx, vMin: v0 + sz, vMax: v0 + sz + sy }, // 4: +Z (Front)
-      { uMin: u0 + 2 * sz + sx, uMax: u0 + 2 * sz + 2 * sx, vMin: v0 + sz, vMax: v0 + sz + sy }, // 5: -Z (Back)
-    ];
-
-    faceCrops.forEach((crop, faceIndex) => {
-      const offset = faceIndex * 8;
-      const u1 = crop.uMin / texWidth;
-      const u2 = crop.uMax / texWidth;
-      const v1 = 1.0 - crop.vMax / texHeight;
-      const v2 = 1.0 - crop.vMin / texHeight;
-
-      if (isMirrored && (faceIndex === 4 || faceIndex === 5 || faceIndex === 2 || faceIndex === 3)) {
-        array[offset + 0] = u2; array[offset + 1] = v2;
-        array[offset + 2] = u1; array[offset + 3] = v2;
-        array[offset + 4] = u2; array[offset + 5] = v1;
-        array[offset + 6] = u1; array[offset + 7] = v1;
-      } else {
-        array[offset + 0] = u1; array[offset + 1] = v2;
-        array[offset + 2] = u2; array[offset + 3] = v2;
-        array[offset + 4] = u1; array[offset + 5] = v1;
-        array[offset + 6] = u2; array[offset + 7] = v1;
-      }
-    });
 
     uvAttr.needsUpdate = true;
   }
@@ -208,12 +332,19 @@ export function buildEntityModel(
     const pivot = bone.pivot || [0, 0, 0];
     group.position.set(pivot[0], pivot[1], pivot[2]);
 
-    if (bone.rotation) {
+    // Apply bind_pose_rotation first (resting world-space orientation authored in Bedrock editor),
+    // then overlay any runtime rotation on top.
+    if (bone.bind_pose_rotation) {
       group.rotation.set(
-        THREE.MathUtils.degToRad(bone.rotation[0] || 0),
-        THREE.MathUtils.degToRad(bone.rotation[1] || 0),
-        THREE.MathUtils.degToRad(bone.rotation[2] || 0)
+        THREE.MathUtils.degToRad(bone.bind_pose_rotation[0] || 0),
+        THREE.MathUtils.degToRad(bone.bind_pose_rotation[1] || 0),
+        THREE.MathUtils.degToRad(bone.bind_pose_rotation[2] || 0)
       );
+    }
+    if (bone.rotation) {
+      group.rotation.x += THREE.MathUtils.degToRad(bone.rotation[0] || 0);
+      group.rotation.y += THREE.MathUtils.degToRad(bone.rotation[1] || 0);
+      group.rotation.z += THREE.MathUtils.degToRad(bone.rotation[2] || 0);
     }
 
     if (bone.cubes) {
@@ -223,6 +354,11 @@ export function buildEntityModel(
         const [sx, sy, sz] = cube.size;
         if (sx === 0 && sy === 0 && sz === 0) continue;
 
+        // Bone-level mirror propagates to the cube (OR with cube-level mirror)
+        const effectiveCube: BedrockCube = bone.mirror
+          ? { ...cube, mirror: true }
+          : cube;
+
         const inflate = cube.inflate || 0;
         const geom = new THREE.BoxGeometry(
           Math.max(0.01, sx + inflate * 2),
@@ -230,7 +366,7 @@ export function buildEntityModel(
           Math.max(0.01, sz + inflate * 2)
         );
 
-        applyBedrockBoxUVs(geom, cube, texWidth, texHeight);
+        applyBedrockBoxUVs(geom, effectiveCube, texWidth, texHeight);
 
         const mesh = new THREE.Mesh(geom, material);
         mesh.castShadow = true;
@@ -274,7 +410,14 @@ export function buildEntityModel(
     }
   }
 
+  // Bedrock entities are authored facing -Z (North). The Three.js camera sits at +Z looking
+  // toward the origin, so without a correction the camera always sees the entity's back.
+  // Rotate 180° around Y so the entity's face points toward the camera by default.
+  rootGroup.rotation.y = Math.PI;
+
   // Auto-center the entire root model around the origin [0, 0, 0]
+  // (compute bounding box AFTER the Y rotation so the centering is correct)
+  rootGroup.updateMatrixWorld(true);
   const box = new THREE.Box3().setFromObject(rootGroup);
   if (!box.isEmpty()) {
     const center = box.getCenter(new THREE.Vector3());
