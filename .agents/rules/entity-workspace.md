@@ -48,9 +48,33 @@ Bedrock standard box-UV 6-face net (at `[u0, v0]`):
 
 *Important Three.js Invariant:* Three.js `BoxGeometry` vertex ordering along Z is opposite between Face 0 (+X / Left) and Face 1 (-X / Right). UV coordinates must be assigned per-vertex (`setFaceUVs`) rather than assuming uniform rectangular winding across all faces.
 
+### Per-Face UV Mapping (`cube.uv` Dictionary)
+In addition to standard `[u0, v0]` offsets, Bedrock models (e.g. Ghast, Guardian, custom models) support dictionary mappings:
+```json
+"uv": {
+  "north": { "uv": [u, v], "uv_size": [su, sv] },
+  "south": { "uv": [u, v], "uv_size": [su, sv] },
+  "east":  { "uv": [u, v], "uv_size": [su, sv] },
+  "west":  { "uv": [u, v], "uv_size": [su, sv] },
+  "up":    { "uv": [u, v], "uv_size": [su, sv] },
+  "down":  { "uv": [u, v], "uv_size": [su, sv] }
+}
+```
+If `uv_size` is omitted, defaults to standard face box dimensions (`sx`, `sy`, `sz`).
+
+### Cube-Level Transforms & Declarative Rotation Invariant
+- **Bone Cubes Isolation:** Bone cubes must be housed in a distinct `boneCubesGroup` under the bone group so that `bind_pose_rotation` and runtime `rotation` do not cascade unwanted rotations into child bones.
+- **Cube-Level Rotations:** Bedrock 1.12.0+ models support cube-level `pivot` and `rotation`. When present, cubes must be grouped at `cubePivot - bonePivot`, rotated by `[-degToRad(rx), -degToRad(ry), degToRad(rz), 'ZYX']`, and placed at `cubeOrigin + size/2 - cubePivot`.
+- **Zero-Heuristic Rule:** NEVER introduce speculative rotation heuristics (such as guessing quadruped bodies by leg counts or dimensions). Declarative Bedrock models already specify all rotations via `bind_pose_rotation`, `bone.rotation`, or `cube.rotation`.
+
 ---
 
-## 3. WebGL Resource Lifecycle & Disposal
+## 3. Vanilla Data & Client Entity Precedence
+- **Modern Overrides Legacy:** In `VanillaDataService.cs`, Mojang's repository includes ancient fallback files (`*.v1.0.entity.json`, `*_v1.0.geo.json`). File scanning loops MUST prioritize modern definitions (`cow.entity.json`, `cow.v2.geo.json`) over `v1.0` fallbacks so obsolete legacy models without bind pose tags do not overwrite canonical models.
+
+---
+
+## 4. WebGL Resource Lifecycle & Disposal
 - Whenever an entity model or texture is switched or unmounted:
   1. Recursively traverse the Three.js scene tree (`modelGroup.traverse(...)`).
   2. Call `dispose()` on all `BufferGeometry` instances.
@@ -59,7 +83,7 @@ Bedrock standard box-UV 6-face net (at `[u0, v0]`):
 
 ---
 
-## 4. Entity Workspace DOM Lifecycle & Key Isolation
+## 5. Entity Workspace DOM Lifecycle & Key Isolation
 - **Detail Pane Keying:** `<section className={styles.detailPane}>` must be keyed by `selectedEntity.blockId`. This forces React to unmount the previous entity's detail DOM when switching entities, guaranteeing that vertical scroll resets (`scrollTop = 0`) and previous cards cannot linger or accumulate above the selected entity.
 - **Slot Group & Card Keys:**
   - Alias group cards must key on `${selectedEntity.blockId}-${ag.alias}-${agIndex}` to prevent React reconciliation key collisions when an entity contains multiple distinct geometry slot groups with the same base name.

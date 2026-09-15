@@ -140,6 +140,46 @@ export const BlockWorkspace: React.FC = () => {
     setActiveVariationIndex(0);
   }, [selectedBlock?.blockId]);
 
+  // Keyboard arrow navigation (Up / Down) through blocks list
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable)) {
+        return;
+      }
+
+      if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+
+      if (!filteredBlockWorkspaceTree || filteredBlockWorkspaceTree.length === 0) return;
+
+      e.preventDefault();
+
+      const currentId = selectedBlock?.blockId || selectedBlockId;
+      const currentIndex = filteredBlockWorkspaceTree.findIndex(
+        (b) => b.blockId === currentId
+      );
+
+      let nextIndex = 0;
+      if (e.key === 'ArrowDown') {
+        nextIndex = currentIndex >= 0 && currentIndex < filteredBlockWorkspaceTree.length - 1 ? currentIndex + 1 : 0;
+      } else if (e.key === 'ArrowUp') {
+        nextIndex = currentIndex > 0 ? currentIndex - 1 : filteredBlockWorkspaceTree.length - 1;
+      }
+
+      const nextBlock = filteredBlockWorkspaceTree[nextIndex];
+      if (nextBlock) {
+        setSelectedBlockId(nextBlock.blockId);
+        const btn = document.querySelector(`[data-block-id="${nextBlock.blockId}"]`);
+        if (btn) {
+          btn.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [filteredBlockWorkspaceTree, selectedBlock?.blockId, selectedBlockId]);
+
   // Reset activeVariationIndex when switching blockstate
   useEffect(() => {
     setActiveVariationIndex(0);
@@ -331,6 +371,7 @@ export const BlockWorkspace: React.FC = () => {
             return (
               <button
                 key={block.blockId}
+                data-block-id={block.blockId}
                 type="button"
                 className={`${styles.blockItem} ${isActive ? styles.blockItemActive : ''} ${!isCustom ? styles.blockItemVanilla : ''}`}
                 onClick={() => setSelectedBlockId(block.blockId)}

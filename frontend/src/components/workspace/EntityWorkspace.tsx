@@ -122,6 +122,47 @@ export const EntityWorkspace: React.FC = () => {
     );
   }, [filteredEntityWorkspaceTree, selectedEntityId]);
 
+  // Keyboard arrow navigation (Up / Down) through entity list
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't intercept when user is typing in an input / textarea / search bar
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable)) {
+        return;
+      }
+
+      if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+
+      if (!filteredEntityWorkspaceTree || filteredEntityWorkspaceTree.length === 0) return;
+
+      e.preventDefault();
+
+      const currentId = selectedEntity?.blockId || selectedEntityId;
+      const currentIndex = filteredEntityWorkspaceTree.findIndex(
+        (ent) => ent.blockId === currentId
+      );
+
+      let nextIndex = 0;
+      if (e.key === 'ArrowDown') {
+        nextIndex = currentIndex >= 0 && currentIndex < filteredEntityWorkspaceTree.length - 1 ? currentIndex + 1 : 0;
+      } else if (e.key === 'ArrowUp') {
+        nextIndex = currentIndex > 0 ? currentIndex - 1 : filteredEntityWorkspaceTree.length - 1;
+      }
+
+      const nextEntity = filteredEntityWorkspaceTree[nextIndex];
+      if (nextEntity) {
+        setSelectedEntityId(nextEntity.blockId);
+        const btn = document.querySelector(`[data-entity-id="${nextEntity.blockId}"]`);
+        if (btn) {
+          btn.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [filteredEntityWorkspaceTree, selectedEntity?.blockId, selectedEntityId]);
+
   // Collect all leaves for selected entity
   const allLeaves = useMemo<CatalogLeafDto[]>(() => {
     if (!selectedEntity || !selectedEntity.aliasGroups) return [];
@@ -207,6 +248,7 @@ export const EntityWorkspace: React.FC = () => {
             return (
               <button
                 key={entity.blockId}
+                data-entity-id={entity.blockId}
                 type="button"
                 className={`${styles.blockItem} ${isActive ? styles.blockItemActive : ''} ${!isCustom ? styles.blockItemVanilla : ''}`}
                 onClick={() => setSelectedEntityId(entity.blockId)}

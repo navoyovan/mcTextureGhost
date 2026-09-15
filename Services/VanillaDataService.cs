@@ -541,7 +541,9 @@ public static class VanillaDataService
         {
             try
             {
-                foreach (var file in Directory.EnumerateFiles(ed, "*.json", SearchOption.AllDirectories))
+                var sortedEntityFiles = Directory.EnumerateFiles(ed, "*.json", SearchOption.AllDirectories)
+                    .OrderBy(f => f.Contains(".v1.0.", StringComparison.OrdinalIgnoreCase) || f.Contains("_v1.0.", StringComparison.OrdinalIgnoreCase) ? 0 : 1);
+                foreach (var file in sortedEntityFiles)
                 {
                     try
                     {
@@ -593,7 +595,9 @@ public static class VanillaDataService
         {
             try
             {
-                foreach (var file in Directory.EnumerateFiles(gd, "*.json", SearchOption.AllDirectories))
+                var sortedGeoFiles = Directory.EnumerateFiles(gd, "*.json", SearchOption.AllDirectories)
+                    .OrderBy(f => f.Contains("_v1.0", StringComparison.OrdinalIgnoreCase) || f.Contains(".v1.0", StringComparison.OrdinalIgnoreCase) ? 0 : 1);
+                foreach (var file in sortedGeoFiles)
                 {
                     try
                     {

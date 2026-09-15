@@ -4,6 +4,8 @@ import * as THREE from 'three';
 export interface BedrockCube {
   origin: [number, number, number];
   size: [number, number, number];
+  pivot?: [number, number, number];
+  rotation?: [number, number, number];
   uv?: [number, number] | Record<string, { uv: [number, number]; uv_size?: [number, number] }>;
   inflate?: number;
   mirror?: boolean;
@@ -315,6 +317,106 @@ function applyBedrockBoxUVs(
     }
 
     uvAttr.needsUpdate = true;
+  } else if (cube.uv && typeof cube.uv === 'object') {
+    // Per-face UV mapping (e.g. ghast, guardian, custom models)
+    const perFace = cube.uv as Record<string, { uv: [number, number]; uv_size?: [number, number] }>;
+
+    const setFaceUVs = (
+      faceIndex: number,
+      uv0: [number, number],
+      uv1: [number, number],
+      uv2: [number, number],
+      uv3: [number, number]
+    ) => {
+      const o = faceIndex * 8;
+      array[o + 0] = uv0[0]; array[o + 1] = uv0[1];
+      array[o + 2] = uv1[0]; array[o + 3] = uv1[1];
+      array[o + 4] = uv2[0]; array[o + 5] = uv2[1];
+      array[o + 6] = uv3[0]; array[o + 7] = uv3[1];
+    };
+
+    const computeFace = (faceKey: string, defaultSu: number, defaultSv: number) => {
+      const data = perFace[faceKey];
+      if (!data || !data.uv) return null;
+      const [u, v] = data.uv;
+      const su = data.uv_size ? data.uv_size[0] : defaultSu;
+      const sv = data.uv_size ? data.uv_size[1] : defaultSv;
+
+      const u_min = u / texWidth;
+      const u_max = (u + su) / texWidth;
+      const v_min = 1.0 - v / texHeight;
+      const v_max = 1.0 - (v + sv) / texHeight;
+
+      return { u_min, u_max, v_min, v_max };
+    };
+
+    // Face 0: +X (Character's Left / west in Bedrock)
+    const west = computeFace('west', sz, sy);
+    if (west) {
+      setFaceUVs(0,
+        [west.u_max, west.v_min],
+        [west.u_min, west.v_min],
+        [west.u_max, west.v_max],
+        [west.u_min, west.v_max]
+      );
+    }
+
+    // Face 1: -X (Character's Right / east in Bedrock)
+    const east = computeFace('east', sz, sy);
+    if (east) {
+      setFaceUVs(1,
+        [east.u_max, east.v_min],
+        [east.u_min, east.v_min],
+        [east.u_max, east.v_max],
+        [east.u_min, east.v_max]
+      );
+    }
+
+    // Face 2: +Y (Top / up in Bedrock)
+    const up = computeFace('up', sx, sz);
+    if (up) {
+      setFaceUVs(2,
+        [up.u_min, up.v_max],
+        [up.u_max, up.v_max],
+        [up.u_min, up.v_min],
+        [up.u_max, up.v_min]
+      );
+    }
+
+    // Face 3: -Y (Bottom / down in Bedrock)
+    const down = computeFace('down', sx, sz);
+    if (down) {
+      setFaceUVs(3,
+        [down.u_min, down.v_min],
+        [down.u_max, down.v_min],
+        [down.u_min, down.v_max],
+        [down.u_max, down.v_max]
+      );
+    }
+
+    // Face 4: +Z (Back / south in Bedrock)
+    const south = computeFace('south', sx, sy);
+    if (south) {
+      setFaceUVs(4,
+        [south.u_max, south.v_min],
+        [south.u_min, south.v_min],
+        [south.u_max, south.v_max],
+        [south.u_min, south.v_max]
+      );
+    }
+
+    // Face 5: -Z (Front / north in Bedrock)
+    const north = computeFace('north', sx, sy);
+    if (north) {
+      setFaceUVs(5,
+        [north.u_max, north.v_min],
+        [north.u_min, north.v_min],
+        [north.u_max, north.v_max],
+        [north.u_min, north.v_max]
+      );
+    }
+
+    uvAttr.needsUpdate = true;
   }
 }
 
@@ -344,20 +446,27 @@ export function buildEntityModel(
     const pivot = bone.pivot || [0, 0, 0];
     group.position.set(pivot[0], pivot[1], pivot[2]);
 
-    // Apply bind_pose_rotation first (resting world-space orientation authored in Bedrock editor),
-    // then overlay any runtime rotation on top.
-    if (bone.bind_pose_rotation) {
-      group.rotation.set(
-        THREE.MathUtils.degToRad(bone.bind_pose_rotation[0] || 0),
-        THREE.MathUtils.degToRad(bone.bind_pose_rotation[1] || 0),
-        THREE.MathUtils.degToRad(bone.bind_pose_rotation[2] || 0)
+    // Bone cubes container (handles bone-level bind_pose_rotation and runtime rotation without tilting child bones)
+    const boneCubesGroup = new THREE.Group();
+    boneCubesGroup.name = `${bone.name}_cubes`;
+
+    const effectiveBindPose = bone.bind_pose_rotation;
+
+    if (effectiveBindPose) {
+      boneCubesGroup.rotation.set(
+        -THREE.MathUtils.degToRad(effectiveBindPose[0] || 0),
+        -THREE.MathUtils.degToRad(effectiveBindPose[1] || 0),
+        THREE.MathUtils.degToRad(effectiveBindPose[2] || 0),
+        'ZYX'
       );
     }
     if (bone.rotation) {
-      group.rotation.x += THREE.MathUtils.degToRad(bone.rotation[0] || 0);
-      group.rotation.y += THREE.MathUtils.degToRad(bone.rotation[1] || 0);
-      group.rotation.z += THREE.MathUtils.degToRad(bone.rotation[2] || 0);
+      boneCubesGroup.rotation.x -= THREE.MathUtils.degToRad(bone.rotation[0] || 0);
+      boneCubesGroup.rotation.y -= THREE.MathUtils.degToRad(bone.rotation[1] || 0);
+      boneCubesGroup.rotation.z += THREE.MathUtils.degToRad(bone.rotation[2] || 0);
     }
+
+    group.add(boneCubesGroup);
 
     if (bone.cubes) {
       for (const cube of bone.cubes) {
@@ -385,13 +494,38 @@ export function buildEntityModel(
         mesh.receiveShadow = true;
 
         const [ox, oy, oz] = cube.origin;
-        mesh.position.set(
-          ox + sx / 2 - pivot[0],
-          oy + sy / 2 - pivot[1],
-          oz + sz / 2 - pivot[2]
-        );
 
-        group.add(mesh);
+        if (cube.rotation && (cube.rotation[0] || cube.rotation[1] || cube.rotation[2])) {
+          const cubePivot = cube.pivot || pivot;
+          const cubeGroup = new THREE.Group();
+          cubeGroup.position.set(
+            cubePivot[0] - pivot[0],
+            cubePivot[1] - pivot[1],
+            cubePivot[2] - pivot[2]
+          );
+          cubeGroup.rotation.set(
+            -THREE.MathUtils.degToRad(cube.rotation[0] || 0),
+            -THREE.MathUtils.degToRad(cube.rotation[1] || 0),
+            THREE.MathUtils.degToRad(cube.rotation[2] || 0),
+            'ZYX'
+          );
+
+          mesh.position.set(
+            ox + sx / 2 - cubePivot[0],
+            oy + sy / 2 - cubePivot[1],
+            oz + sz / 2 - cubePivot[2]
+          );
+
+          cubeGroup.add(mesh);
+          boneCubesGroup.add(cubeGroup);
+        } else {
+          mesh.position.set(
+            ox + sx / 2 - pivot[0],
+            oy + sy / 2 - pivot[1],
+            oz + sz / 2 - pivot[2]
+          );
+          boneCubesGroup.add(mesh);
+        }
       }
     }
 
