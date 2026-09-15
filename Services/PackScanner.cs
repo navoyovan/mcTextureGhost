@@ -1536,7 +1536,113 @@ public static class PackScanner
             itemsTree.Add(itemBlockNode);
         }
 
-        // ── 3. UNCATEGORIZED ───────────────────────────────────────────────────
+        // ── 3. ENTITIES ────────────────────────────────────────────────────────
+        var entitiesTree = new List<BlockGroupNode>();
+        var userEntityAliases = userAliases
+            .Where(a => a.Category == TextureCategory.Entity && a.Status != TextureStatus.NoEntry)
+            .GroupBy(a => a.Alias, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.ToList(), StringComparer.OrdinalIgnoreCase);
+
+        var userEntityGroups = userAliases
+            .Where(a => a.Category == TextureCategory.Entity && a.Status != TextureStatus.NoEntry)
+            .GroupBy(a => a.Alias, StringComparer.OrdinalIgnoreCase);
+
+        var allEntityIds = new HashSet<string>(vanilla.EntityDefinitions.Keys, StringComparer.OrdinalIgnoreCase);
+        foreach (var uGroup in userEntityGroups)
+        {
+            if (!string.IsNullOrEmpty(uGroup.Key))
+                allEntityIds.Add(uGroup.Key);
+        }
+
+        foreach (var entityId in allEntityIds.OrderBy(id => vanilla.GetEntityDisplayName(id), StringComparer.OrdinalIgnoreCase))
+        {
+            var cleanId = entityId.StartsWith("minecraft:", StringComparison.OrdinalIgnoreCase)
+                ? entityId.Substring(10)
+                : entityId;
+
+            // Skip obsolete legacy duplicates if clean modern exists
+            if (entityId.Contains(".v1.0", StringComparison.OrdinalIgnoreCase) || entityId.Contains(".v1.8", StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            var entityNode = new BlockGroupNode
+            {
+                BlockId = entityId,
+                DisplayName = vanilla.GetEntityDisplayName(entityId),
+                Category = TextureCategory.Entity
+            };
+
+            var declaredSlots = vanilla.EntityDefinitions.TryGetValue(entityId, out var vSlots)
+                ? vSlots
+                : (vanilla.EntityDefinitions.TryGetValue(cleanId, out var vCleanSlots) ? vCleanSlots : new Dictionary<string, string>());
+
+            foreach (var (slotKey, rawTexPath) in declaredSlots)
+            {
+                var normTexPath = VanillaDataService.NormalizeTexturePath(rawTexPath);
+                var fullTexPath = normTexPath + ".png";
+                var slotAlias = slotKey;
+
+                var aliasNode = new AliasGroupNode
+                {
+                    Alias = slotAlias,
+                    FaceSummary = Path.GetFileName(normTexPath),
+                    Category = TextureCategory.Entity,
+                    ParentBlock = entityNode
+                };
+
+                var matchingUserTile = userAliases.FirstOrDefault(a =>
+                    a.Category == TextureCategory.Entity &&
+                    (string.Equals(a.RelativePath, fullTexPath, StringComparison.OrdinalIgnoreCase) ||
+                     string.Equals(a.RelativePath, normTexPath, StringComparison.OrdinalIgnoreCase)));
+
+                if (matchingUserTile != null)
+                {
+                    trackedUserAliases.Add(matchingUserTile);
+                    var leaf = new CatalogLeaf
+                    {
+                        Alias = slotAlias,
+                        DisplayName = matchingUserTile.DisplayName,
+                        RelativePath = matchingUserTile.RelativePath,
+                        FullPath = matchingUserTile.FullPath,
+                        Category = TextureCategory.Entity,
+                        Status = matchingUserTile.Status switch
+                        {
+                            TextureStatus.Ok => CatalogEntryStatus.Ok,
+                            TextureStatus.Ghost => CatalogEntryStatus.Ghost,
+                            _ => CatalogEntryStatus.Orphan
+                        },
+                        TextureAlias = matchingUserTile,
+                        SubtitleCaption = matchingUserTile.SubtitleCaption
+                    };
+                    aliasNode.Leaves.Add(leaf);
+                }
+                else
+                {
+                    var userDiskPath = packRoot != null ? Path.Combine(packRoot, fullTexPath.Replace('/', Path.DirectorySeparatorChar)) : fullTexPath;
+                    bool fileExistsOnDisk = packRoot != null && File.Exists(userDiskPath);
+
+                    var leaf = new CatalogLeaf
+                    {
+                        Alias = slotAlias,
+                        DisplayName = Path.GetFileName(normTexPath),
+                        RelativePath = fullTexPath,
+                        FullPath = userDiskPath,
+                        Category = TextureCategory.Entity,
+                        Status = fileExistsOnDisk ? CatalogEntryStatus.Ok : CatalogEntryStatus.NotAdded,
+                        TextureAlias = null,
+                        SubtitleCaption = $"slot: {slotKey}"
+                    };
+                    aliasNode.Leaves.Add(leaf);
+                }
+
+                aliasNode.NotifyCountsChanged();
+                entityNode.AliasGroups.Add(aliasNode);
+            }
+
+            entityNode.NotifyCountsChanged();
+            entitiesTree.Add(entityNode);
+        }
+
+        // ── 4. UNCATEGORIZED ───────────────────────────────────────────────────
         var untracked = userAliases
             .Where(a => a.Status != TextureStatus.NoEntry && !trackedUserAliases.Contains(a))
             .ToList();
@@ -1593,6 +1699,7 @@ public static class PackScanner
         var result = new List<BlockGroupNode>();
         result.AddRange(blocksTree.OrderBy(b => b.DisplayName, StringComparer.OrdinalIgnoreCase));
         result.AddRange(itemsTree.OrderBy(b => b.DisplayName, StringComparer.OrdinalIgnoreCase));
+        result.AddRange(entitiesTree.OrderBy(b => b.DisplayName, StringComparer.OrdinalIgnoreCase));
         if (uncategorizedNode != null)
             result.Add(uncategorizedNode);
 

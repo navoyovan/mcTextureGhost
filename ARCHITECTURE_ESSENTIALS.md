@@ -24,9 +24,12 @@ Fast reference for day-to-day tasks. Consult this file first to conserve context
 ## 3. IPC Communication & Virtual Hosts
 - **Host $\rightarrow$ Web:** `MainViewModel` posts JSON string via `CoreWebView2.PostWebMessageAsString`.
 - **Web $\rightarrow$ Host:** React components post message via `window.chrome?.webview?.postMessage({ type, payload })`.
-- **Geometry Retrieval (`GEOMETRY:*`):**
-  - `GEOMETRY:GET`: Requests raw Bedrock geometry JSON for an entity or geometry ID.
-  - `GEOMETRY:DATA`: Returns raw JSON payload or error from pack or vanilla cache.
+- **Geometry & 3D Assets (`GEOMETRY:*`, `VANILLA:*`):**
+  - `GEOMETRY:GET` $\rightarrow$ `GEOMETRY:DATA`: Requests/returns raw Bedrock geometry JSON for an entity or geometry ID.
+  - `VANILLA:DOWNLOAD_3D_ASSETS`: Streams Mojang `bedrock-samples` zip into `%APPDATA%\McTextureGhost\reference_packs\vanilla\` to avoid GitHub API rate limits.
+  - `VANILLA:GET_3D_STATUS` $\rightarrow$ `VANILLA:3D_STATUS`: Returns whether 3D models are installed on disk.
+  - `DOWNLOAD:PROGRESS`: Pushes live download/extraction progress percentage and status text to WebView2.
+  - `VANILLA:ADD`: Scaffolds block/item/entity into pack. For `entity`, generates `entity/<id>.entity.json` and creates `textures/entity/<id>/` folder.
 - **Catalog Reference Switching (`CATALOG:*`):**
   - `CATALOG:PICK_REFERENCE`: Open file/folder dialog to import a custom resource pack reference profile (UI entry currently deferred as "Coming Soon").
   - `CATALOG:SET_REFERENCE`: Switch active catalog profile (Vanilla vs Custom) with optimistic UI updates.

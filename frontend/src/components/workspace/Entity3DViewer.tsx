@@ -1,9 +1,8 @@
-// frontend/src/components/workspace/Entity3DViewer.tsx
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import * as THREE from 'three';
-import { RotateCcw, Play, Pause, Eye, EyeOff } from 'lucide-react';
+import { RotateCcw, Play, Pause, Eye, EyeOff, Download } from 'lucide-react';
 import { useIpc } from '../../hooks/useIpc';
-import { IpcMessageTypes, GeometryDataPayload } from '../../types/ipc';
+import { IpcMessageTypes, GeometryDataPayload, DownloadProgressPayload } from '../../types/ipc';
 import { parseBedrockGeometryJson, buildEntityModel } from './entityGeometryBuilder';
 import { isTgaUrl, loadTgaAsDataUrl } from '../../utils/tgaDecoder';
 import styles from './Entity3DViewer.module.css';
@@ -44,6 +43,9 @@ export const Entity3DViewer: React.FC<Entity3DViewerProps> = React.memo(({
   const [geoStats, setGeoStats] = useState<{ bones: number; texSize: string; identifier: string } | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [loadingError, setLoadingError] = useState<string | null>(null);
+  const [isDownloading, setIsDownloading] = useState<boolean>(false);
+  const [downloadProgress, setDownloadProgress] = useState<DownloadProgressPayload | null>(null);
+  const [reloadTrigger, setReloadTrigger] = useState<number>(0);
 
   const autoRotateRef = useRef<boolean>(autoRotate);
   autoRotateRef.current = autoRotate;
@@ -216,6 +218,17 @@ export const Entity3DViewer: React.FC<Entity3DViewerProps> = React.memo(({
       }
     });
 
+    // 6b. IPC Listener for DOWNLOAD:PROGRESS
+    const unsubProgress = subscribe(IpcMessageTypes.DownloadProgress, (payload: DownloadProgressPayload) => {
+      if (!isMounted) return;
+      setDownloadProgress(payload);
+      if (payload.progress >= 100) {
+        setIsDownloading(false);
+        // Trigger model reload now that files are on disk
+        setReloadTrigger((prev) => prev + 1);
+      }
+    });
+
     // Request geometry from host via IPC
     postCommand(IpcMessageTypes.GeometryGet, { geometryId, entityId });
 
@@ -340,6 +353,7 @@ export const Entity3DViewer: React.FC<Entity3DViewerProps> = React.memo(({
     return () => {
       isMounted = false;
       unsubGeometryData();
+      unsubProgress();
       cancelAnimationFrame(animId);
       window.removeEventListener('resize', handleResize);
       containerEl.removeEventListener('wheel', handleWheelNative);
@@ -359,7 +373,7 @@ export const Entity3DViewer: React.FC<Entity3DViewerProps> = React.memo(({
       });
       renderer.dispose();
     };
-  }, [geometryId, entityId, textureUrl, isGhost, isAttachable, subscribe, postCommand]);
+  }, [geometryId, entityId, textureUrl, isGhost, isAttachable, subscribe, postCommand, reloadTrigger]);
 
   // Wireframe updates
   useEffect(() => {
@@ -454,6 +468,12 @@ export const Entity3DViewer: React.FC<Entity3DViewerProps> = React.memo(({
       cameraRef.current.lookAt(cameraTargetRef.current);
     }
   }, []);
+
+  const handleDownload3DAssets = useCallback(() => {
+    setIsDownloading(true);
+    setDownloadProgress({ task: '3D Assets', progress: 0, message: 'Initiating download of Bedrock 3D assets...' });
+    postCommand(IpcMessageTypes.VanillaDownload3DAssets, {});
+  }, [postCommand]);
 
   return (
     <div
@@ -557,15 +577,49 @@ export const Entity3DViewer: React.FC<Entity3DViewerProps> = React.memo(({
         </div>
       )}
 
-      {isLoading && (
+      {isLoading && !isDownloading && !loadingError && (
         <div className={styles.statusNotice}>
           <span>Loading 3D model...</span>
         </div>
       )}
 
-      {loadingError && !isLoading && (
-        <div className={styles.errorNotice}>
-          <span>{loadingError}</span>
+      {/* 3D Asset Missing / Downloading Modal Overlay */}
+      {(isDownloading || (loadingError && !isLoading)) && (
+        <div className={styles.downloadPromptOverlay}>
+          <div className={styles.downloadPromptCard}>
+            <h4 className={styles.downloadPromptTitle}>
+              {isDownloading ? 'Downloading 3D Assets' : '3D Models Not Installed'}
+            </h4>
+            <p className={styles.downloadPromptDesc}>
+              {isDownloading
+                ? downloadProgress?.message || 'Extracting vanilla 3D models into local reference pack...'
+                : 'Vanilla entity geometry files (.geo.json) are downloaded on demand to keep initial install light.'}
+            </p>
+
+            {isDownloading ? (
+              <div className={styles.progressContainer}>
+                <div className={styles.progressBarBg}>
+                  <div
+                    className={styles.progressBarFill}
+                    style={{ width: `${Math.max(5, downloadProgress?.progress ?? 0)}%` }}
+                  />
+                </div>
+                <div className={styles.progressLabel}>
+                  <span>{downloadProgress?.task || 'Downloading'}</span>
+                  <span>{Math.round(downloadProgress?.progress ?? 0)}%</span>
+                </div>
+              </div>
+            ) : (
+              <button
+                type="button"
+                className={styles.downloadBtn}
+                onClick={handleDownload3DAssets}
+              >
+                <Download size={13} />
+                <span>Install 3D Model Pack</span>
+              </button>
+            )}
+          </div>
         </div>
       )}
 

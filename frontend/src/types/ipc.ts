@@ -34,6 +34,8 @@ export const IpcMessageTypes = {
   TextureDeleteFile: 'TEXTURE:DELETE_FILE',
   TextureDeleteEntries: 'TEXTURE:DELETE_ENTRIES',
   GeometryGet: 'GEOMETRY:GET',
+  VanillaDownload3DAssets: 'VANILLA:DOWNLOAD_3D_ASSETS',
+  VanillaGet3DStatus: 'VANILLA:GET_3D_STATUS',
 
   // Outgoing from C# to Web
   PackStateChanged: 'PACK:STATE_CHANGED',
@@ -43,6 +45,8 @@ export const IpcMessageTypes = {
   ErrorNotify: 'ERROR:NOTIFY',
   CatalogReferencesUpdated: 'CATALOG:REFERENCES_UPDATED',
   GeometryData: 'GEOMETRY:DATA',
+  Vanilla3DStatus: 'VANILLA:3D_STATUS',
+  DownloadProgress: 'DOWNLOAD:PROGRESS',
 } as const;
 
 export type IpcMessageType = (typeof IpcMessageTypes)[keyof typeof IpcMessageTypes];
@@ -358,4 +362,15 @@ export interface ErrorPayload {
   title: string;
   message: string;
   severity: 'error' | 'warning' | 'info';
+}
+
+export interface Vanilla3DStatusPayload {
+  has3DModels: boolean;
+  referencePath?: string | null;
+}
+
+export interface DownloadProgressPayload {
+  task: string;
+  progress: number;
+  message: string;
 }

@@ -69,6 +69,8 @@ public static class IpcMessageTypes
     public const string TextureDeleteFile = "TEXTURE:DELETE_FILE";
     public const string TextureDeleteEntries = "TEXTURE:DELETE_ENTRIES";
     public const string GeometryGet      = "GEOMETRY:GET";
+    public const string VanillaDownload3DAssets = "VANILLA:DOWNLOAD_3D_ASSETS";
+    public const string VanillaGet3DStatus      = "VANILLA:GET_3D_STATUS";
 
     // Outgoing from C# to Web
     public const string PackStateChanged = "PACK:STATE_CHANGED";
@@ -78,6 +80,8 @@ public static class IpcMessageTypes
     public const string ErrorNotify      = "ERROR:NOTIFY";
     public const string CatalogReferencesUpdated = "CATALOG:REFERENCES_UPDATED";
     public const string GeometryData     = "GEOMETRY:DATA";
+    public const string Vanilla3DStatus  = "VANILLA:3D_STATUS";
+    public const string DownloadProgress = "DOWNLOAD:PROGRESS";
 }
 
 #endregion
@@ -261,6 +265,17 @@ public record GeometryDataPayload(
     [property: JsonPropertyName("geometryId")] string GeometryId,
     [property: JsonPropertyName("rawJson")] string RawJson,
     [property: JsonPropertyName("entityId")] string? EntityId = null
+);
+
+public record Vanilla3DStatusPayload(
+    [property: JsonPropertyName("has3DModels")] bool Has3DModels,
+    [property: JsonPropertyName("referencePath")] string? ReferencePath = null
+);
+
+public record DownloadProgressPayload(
+    [property: JsonPropertyName("task")] string Task,
+    [property: JsonPropertyName("progress")] double Progress,
+    [property: JsonPropertyName("message")] string Message
 );
 
 public record ReferencePackProfileDto(

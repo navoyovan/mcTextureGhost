@@ -14,6 +14,7 @@ import {
   ArrowRight,
   Box,
   Sword,
+  Ghost,
   Check,
   Plus,
   Minus,
@@ -184,6 +185,7 @@ const CatalogAliasGroup: React.FC<{
   blockDisplayName?: string;
   onAdd: (id: string, category: string) => void;
 }> = ({ aliasGroup, category, blockDisplayName, onAdd }) => {
+  const isEntity = (aliasGroup.category || category).toLowerCase() === 'entity';
   const isAdded =
     (aliasGroup.notAddedCount ?? 0) === 0 &&
     (aliasGroup.leaves?.length ?? 0) > 0 &&
@@ -195,15 +197,15 @@ const CatalogAliasGroup: React.FC<{
         <div className={styles.aliasHeaderLeft}>
           <Layers size={13} className={styles.aliasIcon} />
           <span className={styles.aliasNameText} title={aliasGroup.alias}>
-            Alias: {aliasGroup.alias}
+            {isEntity ? `Slot: ${aliasGroup.alias}` : `Alias: ${aliasGroup.alias}`}
           </span>
           {aliasGroup.faceSummary && (
             <span
               className={styles.faceLabelBadge}
-              title={`Face mapping: ${aliasGroup.faceSummary}`}
+              title={isEntity ? `Texture file: ${aliasGroup.faceSummary}` : `Face mapping: ${aliasGroup.faceSummary}`}
             >
               <ArrowRight size={9} />
-              <span>Face: {aliasGroup.faceSummary}</span>
+              <span>{isEntity ? `File: ${aliasGroup.faceSummary}` : `Face: ${aliasGroup.faceSummary}`}</span>
             </span>
           )}
           {aliasGroup.ghostCount > 0 && (
@@ -214,7 +216,7 @@ const CatalogAliasGroup: React.FC<{
         </div>
 
         {isAdded ? (
-          <span className={styles.addedBadge} title="This alias is already in your pack">
+          <span className={styles.addedBadge} title="This item is already in your pack">
             <Check size={11} />
             <span>Added</span>
           </span>
@@ -223,11 +225,11 @@ const CatalogAliasGroup: React.FC<{
             type="button"
             className={styles.addAliasBtn}
             onClick={() => onAdd(aliasGroup.alias, aliasGroup.category || category)}
-            title={`Add alias '${aliasGroup.alias}' to pack`}
-            aria-label={`Add alias ${aliasGroup.alias}`}
+            title={isEntity ? `Add ${blockDisplayName || 'entity'} to pack` : `Add alias '${aliasGroup.alias}' to pack`}
+            aria-label={isEntity ? `Add ${blockDisplayName || 'entity'} to pack` : `Add alias ${aliasGroup.alias}`}
           >
             <Plus size={11} />
-            <span>Add Alias</span>
+            <span>{isEntity ? 'Add Entity' : 'Add Alias'}</span>
           </button>
         )}
       </div>
@@ -248,7 +250,7 @@ const CatalogAliasGroup: React.FC<{
 };
 
 /**
- * Tier 1: Block/Item Group Component
+ * Tier 1: Block/Item/Entity Group Component
  */
 const CatalogBlockGroup: React.FC<{
   block: BlockGroupNodeDto;
@@ -257,8 +259,11 @@ const CatalogBlockGroup: React.FC<{
   onToggleExpand: () => void;
   onAdd: (id: string, category: string) => void;
   isBlockInWorkspace: (blockId: string) => boolean;
-}> = ({ block, blockKey, isExpanded, onToggleExpand, onAdd, isBlockInWorkspace }) => {
-  const isItem = block.category.toLowerCase() === 'item';
+  isEntityInWorkspace: (entityId: string) => boolean;
+}> = ({ block, blockKey, isExpanded, onToggleExpand, onAdd, isBlockInWorkspace, isEntityInWorkspace }) => {
+  const cat = (block.category || 'block').toLowerCase();
+  const isItem = cat === 'item';
+  const isEntity = cat === 'entity';
 
   const allAliasesAdded =
     (block.aliasGroups?.length ?? 0) > 0 &&
@@ -269,7 +274,11 @@ const CatalogBlockGroup: React.FC<{
         ag.leaves.every((l) => l.status !== 'VANILLA')
     );
 
-  const isAdded = isItem ? allAliasesAdded : (isBlockInWorkspace(block.blockId) && allAliasesAdded);
+  const isAdded = isEntity
+    ? isEntityInWorkspace(block.blockId)
+    : isItem
+    ? allAliasesAdded
+    : (isBlockInWorkspace(block.blockId) && allAliasesAdded);
 
   return (
     <div className={styles.blockGroupCard} data-testid={`block-group-${block.blockId}`}>
@@ -294,7 +303,7 @@ const CatalogBlockGroup: React.FC<{
               e.stopPropagation();
               onToggleExpand();
             }}
-            aria-label={isExpanded ? 'Collapse block' : 'Expand block'}
+            aria-label={isExpanded ? 'Collapse item' : 'Expand item'}
           >
             {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
           </button>
@@ -311,10 +320,18 @@ const CatalogBlockGroup: React.FC<{
 
         <div className={styles.blockBadgesAndActions}>
           <span
-            className={`${styles.categoryBadge} ${isItem ? styles.categoryBadgeItem : ''}`}
+            className={`${styles.categoryBadge} ${
+              isEntity
+                ? styles.categoryBadgeEntity
+                : isItem
+                ? styles.categoryBadgeItem
+                : ''
+            }`}
             title={block.category}
           >
-            {isItem ? (
+            {isEntity ? (
+              <Ghost size={11} className={styles.badgeIcon} />
+            ) : isItem ? (
               <Sword size={11} className={styles.badgeIcon} />
             ) : (
               <Box size={11} className={styles.badgeIcon} />
@@ -333,10 +350,8 @@ const CatalogBlockGroup: React.FC<{
             </span>
           )}
 
-
-
           {isAdded ? (
-            <span className={styles.addedBadge} title="This block is already in your pack">
+            <span className={styles.addedBadge} title="This item is already in your pack">
               <Check size={11} />
               <span>Added</span>
             </span>
@@ -348,8 +363,8 @@ const CatalogBlockGroup: React.FC<{
                 e.stopPropagation();
                 onAdd(block.blockId, block.category);
               }}
-              title={`Add all textures for ${block.displayName} to pack`}
-              aria-label={`Add all textures for ${block.displayName} to pack`}
+              title={`Add ${block.displayName} to pack`}
+              aria-label={`Add ${block.displayName} to pack`}
             >
               <Zap size={11} />
               <span>Add to Pack</span>
@@ -366,7 +381,13 @@ const CatalogBlockGroup: React.FC<{
               aliasGroup={aliasGroup}
               category={block.category}
               blockDisplayName={block.displayName}
-              onAdd={onAdd}
+              onAdd={(id, cat) => {
+                if (isEntity) {
+                  onAdd(block.blockId, 'entity');
+                } else {
+                  onAdd(id, cat);
+                }
+              }}
             />
           ))}
         </div>
@@ -381,12 +402,13 @@ const CatalogBlockGroup: React.FC<{
 export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose }) => {
   const catalogTree = usePackStore((s) => s.catalogTree);
   const blockWorkspaceTree = usePackStore((s) => s.blockWorkspaceTree);
+  const entityWorkspaceTree = usePackStore((s) => s.entityWorkspaceTree);
   const referencePacks = usePackStore((s) => s.referencePacks);
   const activeReferenceId = usePackStore((s) => s.activeReferenceId);
   const { postCommand, loadCatalog } = useIpc();
 
   const [searchText, setSearchText] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState<'all' | 'block' | 'item'>('all');
+  const [categoryFilter, setCategoryFilter] = useState<'all' | 'block' | 'item' | 'entity'>('all');
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [isMounted, setIsMounted] = useState(isOpen);
   const overlayRef = useRef<HTMLDivElement | null>(null);
@@ -412,6 +434,16 @@ export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose })
       );
     },
     [blockWorkspaceTree]
+  );
+
+  const isEntityInWorkspace = useCallback(
+    (entityId: string): boolean => {
+      if (!entityWorkspaceTree || !Array.isArray(entityWorkspaceTree)) return false;
+      return entityWorkspaceTree.some(
+        (e) => e.blockId.toLowerCase() === entityId.toLowerCase()
+      );
+    },
+    [entityWorkspaceTree]
   );
 
   // Ask the parent to close; unmount happens after the GSAP exit animation finishes.
@@ -576,7 +608,7 @@ export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose })
     (id: string, category: string) => {
       postCommand('VANILLA:ADD', {
         id,
-        category: category.toLowerCase() === 'item' ? 'item' : 'block',
+        category: category.toLowerCase(),
       });
     },
     [postCommand]
@@ -610,7 +642,7 @@ export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose })
         role="dialog"
         aria-label="Vanilla Catalog"
       >
-        {/* Floating Action Cluster: 3 connected buttons detached from drawer on left: All (top), Blocks, Items */}
+        {/* Floating Action Cluster: 4 connected buttons detached from drawer on left: All (top), Blocks, Items, Entities */}
         <div className={styles.floatingActionCluster}>
           <button
             type="button"
@@ -656,6 +688,22 @@ export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose })
               <Sword size={16} />
             </span>
             <span className={styles.floatingBtnTooltip}>Filter Items</span>
+          </button>
+          <div className={styles.floatingBtnDivider} />
+          <button
+            type="button"
+            className={`${styles.floatingBtn} ${categoryFilter === 'entity' ? styles.floatingBtnActive : ''}`}
+            title="Filter Entities"
+            aria-label="Filter Entities"
+            onClick={(e) => {
+              e.stopPropagation();
+              setCategoryFilter((prev) => (prev === 'entity' ? 'all' : 'entity'));
+            }}
+          >
+            <span className={styles.floatingBtnIcon}>
+              <Ghost size={16} />
+            </span>
+            <span className={styles.floatingBtnTooltip}>Filter Entities</span>
           </button>
         </div>
 
@@ -713,7 +761,7 @@ export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose })
             <input
               type="text"
               className={styles.searchInput}
-              placeholder="Search vanilla blocks, items, or aliases (e.g. sea_lantern, sword, door)..."
+              placeholder="Search vanilla blocks, items, entities, or aliases..."
               value={searchText}
               onChange={(e) => setSearchText(e.target.value)}
               data-testid="catalog-search-input"
@@ -754,6 +802,7 @@ export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose })
                     onToggleExpand={() => toggleExpand(blockKey)}
                     onAdd={handleAdd}
                     isBlockInWorkspace={isBlockInWorkspace}
+                    isEntityInWorkspace={isEntityInWorkspace}
                   />
                 );
               })}

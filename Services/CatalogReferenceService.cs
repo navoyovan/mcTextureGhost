@@ -1,5 +1,7 @@
 using System.Diagnostics;
 using System.IO;
+using System.IO.Compression;
+using System.Net.Http;
 using System.Text.Json;
 using McTextureGhost.Models;
 
@@ -24,6 +26,9 @@ public record ReferencePackProfile(
 /// </summary>
 public static class CatalogReferenceService
 {
+    public static string VanillaReferencePackDirectory =>
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "McTextureGhost", "reference_packs", "vanilla");
+
     private static readonly string SettingsFilePath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
         "McTextureGhost",
@@ -35,6 +40,99 @@ public static class CatalogReferenceService
     private static readonly Dictionary<string, VanillaData> _dataCache = new(StringComparer.OrdinalIgnoreCase);
 
     public static string ActiveReferenceId => _activeReferenceId;
+
+    public static bool Has3DModelsInstalled()
+    {
+        var modelsDir = Path.Combine(VanillaReferencePackDirectory, "models", "entity");
+        if (Directory.Exists(modelsDir) && Directory.EnumerateFiles(modelsDir, "*.json", SearchOption.AllDirectories).Any())
+            return true;
+
+        var cacheModelsDir = Path.Combine(VanillaDataService.CacheDirectory, "models", "entity");
+        return Directory.Exists(cacheModelsDir) && Directory.EnumerateFiles(cacheModelsDir, "*.json", SearchOption.AllDirectories).Any();
+    }
+
+    public static async Task<bool> DownloadVanillaSamplePackAsync(Action<double, string>? onProgress = null)
+    {
+        try
+        {
+            var targetDir = VanillaReferencePackDirectory;
+            Directory.CreateDirectory(targetDir);
+
+            onProgress?.Invoke(0.05, "Connecting to Mojang bedrock-samples repository...");
+
+            var zipUrl = "https://github.com/Mojang/bedrock-samples/archive/refs/heads/main.zip";
+            using var client = new HttpClient { Timeout = TimeSpan.FromMinutes(4) };
+            client.DefaultRequestHeaders.UserAgent.ParseAdd("McTextureGhost/1.0");
+
+            onProgress?.Invoke(0.15, "Downloading Bedrock reference assets archive...");
+            using var response = await client.GetAsync(zipUrl, HttpCompletionOption.ResponseHeadersRead);
+            response.EnsureSuccessStatusCode();
+
+            var totalBytes = response.Content.Headers.ContentLength ?? (20 * 1024 * 1024);
+            var tempZip = Path.Combine(Path.GetTempPath(), "bedrock-samples-main.zip");
+
+            await using (var contentStream = await response.Content.ReadAsStreamAsync())
+            await using (var fileStream = File.Create(tempZip))
+            {
+                var buffer = new byte[81920];
+                long readBytes = 0;
+                int read;
+                while ((read = await contentStream.ReadAsync(buffer, 0, buffer.Length)) > 0)
+                {
+                    await fileStream.WriteAsync(buffer, 0, read);
+                    readBytes += read;
+                    double pct = 0.15 + 0.55 * Math.Min(1.0, (double)readBytes / totalBytes);
+                    onProgress?.Invoke(pct, $"Downloading reference assets ({readBytes / (1024 * 1024)} MB)...");
+                }
+            }
+
+            onProgress?.Invoke(0.75, "Extracting Bedrock 3D models and entity definitions...");
+            await Task.Run(() =>
+            {
+                using var archive = ZipFile.OpenRead(tempZip);
+                foreach (var entry in archive.Entries)
+                {
+                    var fullName = entry.FullName.Replace('\\', '/');
+                    var rpIndex = fullName.IndexOf("/resource_pack/", StringComparison.OrdinalIgnoreCase);
+                    if (rpIndex < 0 && fullName.StartsWith("bedrock-samples-main/resource_pack/", StringComparison.OrdinalIgnoreCase))
+                    {
+                        rpIndex = "bedrock-samples-main".Length;
+                    }
+
+                    if (rpIndex >= 0)
+                    {
+                        var relPath = fullName.Substring(rpIndex + "/resource_pack/".Length);
+                        if (string.IsNullOrWhiteSpace(relPath) || relPath.EndsWith('/')) continue;
+
+                        if (relPath.StartsWith("models/", StringComparison.OrdinalIgnoreCase) ||
+                            relPath.StartsWith("entity/", StringComparison.OrdinalIgnoreCase) ||
+                            relPath.StartsWith("attachables/", StringComparison.OrdinalIgnoreCase) ||
+                            relPath.StartsWith("textures/", StringComparison.OrdinalIgnoreCase) ||
+                            relPath.StartsWith("texts/", StringComparison.OrdinalIgnoreCase) ||
+                            string.Equals(relPath, "blocks.json", StringComparison.OrdinalIgnoreCase) ||
+                            string.Equals(relPath, "pack_icon.png", StringComparison.OrdinalIgnoreCase))
+                        {
+                            var destFile = Path.Combine(targetDir, relPath.Replace('/', Path.DirectorySeparatorChar));
+                            var destFolder = Path.GetDirectoryName(destFile);
+                            if (!string.IsNullOrEmpty(destFolder)) Directory.CreateDirectory(destFolder);
+                            entry.ExtractToFile(destFile, true);
+                        }
+                    }
+                }
+            });
+
+            try { File.Delete(tempZip); } catch { }
+
+            _dataCache.Clear();
+            onProgress?.Invoke(1.0, "Reference pack installation complete!");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[CatalogReferenceService] Download failed: {ex.Message}");
+            return false;
+        }
+    }
 
     static CatalogReferenceService()
     {
@@ -491,6 +589,8 @@ public static class CatalogReferenceService
             declaredItemPaths,
             entityDefinitions,
             declaredEntityPaths,
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
             new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
             new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
             DateTime.Now,

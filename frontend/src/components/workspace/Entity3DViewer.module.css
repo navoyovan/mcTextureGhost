@@ -188,3 +188,106 @@
   color: #fca5a5;
   pointer-events: none;
 }
+
+/* 3D Asset Download Prompt Overlay */
+.downloadPromptOverlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(14, 14, 18, 0.85);
+  backdrop-filter: blur(8px);
+  z-index: 110;
+  padding: 20px;
+}
+
+.downloadPromptCard {
+  background: rgba(24, 24, 30, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  padding: 16px 20px;
+  max-width: 320px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+
+.downloadPromptTitle {
+  font-family: var(--font-brand, sans-serif);
+  font-size: 13px;
+  font-weight: 700;
+  color: #f4f4f5;
+  margin: 0;
+}
+
+.downloadPromptDesc {
+  font-size: 11px;
+  color: #a1a1aa;
+  line-height: 1.4;
+  margin: 0;
+}
+
+.downloadBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: 6px;
+  background: rgba(140, 235, 31, 0.2);
+  border: 1px solid rgba(140, 235, 31, 0.45);
+  color: var(--accent-primary, #8CEB1F);
+  font-family: var(--font-brand, sans-serif);
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  width: 100%;
+}
+
+.downloadBtn:hover {
+  background: rgba(140, 235, 31, 0.35);
+  border-color: rgba(140, 235, 31, 0.7);
+  color: #ffffff;
+}
+
+.downloadBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.progressContainer {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.progressBarBg {
+  width: 100%;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.progressBarFill {
+  height: 100%;
+  background: var(--accent-primary, #8CEB1F);
+  border-radius: 3px;
+  transition: width 0.2s ease;
+}
+
+.progressLabel {
+  font-size: 10.5px;
+  color: #d4d4d8;
+  font-family: var(--font-mono, monospace);
+  display: flex;
+  justify-content: space-between;
+}

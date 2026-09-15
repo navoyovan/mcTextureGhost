@@ -23,6 +23,8 @@ public record VanillaData(
     HashSet<string> DeclaredItemPaths,
     Dictionary<string, Dictionary<string, string>> EntityDefinitions,
     HashSet<string> DeclaredEntityPaths,
+    Dictionary<string, string> RawClientEntityJson,
+    Dictionary<string, string> RawClientEntityRelPath,
     Dictionary<string, string> RawGeometryJson,
     Dictionary<string, string> EntityGeometryMap,
     DateTime CachedAt,
@@ -529,6 +531,8 @@ public static class VanillaDataService
         var entityDefinitions = new Dictionary<string, Dictionary<string, string>>(StringComparer.OrdinalIgnoreCase);
         var declaredEntityPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var entityGeometryMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var rawClientEntityJson = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var rawClientEntityRelPath = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
         var entityCacheDir = Path.Combine(cacheDir, "entity");
         var attachablesCacheDir = Path.Combine(cacheDir, "attachables");
@@ -547,9 +551,20 @@ public static class VanillaDataService
                 {
                     try
                     {
+                        var jsonText = File.ReadAllText(file);
+                        var relFromCache = Path.GetRelativePath(cacheDir, file).Replace('\\', '/');
                         var entityDetails = PackScanner.ParseClientEntityDetails(file);
                         foreach (var detail in entityDetails)
                         {
+                            rawClientEntityJson[detail.Identifier] = jsonText;
+                            rawClientEntityRelPath[detail.Identifier] = relFromCache;
+
+                            var cleanId = detail.Identifier.StartsWith("minecraft:", StringComparison.OrdinalIgnoreCase)
+                                ? detail.Identifier.Substring(10)
+                                : detail.Identifier;
+                            rawClientEntityJson[cleanId] = jsonText;
+                            rawClientEntityRelPath[cleanId] = relFromCache;
+
                             if (!entityDefinitions.TryGetValue(detail.Identifier, out var existing))
                             {
                                 entityDefinitions[detail.Identifier] = existing = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -662,6 +677,8 @@ public static class VanillaDataService
             declaredItemPaths,
             entityDefinitions,
             declaredEntityPaths,
+            rawClientEntityJson,
+            rawClientEntityRelPath,
             rawGeometryJson,
             entityGeometryMap,
             cachedAt,
