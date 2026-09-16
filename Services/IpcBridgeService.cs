@@ -180,6 +180,8 @@ public sealed class IpcBridgeService : IIpcBridgeService
 
     public void SetPackVirtualHost(string? packRoot)
     {
+        _currentPackRoot = string.IsNullOrWhiteSpace(packRoot) || !Directory.Exists(packRoot) ? null : packRoot;
+
         if (_coreWebView2 == null || _dispatcher == null) return;
 
         if (!_dispatcher.CheckAccess())
@@ -190,12 +192,6 @@ public sealed class IpcBridgeService : IIpcBridgeService
 
         try
         {
-            try
-            {
-                _coreWebView2.ClearVirtualHostNameToFolderMapping("pack.local");
-            }
-            catch { /* Ignore if not mapped */ }
-
             if (!string.IsNullOrWhiteSpace(packRoot) && Directory.Exists(packRoot))
             {
                 _coreWebView2.SetVirtualHostNameToFolderMapping(
@@ -203,12 +199,15 @@ public sealed class IpcBridgeService : IIpcBridgeService
                     Path.GetFullPath(packRoot),
                     CoreWebView2HostResourceAccessKind.Allow
                 );
-                _currentPackRoot = packRoot;
                 Debug.WriteLine($"[IPC Bridge] Mapped 'https://pack.local/' to '{packRoot}'");
             }
             else
             {
-                _currentPackRoot = null;
+                try
+                {
+                    _coreWebView2.ClearVirtualHostNameToFolderMapping("pack.local");
+                }
+                catch { /* Ignore if not mapped */ }
                 Debug.WriteLine("[IPC Bridge] Cleared mapping for 'pack.local'");
             }
         }

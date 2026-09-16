@@ -39,7 +39,26 @@ public class MainViewModel : INotifyPropertyChanged
     public ObservableCollection<PackFolderItem> PackFolders { get; } = new();
 
     public bool IsPackLoaded => _packRoot != null;
-    public string? PackRootPath => _packRoot;
+    public string? PackRootPath
+    {
+        get => _packRoot;
+        set
+        {
+            if (_packRoot != value)
+            {
+                _packRoot = value;
+                _cachedPackName = null;
+                OnPropertyChanged(nameof(PackRootPath));
+                OnPropertyChanged(nameof(IsPackLoaded));
+                OnPropertyChanged(nameof(RootDirectoryName));
+                OnPropertyChanged(nameof(PackName));
+                OnPropertyChanged(nameof(PackIconPath));
+                OnPropertyChanged(nameof(HasPackIcon));
+                OnPropertyChanged(nameof(HasManifest));
+                OnPropertyChanged(nameof(WindowTitle));
+            }
+        }
+    }
     public string? RootDirectoryName => _packRoot != null ? Path.GetFileName(_packRoot) : null;
     private string? _cachedPackName;
     public string? PackName => _packRoot != null ? (_cachedPackName ??= GetPackDisplayName()) : null;
@@ -876,8 +895,7 @@ public class MainViewModel : INotifyPropertyChanged
     public void LoadPack(string folderPath)
     {
         if (string.IsNullOrWhiteSpace(folderPath) || !Directory.Exists(folderPath)) return;
-        _packRoot = folderPath;
-        _cachedPackName = null;
+        PackRootPath = folderPath;
         Rescan(isInitialLoad: true);
         StartWatching();
 
@@ -1069,8 +1087,7 @@ public class MainViewModel : INotifyPropertyChanged
                 File.WriteAllText(blocksPath, blocksObj.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
             }
 
-            _packRoot = targetFolder;
-            _cachedPackName = null;
+            PackRootPath = targetFolder;
             Rescan(isInitialLoad: true);
             StartWatching();
 
@@ -1170,8 +1187,7 @@ public class MainViewModel : INotifyPropertyChanged
         _watchDebounceTimer.Stop();
         _watcher?.Dispose();
         _watcher = null;
-        _packRoot = null;
-        _cachedPackName = null;
+        PackRootPath = null;
         CurrentManifest = null;
         IsManifestViewActive = false;
         FlipbookAnimationManager.ClearCache();
