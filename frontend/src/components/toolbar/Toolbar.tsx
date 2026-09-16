@@ -1,6 +1,6 @@
 // frontend/src/components/toolbar/Toolbar.tsx
 import React from 'react';
-import { Search, X, LayoutGrid, Box } from 'lucide-react';
+import { Search, X, LayoutGrid, Box, Layers } from 'lucide-react';
 import { usePackStore } from '../../store/packStore';
 import styles from './Toolbar.module.css';
 
@@ -11,6 +11,15 @@ export const Toolbar: React.FC = () => {
   const setStatusFilter = usePackStore((s) => s.setStatusFilter);
   const activeView = usePackStore((s) => s.activeView);
   const setActiveView = usePackStore((s) => s.setActiveView);
+  const setSelectedFolderPath = usePackStore((s) => s.setSelectedFolderPath);
+  const selectedFolderPath = usePackStore((s) => s.selectedFolderPath);
+
+  const handleSelectView = (view: 'grid' | 'workspace' | 'entity') => {
+    if (selectedFolderPath && selectedFolderPath.toLowerCase().endsWith('.json')) {
+      setSelectedFolderPath(null);
+    }
+    setActiveView(view);
+  };
 
   return (
     <div className={styles.toolbar}>
@@ -57,7 +66,7 @@ export const Toolbar: React.FC = () => {
           <button
             type="button"
             className={`${styles.viewModeButton} ${activeView === 'grid' ? styles.viewModeButtonActive : ''}`}
-            onClick={() => setActiveView('grid')}
+            onClick={() => handleSelectView('grid')}
             title="Pack Grid overview"
           >
             <LayoutGrid size={13} />
@@ -66,13 +75,21 @@ export const Toolbar: React.FC = () => {
           <button
             type="button"
             className={`${styles.viewModeButton} ${activeView === 'workspace' ? styles.viewModeButtonActive : ''}`}
-            onClick={() => setActiveView('workspace')}
+            onClick={() => handleSelectView('workspace')}
             title="Block Workspace (4-Tier relational hierarchy)"
           >
             <Box size={13} />
-            <span>Block Workspace</span>
+            <span>Blocks</span>
           </button>
-
+          <button
+            type="button"
+            className={`${styles.viewModeButton} ${activeView === 'entity' ? styles.viewModeButtonActive : ''}`}
+            onClick={() => handleSelectView('entity')}
+            title="Entity Workspace (3D model & slot inspector)"
+          >
+            <Layers size={13} />
+            <span>Entities</span>
+          </button>
         </div>
       </div>
     </div>

@@ -1,5 +1,5 @@
 // frontend/src/components/workspace/Block3DViewer.tsx
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import * as THREE from 'three';
 import { RotateCcw } from 'lucide-react';
 import { FlipbookDefinitionDto } from '../../types/ipc';
@@ -85,7 +85,61 @@ interface Block3DViewerProps {
   onSelectVariationIndex?: (index: number) => void;
 }
 
-export const Block3DViewer: React.FC<Block3DViewerProps> = ({
+const OdometerBlockStateButton: React.FC<{
+  st: BlockStateOption;
+  isSelected: boolean;
+  onSelect: (index: number) => void;
+}> = React.memo(({ st, isSelected, onSelect }) => {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const leaveTimerRef = useRef<number | null>(null);
+
+  const handleMouseEnter = useCallback(() => {
+    if (leaveTimerRef.current !== null) {
+      clearTimeout(leaveTimerRef.current);
+      leaveTimerRef.current = null;
+    }
+    setIsExpanded(true);
+  }, []);
+
+  const handleMouseLeave = useCallback(() => {
+    if (leaveTimerRef.current !== null) {
+      clearTimeout(leaveTimerRef.current);
+    }
+    leaveTimerRef.current = window.setTimeout(() => {
+      setIsExpanded(false);
+      leaveTimerRef.current = null;
+    }, 800);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (leaveTimerRef.current !== null) {
+        clearTimeout(leaveTimerRef.current);
+      }
+    };
+  }, []);
+
+  const stLabel = st.badgeNumber ?? st.index + 1;
+
+  return (
+    <button
+      type="button"
+      className={`${styles.odometerButton} ${isSelected ? styles.odometerButtonActive : ''} ${isExpanded ? styles.odometerButtonExpanded : ''}`}
+      onClick={() => onSelect(st.index)}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+      aria-label={`Blockstate ${stLabel}: ${st.label}`}
+    >
+      <span className={styles.odometerIndex}>{stLabel}</span>
+      <span className={`${styles.odometerExpandWrapper} ${isExpanded ? styles.expandWrapperActive : ''}`}>
+        <span className={styles.odometerPipe}>|</span>
+        <span className={styles.odometerStateBadge}>{st.label}</span>
+      </span>
+    </button>
+  );
+});
+
+export const Block3DViewer: React.FC<Block3DViewerProps> = React.memo(({
   blockId,
   faceTextures = {},
   faceFlipbooks = {},
@@ -590,7 +644,6 @@ export const Block3DViewer: React.FC<Block3DViewerProps> = ({
                 <>
                   <div
                     className={styles.verticalOdometerStack}
-                    title="Scroll or click to switch blockstate"
                     onWheel={(e) => {
                       e.stopPropagation();
                       e.preventDefault();
@@ -601,21 +654,14 @@ export const Block3DViewer: React.FC<Block3DViewerProps> = ({
                       onSelectStateIndex(nextIdx);
                     }}
                   >
-                    {blockStates.map((st) => {
-                      const isSelected = st.index === activeStateIndex;
-                      const stLabel = st.badgeNumber ?? st.index + 1;
-                      return (
-                        <button
-                          key={`st_${st.index}`}
-                          type="button"
-                          className={`${styles.odometerButton} ${isSelected ? styles.odometerButtonActive : ''}`}
-                          onClick={() => onSelectStateIndex?.(st.index)}
-                          title={`Blockstate ${stLabel}: ${st.label}`}
-                        >
-                          {stLabel}
-                        </button>
-                      );
-                    })}
+                    {blockStates.map((st) => (
+                      <OdometerBlockStateButton
+                        key={`st_${st.index}`}
+                        st={st}
+                        isSelected={st.index === activeStateIndex}
+                        onSelect={(idx) => onSelectStateIndex?.(idx)}
+                      />
+                    ))}
                   </div>
                   <div className={styles.odometerDividerH} />
                 </>
@@ -686,4 +732,4 @@ export const Block3DViewer: React.FC<Block3DViewerProps> = ({
       <span className={styles.hintText}>Drag to rotate • Middle-drag to pan • Scroll to zoom</span>
     </div>
   );
-};
+});

@@ -93,6 +93,18 @@
   color: #a1a1aa;
 }
 
+.attachableTag {
+  font-family: var(--font-pixel);
+  font-size: 7px;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  padding: 2px 4px;
+  border-radius: 3px;
+  background: rgba(168, 85, 247, 0.12);
+  border: 1px solid rgba(168, 85, 247, 0.25);
+  color: #c084fc;
+}
+
 .blockHeaderTitleRow {
   display: flex;
   align-items: center;
@@ -124,15 +136,18 @@
 }
 
 .ghostBadge {
-  font-family: var(--font-pixel);
-  font-size: var(--font-size-pixel-badge, 8px);
+  font-family: var(--font-brand, 'Syne', sans-serif);
+  font-size: 9.5px;
+  font-weight: 700;
   line-height: 1;
-  letter-spacing: 0.02em;
-  padding: 2px 5px;
+  letter-spacing: 0.03em;
+  padding: 2.5px 6px;
+  height: 18px;
+  box-sizing: border-box;
   border-radius: 4px;
-  background: rgba(168, 85, 247, 0.15);
-  border: 1px solid rgba(168, 85, 247, 0.3);
-  color: #c4b5fd;
+  background: rgba(68, 38, 56, 0.75);
+  border: 1px solid rgba(168, 85, 247, 0.35);
+  color: var(--accent-primary, #8CEB1F);
   display: inline-flex;
   align-items: center;
   gap: 3px;
@@ -600,4 +615,12 @@
   justify-content: center;
   color: #71717a;
   font-size: 13px;
+}
+
+.noMatches {
+  padding: 24px 16px;
+  text-align: center;
+  color: #71717a;
+  font-size: 12px;
+  line-height: 1.5;
 }

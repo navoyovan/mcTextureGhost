@@ -1,27 +1,15 @@
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
-import { Box, Layers, ArrowRight, MoreVertical, Edit3, Trash2, FileX } from 'lucide-react';
+import { Box, Layers, ArrowRight } from 'lucide-react';
 import { usePackStore } from '../../store/packStore';
 import { useIpc } from '../../hooks/useIpc';
 import { BlockGroupNodeDto, CatalogLeafDto } from '../../types/ipc';
-import { FlipbookThumbnail } from '../common/FlipbookThumbnail';
 import { Block3DViewer } from './Block3DViewer';
+import { WorkspaceTileCard, VariantTileGroup } from './WorkspaceTileCard';
 import styles from './BlockWorkspace.module.css';
-
-interface TooltipState {
-  content: string;
-  x: number;
-  y: number;
-}
 
 // Group a flat leaf array by alias + block variant slot.
 // Leaves in the same group are texture variations ("variations": [ ... ]) of the same block state slot.
 // Distinct block variants ("textures": [ ... ]) have different blockVariantIndex and form separate tiles.
-interface VariantTileGroup {
-  key: string;
-  alias: string;
-  leaves: CatalogLeafDto[];
-}
-
 function groupLeavesByVariantSlot(leaves: CatalogLeafDto[]): VariantTileGroup[] {
   const map = new Map<string, VariantTileGroup>();
   for (const leaf of leaves) {
@@ -61,9 +49,10 @@ function groupLeavesByVariantSlot(leaves: CatalogLeafDto[]): VariantTileGroup[] 
 
 export const BlockWorkspace: React.FC = () => {
   const blockWorkspaceTree = usePackStore((s) => s.blockWorkspaceTree);
+  const searchQuery = usePackStore((s) => s.searchQuery);
+  const statusFilter = usePackStore((s) => s.statusFilter);
   const { editTexture, deleteTextureFile, deleteTextureEntries } = useIpc();
 
-  const [tooltip, setTooltip] = useState<TooltipState | null>(null);
   const [activeMenuKey, setActiveMenuKey] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
 
@@ -81,30 +70,66 @@ export const BlockWorkspace: React.FC = () => {
     };
   }, [activeMenuKey]);
 
-  const showTooltip = useCallback((content: string, e: React.MouseEvent) => {
-    setTooltip({ content, x: e.clientX, y: e.clientY });
-  }, []);
+  // Filter block list by toolbar searchQuery and statusFilter
+  const filteredBlockWorkspaceTree = useMemo(() => {
+    if (!blockWorkspaceTree) return [];
+    const query = searchQuery.trim().toLowerCase();
 
-  const moveTooltip = useCallback((e: React.MouseEvent) => {
-    setTooltip((prev) => (prev ? { ...prev, x: e.clientX, y: e.clientY } : null));
-  }, []);
+    return blockWorkspaceTree.filter((block) => {
+      // 1. Status filter
+      if (statusFilter === 'ghosts' && (block.ghostCount ?? 0) <= 0) {
+        return false;
+      }
+      if (statusFilter === 'added') {
+        const hasAdded = block.aliasGroups?.some((ag) =>
+          (ag.leaves?.some((l) => l.status === 'OK') ?? false) ||
+          (ag.faceNodes?.some((fn) => fn.leaves?.some((l) => l.status === 'OK') ?? false) ?? false)
+        );
+        if (!hasAdded) return false;
+      }
+      if (statusFilter === 'orphans') {
+        const hasOrphan = block.aliasGroups?.some((ag) =>
+          (ag.leaves?.some((l) => l.status === 'ORPHAN') ?? false) ||
+          (ag.faceNodes?.some((fn) => fn.leaves?.some((l) => l.status === 'ORPHAN') ?? false) ?? false)
+        );
+        if (!hasOrphan) return false;
+      }
 
-  const hideTooltip = useCallback(() => setTooltip(null), []);
+      // 2. Search query filter
+      if (!query) return true;
 
-  const [selectedBlockId, setSelectedBlockId] = useState<string | null>(() => {
-    return blockWorkspaceTree && blockWorkspaceTree.length > 0
-      ? blockWorkspaceTree[0]?.blockId ?? null
-      : null;
-  });
+      const blockIdMatches = (block.blockId || '').toLowerCase().includes(query);
+      const dispNameMatches = (block.displayName || '').toLowerCase().includes(query);
+      if (blockIdMatches || dispNameMatches) return true;
 
+      // Check inner aliases, paths, or leaf display names
+      return block.aliasGroups?.some((ag) => {
+        if ((ag.alias || '').toLowerCase().includes(query)) return true;
+        const allLeaves = [
+          ...(ag.leaves ?? []),
+          ...(ag.faceNodes ? ag.faceNodes.flatMap((fn) => fn.leaves ?? []) : []),
+        ];
+        return allLeaves.some(
+          (l) =>
+            (l.relativePath || '').toLowerCase().includes(query) ||
+            (l.displayName || '').toLowerCase().includes(query) ||
+            (l.alias || '').toLowerCase().includes(query)
+        );
+      });
+    });
+  }, [blockWorkspaceTree, searchQuery, statusFilter]);
+
+  const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
+
+  // Keep selectedBlock pointed to a valid block in the filtered list
   const selectedBlock = useMemo<BlockGroupNodeDto | null>(() => {
-    if (!blockWorkspaceTree || blockWorkspaceTree.length === 0) return null;
+    if (!filteredBlockWorkspaceTree || filteredBlockWorkspaceTree.length === 0) return null;
     return (
-      blockWorkspaceTree.find((b) => b.blockId === selectedBlockId) ??
-      blockWorkspaceTree[0] ??
+      filteredBlockWorkspaceTree.find((b) => b.blockId === selectedBlockId) ??
+      filteredBlockWorkspaceTree[0] ??
       null
     );
-  }, [blockWorkspaceTree, selectedBlockId]);
+  }, [filteredBlockWorkspaceTree, selectedBlockId]);
 
   const [activeBlockStateIndex, setActiveBlockStateIndex] = useState<number>(0);
   const [activeVariationIndex, setActiveVariationIndex] = useState<number>(0);
@@ -113,7 +138,47 @@ export const BlockWorkspace: React.FC = () => {
   useEffect(() => {
     setActiveBlockStateIndex(0);
     setActiveVariationIndex(0);
-  }, [selectedBlockId]);
+  }, [selectedBlock?.blockId]);
+
+  // Keyboard arrow navigation (Up / Down) through blocks list
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable)) {
+        return;
+      }
+
+      if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+
+      if (!filteredBlockWorkspaceTree || filteredBlockWorkspaceTree.length === 0) return;
+
+      e.preventDefault();
+
+      const currentId = selectedBlock?.blockId || selectedBlockId;
+      const currentIndex = filteredBlockWorkspaceTree.findIndex(
+        (b) => b.blockId === currentId
+      );
+
+      let nextIndex = 0;
+      if (e.key === 'ArrowDown') {
+        nextIndex = currentIndex >= 0 && currentIndex < filteredBlockWorkspaceTree.length - 1 ? currentIndex + 1 : 0;
+      } else if (e.key === 'ArrowUp') {
+        nextIndex = currentIndex > 0 ? currentIndex - 1 : filteredBlockWorkspaceTree.length - 1;
+      }
+
+      const nextBlock = filteredBlockWorkspaceTree[nextIndex];
+      if (nextBlock) {
+        setSelectedBlockId(nextBlock.blockId);
+        const btn = document.querySelector(`[data-block-id="${nextBlock.blockId}"]`);
+        if (btn) {
+          btn.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [filteredBlockWorkspaceTree, selectedBlock?.blockId, selectedBlockId]);
 
   // Reset activeVariationIndex when switching blockstate
   useEffect(() => {
@@ -232,7 +297,7 @@ export const BlockWorkspace: React.FC = () => {
 
       stateList.push({
         index: i,
-        label: `State ${i + 1}`,
+        label: `Blockstate ${i + 1}`,
         badgeNumber: i + 1,
         textures: variations[0]?.textures ?? {},
         flipbooks: variations[0]?.flipbooks ?? {},
@@ -262,241 +327,24 @@ export const BlockWorkspace: React.FC = () => {
     return { textures: {}, flipbooks: {} };
   }, [activeState, activeVariation]);
 
-  const handleLeafClick = (leaf: CatalogLeafDto) => {
+  const handleLeafClick = useCallback((leaf: CatalogLeafDto) => {
     editTexture(leaf.alias, leaf.fullPath, leaf.status === 'GHOST');
-  };
+  }, [editTexture]);
 
-  const getStatusDotClass = (status: string) => {
-    switch (status) {
-      case 'OK':       return styles.statusDotOk;
-      case 'GHOST':    return styles.statusDotGhost;
-      case 'ORPHAN':   return styles.statusDotOrphan;
-      case 'OVERRIDE': return styles.statusDotOverride;
-      default:         return styles.statusDotNew;
-    }
-  };
+  const handleToggleMenu = useCallback((cardKey: string) => {
+    setActiveMenuKey((prev) => (prev === cardKey ? null : cardKey));
+  }, []);
+
+  const handleDeleteTextureFile = useCallback((path: string, alias: string) => {
+    deleteTextureFile(path, alias);
+  }, [deleteTextureFile]);
+
+  const handleDeleteTextureEntries = useCallback((alias: string, relativePath?: string | null) => {
+    deleteTextureEntries(alias, 'block', relativePath ?? undefined);
+  }, [deleteTextureEntries]);
 
   const tileZoom = usePackStore((s) => s.tileZoom);
-
-  /**
-   * Renders one card for a block variant slot.
-   * If this slot has multiple texture variations ("variations": [...]), they are
-   * displayed side-by-side inside this tile, expanding horizontally.
-   */
-  const renderTileCard = (group: VariantTileGroup, cardKey: string) => {
-    const { alias, leaves } = group;
-    const primary = leaves[0];
-    if (!primary) return null;
-    const numVariations = leaves.length;
-    const hasTexVariants = numVariations > 1;
-
-    const getLeafTitle = (l: CatalogLeafDto) => {
-      if (l.relativePath) {
-        return l.relativePath.split(/[/\\]/).pop() ?? l.displayName ?? alias;
-      }
-      return l.displayName ?? alias;
-    };
-
-    const parseFileName = (l: CatalogLeafDto) => {
-      const raw = getLeafTitle(l);
-      const sourceForExt = l.fullPath || l.relativePath || l.imageUrl || raw;
-      const dotIdx = sourceForExt.lastIndexOf('.');
-      const cleanExt = dotIdx > 0 ? (sourceForExt.substring(dotIdx).split('?')[0] ?? '').split('#')[0] ?? '' : '';
-      const fileExt = cleanExt && cleanExt.length <= 5 ? cleanExt : '.png';
-      const rawDotIdx = raw.lastIndexOf('.');
-      const fileBase = rawDotIdx > 0 ? raw.substring(0, rawDotIdx) : raw;
-      return { fileBase, fileExt, fullFileName: `${fileBase}${fileExt}` };
-    };
-
-    const primaryFile = parseFileName(primary);
-
-    const blockVariantSuffix = primary.blockVariantIndex && primary.totalBlockVariants
-      ? ` (block state ${primary.blockVariantIndex}/${primary.totalBlockVariants})`
-      : '';
-
-    const tooltipLines = [
-      (selectedBlock?.displayName || selectedBlock?.blockId) + blockVariantSuffix,
-      `terrain textures: ${alias}`,
-      numVariations === 1
-        ? `path: ${primary.relativePath}`
-        : `path: ${leaves.map(l => l.relativePath).join(', ')}`,
-      hasTexVariants ? `${numVariations} texture variations (side-by-side)` : '',
-    ].filter(Boolean);
-
-    // Dynamic width calculation: each slot has width = tileZoom.
-    // Card padding is 10px on each side (20px total) + 2px for left/right card borders.
-    // Plus 8px gap between each variation.
-    const cardWidth = hasTexVariants
-      ? 22 + numVariations * tileZoom + (numVariations - 1) * 8
-      : tileZoom + 22;
-
-    const cardStyle = {
-      '--tile-zoom': `${tileZoom}px`,
-      width: `${cardWidth}px`,
-    } as React.CSSProperties;
-
-    const isGhost = primary.status === 'GHOST';
-
-    return (
-      <div
-        key={cardKey}
-        className={`${styles.leafCard} ${hasTexVariants ? styles.leafCardWithVariants : ''}`}
-        style={cardStyle}
-        onMouseEnter={(e) => showTooltip(tooltipLines.join('\n'), e)}
-        onMouseMove={moveTooltip}
-        onMouseLeave={hideTooltip}
-        onContextMenu={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          hideTooltip();
-          setActiveMenuKey(cardKey);
-        }}
-      >
-        {/* 3-Dots Hover Menu Trigger */}
-        <button
-          type="button"
-          className={`${styles.moreButton} ${activeMenuKey === cardKey ? styles.moreButtonActive : ''}`}
-          onClick={(e) => {
-            e.stopPropagation();
-            hideTooltip();
-            setActiveMenuKey((prev) => (prev === cardKey ? null : cardKey));
-          }}
-          title="Texture options"
-          aria-label="Texture options"
-        >
-          <MoreVertical size={14} />
-        </button>
-
-        {/* Dropdown Menu */}
-        {activeMenuKey === cardKey && (
-          <div
-            ref={menuRef}
-            className={styles.dropdownMenu}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              type="button"
-              className={styles.menuItem}
-              onClick={() => {
-                setActiveMenuKey(null);
-                handleLeafClick(primary);
-              }}
-            >
-              <Edit3 size={13} className={styles.menuIcon} />
-              <span>Edit Texture</span>
-            </button>
-
-            <button
-              type="button"
-              className={`${styles.menuItem} ${styles.menuItemDanger}`}
-              disabled={isGhost || !primary.fullPath}
-              onClick={() => {
-                setActiveMenuKey(null);
-                if (primary.fullPath) {
-                  deleteTextureFile(primary.fullPath, primary.alias);
-                }
-              }}
-              title={isGhost ? 'Texture file does not exist on disk' : 'Delete PNG file from disk'}
-            >
-              <Trash2 size={13} className={styles.menuIcon} />
-              <span>Delete Texture</span>
-            </button>
-
-            <button
-              type="button"
-              className={`${styles.menuItem} ${styles.menuItemDanger}`}
-              disabled={primary.status === 'ORPHAN'}
-              onClick={() => {
-                setActiveMenuKey(null);
-                deleteTextureEntries(primary.alias, 'block', primary.relativePath);
-              }}
-              title={primary.status === 'ORPHAN' ? 'Orphan has no JSON declarations' : 'Remove declarations from JSON schemas'}
-            >
-              <FileX size={13} className={styles.menuIcon} />
-              <span>Delete Entries</span>
-            </button>
-          </div>
-        )}
-
-        {/* Thumbnail area: single thumb or side-by-side texture variations with dividers */}
-        <div
-          className={`${hasTexVariants ? styles.texVariantThumbRow : styles.leafThumbWrapper} ${!isGhost ? styles.leafThumbWrapperAdded : ''}`}
-        >
-          {leaves.map((leaf, i) => {
-            const leafName = getLeafTitle(leaf);
-            const isLeafGhost = leaf.status === 'GHOST';
-            return (
-              <React.Fragment key={`${leaf.relativePath}-${i}`}>
-                {i > 0 && <div className={styles.texVarDivider} />}
-                <div
-                  className={`${hasTexVariants ? styles.texVarThumbSlot : styles.leafThumbInner} ${!isLeafGhost ? styles.texVarThumbSlotAdded : ''}`}
-                  onClick={() => handleLeafClick(leaf)}
-                  title={leafName}
-                >
-                  {!isLeafGhost && leaf.imageUrl ? (
-                    <FlipbookThumbnail
-                      src={leaf.imageUrl}
-                      alt={leafName}
-                      className={styles.leafThumb}
-                      isFlipbook={leaf.isFlipbook}
-                      flipbook={leaf.flipbook}
-                      loading="lazy"
-                    />
-                  ) : (
-                    <span className={styles.leafGhost}>?</span>
-                  )}
-                </div>
-              </React.Fragment>
-            );
-          })}
-        </div>
-
-        {/* Meta / Names Area */}
-        {hasTexVariants ? (
-          <div className={styles.texVariantMetaRow}>
-            {leaves.map((leaf, i) => {
-              const file = parseFileName(leaf);
-              return (
-                <React.Fragment key={`meta-${leaf.relativePath}-${i}`}>
-                  {i > 0 && <div className={styles.texVarMetaDivider} />}
-                  <div className={styles.texVarMetaCol} style={{ width: `${tileZoom}px` }}>
-                    <div className={styles.leafHeaderRow}>
-                      <span className={styles.leafName} title={file.fullFileName}>
-                        <span>{file.fileBase}</span>
-                        <span className={styles.fileExt}>{file.fileExt}</span>
-                      </span>
-                    </div>
-                    <div className={styles.leafSubRow}>
-                      <span className={`${styles.leafStatusDot} ${getStatusDotClass(leaf.status)}`} />
-                      <span className={styles.leafSubtitle}>
-                        {leaf.relativePath || leaf.alias}
-                      </span>
-                    </div>
-                  </div>
-                </React.Fragment>
-              );
-            })}
-          </div>
-        ) : (
-          <div className={styles.leafMeta}>
-            <div className={styles.leafHeaderRow}>
-              <span className={styles.leafName} title={primaryFile.fullFileName}>
-                <span>{primaryFile.fileBase}</span>
-                <span className={styles.fileExt}>{primaryFile.fileExt}</span>
-              </span>
-            </div>
-            <div className={styles.leafSubRow}>
-              <span className={`${styles.leafStatusDot} ${getStatusDotClass(primary.status)}`} />
-              <span className={styles.leafSubtitle}>
-                {primary.relativePath || primary.alias}
-              </span>
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  };
-
+  const selectedBlockDisplayName = selectedBlock?.displayName || selectedBlock?.blockId || '';
 
   if (!blockWorkspaceTree || blockWorkspaceTree.length === 0) {
     return (
@@ -510,43 +358,44 @@ export const BlockWorkspace: React.FC = () => {
 
   return (
     <div className={styles.workspaceContainer}>
-      {tooltip && (
-        <div
-          className={styles.floatingTooltip}
-          style={{ left: tooltip.x + 14, top: tooltip.y - 8 }}
-        >
-          {tooltip.content}
-        </div>
-      )}
-
       {/* Left List */}
       <aside className={styles.blockListPane} aria-label="Blocks List">
-        <div className={styles.blockListHeader}>Pack Blocks ({blockWorkspaceTree.length})</div>
-        {blockWorkspaceTree.map((block) => {
-          const isActive = selectedBlock?.blockId === block.blockId;
-          const isCustom = block.isUserDefined !== false;
-          return (
-            <button
-              key={block.blockId}
-              type="button"
-              className={`${styles.blockItem} ${isActive ? styles.blockItemActive : ''} ${!isCustom ? styles.blockItemVanilla : ''}`}
-              onClick={() => setSelectedBlockId(block.blockId)}
-            >
-              <div className={styles.blockItemLeft}>
-                <Box size={14} className={!isCustom ? styles.blockIconMuted : undefined} />
-                <span className={styles.blockItemName}>{block.displayName || block.blockId}</span>
-              </div>
-              <div className={styles.blockItemBadges}>
-                {!isCustom && block.blockId !== 'uncategorized' && (
-                  <span className={styles.vanillaTag} title="Inferred from vanilla blocks.json">vanilla</span>
-                )}
-                {block.ghostCount > 0 && (
-                  <span className={styles.ghostBadge}>👻 {block.ghostCount}</span>
-                )}
-              </div>
-            </button>
-          );
-        })}
+        <div className={styles.blockListHeader}>
+          Pack Blocks ({filteredBlockWorkspaceTree.length}
+          {filteredBlockWorkspaceTree.length !== blockWorkspaceTree.length ? ` / ${blockWorkspaceTree.length}` : ''})
+        </div>
+        {filteredBlockWorkspaceTree.length > 0 ? (
+          filteredBlockWorkspaceTree.map((block) => {
+            const isActive = selectedBlock?.blockId === block.blockId;
+            const isCustom = block.isUserDefined !== false;
+            return (
+              <button
+                key={block.blockId}
+                data-block-id={block.blockId}
+                type="button"
+                className={`${styles.blockItem} ${isActive ? styles.blockItemActive : ''} ${!isCustom ? styles.blockItemVanilla : ''}`}
+                onClick={() => setSelectedBlockId(block.blockId)}
+              >
+                <div className={styles.blockItemLeft}>
+                  <Box size={14} className={!isCustom ? styles.blockIconMuted : undefined} />
+                  <span className={styles.blockItemName}>{block.displayName || block.blockId}</span>
+                </div>
+                <div className={styles.blockItemBadges}>
+                  {!isCustom && block.blockId !== 'uncategorized' && (
+                    <span className={styles.vanillaTag} title="Inferred from vanilla blocks.json">vanilla</span>
+                  )}
+                  {block.ghostCount > 0 && (
+                    <span className={styles.ghostBadge}>{block.ghostCount}</span>
+                  )}
+                </div>
+              </button>
+            );
+          })
+        ) : (
+          <div className={styles.noMatches}>
+            <span>No blocks match your search or filter</span>
+          </div>
+        )}
       </aside>
 
       {/* Right Detail Pane */}
@@ -562,28 +411,34 @@ export const BlockWorkspace: React.FC = () => {
                   </span>
                 )}
               </div>
-              <span className={styles.blockIdSub}>{selectedBlock.blockId}</span>
+              <span className={styles.blockIdSub}>
+                {selectedBlock.blockId === 'uncategorized' || selectedBlock.blockId.includes(':')
+                  ? selectedBlock.blockId
+                  : `minecraft:${selectedBlock.blockId}`}
+              </span>
             </div>
             {selectedBlock.ghostCount > 0 && (
-              <span className={styles.ghostBadge}>👻 {selectedBlock.ghostCount} ghosts</span>
+              <span className={styles.ghostBadge}>{selectedBlock.ghostCount} ghosts</span>
             )}
           </div>
 
-          <div className={styles.previewSection}>
-            <Block3DViewer
-              blockId={selectedBlock.blockId}
-              faceTextures={faceTextures.textures}
-              faceFlipbooks={faceTextures.flipbooks}
-              blockStates={blockStates}
-              activeStateIndex={activeBlockStateIndex}
-              onSelectStateIndex={(idx) => {
-                setActiveBlockStateIndex(idx);
-                setActiveVariationIndex(0);
-              }}
-              activeVariationIndex={activeVariationIndex}
-              onSelectVariationIndex={setActiveVariationIndex}
-            />
-          </div>
+          {selectedBlock.blockId !== 'uncategorized' && (
+            <div className={styles.previewSection}>
+              <Block3DViewer
+                blockId={selectedBlock.blockId}
+                faceTextures={faceTextures.textures}
+                faceFlipbooks={faceTextures.flipbooks}
+                blockStates={blockStates}
+                activeStateIndex={activeBlockStateIndex}
+                onSelectStateIndex={(idx) => {
+                  setActiveBlockStateIndex(idx);
+                  setActiveVariationIndex(0);
+                }}
+                activeVariationIndex={activeVariationIndex}
+                onSelectVariationIndex={setActiveVariationIndex}
+              />
+            </div>
+          )}
 
           <div className={styles.hierarchySection}>
             {selectedBlock.aliasGroups?.map((ag) => (
@@ -603,26 +458,47 @@ export const BlockWorkspace: React.FC = () => {
                             <ArrowRight size={10} />
                             <span>Face: {fn.faceLabel}</span>
                             {fn.ghostCount > 0 && (
-                              <span className={styles.faceGhostCount}>• 👻 {fn.ghostCount}</span>
+                              <span className={styles.faceGhostCount}>• {fn.ghostCount}</span>
                             )}
                           </div>
                           <div className={styles.variantStrip}>
-                            {groups.map((grp) =>
-                              renderTileCard(
-                                grp,
-                                `${grp.key}-${fn.faceLabel}`,
-                              )
-                            )}
+                            {groups.map((grp) => {
+                              const cardKey = `${grp.key}-${fn.faceLabel}`;
+                              return (
+                                <WorkspaceTileCard
+                                  key={cardKey}
+                                  grp={grp}
+                                  cardKey={cardKey}
+                                  tileZoom={tileZoom}
+                                  selectedBlockName={selectedBlockDisplayName}
+                                  isMenuOpen={activeMenuKey === cardKey}
+                                  onToggleMenu={handleToggleMenu}
+                                  onEditTexture={handleLeafClick}
+                                  onDeleteTextureFile={handleDeleteTextureFile}
+                                  onDeleteTextureEntries={handleDeleteTextureEntries}
+                                />
+                              );
+                            })}
                           </div>
                         </div>
                       );
                     })
                   ) : (
                     <div className={styles.variantStrip}>
-                      {groupLeavesByVariantSlot(ag.leaves ?? []).map(
-                        (grp) =>
-                          renderTileCard(grp, grp.key),
-                      )}
+                      {groupLeavesByVariantSlot(ag.leaves ?? []).map((grp) => (
+                        <WorkspaceTileCard
+                          key={grp.key}
+                          grp={grp}
+                          cardKey={grp.key}
+                          tileZoom={tileZoom}
+                          selectedBlockName={selectedBlockDisplayName}
+                          isMenuOpen={activeMenuKey === grp.key}
+                          onToggleMenu={handleToggleMenu}
+                          onEditTexture={handleLeafClick}
+                          onDeleteTextureFile={handleDeleteTextureFile}
+                          onDeleteTextureEntries={handleDeleteTextureEntries}
+                        />
+                      ))}
                     </div>
                   )}
                 </div>

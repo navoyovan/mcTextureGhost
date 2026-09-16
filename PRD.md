@@ -34,6 +34,13 @@ McTextureGhost (`mc-ghost-resource-manager`) is a desktop companion tool for Min
 - New Pack creation wizard setting up directory structure and UUID generation.
 - Dedicated `manifest.json` editor with header/module UUID regenerator.
 
+### F6. Entity & Attachable Indexing and 3D Model Visualization
+- Deep indexing of Minecraft Bedrock client entity files (`entity/*.json`) and attachable definitions (`attachables/*.json`).
+- Extraction of geometry bindings, texture slots (e.g. `default`, `armor`, `charged_layer`), and parent-child entity hierarchies.
+- Dedicated **Entity Workspace** with category filters (All / Mobs & Actors / Attachables & Armor) and slot inspection.
+- Real-time **Three.js 3D Bedrock Viewer** parsing `.geo.json` bone hierarchies (format 1.8.0 & 1.12.0+) with box UV mapping, orbit controls, wireframe mode, and auto-rotation.
+- Pre-seeded local cache of vanilla entity schemas, models, and master JSONs from local resource pack seeds to bypass GitHub API rate limits.
+
 ## 4. UI/UX Invariants & Standards
 - Windows 11 Fluent dark mode theme with Mica/Acrylic material.
 - Authentic typography: `Press Start 2P` (badges/retro stats), `Syne` (branding/headers), `Consolas` (paths/UUIDs/code).

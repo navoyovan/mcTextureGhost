@@ -16,7 +16,14 @@ export const LoadingOverlay: React.FC<LoadingOverlayProps> = ({ message, compact
   const packName = usePackStore((s) => s.packName);
   const packRoot = usePackStore((s) => s.packRoot);
 
+  // Once a pack is already loaded in the workspace, background rescans (e.g. from file watcher)
+  // must never interrupt the user with a full-screen loading modal.
   if (!isScanning) return null;
+  if (packRoot && scanProgress?.stage !== 'scan_start' && scanProgress?.stage !== 'scanning' && scanProgress?.stage !== 'building_trees') {
+    return null;
+  }
+  // If the user already has a pack loaded and active in the workspace, suppress the modal overlay entirely
+  if (packRoot) return null;
 
   const currentStep = scanProgress?.current ?? 1;
   const totalSteps = scanProgress?.total ?? 5;

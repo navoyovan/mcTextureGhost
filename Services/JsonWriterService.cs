@@ -217,6 +217,37 @@ public static class JsonWriterService
         }
     }
 
+    /// <summary>
+    /// Adds a vanilla client entity (or attachable) definition to the pack's entity/ or attachables/ folder.
+    /// </summary>
+    public static void AddVanillaEntity(string packRoot, string entityId, VanillaData vanilla)
+    {
+        var cleanId = entityId.StartsWith("minecraft:", StringComparison.OrdinalIgnoreCase)
+            ? entityId.Substring(10)
+            : entityId;
+
+        // 1. Write the client entity JSON if available
+        if (vanilla.RawClientEntityJson.TryGetValue(entityId, out var rawJson) ||
+            vanilla.RawClientEntityJson.TryGetValue(cleanId, out rawJson))
+        {
+            var isAttachable = vanilla.RawClientEntityRelPath.TryGetValue(entityId, out var relPath) && relPath.StartsWith("attachables", StringComparison.OrdinalIgnoreCase);
+            var targetFolder = isAttachable ? Path.Combine(packRoot, "attachables") : Path.Combine(packRoot, "entity");
+            Directory.CreateDirectory(targetFolder);
+
+            var fileName = isAttachable ? $"{cleanId}.json" : $"{cleanId}.entity.json";
+            var targetFile = Path.Combine(targetFolder, fileName);
+
+            if (!File.Exists(targetFile))
+            {
+                File.WriteAllText(targetFile, rawJson);
+            }
+
+            // Also create the textures/entity/<cleanId> folder to prepare for texture files
+            var texturesFolder = Path.Combine(packRoot, "textures", "entity", cleanId);
+            Directory.CreateDirectory(texturesFolder);
+        }
+    }
+
     private static void AppendFlipbookIfNotExists(string packRoot, string aliasOrPath, string rawFlipbookJson)
     {
         var flipbookPath = Path.Combine(packRoot, "textures", "flipbook_textures.json");
@@ -342,6 +373,24 @@ public static class JsonWriterService
                     texData.Remove(alias);
                     SaveItemTexture(packRoot, itemObj);
                 }
+            }
+        }
+        else if (string.Equals(category, "entity", StringComparison.OrdinalIgnoreCase))
+        {
+            var cleanId = alias.StartsWith("minecraft:", StringComparison.OrdinalIgnoreCase)
+                ? alias.Substring(10)
+                : alias;
+
+            var entityPath = Path.Combine(packRoot, "entity", $"{cleanId}.entity.json");
+            if (File.Exists(entityPath))
+            {
+                File.Delete(entityPath);
+            }
+
+            var attachablePath = Path.Combine(packRoot, "attachables", $"{cleanId}.json");
+            if (File.Exists(attachablePath))
+            {
+                File.Delete(attachablePath);
             }
         }
         else

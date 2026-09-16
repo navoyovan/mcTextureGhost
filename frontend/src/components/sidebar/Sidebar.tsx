@@ -351,9 +351,24 @@ export const Sidebar: React.FC = () => {
 
         {/* Pack name and directory under the icon */}
         <div className={styles.packMeta}>
-          <span className={styles.packTitle} title={packName || 'Resource Pack'}>
-            {packName || 'Resource Pack'}
-          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span className={styles.packTitle} title={packName || 'Resource Pack'}>
+              {packName || 'Resource Pack'}
+            </span>
+            {usePackStore((s) => s.isScanning) && (
+              <span
+                style={{
+                  width: 6,
+                  height: 6,
+                  borderRadius: '50%',
+                  background: 'var(--accent-primary, #8ceb1f)',
+                  boxShadow: '0 0 8px rgba(140, 235, 31, 0.8)',
+                  display: 'inline-block',
+                }}
+                title="Scanning in background..."
+              />
+            )}
+          </div>
           <span className={styles.packPath} title={packRoot || ''}>
             {formatPackPath(packRoot)}
           </span>

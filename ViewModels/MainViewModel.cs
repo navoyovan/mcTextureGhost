@@ -20,7 +20,7 @@ namespace McTextureGhost.ViewModels;
 public enum TileSizeMode { Compact, Comfortable, Large }
 
 /// <summary>Specifies the active category tab in the texture manager.</summary>
-public enum TextureTab { All, Blocks, Items }
+public enum TextureTab { All, Blocks, Items, Entities }
 
 public class MainViewModel : INotifyPropertyChanged
 {
@@ -97,18 +97,21 @@ public class MainViewModel : INotifyPropertyChanged
     public bool IsAllTab => _activeTab == TextureTab.All;
     public bool IsBlocksTab => _activeTab == TextureTab.Blocks;
     public bool IsItemsTab => _activeTab == TextureTab.Items;
+    public bool IsEntitiesTab => _activeTab == TextureTab.Entities;
     public TextureCategory? CurrentCategory => _activeTab switch
     {
-        TextureTab.Blocks => TextureCategory.Block,
-        TextureTab.Items  => TextureCategory.Item,
-        _                 => null
+        TextureTab.Blocks   => TextureCategory.Block,
+        TextureTab.Items    => TextureCategory.Item,
+        TextureTab.Entities => TextureCategory.Entity,
+        _                   => null
     };
 
     public string SearchPlaceholderText => _activeTab switch
     {
-        TextureTab.Blocks => "Search block name, e.g. stone...",
-        TextureTab.Items  => "Search item name, e.g. apple...",
-        _                 => "Search texture name, e.g. stone, apple..."
+        TextureTab.Blocks   => "Search block name, e.g. stone...",
+        TextureTab.Items    => "Search item name, e.g. apple...",
+        TextureTab.Entities => "Search entity name, e.g. zombie...",
+        _                   => "Search texture name, e.g. stone, apple, zombie..."
     };
 
     public string WindowTitle
@@ -182,9 +185,11 @@ public class MainViewModel : INotifyPropertyChanged
 
     public int BlocksGhostCount => Aliases.Count(a => a.Category == TextureCategory.Block && a.Status == TextureStatus.Ghost);
     public int ItemsGhostCount => Aliases.Count(a => a.Category == TextureCategory.Item && a.Status == TextureStatus.Ghost);
+    public int EntitiesGhostCount => Aliases.Count(a => a.Category == TextureCategory.Entity && a.Status == TextureStatus.Ghost);
 
     public int BlocksTotalCount => Aliases.Count(a => a.Category == TextureCategory.Block && a.Status != TextureStatus.NoEntry);
     public int ItemsTotalCount => Aliases.Count(a => a.Category == TextureCategory.Item && a.Status != TextureStatus.NoEntry);
+    public int EntitiesTotalCount => Aliases.Count(a => a.Category == TextureCategory.Entity && a.Status != TextureStatus.NoEntry);
 
     private readonly DispatcherTimer _searchDebounceTimer;
     private string _appliedSearchQuery = "";
@@ -554,6 +559,12 @@ public class MainViewModel : INotifyPropertyChanged
     /// </summary>
     public ObservableCollection<BlockGroupNode> BlockWorkspaceTree { get; } = new();
 
+    /// <summary>
+    /// 4-tier tree (Entity → AliasGroup → FaceNode → CatalogLeaf) sourced
+    /// from the user's entity/ and attachables/ definitions.
+    /// </summary>
+    public ObservableCollection<BlockGroupNode> EntityWorkspaceTree { get; } = new();
+
     // ─── Vanilla Reference Data ───────────────────────────────────────────────
     private VanillaData? _vanillaData;
     public VanillaData? VanillaData => _vanillaData;
@@ -867,7 +878,7 @@ public class MainViewModel : INotifyPropertyChanged
         if (string.IsNullOrWhiteSpace(folderPath) || !Directory.Exists(folderPath)) return;
         _packRoot = folderPath;
         _cachedPackName = null;
-        Rescan();
+        Rescan(isInitialLoad: true);
         StartWatching();
 
         if (File.Exists(Path.Combine(folderPath, "manifest.json")))
@@ -1060,7 +1071,7 @@ public class MainViewModel : INotifyPropertyChanged
 
             _packRoot = targetFolder;
             _cachedPackName = null;
-            Rescan();
+            Rescan(isInitialLoad: true);
             StartWatching();
 
             if (manifestDialog.ShouldGenerateManifest)
@@ -1167,6 +1178,7 @@ public class MainViewModel : INotifyPropertyChanged
         Aliases.Clear();
         CatalogTree.Clear();
         BlockWorkspaceTree.Clear();
+        EntityWorkspaceTree.Clear();
         PackFolders.Clear();
         SelectedFolder = null;
         SearchText = "";
@@ -1279,12 +1291,12 @@ public class MainViewModel : INotifyPropertyChanged
         PackStateChanged?.Invoke();
     }
 
-    public async void Rescan()
+    public async void Rescan(bool isInitialLoad = false)
     {
-        await RescanAsync();
+        await RescanAsync(isInitialLoad);
     }
 
-    public async Task RescanAsync()
+    public async Task RescanAsync(bool isInitialLoad = false)
     {
         if (_packRoot is null) return;
 
@@ -1295,12 +1307,16 @@ public class MainViewModel : INotifyPropertyChanged
             _cachedPackName = null;
             IsScanning = true;
             StatusMessage = "Scanning pack textures...";
-            ScanProgressChanged?.Invoke("scan_start", 1, 5, "Initializing pack scan...");
+            if (isInitialLoad)
+            {
+                ScanProgressChanged?.Invoke("scan_start", 1, 5, "Initializing pack scan...");
+            }
 
             // Clear the current snapshot before rebuilding it so deleted entries cannot remain visible.
             Aliases.Clear();
             CatalogTree.Clear();
             BlockWorkspaceTree.Clear();
+            EntityWorkspaceTree.Clear();
             PackFolders.Clear();
             FilteredAliases.Refresh();
             FilteredCatalogTree.Refresh();
@@ -1313,7 +1329,10 @@ public class MainViewModel : INotifyPropertyChanged
 
             try
             {
-                ScanProgressChanged?.Invoke("scanning", 2, 5, "Scanning atlas textures & JSON declarations...");
+                if (isInitialLoad)
+                {
+                    ScanProgressChanged?.Invoke("scanning", 2, 5, "Scanning atlas textures & JSON declarations...");
+                }
                 var results = await Task.Run(() => PackScanner.Scan(packRoot, _vanillaData));
 
                 foreach (var alias in results)
@@ -1322,12 +1341,16 @@ public class MainViewModel : INotifyPropertyChanged
 
                 if (_vanillaData != null)
                 {
-                    ScanProgressChanged?.Invoke("building_trees", 3, 5, "Building catalog & workspace models...");
-                    var (catalogNodes, workspaceNodes) = await Task.Run(() =>
+                    if (isInitialLoad)
+                    {
+                        ScanProgressChanged?.Invoke("building_trees", 3, 5, "Building catalog & workspace models...");
+                    }
+                    var (catalogNodes, workspaceNodes, entityNodes) = await Task.Run(() =>
                     {
                         var cat = PackScanner.BuildCatalogTree(results, _vanillaData, packRoot);
                         var ws  = PackScanner.BuildBlockWorkspaceTree(results, _vanillaData, packRoot);
-                        return (cat, ws);
+                        var ent = PackScanner.BuildEntityWorkspaceTree(results, _vanillaData, packRoot);
+                        return (cat, ws, ent);
                     });
 
                     foreach (var node in catalogNodes)
@@ -1336,6 +1359,9 @@ public class MainViewModel : INotifyPropertyChanged
 
                     foreach (var node in workspaceNodes)
                         BlockWorkspaceTree.Add(node);
+
+                    foreach (var node in entityNodes)
+                        EntityWorkspaceTree.Add(node);
                 }
 
                 var blockCount = results.Count(a => a.Category == TextureCategory.Block);
@@ -1352,7 +1378,10 @@ public class MainViewModel : INotifyPropertyChanged
             }
             finally
             {
-                ScanProgressChanged?.Invoke("building_folders", 4, 5, "Indexing folder tree & pack manifest...");
+                if (isInitialLoad)
+                {
+                    ScanProgressChanged?.Invoke("building_folders", 4, 5, "Indexing folder tree & pack manifest...");
+                }
                 var manifestPath = Path.Combine(packRoot, "manifest.json");
                 if (File.Exists(manifestPath))
                 {
@@ -1365,7 +1394,10 @@ public class MainViewModel : INotifyPropertyChanged
 
                 BuildFolderTree();
                 NotifyPackStateChanged();
-                ScanProgressChanged?.Invoke("scan_done", 5, 5, "Pack ready");
+                if (isInitialLoad)
+                {
+                    ScanProgressChanged?.Invoke("scan_done", 5, 5, "Pack ready");
+                }
                 IsScanning = false;
             }
         }
@@ -1570,7 +1602,7 @@ public class MainViewModel : INotifyPropertyChanged
             return true;
         }
 
-        // Handle variations between with / without "textures/" prefix
+        // Handle variations between with / without "textures/" prefix for subfolders under textures/
         if (folderNorm.StartsWith("textures/", StringComparison.OrdinalIgnoreCase))
         {
             var folderWithoutTextures = folderNorm.Substring(9);
@@ -1581,29 +1613,37 @@ public class MainViewModel : INotifyPropertyChanged
                 return true;
             }
         }
-        else if (itemNorm.StartsWith("textures/", StringComparison.OrdinalIgnoreCase))
-        {
-            var itemWithoutTextures = itemNorm.Substring(9);
-            if (itemWithoutTextures.Equals(folderNorm, StringComparison.OrdinalIgnoreCase) ||
-                itemWithoutTextures.StartsWith(prefixNorm, StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-        }
 
         return false;
     }
 
     private void ComputeCountsForNode(PackFolderItem node)
     {
-        if (string.IsNullOrEmpty(node.RelativePath))
+        if (!node.IsDirectory || node.IsPlaceholder)
+        {
+            node.TextureCount = 0;
+            node.GhostCount = 0;
+            return;
+        }
+
+        var folderExact = (node.RelativePath ?? "").Replace('\\', '/');
+
+        // Only folders under "textures" (or the "textures" root folder itself) contain texture assets
+        if (!folderExact.Equals("textures", StringComparison.OrdinalIgnoreCase) &&
+            !folderExact.StartsWith("textures/", StringComparison.OrdinalIgnoreCase))
+        {
+            node.TextureCount = 0;
+            node.GhostCount = 0;
+            return;
+        }
+
+        if (folderExact.Equals("textures", StringComparison.OrdinalIgnoreCase))
         {
             node.TextureCount = Aliases.Count;
             node.GhostCount = Aliases.Count(a => !a.Exists);
             return;
         }
 
-        var folderExact = node.RelativePath.Replace('\\', '/');
         var prefix = folderExact.EndsWith('/') ? folderExact : folderExact + "/";
         int texCount = 0;
         int ghostCount = 0;

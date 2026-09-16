@@ -556,7 +556,11 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
             {
                 if (payload != null && ViewModel.PackRootPath != null && ViewModel.VanillaData != null)
                 {
-                    if (string.Equals(payload.Category, "item", StringComparison.OrdinalIgnoreCase))
+                    if (string.Equals(payload.Category, "entity", StringComparison.OrdinalIgnoreCase))
+                    {
+                        JsonWriterService.AddVanillaEntity(ViewModel.PackRootPath, payload.Id, ViewModel.VanillaData);
+                    }
+                    else if (string.Equals(payload.Category, "item", StringComparison.OrdinalIgnoreCase))
                     {
                         JsonWriterService.AddVanillaItem(ViewModel.PackRootPath, payload.Id, ViewModel.VanillaData);
                     }
@@ -580,6 +584,42 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
                     }
                     await ViewModel.RescanAsync();
                 }
+            });
+        });
+
+        // 12b. VANILLA:GET_3D_STATUS
+        _ipcBridge.RegisterHandler(IpcMessageTypes.VanillaGet3DStatus, (payload, corrId) =>
+        {
+            Dispatcher.Invoke(() =>
+            {
+                bool has3D = CatalogReferenceService.Has3DModelsInstalled();
+                _ipcBridge.PostMessage(IpcMessageTypes.Vanilla3DStatus, new Vanilla3DStatusPayload(has3D, CatalogReferenceService.VanillaReferencePackDirectory));
+            });
+            return Task.CompletedTask;
+        });
+
+        // 12c. VANILLA:DOWNLOAD_3D_ASSETS
+        _ipcBridge.RegisterHandler(IpcMessageTypes.VanillaDownload3DAssets, async (payload, corrId) =>
+        {
+            await Task.Run(async () =>
+            {
+                bool success = await CatalogReferenceService.DownloadVanillaSamplePackAsync((pct, msg) =>
+                {
+                    Dispatcher.Invoke(() =>
+                    {
+                        _ipcBridge.PostMessage(IpcMessageTypes.DownloadProgress, new DownloadProgressPayload("download_3d_assets", pct, msg));
+                    });
+                });
+
+                await Dispatcher.InvokeAsync(async () =>
+                {
+                    if (success)
+                    {
+                        await ViewModel.RescanAsync();
+                    }
+                    bool has3D = CatalogReferenceService.Has3DModelsInstalled();
+                    _ipcBridge.PostMessage(IpcMessageTypes.Vanilla3DStatus, new Vanilla3DStatusPayload(has3D, CatalogReferenceService.VanillaReferencePackDirectory));
+                });
             });
         });
 
@@ -840,6 +880,51 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
                 });
             }
         });
+
+        // 20. GEOMETRY:GET
+        _ipcBridge.RegisterHandler<GeometryGetPayload>(IpcMessageTypes.GeometryGet, (payload, corrId) =>
+        {
+            Dispatcher.Invoke(() =>
+            {
+                string? geoJson = null;
+                string? geoId = payload?.GeometryId;
+                var entityId = payload?.EntityId;
+
+                if (!string.IsNullOrEmpty(geoId) && ViewModel.VanillaData != null)
+                {
+                    geoJson = ViewModel.VanillaData.GetGeometryJson(geoId);
+                }
+
+                if (string.IsNullOrEmpty(geoJson) && !string.IsNullOrEmpty(entityId) && ViewModel.VanillaData != null)
+                {
+                    var resolvedGeoId = ViewModel.VanillaData.GetGeometryForEntity(entityId);
+                    if (!string.IsNullOrEmpty(resolvedGeoId))
+                    {
+                        geoId ??= resolvedGeoId;
+                        geoJson = ViewModel.VanillaData.GetGeometryJson(resolvedGeoId);
+                    }
+                }
+
+                // Also check if user pack has models/entity/{geoId}.geo.json
+                if (string.IsNullOrEmpty(geoJson) && ViewModel.PackRootPath != null && Directory.Exists(ViewModel.PackRootPath))
+                {
+                    var packModels = Path.Combine(ViewModel.PackRootPath, "models", "entity");
+                    if (Directory.Exists(packModels))
+                    {
+                        var cleanName = (geoId ?? entityId ?? "").Replace("geometry.", "", StringComparison.OrdinalIgnoreCase);
+                        var file = Path.Combine(packModels, $"{cleanName}.geo.json");
+                        if (File.Exists(file)) geoJson = File.ReadAllText(file);
+                    }
+                }
+
+                geoId ??= entityId ?? "unknown";
+                _ipcBridge.PostMessage(IpcMessageTypes.GeometryData, new GeometryDataPayload(
+                    GeometryId: geoId,
+                    RawJson: geoJson ?? string.Empty,
+                    EntityId: entityId
+                ), corrId);
+            });
+        });
     }
 
 
@@ -910,7 +995,8 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
             Stats: ViewModel.ExtractStats(),
             CatalogTree: ViewModel.CatalogTree.Select(c => c.ToDto(ViewModel.PackRootPath)).ToList(),
             ReferencePacks: refProfiles,
-            ActiveReferenceId: CatalogReferenceService.ActiveReferenceId
+            ActiveReferenceId: CatalogReferenceService.ActiveReferenceId,
+            EntityWorkspaceTree: ViewModel.EntityWorkspaceTree.Select(e => e.ToDto(ViewModel.PackRootPath)).ToList()
         );
     }
 

@@ -1,0 +1,250 @@
+import React, { useMemo } from 'react';
+import { MoreVertical, Edit3, Trash2, FileX } from 'lucide-react';
+import { CatalogLeafDto } from '../../types/ipc';
+import { FlipbookThumbnail } from '../common/FlipbookThumbnail';
+import styles from './BlockWorkspace.module.css';
+
+export interface VariantTileGroup {
+  key: string;
+  alias: string;
+  leaves: CatalogLeafDto[];
+}
+
+interface WorkspaceTileCardProps {
+  grp: VariantTileGroup;
+  cardKey: string;
+  tileZoom: number;
+  selectedBlockName: string;
+  isMenuOpen: boolean;
+  onToggleMenu: (key: string) => void;
+  onEditTexture: (leaf: CatalogLeafDto) => void;
+  onDeleteTextureFile: (path: string, alias: string) => void;
+  onDeleteTextureEntries: (alias: string, relativePath?: string | null) => void;
+}
+
+function getStatusDotClass(status: string): string {
+  switch (status) {
+    case 'OK':       return styles.statusDotOk ?? '';
+    case 'GHOST':    return styles.statusDotGhost ?? '';
+    case 'ORPHAN':   return styles.statusDotOrphan ?? '';
+    case 'OVERRIDE': return styles.statusDotOverride ?? '';
+    default:         return styles.statusDotNew ?? '';
+  }
+}
+
+function getLeafTitle(l: CatalogLeafDto, fallbackAlias: string): string {
+  if (l.relativePath) {
+    return l.relativePath.split(/[/\\]/).pop() ?? l.displayName ?? fallbackAlias;
+  }
+  return l.displayName ?? fallbackAlias;
+}
+
+function parseFileName(l: CatalogLeafDto, fallbackAlias: string) {
+  const raw = getLeafTitle(l, fallbackAlias);
+  const sourceForExt = l.fullPath || l.relativePath || l.imageUrl || raw;
+  const dotIdx = sourceForExt.lastIndexOf('.');
+  const cleanExt = dotIdx > 0 ? (sourceForExt.substring(dotIdx).split('?')[0] ?? '').split('#')[0] ?? '' : '';
+  const fileExt = cleanExt && cleanExt.length <= 5 ? cleanExt : '.png';
+  const rawDotIdx = raw.lastIndexOf('.');
+  const fileBase = rawDotIdx > 0 ? raw.substring(0, rawDotIdx) : raw;
+  return { fileBase, fileExt, fullFileName: `${fileBase}${fileExt}` };
+}
+
+export const WorkspaceTileCard: React.FC<WorkspaceTileCardProps> = React.memo(({
+  grp,
+  cardKey,
+  tileZoom,
+  selectedBlockName,
+  isMenuOpen,
+  onToggleMenu,
+  onEditTexture,
+  onDeleteTextureFile,
+  onDeleteTextureEntries,
+}) => {
+  const { alias, leaves } = grp;
+  const primary = leaves[0];
+  if (!primary) return null;
+
+  const numVariations = leaves.length;
+  const hasTexVariants = numVariations > 1;
+  const isGhost = primary.status === 'GHOST';
+  const primaryFile = parseFileName(primary, alias);
+
+  const cardWidth = useMemo(() => {
+    return hasTexVariants
+      ? 22 + numVariations * tileZoom + (numVariations - 1) * 8
+      : tileZoom + 22;
+  }, [hasTexVariants, numVariations, tileZoom]);
+
+  const cardStyle = useMemo(() => ({
+    '--tile-zoom': `${tileZoom}px`,
+    width: `${cardWidth}px`,
+  } as React.CSSProperties), [tileZoom, cardWidth]);
+
+  const tooltipTitle = useMemo(() => {
+    const blockVariantSuffix = primary.blockVariantIndex && primary.totalBlockVariants
+      ? ` (block state ${primary.blockVariantIndex}/${primary.totalBlockVariants})`
+      : '';
+    return [
+      `${selectedBlockName}${blockVariantSuffix}`,
+      `terrain textures: ${alias}`,
+      numVariations === 1
+        ? `path: ${primary.relativePath}`
+        : `path: ${leaves.map((l) => l.relativePath).join(', ')}`,
+      hasTexVariants ? `${numVariations} texture variations` : '',
+    ].filter(Boolean).join('\n');
+  }, [selectedBlockName, primary, alias, numVariations, hasTexVariants, leaves]);
+
+  return (
+    <div
+      className={`${styles.leafCard} ${hasTexVariants ? styles.leafCardWithVariants : ''}`}
+      style={cardStyle}
+      title={tooltipTitle}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        onToggleMenu(cardKey);
+      }}
+    >
+      {/* 3-Dots Hover Menu Trigger */}
+      <button
+        type="button"
+        className={`${styles.moreButton} ${isMenuOpen ? styles.moreButtonActive : ''}`}
+        onClick={(e) => {
+          e.stopPropagation();
+          onToggleMenu(cardKey);
+        }}
+        title="Texture options"
+        aria-label="Texture options"
+      >
+        <MoreVertical size={14} />
+      </button>
+
+      {/* Dropdown Menu */}
+      {isMenuOpen && (
+        <div
+          className={styles.dropdownMenu}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            type="button"
+            className={styles.menuItem}
+            onClick={() => {
+              onToggleMenu(cardKey);
+              onEditTexture(primary);
+            }}
+          >
+            <Edit3 size={13} className={styles.menuIcon} />
+            <span>Edit Texture</span>
+          </button>
+
+          <button
+            type="button"
+            className={`${styles.menuItem} ${styles.menuItemDanger}`}
+            disabled={isGhost || !primary.fullPath}
+            onClick={() => {
+              onToggleMenu(cardKey);
+              if (primary.fullPath) {
+                onDeleteTextureFile(primary.fullPath, primary.alias);
+              }
+            }}
+            title={isGhost ? 'Texture file does not exist on disk' : 'Delete PNG file from disk'}
+          >
+            <Trash2 size={13} className={styles.menuIcon} />
+            <span>Delete Texture</span>
+          </button>
+
+          <button
+            type="button"
+            className={`${styles.menuItem} ${styles.menuItemDanger}`}
+            disabled={primary.status === 'ORPHAN'}
+            onClick={() => {
+              onToggleMenu(cardKey);
+              onDeleteTextureEntries(primary.alias, primary.relativePath);
+            }}
+            title={primary.status === 'ORPHAN' ? 'Orphan has no JSON declarations' : 'Remove declarations from JSON schemas'}
+          >
+            <FileX size={13} className={styles.menuIcon} />
+            <span>Delete Entries</span>
+          </button>
+        </div>
+      )}
+
+      {/* Thumbnail area */}
+      <div
+        className={`${hasTexVariants ? styles.texVariantThumbRow : styles.leafThumbWrapper} ${!isGhost ? styles.leafThumbWrapperAdded : ''}`}
+      >
+        {leaves.map((leaf, i) => {
+          const leafName = getLeafTitle(leaf, alias);
+          const isLeafGhost = leaf.status === 'GHOST';
+          return (
+            <React.Fragment key={`${leaf.relativePath}-${i}`}>
+              {i > 0 && <div className={styles.texVarDivider} />}
+              <div
+                className={`${hasTexVariants ? styles.texVarThumbSlot : styles.leafThumbInner} ${!isLeafGhost ? styles.texVarThumbSlotAdded : ''}`}
+                onClick={() => onEditTexture(leaf)}
+                title={leafName}
+              >
+                {!isLeafGhost && leaf.imageUrl ? (
+                  <FlipbookThumbnail
+                    src={leaf.imageUrl}
+                    alt={leafName}
+                    className={styles.leafThumb}
+                    isFlipbook={leaf.isFlipbook}
+                    flipbook={leaf.flipbook}
+                    loading="lazy"
+                  />
+                ) : (
+                  <span className={styles.leafGhost}>?</span>
+                )}
+              </div>
+            </React.Fragment>
+          );
+        })}
+      </div>
+
+      {/* Meta / Names Area */}
+      {hasTexVariants ? (
+        <div className={styles.texVariantMetaRow}>
+          {leaves.map((leaf, i) => {
+            const file = parseFileName(leaf, alias);
+            return (
+              <React.Fragment key={`meta-${leaf.relativePath}-${i}`}>
+                {i > 0 && <div className={styles.texVarMetaDivider} />}
+                <div className={styles.texVarMetaCol} style={{ width: `${tileZoom}px` }}>
+                  <div className={styles.leafHeaderRow}>
+                    <span className={styles.leafName} title={file.fullFileName}>
+                      <span>{file.fileBase}</span>
+                      <span className={styles.fileExt}>{file.fileExt}</span>
+                    </span>
+                  </div>
+                  <div className={styles.leafSubRow}>
+                    <span className={`${styles.leafStatusDot} ${getStatusDotClass(leaf.status)}`} />
+                    <span className={styles.leafSubtitle}>
+                      {leaf.relativePath || leaf.alias}
+                    </span>
+                  </div>
+                </div>
+              </React.Fragment>
+            );
+          })}
+        </div>
+      ) : (
+        <div className={styles.leafMeta}>
+          <div className={styles.leafHeaderRow}>
+            <span className={styles.leafName} title={primaryFile.fullFileName}>
+              <span>{primaryFile.fileBase}</span>
+              <span className={styles.fileExt}>{primaryFile.fileExt}</span>
+            </span>
+          </div>
+          <div className={styles.leafSubRow}>
+            <span className={`${styles.leafStatusDot} ${getStatusDotClass(primary.status)}`} />
+            <span className={styles.leafSubtitle}>
+              {primary.relativePath || primary.alias}
+            </span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+});
