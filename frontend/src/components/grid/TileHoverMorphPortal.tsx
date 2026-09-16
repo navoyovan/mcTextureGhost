@@ -35,6 +35,71 @@ interface Coords {
   };
 }
 
+// Helper to compute morph target coordinates
+const computeMorphCoords = (
+  rect: DOMRect,
+  imgDimensions: { width: number; height: number } | null,
+  isFlipbook: boolean
+): Coords => {
+  const viewportWidth = window.innerWidth;
+  const viewportHeight = window.innerHeight;
+  const margin = 16;
+
+  const baseTexWidth = imgDimensions?.width ?? 16;
+  const rawTexHeight = imgDimensions?.height ?? 16;
+  const isSpriteSheet = Boolean(isFlipbook || (rawTexHeight >= baseTexWidth * 2));
+  const effectiveTexHeight = isSpriteSheet ? baseTexWidth : rawTexHeight;
+
+  // Available space inside viewport for the card
+  const metaAndActionsHeight = 115;
+  const maxAreaW = Math.min(viewportWidth - 2 * margin - 28, 700);
+  const maxAreaH = Math.min(viewportHeight - 2 * margin - metaAndActionsHeight - 24, 520);
+
+  // Compute pixel scale: up to 10px/texel, guaranteed to fit within viewport
+  const maxScaleX = maxAreaW / baseTexWidth;
+  const maxScaleY = maxAreaH / effectiveTexHeight;
+  const idealScale = Math.min(10, maxScaleX, maxScaleY);
+  const finalScale = idealScale >= 1 ? Math.floor(idealScale) : idealScale;
+
+  const idealSpriteW = Math.round(baseTexWidth * finalScale);
+  const idealSpriteH = Math.round(effectiveTexHeight * finalScale);
+
+  const expandedWidth = Math.max(260, idealSpriteW + 28);
+  const thumbHeight = Math.max(160, idealSpriteH + 24);
+  const totalHeight = thumbHeight + metaAndActionsHeight;
+
+  const originalCenterX = rect.left + rect.width / 2;
+  let left = originalCenterX - expandedWidth / 2;
+
+  if (left < margin) {
+    left = margin;
+  } else if (left + expandedWidth > viewportWidth - margin) {
+    left = viewportWidth - margin - expandedWidth;
+  }
+
+  let top = rect.top - 20;
+  if (top + totalHeight > viewportHeight - margin) {
+    top = viewportHeight - margin - totalHeight;
+  }
+  if (top < margin) {
+    top = margin;
+  }
+
+  return {
+    left,
+    top,
+    width: expandedWidth,
+    thumbHeight,
+    totalHeight,
+    originalRect: {
+      left: rect.left,
+      top: rect.top,
+      width: rect.width,
+      height: rect.height,
+    },
+  };
+};
+
 export const TileHoverMorphPortal: React.FC<TileHoverMorphPortalProps> = ({
   target,
   onClose,
@@ -45,8 +110,12 @@ export const TileHoverMorphPortal: React.FC<TileHoverMorphPortalProps> = ({
   const [isMorphed, setIsMorphed] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [coords, setCoords] = useState<Coords | null>(null);
   const [imgDimensions, setImgDimensions] = useState<{ width: number; height: number } | null>(null);
+
+  // Synchronous initial coordinate computation prevents blank mount frame
+  const [coords, setCoords] = useState<Coords>(() =>
+    computeMorphCoords(target.originRect, null, Boolean(target.alias.isFlipbook || target.alias.flipbook))
+  );
 
   const cardRef = useRef<HTMLDivElement>(null);
   const closingTimerRef = useRef<number | null>(null);
@@ -54,7 +123,7 @@ export const TileHoverMorphPortal: React.FC<TileHoverMorphPortalProps> = ({
   const alias = target.alias;
   const isGhost = alias.status === 'GHOST';
 
-  // Load natural dimensions to calibrate uniform 10px/texel pixel-art scaling
+  // Load natural dimensions to calibrate uniform pixel-art scaling
   useEffect(() => {
     if (!alias.imageUrl) return;
     const img = new Image();
@@ -66,6 +135,33 @@ export const TileHoverMorphPortal: React.FC<TileHoverMorphPortalProps> = ({
       });
     };
   }, [alias.imageUrl]);
+
+  // Update target coordinates smoothly when image dimensions become available
+  useEffect(() => {
+    if (!imgDimensions) return;
+    setCoords((prev) => ({
+      ...computeMorphCoords(
+        target.originRect,
+        imgDimensions,
+        Boolean(alias.isFlipbook || alias.flipbook)
+      ),
+      originalRect: prev.originalRect,
+    }));
+  }, [imgDimensions, target.originRect, alias.isFlipbook, alias.flipbook]);
+
+  // Guaranteed transition trigger: forced reflow ensures browser registers the initial tile rect
+  React.useLayoutEffect(() => {
+    if (cardRef.current) {
+      void cardRef.current.offsetHeight; // Force initial style commit
+    }
+    const raf1 = requestAnimationFrame(() => {
+      const raf2 = requestAnimationFrame(() => {
+        setIsMorphed(true);
+      });
+      return () => cancelAnimationFrame(raf2);
+    });
+    return () => cancelAnimationFrame(raf1);
+  }, []);
 
   // Calculate file base and extension
   const rawFileName = alias.relativePath
@@ -84,19 +180,15 @@ export const TileHoverMorphPortal: React.FC<TileHoverMorphPortalProps> = ({
     // Refresh original rect from live DOM element if still attached
     if (target.domElement) {
       const freshRect = target.domElement.getBoundingClientRect();
-      setCoords((prev) =>
-        prev
-          ? {
-              ...prev,
-              originalRect: {
-                left: freshRect.left,
-                top: freshRect.top,
-                width: freshRect.width,
-                height: freshRect.height,
-              },
-            }
-          : null
-      );
+      setCoords((prev) => ({
+        ...prev,
+        originalRect: {
+          left: freshRect.left,
+          top: freshRect.top,
+          width: freshRect.width,
+          height: freshRect.height,
+        },
+      }));
     }
 
     setIsClosing(true);
@@ -107,78 +199,6 @@ export const TileHoverMorphPortal: React.FC<TileHoverMorphPortalProps> = ({
       onClose();
     }, 220);
   }, [isClosing, target.domElement, onClose]);
-
-  // Initial and dynamic calculation of morph coordinates
-  useEffect(() => {
-    const rect = target.originRect;
-    const viewportWidth = window.innerWidth;
-    const viewportHeight = window.innerHeight;
-    const margin = 16;
-
-    const baseTexWidth = imgDimensions?.width ?? 16;
-    const rawTexHeight = imgDimensions?.height ?? 16;
-    const isSpriteSheet = Boolean(alias.isFlipbook || alias.flipbook || (rawTexHeight >= baseTexWidth * 2));
-    const effectiveTexHeight = isSpriteSheet ? baseTexWidth : rawTexHeight;
-
-    // Available space inside viewport for the card
-    const metaAndActionsHeight = 115;
-    const maxAreaW = Math.min(viewportWidth - 2 * margin - 28, 700);
-    const maxAreaH = Math.min(viewportHeight - 2 * margin - metaAndActionsHeight - 24, 520);
-
-    // Compute pixel scale: up to 10px/texel, but guaranteed to fit within maxAreaW & maxAreaH
-    const maxScaleX = maxAreaW / baseTexWidth;
-    const maxScaleY = maxAreaH / effectiveTexHeight;
-    const idealScale = Math.min(10, maxScaleX, maxScaleY);
-    const finalScale = idealScale >= 1 ? Math.floor(idealScale) : idealScale;
-
-    const idealSpriteW = Math.round(baseTexWidth * finalScale);
-    const idealSpriteH = Math.round(effectiveTexHeight * finalScale);
-
-    // Dynamic width & thumbHeight scaled to texture with padding
-    const expandedWidth = Math.max(260, idealSpriteW + 28);
-    const thumbHeight = Math.max(160, idealSpriteH + 24);
-    const totalHeight = thumbHeight + metaAndActionsHeight;
-
-    const originalCenterX = rect.left + rect.width / 2;
-    let left = originalCenterX - expandedWidth / 2;
-
-    if (left < margin) {
-      left = margin;
-    } else if (left + expandedWidth > viewportWidth - margin) {
-      left = viewportWidth - margin - expandedWidth;
-    }
-
-    let top = rect.top - 20;
-    if (top + totalHeight > viewportHeight - margin) {
-      top = viewportHeight - margin - totalHeight;
-    }
-    if (top < margin) {
-      top = margin;
-    }
-
-    setCoords({
-      left,
-      top,
-      width: expandedWidth,
-      thumbHeight,
-      totalHeight,
-      originalRect: {
-        left: rect.left,
-        top: rect.top,
-        width: rect.width,
-        height: rect.height,
-      },
-    });
-
-    const raf = requestAnimationFrame(() => {
-      setIsMorphed(true);
-    });
-
-    return () => {
-      cancelAnimationFrame(raf);
-      if (closingTimerRef.current) clearTimeout(closingTimerRef.current);
-    };
-  }, [target.originRect, imgDimensions, alias.isFlipbook, alias.flipbook]);
 
   // Scroll tracking
   useEffect(() => {
@@ -194,18 +214,15 @@ export const TileHoverMorphPortal: React.FC<TileHoverMorphPortalProps> = ({
         return;
       }
 
-      setCoords((prev) => {
-        if (!prev) return null;
-        return {
-          ...prev,
-          originalRect: {
-            left: rect.left,
-            top: rect.top,
-            width: rect.width,
-            height: rect.height,
-          },
-        };
-      });
+      setCoords((prev) => ({
+        ...prev,
+        originalRect: {
+          left: rect.left,
+          top: rect.top,
+          width: rect.width,
+          height: rect.height,
+        },
+      }));
     };
 
     window.addEventListener('scroll', handleScroll, { capture: true, passive: true });
