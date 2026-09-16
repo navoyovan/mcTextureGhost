@@ -115,21 +115,26 @@ export const TileHoverMorphPortal: React.FC<TileHoverMorphPortalProps> = ({
     const viewportHeight = window.innerHeight;
     const margin = 16;
 
-    const texelScale = 10;
     const baseTexWidth = imgDimensions?.width ?? 16;
     const rawTexHeight = imgDimensions?.height ?? 16;
     const isSpriteSheet = Boolean(alias.isFlipbook || alias.flipbook || (rawTexHeight >= baseTexWidth * 2));
     const effectiveTexHeight = isSpriteSheet ? baseTexWidth : rawTexHeight;
 
-    const idealSpriteW = baseTexWidth * texelScale;
-    const idealSpriteH = effectiveTexHeight * texelScale;
+    // 128x128 resolution ceiling: textures > 128x128 are force-fitted to 128 scale box
+    const MAX_TEXEL_DIM = 128;
+    const maxDimension = Math.max(baseTexWidth, effectiveTexHeight);
+    const fitFactor = maxDimension > MAX_TEXEL_DIM ? MAX_TEXEL_DIM / maxDimension : 1;
+    const effectiveTexelScale = 10 * fitFactor;
+
+    const idealSpriteW = Math.round(baseTexWidth * effectiveTexelScale);
+    const idealSpriteH = Math.round(effectiveTexHeight * effectiveTexelScale);
 
     // Minimum width for clean UI buttons & metadata is 260px; max bounded by viewport
     const maxAvailableWidth = viewportWidth - 2 * margin;
     const maxAvailableHeight = viewportHeight - 2 * margin;
     const metaAndActionsHeight = 115;
 
-    // Dynamic width & thumbHeight scaled to texture resolution with padding
+    // Dynamic width & thumbHeight scaled to texture resolution with padding (max 128-equivalent)
     const expandedWidth = Math.min(
       Math.max(260, idealSpriteW + 28),
       Math.min(760, maxAvailableWidth)
@@ -286,10 +291,14 @@ export const TileHoverMorphPortal: React.FC<TileHoverMorphPortalProps> = ({
   const isSpriteSheet = Boolean(alias.isFlipbook || alias.flipbook || (rawTexHeight >= baseTexWidth * 2));
   const effectiveTexHeight = isSpriteSheet ? baseTexWidth : rawTexHeight;
 
-  // Exact 10 screen pixels per 1 Minecraft texel (uniform across all textures)
-  const texelScale = 10;
-  const uniformSpriteWidth = baseTexWidth * texelScale;
-  const uniformSpriteHeight = effectiveTexHeight * texelScale;
+  // 128x128 resolution ceiling: textures > 128x128 are force-fitted to 128 scale box
+  const MAX_TEXEL_DIM = 128;
+  const maxDimension = Math.max(baseTexWidth, effectiveTexHeight);
+  const fitFactor = maxDimension > MAX_TEXEL_DIM ? MAX_TEXEL_DIM / maxDimension : 1;
+  const effectiveTexelScale = 10 * fitFactor;
+
+  const uniformSpriteWidth = Math.round(baseTexWidth * effectiveTexelScale);
+  const uniformSpriteHeight = Math.round(effectiveTexHeight * effectiveTexelScale);
 
   const getStatusBadge = () => {
     switch (alias.status) {
