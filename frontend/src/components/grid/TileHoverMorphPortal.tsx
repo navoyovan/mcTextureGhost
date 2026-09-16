@@ -1,0 +1,366 @@
+// frontend/src/components/grid/TileHoverMorphPortal.tsx
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
+import { Edit3, ExternalLink, FolderOpen, Copy, Check } from 'lucide-react';
+import { TextureAliasDto } from '../../types/ipc';
+import { FlipbookThumbnail } from '../common/FlipbookThumbnail';
+import styles from './TileHoverMorphPortal.module.css';
+
+export interface TileHoverMorphTarget {
+  alias: TextureAliasDto;
+  key: string;
+  originRect: DOMRect;
+  domElement: HTMLElement;
+}
+
+interface TileHoverMorphPortalProps {
+  target: TileHoverMorphTarget;
+  onClose: () => void;
+  onEdit: (alias: TextureAliasDto) => void;
+  onOpenContextMenu: (alias: TextureAliasDto, anchor: { x: number; y: number }) => void;
+  onRevealInExplorer: (fullPath: string) => void;
+}
+
+interface Coords {
+  left: number;
+  top: number;
+  width: number;
+  thumbHeight: number;
+  totalHeight: number;
+  originalRect: {
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+  };
+}
+
+export const TileHoverMorphPortal: React.FC<TileHoverMorphPortalProps> = ({
+  target,
+  onClose,
+  onEdit,
+  onOpenContextMenu,
+  onRevealInExplorer,
+}) => {
+  const [isMorphed, setIsMorphed] = useState(false);
+  const [isClosing, setIsClosing] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [coords, setCoords] = useState<Coords | null>(null);
+
+  const cardRef = useRef<HTMLDivElement>(null);
+  const closingTimerRef = useRef<number | null>(null);
+
+  const alias = target.alias;
+  const isGhost = alias.status === 'GHOST';
+
+  // Calculate file base and extension
+  const rawFileName = alias.relativePath
+    ? (alias.relativePath.split(/[/\\]/).pop() ?? alias.displayName ?? alias.alias)
+    : (alias.displayName ?? alias.alias);
+  const sourceForExt = alias.fullPath || alias.relativePath || alias.imageUrl || rawFileName;
+  const dotIdx = sourceForExt.lastIndexOf('.');
+  const cleanExt = dotIdx > 0 ? (sourceForExt.substring(dotIdx).split('?')[0] ?? '').split('#')[0] ?? '' : '';
+  const fileExt = cleanExt && cleanExt.length <= 5 ? cleanExt : '.png';
+  const rawDotIdx = rawFileName.lastIndexOf('.');
+  const fileBase = rawDotIdx > 0 ? rawFileName.substring(0, rawDotIdx) : rawFileName;
+
+  const triggerSnapBack = useCallback(() => {
+    if (isClosing) return;
+
+    // Refresh original rect from live DOM element if still attached
+    if (target.domElement) {
+      const freshRect = target.domElement.getBoundingClientRect();
+      setCoords((prev) =>
+        prev
+          ? {
+              ...prev,
+              originalRect: {
+                left: freshRect.left,
+                top: freshRect.top,
+                width: freshRect.width,
+                height: freshRect.height,
+              },
+            }
+          : null
+      );
+    }
+
+    setIsClosing(true);
+    setIsMorphed(false);
+
+    if (closingTimerRef.current) clearTimeout(closingTimerRef.current);
+    closingTimerRef.current = window.setTimeout(() => {
+      onClose();
+    }, 220);
+  }, [isClosing, target.domElement, onClose]);
+
+  // Initial calculation of morph coordinates
+  useEffect(() => {
+    const rect = target.originRect;
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    const margin = 16;
+
+    const expandedWidth = Math.min(290, viewportWidth - 2 * margin);
+    const thumbHeight = 190;
+    const totalHeight = thumbHeight + 115;
+
+    const originalCenterX = rect.left + rect.width / 2;
+    let left = originalCenterX - expandedWidth / 2;
+
+    if (left < margin) {
+      left = margin;
+    } else if (left + expandedWidth > viewportWidth - margin) {
+      left = viewportWidth - margin - expandedWidth;
+    }
+
+    let top = rect.top - 20;
+    if (top + totalHeight > viewportHeight - margin) {
+      top = viewportHeight - margin - totalHeight;
+    }
+    if (top < margin) {
+      top = margin;
+    }
+
+    setCoords({
+      left,
+      top,
+      width: expandedWidth,
+      thumbHeight,
+      totalHeight,
+      originalRect: {
+        left: rect.left,
+        top: rect.top,
+        width: rect.width,
+        height: rect.height,
+      },
+    });
+
+    const raf = requestAnimationFrame(() => {
+      setIsMorphed(true);
+    });
+
+    return () => {
+      cancelAnimationFrame(raf);
+      if (closingTimerRef.current) clearTimeout(closingTimerRef.current);
+    };
+  }, [target.originRect]);
+
+  // Scroll tracking
+  useEffect(() => {
+    if (!target.domElement || isClosing) return;
+
+    const handleScroll = () => {
+      if (!target.domElement) return;
+      const rect = target.domElement.getBoundingClientRect();
+      const viewportHeight = window.innerHeight;
+
+      if (rect.bottom < 0 || rect.top > viewportHeight) {
+        triggerSnapBack();
+        return;
+      }
+
+      setCoords((prev) => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          originalRect: {
+            left: rect.left,
+            top: rect.top,
+            width: rect.width,
+            height: rect.height,
+          },
+        };
+      });
+    };
+
+    window.addEventListener('scroll', handleScroll, { capture: true, passive: true });
+    return () => window.removeEventListener('scroll', handleScroll, { capture: true });
+  }, [target.domElement, isClosing, triggerSnapBack]);
+
+  // Mousemove safety buffer tracking (24px padding around expanded card)
+  useEffect(() => {
+    if (!coords || isClosing) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const pad = 24;
+      const inX = e.clientX >= coords.left - pad && e.clientX <= coords.left + coords.width + pad;
+      const inY = e.clientY >= coords.top - pad && e.clientY <= coords.top + coords.totalHeight + pad;
+
+      if (!inX || !inY) {
+        triggerSnapBack();
+      }
+    };
+
+    window.addEventListener('mousemove', handleMouseMove, { passive: true });
+    return () => window.removeEventListener('mousemove', handleMouseMove);
+  }, [coords, isClosing, triggerSnapBack]);
+
+  const handleCopyPath = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const pathToCopy = alias.fullPath || alias.relativePath || alias.alias;
+    navigator.clipboard?.writeText(pathToCopy);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1200);
+  };
+
+  const handleEditClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    triggerSnapBack();
+    onEdit(alias);
+  };
+
+  const handleOpenContextMenuClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const rect = e.currentTarget.getBoundingClientRect();
+    onOpenContextMenu(alias, { x: rect.left, y: rect.bottom + 4 });
+  };
+
+  const handleRevealClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (alias.fullPath) {
+      onRevealInExplorer(alias.fullPath);
+    }
+  };
+
+  if (!coords) return null;
+
+  const currentLeft = isMorphed ? coords.left : coords.originalRect.left;
+  const currentTop = isMorphed ? coords.top : coords.originalRect.top;
+  const currentWidth = isMorphed ? coords.width : coords.originalRect.width;
+  const currentHeight = isMorphed ? coords.totalHeight : coords.originalRect.height;
+  const currentThumbHeight = isMorphed ? coords.thumbHeight : coords.originalRect.height;
+
+  const getStatusBadge = () => {
+    switch (alias.status) {
+      case 'OK':
+        return <span className={`${styles.badge} ${styles.badgeOk}`}>OK</span>;
+      case 'GHOST':
+        return <span className={`${styles.badge} ${styles.badgeGhost}`}>GHOST</span>;
+      case 'ORPHAN':
+        return <span className={`${styles.badge} ${styles.badgeOrphan}`}>ORPHAN</span>;
+      case 'OVERRIDE':
+        return <span className={`${styles.badge} ${styles.badgeOverride}`}>OVERRIDE</span>;
+      default:
+        return <span className={`${styles.badge} ${styles.badgeOk}`}>OK</span>;
+    }
+  };
+
+  return createPortal(
+    <div className={styles.portalOverlay}>
+      <div
+        ref={cardRef}
+        className={`${styles.morphCard} ${isMorphed ? styles.morphed : ''}`}
+        style={{
+          left: `${currentLeft}px`,
+          top: `${currentTop}px`,
+          width: `${currentWidth}px`,
+          height: `${currentHeight}px`,
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Top Floating Badges */}
+        {isMorphed && (
+          <div className={styles.topOverlay}>
+            <div className={styles.badgeGroup}>
+              {getStatusBadge()}
+              {alias.isFlipbook && <span className={`${styles.badge} ${styles.badgeAnim}`}>ANIM</span>}
+              {alias.hasMers && <span className={`${styles.badge} ${styles.badgeMers}`}>MERS</span>}
+            </div>
+            <span className={styles.resChip}>
+              {alias.category?.toUpperCase() || 'TEXTURE'}
+            </span>
+          </div>
+        )}
+
+        {/* Thumbnail Viewport with Animated Checkerboard */}
+        <div
+          className={styles.thumbArea}
+          style={{ height: `${currentThumbHeight}px` }}
+        >
+          {isMorphed && <div className={styles.thumbCheckerboardBg} />}
+
+          <div className={styles.thumbImageWrapper}>
+            {!isGhost && alias.imageUrl ? (
+              <FlipbookThumbnail
+                src={alias.imageUrl}
+                alt={alias.alias}
+                className={styles.spriteImg}
+                isFlipbook={alias.isFlipbook}
+                flipbook={alias.flipbook}
+              />
+            ) : (
+              <span className={styles.ghostPlaceholder}>?</span>
+            )}
+          </div>
+        </div>
+
+        {/* Expanded Metadata */}
+        {isMorphed && (
+          <>
+            <div className={styles.metaArea}>
+              <div className={styles.fileNameRow} title={`${fileBase}${fileExt}`}>
+                <span className={styles.fileBase}>{fileBase}</span>
+                <span className={styles.fileExt}>{fileExt}</span>
+              </div>
+              <div className={styles.relPath} title={alias.relativePath || alias.alias}>
+                {alias.relativePath || alias.alias}
+              </div>
+              <div className={styles.aliasRow}>
+                <span className={styles.aliasTag} title={`Alias: ${alias.alias}`}>
+                  alias: {alias.alias}
+                </span>
+              </div>
+            </div>
+
+            {/* Quick Action Buttons Toolbar */}
+            <div className={styles.actionsBar}>
+              <button
+                type="button"
+                className={styles.primaryActionBtn}
+                onClick={handleEditClick}
+                title={isGhost ? 'Create and edit texture' : 'Edit texture in default editor'}
+              >
+                <Edit3 size={13} />
+                <span>{isGhost ? 'Create' : 'Edit'}</span>
+              </button>
+
+              <button
+                type="button"
+                className={styles.iconActionBtn}
+                onClick={handleOpenContextMenuClick}
+                title="Open With ▸"
+                aria-label="Open With options"
+              >
+                <ExternalLink size={13} />
+              </button>
+
+              {alias.fullPath && (
+                <button
+                  type="button"
+                  className={styles.iconActionBtn}
+                  onClick={handleRevealClick}
+                  title="Reveal in Explorer"
+                  aria-label="Reveal in Explorer"
+                >
+                  <FolderOpen size={13} />
+                </button>
+              )}
+
+              <button
+                type="button"
+                className={`${styles.iconActionBtn} ${copied ? styles.iconCopied : ''}`}
+                onClick={handleCopyPath}
+                title={copied ? 'Copied!' : 'Copy relative path'}
+                aria-label="Copy relative path"
+              >
+                {copied ? <Check size={13} /> : <Copy size={13} />}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>,
+    document.body
+  );
+};

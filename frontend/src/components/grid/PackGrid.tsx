@@ -5,6 +5,7 @@ import { useIpc } from '../../hooks/useIpc';
 import { TextureAliasDto, OpenWithAppDto } from '../../types/ipc';
 import { FlipbookThumbnail } from '../common/FlipbookThumbnail';
 import { TextureContextMenu } from '../common/TextureContextMenu';
+import { TileHoverMorphPortal, TileHoverMorphTarget } from './TileHoverMorphPortal';
 import styles from './PackGrid.module.css';
 
 export const PackGrid: React.FC = () => {
@@ -23,6 +24,10 @@ export const PackGrid: React.FC = () => {
     anchor: { x?: number; y?: number; top?: number; bottom?: number; left?: number; right?: number };
     key: string;
   } | null>(null);
+
+  // 2nd Hover State Morphing Portal target
+  const [hoverMorphTarget, setHoverMorphTarget] = useState<TileHoverMorphTarget | null>(null);
+  const hoverTimerRef = React.useRef<number | null>(null);
 
   const filteredAliases = useMemo(() => {
     if (!aliases || !Array.isArray(aliases)) return [];
@@ -163,10 +168,39 @@ export const PackGrid: React.FC = () => {
               <div
                 key={uniqueKey}
                 className={styles.tileCard}
-                onClick={() => handleTileClick(alias)}
+                onClick={() => {
+                  if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+                  setHoverMorphTarget(null);
+                  handleTileClick(alias);
+                }}
+                onMouseEnter={(e) => {
+                  if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+                  if (!contextMenuTarget) {
+                    const domEl = e.currentTarget;
+                    hoverTimerRef.current = window.setTimeout(() => {
+                      if (domEl && document.body.contains(domEl)) {
+                        const rect = domEl.getBoundingClientRect();
+                        setHoverMorphTarget({
+                          alias,
+                          key: uniqueKey,
+                          originRect: rect,
+                          domElement: domEl,
+                        });
+                      }
+                    }, 1200);
+                  }
+                }}
+                onMouseLeave={() => {
+                  if (hoverTimerRef.current) {
+                    clearTimeout(hoverTimerRef.current);
+                    hoverTimerRef.current = null;
+                  }
+                }}
                 onContextMenu={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
+                  if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+                  setHoverMorphTarget(null);
                   setContextMenuTarget({
                     alias,
                     key: uniqueKey,
@@ -181,6 +215,8 @@ export const PackGrid: React.FC = () => {
                   className={`${styles.moreButton} ${isMenuOpen ? styles.moreButtonActive : ''}`}
                   onClick={(e) => {
                     e.stopPropagation();
+                    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+                    setHoverMorphTarget(null);
                     if (isMenuOpen) {
                       setContextMenuTarget(null);
                     } else {
@@ -281,6 +317,29 @@ export const PackGrid: React.FC = () => {
             if (contextMenuTarget.alias.mersFullPath) {
               editTexture(contextMenuTarget.alias.alias + '_mers', contextMenuTarget.alias.mersFullPath, false);
             }
+          }}
+        />
+      )}
+
+      {/* 2nd Hover State Morphing Portal Preview (photobooth-vendor-portal inspired) */}
+      {hoverMorphTarget && !contextMenuTarget && (
+        <TileHoverMorphPortal
+          target={hoverMorphTarget}
+          onClose={() => setHoverMorphTarget(null)}
+          onEdit={(alias) => {
+            setHoverMorphTarget(null);
+            editTexture(alias.alias, alias.fullPath, alias.status === 'GHOST');
+          }}
+          onOpenContextMenu={(alias, anchor) => {
+            setHoverMorphTarget(null);
+            setContextMenuTarget({
+              alias,
+              key: hoverMorphTarget.key,
+              anchor,
+            });
+          }}
+          onRevealInExplorer={(fullPath) => {
+            openInExplorer(fullPath, true);
           }}
         />
       )}
