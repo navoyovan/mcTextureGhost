@@ -1,5 +1,5 @@
 // frontend/src/components/json/ManifestForm.tsx
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   Package,
   Save,
@@ -8,6 +8,7 @@ import {
   Check,
   ChevronUp,
   ChevronDown,
+  Pencil,
 } from 'lucide-react';
 import { usePackStore } from '../../store/packStore';
 import { ManifestModelDto } from '../../types/ipc';
@@ -82,6 +83,7 @@ export const ManifestForm: React.FC<ManifestFormProps> = ({
   const hasPackIcon = usePackStore((s) => s.hasPackIcon);
   const packIconUrl = usePackStore((s) => s.packIconUrl);
 
+  const titleInputRef = useRef<HTMLInputElement>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [iconLoadError, setIconLoadError] = useState<boolean>(false);
 
@@ -136,14 +138,29 @@ export const ManifestForm: React.FC<ManifestFormProps> = ({
           </div>
 
           <div className={styles.packHeaderMeta}>
-            <input
-              id="manifest-name"
-              type="text"
-              className={styles.packTitleInput}
-              value={form.headerName || ''}
-              placeholder="Resource Pack Title"
-              onChange={(e) => updateField('headerName', e.target.value)}
-            />
+            <div className={styles.packTitleWrapper}>
+              <input
+                ref={titleInputRef}
+                id="manifest-name"
+                type="text"
+                className={styles.packTitleInput}
+                value={form.headerName || ''}
+                placeholder="Resource Pack Title"
+                onChange={(e) => updateField('headerName', e.target.value)}
+              />
+              <button
+                type="button"
+                className={styles.packTitleEditBtn}
+                onClick={() => {
+                  titleInputRef.current?.focus();
+                  titleInputRef.current?.select();
+                }}
+                title="Edit Pack Title"
+                tabIndex={-1}
+              >
+                <Pencil size={13} className={styles.packTitleEditIcon} />
+              </button>
+            </div>
             <div className={styles.packMetaActionsRow}>
               <div className={styles.packMetaTags}>
                 <span className={styles.metaPill}>Format {form.formatVersion || 2}</span>

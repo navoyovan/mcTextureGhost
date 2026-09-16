@@ -113,14 +113,16 @@ const CatalogLeafRow: React.FC<{
     ? (leaf.relativePath.split(/[/\\]/).pop() ?? leaf.displayName ?? leaf.alias)
     : (leaf.displayName ?? leaf.alias);
 
+  const isEntity = (leaf.category || '').toLowerCase() === 'entity';
   const blockVariantSuffix = leaf.blockVariantIndex && leaf.totalBlockVariants
     ? ` (block state ${leaf.blockVariantIndex}/${leaf.totalBlockVariants})`
     : '';
 
   const tooltipText = [
     (blockDisplayName || leaf.displayName || leaf.alias) + blockVariantSuffix,
-    `terrain textures: ${leaf.alias}`,
+    isEntity ? (leaf.geometryId ? `geometry: ${leaf.geometryId}` : `slot: ${leaf.alias}`) : `terrain textures: ${leaf.alias}`,
     `path: ${leaf.relativePath}`,
+    leaf.isAttachable ? 'attachable: true' : '',
     leaf.subtitleCaption ? `info: ${leaf.subtitleCaption}` : '',
   ].filter(Boolean).join('\n');
 
@@ -186,6 +188,8 @@ const CatalogAliasGroup: React.FC<{
   onAdd: (id: string, category: string) => void;
 }> = ({ aliasGroup, category, blockDisplayName, onAdd }) => {
   const isEntity = (aliasGroup.category || category).toLowerCase() === 'entity';
+  const slotName = aliasGroup.geometryId || aliasGroup.alias;
+  const isAttachable = isEntity && (aliasGroup.isAttachable || aliasGroup.leaves?.some((l) => l.isAttachable));
   const isAdded =
     (aliasGroup.notAddedCount ?? 0) === 0 &&
     (aliasGroup.leaves?.length ?? 0) > 0 &&
@@ -196,16 +200,21 @@ const CatalogAliasGroup: React.FC<{
       <div className={styles.aliasGroupHeader}>
         <div className={styles.aliasHeaderLeft}>
           <Layers size={13} className={styles.aliasIcon} />
-          <span className={styles.aliasNameText} title={aliasGroup.alias}>
-            {isEntity ? `Slot: ${aliasGroup.alias}` : `Alias: ${aliasGroup.alias}`}
+          <span className={styles.aliasNameText} title={slotName}>
+            {isEntity ? `Slot: ${slotName}` : `Alias: ${aliasGroup.alias}`}
           </span>
-          {aliasGroup.faceSummary && (
+          {isAttachable && (
+            <span className={styles.faceLabelBadge} title="Attachable entity definition">
+              <span>Attachable</span>
+            </span>
+          )}
+          {!isEntity && aliasGroup.faceSummary && (
             <span
               className={styles.faceLabelBadge}
-              title={isEntity ? `Texture file: ${aliasGroup.faceSummary}` : `Face mapping: ${aliasGroup.faceSummary}`}
+              title={`Face mapping: ${aliasGroup.faceSummary}`}
             >
               <ArrowRight size={9} />
-              <span>{isEntity ? `File: ${aliasGroup.faceSummary}` : `Face: ${aliasGroup.faceSummary}`}</span>
+              <span>Face: {aliasGroup.faceSummary}</span>
             </span>
           )}
           {aliasGroup.ghostCount > 0 && (
@@ -215,22 +224,24 @@ const CatalogAliasGroup: React.FC<{
           )}
         </div>
 
-        {isAdded ? (
-          <span className={styles.addedBadge} title="This item is already in your pack">
-            <Check size={11} />
-            <span>Added</span>
-          </span>
-        ) : (
-          <button
-            type="button"
-            className={styles.addAliasBtn}
-            onClick={() => onAdd(aliasGroup.alias, aliasGroup.category || category)}
-            title={isEntity ? `Add ${blockDisplayName || 'entity'} to pack` : `Add alias '${aliasGroup.alias}' to pack`}
-            aria-label={isEntity ? `Add ${blockDisplayName || 'entity'} to pack` : `Add alias ${aliasGroup.alias}`}
-          >
-            <Plus size={11} />
-            <span>{isEntity ? 'Add Entity' : 'Add Alias'}</span>
-          </button>
+        {!isEntity && (
+          isAdded ? (
+            <span className={styles.addedBadge} title="This item is already in your pack">
+              <Check size={11} />
+              <span>Added</span>
+            </span>
+          ) : (
+            <button
+              type="button"
+              className={styles.addAliasBtn}
+              onClick={() => onAdd(aliasGroup.alias, aliasGroup.category || category)}
+              title={`Add alias '${aliasGroup.alias}' to pack`}
+              aria-label={`Add alias ${aliasGroup.alias}`}
+            >
+              <Plus size={11} />
+              <span>Add Alias</span>
+            </button>
+          )
         )}
       </div>
 

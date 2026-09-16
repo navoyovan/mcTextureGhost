@@ -1540,18 +1540,19 @@ public static class PackScanner
         var entitiesTree = new List<BlockGroupNode>();
         var userEntityAliases = userAliases
             .Where(a => a.Category == TextureCategory.Entity && a.Status != TextureStatus.NoEntry)
-            .GroupBy(a => a.Alias, StringComparer.OrdinalIgnoreCase)
+            .GroupBy(a => !string.IsNullOrEmpty(a.EntityId) ? a.EntityId : (a.Alias.Contains(':') ? a.Alias.Substring(0, a.Alias.IndexOf(':')) : a.Alias), StringComparer.OrdinalIgnoreCase)
             .ToDictionary(g => g.Key, g => g.ToList(), StringComparer.OrdinalIgnoreCase);
 
-        var userEntityGroups = userAliases
-            .Where(a => a.Category == TextureCategory.Entity && a.Status != TextureStatus.NoEntry)
-            .GroupBy(a => a.Alias, StringComparer.OrdinalIgnoreCase);
-
         var allEntityIds = new HashSet<string>(vanilla.EntityDefinitions.Keys, StringComparer.OrdinalIgnoreCase);
-        foreach (var uGroup in userEntityGroups)
+        foreach (var uKey in userEntityAliases.Keys)
         {
-            if (!string.IsNullOrEmpty(uGroup.Key))
-                allEntityIds.Add(uGroup.Key);
+            if (!string.IsNullOrEmpty(uKey))
+            {
+                if (!uKey.Contains(':') || uKey.StartsWith("minecraft:", StringComparison.OrdinalIgnoreCase))
+                {
+                    allEntityIds.Add(uKey);
+                }
+            }
         }
 
         foreach (var entityId in allEntityIds.OrderBy(id => vanilla.GetEntityDisplayName(id), StringComparer.OrdinalIgnoreCase))
@@ -1575,63 +1576,135 @@ public static class PackScanner
                 ? vSlots
                 : (vanilla.EntityDefinitions.TryGetValue(cleanId, out var vCleanSlots) ? vCleanSlots : new Dictionary<string, string>());
 
+            // Get any user tiles for this entity
+            userEntityAliases.TryGetValue(entityId, out var entityUserTiles);
+            if (entityUserTiles == null)
+            {
+                userEntityAliases.TryGetValue(cleanId, out entityUserTiles);
+            }
+            if (entityUserTiles == null)
+            {
+                userEntityAliases.TryGetValue($"minecraft:{cleanId}", out entityUserTiles);
+            }
+
+            // Group slots by geometry/baby
+            var slotItems = new List<(string SlotKey, string RawTexPath, string? GeoId, bool IsBaby, bool IsAttachable)>();
             foreach (var (slotKey, rawTexPath) in declaredSlots)
             {
-                var normTexPath = VanillaDataService.NormalizeTexturePath(rawTexPath);
-                var fullTexPath = normTexPath + ".png";
-                var slotAlias = slotKey;
+                var geoId = vanilla.GetGeometryForEntity(entityId, slotKey, rawTexPath);
+                var isAttachable = vanilla.RawClientEntityRelPath.TryGetValue(entityId, out var rp) && rp.StartsWith("attachables", StringComparison.OrdinalIgnoreCase);
+                var isBaby = (geoId != null && geoId.Contains("baby", StringComparison.OrdinalIgnoreCase)) || slotKey.Contains("baby", StringComparison.OrdinalIgnoreCase);
+                slotItems.Add((slotKey, rawTexPath, geoId, isBaby, isAttachable));
+            }
+
+            // If declaredSlots is empty but user has tiles for this entity
+            if (slotItems.Count == 0 && entityUserTiles != null)
+            {
+                foreach (var tile in entityUserTiles)
+                {
+                    var isBaby = (tile.GeometryId != null && tile.GeometryId.Contains("baby", StringComparison.OrdinalIgnoreCase)) || (tile.TextureKey != null && tile.TextureKey.Contains("baby", StringComparison.OrdinalIgnoreCase));
+                    slotItems.Add((tile.TextureKey ?? "default", tile.RelativePath, tile.GeometryId, isBaby, tile.IsAttachable));
+                }
+            }
+
+            var groupedSlots = slotItems
+                .GroupBy(s => s.GeoId ?? (s.IsBaby ? "baby" : "default"), StringComparer.OrdinalIgnoreCase)
+                .OrderBy(g => g.Key.Contains("baby", StringComparison.OrdinalIgnoreCase) ? 1 : 0);
+
+            foreach (var group in groupedSlots)
+            {
+                var first = group.FirstOrDefault();
+                var geoId = first.GeoId;
+                var isBaby = group.Any(s => s.IsBaby);
+                var isAttachable = group.Any(s => s.IsAttachable);
+
+                string slotAlias;
+                if (groupedSlots.Count() > 1)
+                {
+                    if (isBaby)
+                    {
+                        slotAlias = $"{cleanId} (baby)";
+                    }
+                    else
+                    {
+                        var suffix = !string.IsNullOrEmpty(first.SlotKey) && !first.SlotKey.Equals("default", StringComparison.OrdinalIgnoreCase)
+                            ? first.SlotKey
+                            : (geoId?.Replace("geometry.", "", StringComparison.OrdinalIgnoreCase) ?? "variant");
+                        slotAlias = $"{cleanId} ({suffix})";
+                    }
+                }
+                else
+                {
+                    slotAlias = cleanId;
+                }
 
                 var aliasNode = new AliasGroupNode
                 {
                     Alias = slotAlias,
-                    FaceSummary = Path.GetFileName(normTexPath),
+                    FaceSummary = isAttachable ? "attachable" : (isBaby ? "baby" : "entity"),
+                    GeometryId = geoId,
+                    IsAttachable = isAttachable,
                     Category = TextureCategory.Entity,
                     ParentBlock = entityNode
                 };
 
-                var matchingUserTile = userAliases.FirstOrDefault(a =>
-                    a.Category == TextureCategory.Entity &&
-                    (string.Equals(a.RelativePath, fullTexPath, StringComparison.OrdinalIgnoreCase) ||
-                     string.Equals(a.RelativePath, normTexPath, StringComparison.OrdinalIgnoreCase)));
-
-                if (matchingUserTile != null)
+                foreach (var (slotKey, rawTexPath, _, _, _) in group)
                 {
-                    trackedUserAliases.Add(matchingUserTile);
-                    var leaf = new CatalogLeaf
+                    var normTexPath = VanillaDataService.NormalizeTexturePath(rawTexPath);
+                    var fullTexPath = normTexPath + ".png";
+
+                    var matchingUserTile = entityUserTiles?.FirstOrDefault(a =>
+                        string.Equals(a.RelativePath, fullTexPath, StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(a.RelativePath, normTexPath, StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(a.TextureKey, slotKey, StringComparison.OrdinalIgnoreCase));
+
+                    if (matchingUserTile != null)
                     {
-                        Alias = slotAlias,
-                        DisplayName = matchingUserTile.DisplayName,
-                        RelativePath = matchingUserTile.RelativePath,
-                        FullPath = matchingUserTile.FullPath,
-                        Category = TextureCategory.Entity,
-                        Status = matchingUserTile.Status switch
+                        trackedUserAliases.Add(matchingUserTile);
+                        var leaf = new CatalogLeaf
                         {
-                            TextureStatus.Ok => CatalogEntryStatus.Ok,
-                            TextureStatus.Ghost => CatalogEntryStatus.Ghost,
-                            _ => CatalogEntryStatus.Orphan
-                        },
-                        TextureAlias = matchingUserTile,
-                        SubtitleCaption = matchingUserTile.SubtitleCaption
-                    };
-                    aliasNode.Leaves.Add(leaf);
-                }
-                else
-                {
-                    var userDiskPath = packRoot != null ? Path.Combine(packRoot, fullTexPath.Replace('/', Path.DirectorySeparatorChar)) : fullTexPath;
-                    bool fileExistsOnDisk = packRoot != null && File.Exists(userDiskPath);
-
-                    var leaf = new CatalogLeaf
+                            Alias = slotAlias,
+                            DisplayName = matchingUserTile.DisplayName,
+                            RelativePath = matchingUserTile.RelativePath,
+                            FullPath = matchingUserTile.FullPath,
+                            Category = TextureCategory.Entity,
+                            Status = matchingUserTile.Status switch
+                            {
+                                TextureStatus.Ok => CatalogEntryStatus.Ok,
+                                TextureStatus.Ghost => CatalogEntryStatus.Ghost,
+                                _ => CatalogEntryStatus.Orphan
+                            },
+                            TextureAlias = matchingUserTile,
+                            EntityId = entityId,
+                            TextureKey = slotKey,
+                            GeometryId = geoId,
+                            IsAttachable = isAttachable,
+                            SubtitleCaption = matchingUserTile.SubtitleCaption
+                        };
+                        aliasNode.Leaves.Add(leaf);
+                    }
+                    else
                     {
-                        Alias = slotAlias,
-                        DisplayName = Path.GetFileName(normTexPath),
-                        RelativePath = fullTexPath,
-                        FullPath = userDiskPath,
-                        Category = TextureCategory.Entity,
-                        Status = fileExistsOnDisk ? CatalogEntryStatus.Ok : CatalogEntryStatus.NotAdded,
-                        TextureAlias = null,
-                        SubtitleCaption = $"slot: {slotKey}"
-                    };
-                    aliasNode.Leaves.Add(leaf);
+                        var userDiskPath = packRoot != null ? Path.Combine(packRoot, fullTexPath.Replace('/', Path.DirectorySeparatorChar)) : fullTexPath;
+                        bool fileExistsOnDisk = packRoot != null && File.Exists(userDiskPath);
+
+                        var leaf = new CatalogLeaf
+                        {
+                            Alias = slotAlias,
+                            DisplayName = Path.GetFileName(normTexPath),
+                            RelativePath = fullTexPath,
+                            FullPath = userDiskPath,
+                            Category = TextureCategory.Entity,
+                            Status = fileExistsOnDisk ? CatalogEntryStatus.Ok : CatalogEntryStatus.NotAdded,
+                            TextureAlias = null,
+                            EntityId = entityId,
+                            TextureKey = slotKey,
+                            GeometryId = geoId,
+                            IsAttachable = isAttachable,
+                            SubtitleCaption = slotKey != "default" ? $"slot: {slotKey}" : ""
+                        };
+                        aliasNode.Leaves.Add(leaf);
+                    }
                 }
 
                 aliasNode.NotifyCountsChanged();

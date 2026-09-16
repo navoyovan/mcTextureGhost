@@ -403,6 +403,14 @@
   padding-bottom: 4px;
 }
 
+.packTitleWrapper {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  max-width: 100%;
+}
+
 .packTitleInput {
   font-family: var(--font-brand, sans-serif);
   font-size: 20px;
@@ -414,12 +422,43 @@
   padding: 2px 0;
   outline: none;
   transition: border-color 0.15s ease;
-  width: 100%;
+  field-sizing: content;
+  min-width: 80px;
+  max-width: 100%;
   letter-spacing: -0.01em;
 }
 
 .packTitleInput:focus {
   border-bottom-color: var(--accent-primary, #8CEB1F);
+}
+
+.packTitleEditBtn {
+  background: transparent;
+  border: none;
+  padding: 2px 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: 4px;
+  outline: none;
+  transition: background 0.15s ease;
+}
+
+.packTitleEditBtn:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.packTitleEditIcon {
+  color: rgba(255, 255, 255, 0.25);
+  flex-shrink: 0;
+  transition: color 0.15s ease;
+}
+
+.packTitleEditBtn:hover .packTitleEditIcon,
+.packTitleWrapper:hover .packTitleEditIcon,
+.packTitleWrapper:focus-within .packTitleEditIcon {
+  color: var(--accent-primary, #8CEB1F);
 }
 
 .packMetaActionsRow {

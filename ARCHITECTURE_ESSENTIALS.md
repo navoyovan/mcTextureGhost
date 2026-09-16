@@ -14,7 +14,7 @@ Fast reference for day-to-day tasks. Consult this file first to conserve context
 - `Models/TextureAlias.cs`: Core texture models (`Block`, `Item`, `Entity`), variant descriptors, and face bindings.
 - `Services/`: Business logic for scanning (`PackScanner` for terrain, items, and client entities/attachables), vanilla sync (`VanillaDataService`), custom reference packs (`CatalogReferenceService`), and JSON scaffolding (`JsonWriterService`).
 - `frontend/src/App.tsx`: Main React entry point. Renders one of three views: `grid`, `workspace`, or `entity` based on `activeView` store state.
-- `frontend/src/components/catalog/CatalogDrawer.tsx`: Reference catalog flyout (supports Vanilla and Custom pack profiles).
+- `frontend/src/components/catalog/CatalogDrawer.tsx`: Reference catalog flyout (supports Vanilla and Custom pack profiles). Entity items are grouped by primary identifier (`minecraft:<id>`) with slot groups partitioned by geometry ID / attachment type matching `EntityWorkspace.tsx`.
 - `frontend/src/components/workspace/BlockWorkspace.tsx`: 4-tier block hierarchy view with `Block3DViewer` (Three.js) sub-component.
 - `frontend/src/components/workspace/EntityWorkspace.tsx`: Dedicated Entity & Attachable index and slot inspector with `Entity3DViewer` (Three.js) rendering Bedrock `.geo.json` bone/cube hierarchies.
 - `frontend/src/components/workspace/entityGeometryBuilder.ts`: High-performance parser and Three.js hierarchy builder for format 1.8.0 and 1.12.0+ Bedrock geometry models.
