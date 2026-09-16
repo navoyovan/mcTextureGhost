@@ -8,6 +8,125 @@ import { TextureContextMenu } from '../common/TextureContextMenu';
 import { TileHoverMorphPortal, TileHoverMorphTarget } from './TileHoverMorphPortal';
 import styles from './PackGrid.module.css';
 
+interface PackGridTileProps {
+  alias: TextureAliasDto;
+  uniqueKey: string;
+  isMenuOpen: boolean;
+  onTileClick: (alias: TextureAliasDto) => void;
+  onContextMenu: (e: React.MouseEvent, alias: TextureAliasDto, key: string) => void;
+  onOpenMenu: (e: React.MouseEvent, alias: TextureAliasDto, key: string) => void;
+  onMouseEnterTile: (domEl: HTMLElement, alias: TextureAliasDto, key: string) => void;
+  onMouseLeaveTile: () => void;
+}
+
+const getStatusDotClass = (status: string) => {
+  switch (status) {
+    case 'OK':
+      return styles.statusDotOk;
+    case 'GHOST':
+      return styles.statusDotGhost;
+    case 'ORPHAN':
+      return styles.statusDotOrphan;
+    case 'OVERRIDE':
+      return styles.statusDotOverride;
+    default:
+      return styles.statusDotOk;
+  }
+};
+
+const PackGridTile = React.memo<PackGridTileProps>(({
+  alias,
+  uniqueKey,
+  isMenuOpen,
+  onTileClick,
+  onContextMenu,
+  onOpenMenu,
+  onMouseEnterTile,
+  onMouseLeaveTile,
+}) => {
+  const isGhost = alias.status === 'GHOST';
+
+  // Show file name including extension with matching font size and muted weight
+  const rawFileName = alias.relativePath
+    ? (alias.relativePath.split(/[/\\]/).pop() ?? alias.displayName ?? alias.alias)
+    : (alias.displayName ?? alias.alias);
+  const sourceForExt = alias.fullPath || alias.relativePath || alias.imageUrl || rawFileName;
+  const dotIdx = sourceForExt.lastIndexOf('.');
+  const cleanExt = dotIdx > 0 ? (sourceForExt.substring(dotIdx).split('?')[0] ?? '').split('#')[0] ?? '' : '';
+  const fileExt = cleanExt && cleanExt.length <= 5 ? cleanExt : '.png';
+  const rawDotIdx = rawFileName.lastIndexOf('.');
+  const fileBase = rawDotIdx > 0 ? rawFileName.substring(0, rawDotIdx) : rawFileName;
+  const fullFileName = `${fileBase}${fileExt}`;
+
+  return (
+    <div
+      className={styles.tileCard}
+      onClick={() => onTileClick(alias)}
+      onMouseEnter={(e) => onMouseEnterTile(e.currentTarget, alias, uniqueKey)}
+      onMouseLeave={onMouseLeaveTile}
+      onContextMenu={(e) => onContextMenu(e, alias, uniqueKey)}
+      title={`${fullFileName}\nAlias: ${alias.alias}\nStatus: ${alias.status}\nPath: ${alias.relativePath}`}
+    >
+      {/* 3-Dots Hover Menu Trigger */}
+      <button
+        type="button"
+        className={`${styles.moreButton} ${isMenuOpen ? styles.moreButtonActive : ''}`}
+        onClick={(e) => onOpenMenu(e, alias, uniqueKey)}
+        title="Texture options"
+        aria-label="Texture options"
+      >
+        <MoreVertical size={14} />
+      </button>
+
+      {/* Thumbnail Container - 100% clean texture display without overlays */}
+      <div
+        className={`${styles.tileThumbnailWrapper} ${!isGhost ? styles.tileThumbnailAdded : ''}`}
+      >
+        {!isGhost && alias.imageUrl ? (
+          <FlipbookThumbnail
+            src={alias.imageUrl}
+            alt={alias.alias}
+            className={styles.tileThumbnail}
+            isFlipbook={alias.isFlipbook}
+            flipbook={alias.flipbook}
+            loading="lazy"
+          />
+        ) : (
+          <span className={styles.placeholderGhost}>?</span>
+        )}
+      </div>
+
+      {/* Tile Metadata with Status Dot placed under the filename row */}
+      <div className={styles.tileMeta}>
+        <div className={styles.tileHeaderRow}>
+          <span className={styles.tileTitle} title={fullFileName}>
+            <span>{fileBase}</span>
+            <span className={styles.fileExt}>{fileExt}</span>
+          </span>
+          {alias.hasMers && (
+            <span className={styles.mersBadge} title={`PBR MERS layer exists: ${alias.mersFullPath}`}>
+              MERS
+            </span>
+          )}
+          {alias.isFlipbook && (
+            <span className={styles.animBadge} title="Animated flipbook sprite-sheet">
+              ANIM
+            </span>
+          )}
+        </div>
+        <div className={styles.tileSubRow}>
+          <span className={`${styles.statusDot} ${getStatusDotClass(alias.status)}`} />
+          <span className={styles.tileSubtitle}>
+            {alias.subtitleCaption || alias.relativePath || alias.category}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+});
+
+PackGridTile.displayName = 'PackGridTile';
+
 export const PackGrid: React.FC = () => {
   const aliases = usePackStore((s) => s.aliases);
   const activeTab = usePackStore((s) => s.activeTab);
@@ -112,24 +231,72 @@ export const PackGrid: React.FC = () => {
     });
   }, [aliases, activeTab, searchQuery, statusFilter, activeFilters, selectedFolderPath]);
 
-  const handleTileClick = (alias: TextureAliasDto) => {
+  const handleTileClick = React.useCallback((alias: TextureAliasDto) => {
+    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+    setHoverMorphTarget(null);
     editTexture(alias.alias, alias.fullPath, alias.status === 'GHOST');
-  };
+  }, [editTexture]);
 
-  const getStatusDotClass = (status: string) => {
-    switch (status) {
-      case 'OK':
-        return styles.statusDotOk;
-      case 'GHOST':
-        return styles.statusDotGhost;
-      case 'ORPHAN':
-        return styles.statusDotOrphan;
-      case 'OVERRIDE':
-        return styles.statusDotOverride;
-      default:
-        return styles.statusDotOk;
+  const handleMouseEnterTile = React.useCallback((domEl: HTMLElement, alias: TextureAliasDto, key: string) => {
+    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+    setContextMenuTarget((currentMenu) => {
+      if (!currentMenu) {
+        hoverTimerRef.current = window.setTimeout(() => {
+          if (domEl && document.body.contains(domEl)) {
+            const rect = domEl.getBoundingClientRect();
+            setHoverMorphTarget({
+              alias,
+              key,
+              originRect: rect,
+              domElement: domEl,
+            });
+          }
+        }, 1200);
+      }
+      return currentMenu;
+    });
+  }, []);
+
+  const handleMouseLeaveTile = React.useCallback(() => {
+    if (hoverTimerRef.current) {
+      clearTimeout(hoverTimerRef.current);
+      hoverTimerRef.current = null;
     }
-  };
+  }, []);
+
+  const handleContextMenu = React.useCallback((e: React.MouseEvent, alias: TextureAliasDto, key: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+    setHoverMorphTarget(null);
+    setContextMenuTarget({
+      alias,
+      key,
+      anchor: { x: e.clientX, y: e.clientY },
+    });
+  }, []);
+
+  const handleOpenMenu = React.useCallback((e: React.MouseEvent, alias: TextureAliasDto, key: string) => {
+    e.stopPropagation();
+    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+    setHoverMorphTarget(null);
+    setContextMenuTarget((current) => {
+      if (current?.key === key) {
+        return null;
+      }
+      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+      return {
+        alias,
+        key,
+        anchor: {
+          top: rect.top,
+          bottom: rect.bottom,
+          left: rect.left,
+          right: rect.right,
+        },
+      };
+    });
+  }, []);
 
   return (
     <div className={styles.gridContainer}>
@@ -147,142 +314,21 @@ export const PackGrid: React.FC = () => {
           } as React.CSSProperties}
         >
           {filteredAliases.map((alias, index) => {
-            const isGhost = alias.status === 'GHOST';
             const uniqueKey = `${alias.category}:${alias.alias}:${alias.relativePath || ''}:${alias.textureVariantIndex ?? ''}:${alias.blockVariantIndex ?? ''}:${index}`;
-
-            // Show file name including extension with matching font size and muted weight
-            const rawFileName = alias.relativePath
-              ? (alias.relativePath.split(/[/\\]/).pop() ?? alias.displayName ?? alias.alias)
-              : (alias.displayName ?? alias.alias);
-            const sourceForExt = alias.fullPath || alias.relativePath || alias.imageUrl || rawFileName;
-            const dotIdx = sourceForExt.lastIndexOf('.');
-            const cleanExt = dotIdx > 0 ? (sourceForExt.substring(dotIdx).split('?')[0] ?? '').split('#')[0] ?? '' : '';
-            const fileExt = cleanExt && cleanExt.length <= 5 ? cleanExt : '.png';
-            const rawDotIdx = rawFileName.lastIndexOf('.');
-            const fileBase = rawDotIdx > 0 ? rawFileName.substring(0, rawDotIdx) : rawFileName;
-            const fullFileName = `${fileBase}${fileExt}`;
-
             const isMenuOpen = contextMenuTarget?.key === uniqueKey;
 
             return (
-              <div
+              <PackGridTile
                 key={uniqueKey}
-                className={styles.tileCard}
-                onClick={() => {
-                  if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
-                  setHoverMorphTarget(null);
-                  handleTileClick(alias);
-                }}
-                onMouseEnter={(e) => {
-                  if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
-                  if (!contextMenuTarget) {
-                    const domEl = e.currentTarget;
-                    hoverTimerRef.current = window.setTimeout(() => {
-                      if (domEl && document.body.contains(domEl)) {
-                        const rect = domEl.getBoundingClientRect();
-                        setHoverMorphTarget({
-                          alias,
-                          key: uniqueKey,
-                          originRect: rect,
-                          domElement: domEl,
-                        });
-                      }
-                    }, 1200);
-                  }
-                }}
-                onMouseLeave={() => {
-                  if (hoverTimerRef.current) {
-                    clearTimeout(hoverTimerRef.current);
-                    hoverTimerRef.current = null;
-                  }
-                }}
-                onContextMenu={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
-                  setHoverMorphTarget(null);
-                  setContextMenuTarget({
-                    alias,
-                    key: uniqueKey,
-                    anchor: { x: e.clientX, y: e.clientY },
-                  });
-                }}
-                title={`${fullFileName}\nAlias: ${alias.alias}\nStatus: ${alias.status}\nPath: ${alias.relativePath}`}
-              >
-                {/* 3-Dots Hover Menu Trigger */}
-                <button
-                  type="button"
-                  className={`${styles.moreButton} ${isMenuOpen ? styles.moreButtonActive : ''}`}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
-                    setHoverMorphTarget(null);
-                    if (isMenuOpen) {
-                      setContextMenuTarget(null);
-                    } else {
-                      const rect = e.currentTarget.getBoundingClientRect();
-                      setContextMenuTarget({
-                        alias,
-                        key: uniqueKey,
-                        anchor: {
-                          top: rect.top,
-                          bottom: rect.bottom,
-                          left: rect.left,
-                          right: rect.right,
-                        },
-                      });
-                    }
-                  }}
-                  title="Texture options"
-                  aria-label="Texture options"
-                >
-                  <MoreVertical size={14} />
-                </button>
-
-                {/* Thumbnail Container - 100% clean texture display without overlays */}
-                <div
-                  className={`${styles.tileThumbnailWrapper} ${!isGhost ? styles.tileThumbnailAdded : ''}`}
-                >
-                  {!isGhost && alias.imageUrl ? (
-                    <FlipbookThumbnail
-                      src={alias.imageUrl}
-                      alt={alias.alias}
-                      className={styles.tileThumbnail}
-                      isFlipbook={alias.isFlipbook}
-                      flipbook={alias.flipbook}
-                      loading="lazy"
-                    />
-                  ) : (
-                    <span className={styles.placeholderGhost}>?</span>
-                  )}
-                </div>
-
-                {/* Tile Metadata with Status Dot placed under the filename row */}
-                <div className={styles.tileMeta}>
-                  <div className={styles.tileHeaderRow}>
-                    <span className={styles.tileTitle} title={fullFileName}>
-                      <span>{fileBase}</span>
-                      <span className={styles.fileExt}>{fileExt}</span>
-                    </span>
-                    {alias.hasMers && (
-                      <span className={styles.mersBadge} title={`PBR MERS layer exists: ${alias.mersFullPath}`}>
-                        MERS
-                      </span>
-                    )}
-                    {alias.isFlipbook && (
-                      <span className={styles.animBadge} title="Animated flipbook sprite-sheet">
-                        ANIM
-                      </span>
-                    )}
-                  </div>
-                  <div className={styles.tileSubRow}>
-                    <span className={`${styles.statusDot} ${getStatusDotClass(alias.status)}`} />
-                    <span className={styles.tileSubtitle}>
-                      {alias.subtitleCaption || alias.relativePath || alias.category}
-                    </span>
-                  </div>
-                </div>
-              </div>
+                alias={alias}
+                uniqueKey={uniqueKey}
+                isMenuOpen={isMenuOpen}
+                onTileClick={handleTileClick}
+                onContextMenu={handleContextMenu}
+                onOpenMenu={handleOpenMenu}
+                onMouseEnterTile={handleMouseEnterTile}
+                onMouseLeaveTile={handleMouseLeaveTile}
+              />
             );
           })}
         </div>

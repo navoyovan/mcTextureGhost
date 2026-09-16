@@ -67,7 +67,7 @@ export interface FlipbookThumbnailProps {
   onError?: (e: React.SyntheticEvent<HTMLImageElement, Event>) => void;
 }
 
-export const FlipbookThumbnail: React.FC<FlipbookThumbnailProps> = ({
+const AnimatedFlipbookThumbnail: React.FC<FlipbookThumbnailProps> = ({
   src,
   alt = '',
   className,
@@ -305,4 +305,23 @@ export const FlipbookThumbnail: React.FC<FlipbookThumbnailProps> = ({
       onError={onError}
     />
   );
+};
+
+export const FlipbookThumbnail: React.FC<FlipbookThumbnailProps> = (props) => {
+  // FAST-PATH: If this is definitely a static texture and not a TGA file, render native <img> directly
+  // with zero JS Image() instances, zero hook state, and zero canvas overhead
+  if (!props.isFlipbook && !props.flipbook && !isTgaUrl(props.src)) {
+    return (
+      <img
+        src={props.src}
+        alt={props.alt || ''}
+        className={`${styles.thumbnailImg} ${props.className || ''}`}
+        loading={props.loading || 'lazy'}
+        decoding="async"
+        onError={props.onError}
+      />
+    );
+  }
+
+  return <AnimatedFlipbookThumbnail {...props} />;
 };
