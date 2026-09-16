@@ -46,12 +46,26 @@ export const TileHoverMorphPortal: React.FC<TileHoverMorphPortalProps> = ({
   const [isClosing, setIsClosing] = useState(false);
   const [copied, setCopied] = useState(false);
   const [coords, setCoords] = useState<Coords | null>(null);
+  const [imgDimensions, setImgDimensions] = useState<{ width: number; height: number } | null>(null);
 
   const cardRef = useRef<HTMLDivElement>(null);
   const closingTimerRef = useRef<number | null>(null);
 
   const alias = target.alias;
   const isGhost = alias.status === 'GHOST';
+
+  // Load natural dimensions to calibrate uniform 10px/texel pixel-art scaling
+  useEffect(() => {
+    if (!alias.imageUrl) return;
+    const img = new Image();
+    img.src = alias.imageUrl;
+    img.onload = () => {
+      setImgDimensions({
+        width: img.naturalWidth || 16,
+        height: img.naturalHeight || 16,
+      });
+    };
+  }, [alias.imageUrl]);
 
   // Calculate file base and extension
   const rawFileName = alias.relativePath
@@ -246,6 +260,15 @@ export const TileHoverMorphPortal: React.FC<TileHoverMorphPortalProps> = ({
   const currentWidth = isMorphed ? coords.width : coords.originalRect.width;
   const currentHeight = isMorphed ? coords.totalHeight : coords.originalRect.height;
   const currentThumbHeight = isMorphed ? coords.thumbHeight : coords.originalRect.height;
+  const baseTexWidth = imgDimensions?.width ?? 16;
+  const rawTexHeight = imgDimensions?.height ?? 16;
+  const isSpriteSheet = Boolean(alias.isFlipbook || alias.flipbook || (rawTexHeight >= baseTexWidth * 2));
+  const effectiveTexHeight = isSpriteSheet ? baseTexWidth : rawTexHeight;
+
+  // Exact 10 screen pixels per 1 Minecraft texel (uniform across all textures)
+  const texelScale = 10;
+  const uniformSpriteWidth = baseTexWidth * texelScale;
+  const uniformSpriteHeight = effectiveTexHeight * texelScale;
 
   const getStatusBadge = () => {
     switch (alias.status) {
@@ -286,7 +309,7 @@ export const TileHoverMorphPortal: React.FC<TileHoverMorphPortalProps> = ({
               {alias.hasMers && <span className={`${styles.badge} ${styles.badgeMers}`}>MERS</span>}
             </div>
             <span className={styles.resChip}>
-              {alias.category?.toUpperCase() || 'TEXTURE'}
+              {baseTexWidth}×{effectiveTexHeight} • {alias.category?.toUpperCase() || 'TEXTURE'}
             </span>
           </div>
         )}
@@ -300,13 +323,28 @@ export const TileHoverMorphPortal: React.FC<TileHoverMorphPortalProps> = ({
 
           <div className={styles.thumbImageWrapper}>
             {!isGhost && alias.imageUrl ? (
-              <FlipbookThumbnail
-                src={alias.imageUrl}
-                alt={alias.alias}
-                className={styles.spriteImg}
-                isFlipbook={alias.isFlipbook}
-                flipbook={alias.flipbook}
-              />
+              <div
+                className={styles.spriteScaler}
+                style={
+                  isMorphed
+                    ? {
+                        width: `${uniformSpriteWidth}px`,
+                        height: `${uniformSpriteHeight}px`,
+                      }
+                    : {
+                        width: '100%',
+                        height: '100%',
+                      }
+                }
+              >
+                <FlipbookThumbnail
+                  src={alias.imageUrl}
+                  alt={alias.alias}
+                  className={styles.spriteImg}
+                  isFlipbook={alias.isFlipbook}
+                  flipbook={alias.flipbook}
+                />
+              </div>
             ) : (
               <span className={styles.ghostPlaceholder}>?</span>
             )}
