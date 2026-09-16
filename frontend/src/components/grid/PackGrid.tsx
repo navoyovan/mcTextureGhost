@@ -12,7 +12,6 @@ interface PackGridTileProps {
   alias: TextureAliasDto;
   uniqueKey: string;
   isMenuOpen: boolean;
-  isRecentlySnapped: boolean;
   onTileClick: (alias: TextureAliasDto) => void;
   onContextMenu: (e: React.MouseEvent, alias: TextureAliasDto, key: string) => void;
   onOpenMenu: (e: React.MouseEvent, alias: TextureAliasDto, key: string) => void;
@@ -39,7 +38,6 @@ const PackGridTile = React.memo<PackGridTileProps>(({
   alias,
   uniqueKey,
   isMenuOpen,
-  isRecentlySnapped,
   onTileClick,
   onContextMenu,
   onOpenMenu,
@@ -62,7 +60,7 @@ const PackGridTile = React.memo<PackGridTileProps>(({
 
   return (
     <div
-      className={`${styles.tileCard} ${isRecentlySnapped ? styles.tileCardSnappedFlash : ''}`}
+      className={styles.tileCard}
       onClick={() => onTileClick(alias)}
       onMouseEnter={(e) => onMouseEnterTile(e.currentTarget, alias, uniqueKey)}
       onMouseLeave={onMouseLeaveTile}
@@ -148,9 +146,7 @@ export const PackGrid: React.FC = () => {
 
   // 2nd Hover State Morphing Portal target
   const [hoverMorphTarget, setHoverMorphTarget] = useState<TileHoverMorphTarget | null>(null);
-  const [recentlySnappedKey, setRecentlySnappedKey] = useState<string | null>(null);
   const hoverTimerRef = React.useRef<number | null>(null);
-  const snapFadeTimerRef = React.useRef<number | null>(null);
 
   const filteredAliases = useMemo(() => {
     if (!aliases || !Array.isArray(aliases)) return [];
@@ -330,7 +326,6 @@ export const PackGrid: React.FC = () => {
           {filteredAliases.map((alias, index) => {
             const uniqueKey = `${alias.category}:${alias.alias}:${alias.relativePath || ''}:${alias.textureVariantIndex ?? ''}:${alias.blockVariantIndex ?? ''}:${index}`;
             const isMenuOpen = contextMenuTarget?.key === uniqueKey;
-            const isRecentlySnapped = recentlySnappedKey === uniqueKey;
 
             return (
               <PackGridTile
@@ -338,7 +333,6 @@ export const PackGrid: React.FC = () => {
                 alias={alias}
                 uniqueKey={uniqueKey}
                 isMenuOpen={isMenuOpen}
-                isRecentlySnapped={isRecentlySnapped}
                 onTileClick={handleTileClick}
                 onContextMenu={handleContextMenu}
                 onOpenMenu={handleOpenMenu}
@@ -387,15 +381,7 @@ export const PackGrid: React.FC = () => {
       {hoverMorphTarget && !contextMenuTarget && (
         <TileHoverMorphPortal
           target={hoverMorphTarget}
-          onClose={() => {
-            const snappedKey = hoverMorphTarget.key;
-            setHoverMorphTarget(null);
-            setRecentlySnappedKey(snappedKey);
-            if (snapFadeTimerRef.current) clearTimeout(snapFadeTimerRef.current);
-            snapFadeTimerRef.current = window.setTimeout(() => {
-              setRecentlySnappedKey(null);
-            }, 80);
-          }}
+          onClose={() => setHoverMorphTarget(null)}
           onEdit={(alias) => {
             setHoverMorphTarget(null);
             editTexture(alias.alias, alias.fullPath, alias.status === 'GHOST');

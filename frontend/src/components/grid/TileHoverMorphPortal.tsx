@@ -318,21 +318,6 @@ export const TileHoverMorphPortal: React.FC<TileHoverMorphPortalProps> = ({
   const uniformSpriteWidth = Math.round(baseTexWidth * finalScale);
   const uniformSpriteHeight = Math.round(effectiveTexHeight * finalScale);
 
-  const getStatusDotClass = (status: string) => {
-    switch (status) {
-      case 'OK':
-        return styles.statusDotOk;
-      case 'GHOST':
-        return styles.statusDotGhost;
-      case 'ORPHAN':
-        return styles.statusDotOrphan;
-      case 'OVERRIDE':
-        return styles.statusDotOverride;
-      default:
-        return styles.statusDotOk;
-    }
-  };
-
   const getStatusBadge = () => {
     switch (alias.status) {
       case 'OK':
@@ -478,30 +463,7 @@ export const TileHoverMorphPortal: React.FC<TileHoverMorphPortalProps> = ({
             </div>
           </>
         ) : (
-          <div className={styles.tileMetaSnapshot}>
-            <div className={styles.tileHeaderRow}>
-              <span className={styles.snapTileTitle} title={`${fileBase}${fileExt}`}>
-                <span>{fileBase}</span>
-                <span className={styles.snapFileExt}>{fileExt}</span>
-              </span>
-              {alias.hasMers && (
-                <span className={styles.snapMersBadge}>
-                  MERS
-                </span>
-              )}
-              {alias.isFlipbook && (
-                <span className={styles.snapAnimBadge}>
-                  ANIM
-                </span>
-              )}
-            </div>
-            <div className={styles.tileSubRow}>
-              <span className={`${styles.statusDot} ${getStatusDotClass(alias.status)}`} />
-              <span className={styles.snapTileSubtitle}>
-                {alias.subtitleCaption || alias.relativePath || alias.category}
-              </span>
-            </div>
-          </div>
+          <div className={styles.bottomSectionUnmorphed} />
         )}
       </div>
     </div>,
