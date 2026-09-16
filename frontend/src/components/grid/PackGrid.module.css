@@ -32,10 +32,11 @@
 }
 
 .tileCard:hover {
-  transform: translateY(-2px);
+  transform: translateY(-3px) scale(1.02);
   background: #202026;
-  border-color: rgba(255, 255, 255, 0.2);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.45);
+  border-color: rgba(255, 255, 255, 0.25);
+  box-shadow: 0 10px 24px -4px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.05);
+  z-index: 10;
 }
 
 .tileThumbnailWrapper {
@@ -62,6 +63,11 @@
   object-fit: contain;
   image-rendering: pixelated;
   border-radius: 0;
+  transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.tileCard:hover .tileThumbnail {
+  transform: scale(1.05);
 }
 
 .placeholderGhost {

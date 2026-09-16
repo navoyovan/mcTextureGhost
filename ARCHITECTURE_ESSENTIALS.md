@@ -19,6 +19,7 @@ Fast reference for day-to-day tasks. Consult this file first to conserve context
 - `frontend/src/components/workspace/EntityWorkspace.tsx`: Dedicated Entity & Attachable index and slot inspector with `Entity3DViewer` (Three.js) rendering Bedrock `.geo.json` bone/cube hierarchies.
 - `frontend/src/components/workspace/entityGeometryBuilder.ts`: High-performance parser and Three.js hierarchy builder for format 1.8.0 and 1.12.0+ Bedrock geometry models.
 - `frontend/src/components/json/JsonReader.tsx`: Unified JSON reader and inspector for all pack `.json` files. When loading `manifest.json`, renders an unboxed 50/50 dual-pane inspector (`ManifestForm.tsx` + live code).
+- `frontend/src/components/grid/TileHoverMorphPortal.tsx`: Singleton portal providing Tier 2 morphing hover preview after 1.2s dwell, animated checkerboard backdrop, pixel inspection, and quick actions with 24px cursor-boundary snapback.
 - `frontend/src/components/sidebar/DirectoryTree.tsx`: Directory tree with 3-tier badge indicators (`ghostCount`, `orphanCount`, and total `textureCount`).
 - `frontend/src/components/`: Sidebar (with hover reference pack switcher and custom pack management), Grid, Toolbar, and Modals.
 
