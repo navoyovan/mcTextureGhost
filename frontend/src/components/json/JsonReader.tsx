@@ -2,19 +2,18 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   ArrowLeft,
-  FileJson,
   Copy,
   Check,
   Search,
   X,
   ExternalLink,
   Layers,
-  Sparkles,
   RotateCw,
 } from 'lucide-react';
 import { usePackStore } from '../../store/packStore';
 import { useIpc } from '../../hooks/useIpc';
-import { IpcMessageTypes } from '../../types/ipc';
+import { IpcMessageTypes, ManifestModelDto } from '../../types/ipc';
+import { ManifestForm } from './ManifestForm';
 import styles from './JsonReader.module.css';
 
 export interface JsonReaderProps {
@@ -26,7 +25,6 @@ export interface JsonReaderProps {
  * Tokenizes a single line of JSON into colored spans.
  */
 function renderHighlightedLine(line: string): React.ReactNode {
-  // Regex pattern matching JSON tokens
   const tokenRegex = /("(?:\\u[a-fA-F0-9]{4}|\\[^u]|[^\\"])*"(?:\s*:)?|\btrue\b|\bfalse\b|\bnull\b|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?|[{}\[\],:])/g;
 
   const parts: React.ReactNode[] = [];
@@ -43,7 +41,6 @@ function renderHighlightedLine(line: string): React.ReactNode {
     let className: string = '';
 
     if (token.endsWith(':')) {
-      // Key: "propertyName":
       const keyName = token.slice(0, -1);
       parts.push(
         <span key={`${match.index}-key`} className={styles.tokenKey || ''}>
@@ -85,16 +82,51 @@ function renderHighlightedLine(line: string): React.ReactNode {
   return parts;
 }
 
+function generateUuid(): string {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
+function createDefaultManifest(packName: string | null, packRoot: string | null): ManifestModelDto {
+  return {
+    headerName: packName || 'Bedrock Resource Pack',
+    headerDescription: 'Bedrock resource pack created with McTextureGhost',
+    headerUuid: generateUuid(),
+    versionMajor: 1,
+    versionMinor: 0,
+    versionPatch: 0,
+    minEngineMajor: 1,
+    minEngineMinor: 20,
+    minEnginePatch: 0,
+    moduleUuid: generateUuid(),
+    moduleType: 'resources',
+    moduleVersionMajor: 1,
+    moduleVersionMinor: 0,
+    moduleVersionPatch: 0,
+    formatVersion: 2,
+    fileExists: false,
+    filePath: packRoot ? `${packRoot}\\manifest.json` : null,
+    versionString: '1.0.0',
+    minEngineString: '1.20.0',
+    version: [1, 0, 0],
+    minEngineVersion: [1, 20, 0],
+    moduleVersion: [1, 0, 0],
+  };
+}
+
 export const JsonReader: React.FC<JsonReaderProps> = ({ filePath, onBack }) => {
   const packRoot = usePackStore((s) => s.packRoot);
+  const packName = usePackStore((s) => s.packName);
+  const rawManifest = usePackStore((s) => s.manifest);
+  const hasManifest = usePackStore((s) => s.hasManifest);
   const setActiveView = usePackStore((s) => s.setActiveView);
-  const { postCommand } = useIpc();
-
-  const [rawText, setRawText] = useState<string>('');
-  const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [copied, setCopied] = useState<boolean>(false);
-  const [searchQuery, setSearchQuery] = useState<string>('');
+  const { postCommand, saveManifest } = useIpc();
 
   const cleanPath = useMemo(() => {
     return filePath.replace(/\\/g, '/').replace(/^\/+/, '');
@@ -117,12 +149,37 @@ export const JsonReader: React.FC<JsonReaderProps> = ({ filePath, onBack }) => {
     return cleanPath.startsWith('entity/') || cleanPath.startsWith('attachables/') || fileName.endsWith('.entity.json');
   }, [cleanPath, fileName]);
 
+  // Standard JSON file loading state
+  const [rawText, setRawText] = useState<string>('');
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [copied, setCopied] = useState<boolean>(false);
+  const [searchQuery, setSearchQuery] = useState<string>('');
+
+  // Manifest Form state
+  const [manifestForm, setManifestForm] = useState<ManifestModelDto | null>(() => {
+    if (rawManifest) return { ...rawManifest };
+    if (!hasManifest) return createDefaultManifest(packName, packRoot);
+    return null;
+  });
+  const [isManifestDirty, setIsManifestDirty] = useState<boolean>(false);
+  const [isSavedRecently, setIsSavedRecently] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (rawManifest && !isManifestDirty) {
+      setManifestForm({ ...rawManifest });
+    }
+  }, [rawManifest, isManifestDirty]);
+
   const loadFileContent = useCallback(async () => {
+    if (isManifest) {
+      setIsLoading(false);
+      return;
+    }
     setIsLoading(true);
     setLoadError(null);
 
     try {
-      // Fetch via virtual host pack.local
       const url = `https://pack.local/${cleanPath}?t=${Date.now()}`;
       const res = await fetch(url);
       if (!res.ok) {
@@ -130,7 +187,6 @@ export const JsonReader: React.FC<JsonReaderProps> = ({ filePath, onBack }) => {
       }
       const text = await res.text();
       try {
-        // Try pretty printing if valid JSON
         const parsed = JSON.parse(text);
         setRawText(JSON.stringify(parsed, null, 2));
       } catch {
@@ -141,21 +197,60 @@ export const JsonReader: React.FC<JsonReaderProps> = ({ filePath, onBack }) => {
     } finally {
       setIsLoading(false);
     }
-  }, [cleanPath]);
+  }, [cleanPath, isManifest]);
 
   useEffect(() => {
     loadFileContent();
   }, [loadFileContent]);
 
+  // Serialized JSON for display (either live from manifest form or from disk for standard json)
+  const currentForm = manifestForm || createDefaultManifest(packName, packRoot);
+
+  const manifestJsonString = useMemo(() => {
+    if (!isManifest) return '';
+    const output = {
+      format_version: currentForm.formatVersion || 2,
+      header: {
+        name: currentForm.headerName || '',
+        description: currentForm.headerDescription || '',
+        uuid: currentForm.headerUuid,
+        version: [
+          Number(currentForm.versionMajor) || 0,
+          Number(currentForm.versionMinor) || 0,
+          Number(currentForm.versionPatch) || 0,
+        ],
+        min_engine_version: [
+          Number(currentForm.minEngineMajor) || 1,
+          Number(currentForm.minEngineMinor) || 20,
+          Number(currentForm.minEnginePatch) || 0,
+        ],
+      },
+      modules: [
+        {
+          type: currentForm.moduleType || 'resources',
+          uuid: currentForm.moduleUuid,
+          version: [
+            Number(currentForm.moduleVersionMajor) || 0,
+            Number(currentForm.moduleVersionMinor) || 0,
+            Number(currentForm.moduleVersionPatch) || 0,
+          ],
+        },
+      ],
+    };
+    return JSON.stringify(output, null, 2);
+  }, [isManifest, currentForm]);
+
+  const activeJsonText = isManifest ? manifestJsonString : rawText;
+
   const lines = useMemo(() => {
-    if (!rawText) return [];
-    return rawText.split(/\r?\n/);
-  }, [rawText]);
+    if (!activeJsonText) return [];
+    return activeJsonText.split(/\r?\n/);
+  }, [activeJsonText]);
 
   const lineCount = lines.length;
   const byteSize = useMemo(() => {
-    return new Blob([rawText]).size;
-  }, [rawText]);
+    return new Blob([activeJsonText]).size;
+  }, [activeJsonText]);
 
   const formattedSize = useMemo(() => {
     if (byteSize < 1024) return `${byteSize} B`;
@@ -163,11 +258,11 @@ export const JsonReader: React.FC<JsonReaderProps> = ({ filePath, onBack }) => {
   }, [byteSize]);
 
   const handleCopy = useCallback(() => {
-    if (!rawText) return;
-    navigator.clipboard.writeText(rawText);
+    if (!activeJsonText) return;
+    navigator.clipboard.writeText(activeJsonText);
     setCopied(true);
     setTimeout(() => setCopied(false), 1800);
-  }, [rawText]);
+  }, [activeJsonText]);
 
   const handleOpenInEditor = useCallback(() => {
     if (!fullDiskPath) return;
@@ -177,6 +272,22 @@ export const JsonReader: React.FC<JsonReaderProps> = ({ filePath, onBack }) => {
       isGhost: false,
     });
   }, [fullDiskPath, fileName, postCommand]);
+
+  const handleSaveManifest = useCallback(() => {
+    const payload: ManifestModelDto = {
+      ...currentForm,
+      filePath: currentForm.filePath || (packRoot ? `${packRoot}\\manifest.json` : null),
+    };
+    saveManifest(payload);
+    setIsManifestDirty(false);
+    setIsSavedRecently(true);
+    setTimeout(() => setIsSavedRecently(false), 2500);
+  }, [currentForm, packRoot, saveManifest]);
+
+  const handleManifestFormChange = useCallback((updated: ManifestModelDto) => {
+    setManifestForm(updated);
+    setIsManifestDirty(true);
+  }, []);
 
   const matchingLines = useMemo(() => {
     if (!searchQuery.trim()) return new Set<number>();
@@ -204,40 +315,12 @@ export const JsonReader: React.FC<JsonReaderProps> = ({ filePath, onBack }) => {
             <ArrowLeft size={13} />
             <span>Grid</span>
           </button>
-
-          <div className={styles.fileIconBadge}>
-            <FileJson size={16} />
-          </div>
-
-          <div className={styles.fileMetaGroup}>
-            <span className={styles.fileNameTitle} title={fileName}>
-              {fileName}
-            </span>
-            <span className={styles.filePathBadge} title={cleanPath}>
-              {cleanPath}
-            </span>
-          </div>
         </div>
 
         <div className={styles.headerRight}>
           <span className={styles.statsBadge}>
             {lineCount} lines • {formattedSize}
           </span>
-
-          {isManifest && (
-            <button
-              type="button"
-              className={`${styles.actionBtn} ${styles.actionBtnHighlight}`}
-              onClick={() => {
-                onBack();
-                setActiveView('manifest');
-              }}
-              title="Open structured Manifest Editor"
-            >
-              <Sparkles size={13} />
-              <span>Visual Editor</span>
-            </button>
-          )}
 
           {isEntity && (
             <button
@@ -276,81 +359,111 @@ export const JsonReader: React.FC<JsonReaderProps> = ({ filePath, onBack }) => {
         </div>
       </header>
 
-      {/* 2. Search Sub-bar */}
-      <div className={styles.searchBar}>
-        <div className={styles.searchInputGroup}>
-          <Search size={13} className={styles.searchIcon} />
-          <input
-            type="text"
-            className={styles.searchInput}
-            placeholder="Search in JSON..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+      {/* 2. Body: Either Split Manifest Editor or Standard JSON Code Viewport */}
+      {isManifest ? (
+        <div className={styles.splitContentArea}>
+          <ManifestForm
+            form={currentForm}
+            onChange={handleManifestFormChange}
+            onSave={handleSaveManifest}
+            isDirty={isManifestDirty}
+            isSavedRecently={isSavedRecently}
           />
-          {searchQuery && (
-            <button
-              type="button"
-              className={styles.searchClearBtn}
-              onClick={() => setSearchQuery('')}
-              title="Clear search"
-            >
-              <X size={12} />
-            </button>
-          )}
-        </div>
-
-        {searchQuery.trim() && (
-          <span className={styles.matchCountBadge}>
-            {matchingLines.size} {matchingLines.size === 1 ? 'match' : 'matches'} found
-          </span>
-        )}
-      </div>
-
-      {/* 3. Code Viewport */}
-      {isLoading ? (
-        <div className={styles.loadingContainer}>
-          <RotateCw size={24} className="spin" />
-          <span>Reading JSON from pack...</span>
-        </div>
-      ) : loadError ? (
-        <div className={styles.errorContainer}>
-          <h3 className={styles.errorTitle}>Failed to Load JSON</h3>
-          <p className={styles.errorDesc}>{loadError}</p>
-          <button
-            type="button"
-            className={styles.actionBtn}
-            onClick={loadFileContent}
-          >
-            <RotateCw size={13} />
-            <span>Retry</span>
-          </button>
+          <div className={styles.previewColumn}>
+            <div className={styles.codeViewport}>
+              <div className={styles.gutter}>
+                {lines.map((_, i) => (
+                  <div key={i + 1} className={styles.gutterLine}>
+                    {i + 1}
+                  </div>
+                ))}
+              </div>
+              <div className={styles.codeContent}>
+                {lines.map((line, i) => (
+                  <div key={i} className={styles.codeLine}>
+                    {renderHighlightedLine(line)}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
       ) : (
-        <div className={styles.codeViewport}>
-          {/* Line Numbers Gutter */}
-          <div className={styles.gutter}>
-            {lines.map((_, i) => (
-              <div key={i + 1} className={styles.gutterLine}>
-                {i + 1}
-              </div>
-            ))}
+        <>
+          {/* Search Sub-bar */}
+          <div className={styles.searchBar}>
+            <div className={styles.searchInputGroup}>
+              <Search size={13} className={styles.searchIcon} />
+              <input
+                type="text"
+                className={styles.searchInput}
+                placeholder="Search in JSON..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  className={styles.searchClearBtn}
+                  onClick={() => setSearchQuery('')}
+                  title="Clear search"
+                >
+                  <X size={12} />
+                </button>
+              )}
+            </div>
+
+            {searchQuery.trim() && (
+              <span className={styles.matchCountBadge}>
+                {matchingLines.size} {matchingLines.size === 1 ? 'match' : 'matches'} found
+              </span>
+            )}
           </div>
 
-          {/* Code Text Content */}
-          <div className={styles.codeContent}>
-            {lines.map((line, i) => {
-              const isMatch = matchingLines.has(i);
-              return (
-                <div
-                  key={i}
-                  className={`${styles.codeLine} ${isMatch ? styles.codeLineHighlight : ''}`}
-                >
-                  {renderHighlightedLine(line)}
-                </div>
-              );
-            })}
-          </div>
-        </div>
+          {/* Code Viewport */}
+          {isLoading ? (
+            <div className={styles.loadingContainer}>
+              <RotateCw size={24} className="spin" />
+              <span>Reading JSON from pack...</span>
+            </div>
+          ) : loadError ? (
+            <div className={styles.errorContainer}>
+              <h3 className={styles.errorTitle}>Failed to Load JSON</h3>
+              <p className={styles.errorDesc}>{loadError}</p>
+              <button
+                type="button"
+                className={styles.actionBtn}
+                onClick={loadFileContent}
+              >
+                <RotateCw size={13} />
+                <span>Retry</span>
+              </button>
+            </div>
+          ) : (
+            <div className={styles.codeViewport}>
+              <div className={styles.gutter}>
+                {lines.map((_, i) => (
+                  <div key={i + 1} className={styles.gutterLine}>
+                    {i + 1}
+                  </div>
+                ))}
+              </div>
+              <div className={styles.codeContent}>
+                {lines.map((line, i) => {
+                  const isMatch = matchingLines.has(i);
+                  return (
+                    <div
+                      key={i}
+                      className={`${styles.codeLine} ${isMatch ? styles.codeLineHighlight : ''}`}
+                    >
+                      {renderHighlightedLine(line)}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

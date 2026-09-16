@@ -478,6 +478,7 @@ public record PackFolderItemDto(
     [property: JsonPropertyName("isMissing")] bool IsMissing,
     [property: JsonPropertyName("textureCount")] int TextureCount,
     [property: JsonPropertyName("ghostCount")] int GhostCount,
+    [property: JsonPropertyName("orphanCount")] int OrphanCount,
     [property: JsonPropertyName("subFolders")] List<PackFolderItemDto> SubFolders
 );
 
@@ -714,6 +715,7 @@ public static class IpcContractMapper
             IsMissing: item.IsMissing,
             TextureCount: item.TextureCount,
             GhostCount: item.GhostCount,
+            OrphanCount: item.OrphanCount,
             SubFolders: item.SubFolders.Where(s => !s.IsPlaceholder).Select(s => s.ToDto()).ToList()
         );
 

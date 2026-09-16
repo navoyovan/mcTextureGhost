@@ -266,6 +266,7 @@ export interface PackFolderItemDto {
   isMissing: boolean;
   textureCount: number;
   ghostCount: number;
+  orphanCount: number;
   subFolders: PackFolderItemDto[];
 }
 

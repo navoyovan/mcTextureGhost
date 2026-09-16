@@ -11,7 +11,6 @@ import { Toolbar } from './components/toolbar/Toolbar';
 import { PackGrid } from './components/grid/PackGrid';
 import { BlockWorkspace } from './components/workspace/BlockWorkspace';
 import { EntityWorkspace } from './components/workspace/EntityWorkspace';
-import { ManifestEditor } from './components/manifest/ManifestEditor';
 import { JsonReader } from './components/json/JsonReader';
 import { CatalogDrawer } from './components/catalog/CatalogDrawer';
 import { MenuBar } from './components/menus/MenuBar';
@@ -35,7 +34,7 @@ export const App: React.FC = () => {
 
   const isJsonFileSelected = Boolean(
     selectedFolderPath &&
-    selectedFolderPath.toLowerCase().endsWith('.json')
+    (selectedFolderPath.toLowerCase().endsWith('.json') || selectedFolderPath.toLowerCase().endsWith('.material'))
   );
 
 
@@ -217,8 +216,6 @@ export const App: React.FC = () => {
                     <BlockWorkspace />
                   ) : activeView === 'entity' ? (
                     <EntityWorkspace />
-                  ) : activeView === 'manifest' ? (
-                    <ManifestEditor />
                   ) : (
                     <PackGrid />
                   )}

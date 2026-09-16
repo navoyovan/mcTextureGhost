@@ -22,9 +22,10 @@ description: Invariants, styling rules, build safety guardrails, and API differe
 - Standard title bar height on Windows 11 is `36px` (or `32px`), not `42px`+.
 
 ## 3. Build Safety & Zero-Error Compilation Rules
+- **Frontend vs Backend Build Separation**:
+  - For frontend-only changes (`frontend/`), **NEVER** kill `McTextureGhost.exe` or execute `dotnet build`. Verify only using `tsc --noEmit` and `vite build`.
 - **Executable File Locks (MSB3021 / MSB3027)**:
-  - If the application was launched for testing or is running in the background, `dotnet build` will fail after 10 retries because Windows locks `McTextureGhost.exe`.
-  - Before running `dotnet build`, ensure previous running instances are terminated (e.g., via `Get-Process McTextureGhost -ErrorAction SilentlyContinue | Stop-Process -Force`).
+  - If (and only if) backend C#/XAML changes require running `dotnet build` and the app is locking the binary, terminate the locking instance via `Get-Process McTextureGhost -ErrorAction SilentlyContinue | Stop-Process -Force`.
   - If MSB3021/MSB3027 occurs, do NOT assume code is broken; kill the locking process and re-run.
 - **Atomic XAML Event Synchronization (CS1061)**:
   - Never add an event attribute in XAML (e.g., `Click="Btn_Click"`, `MouseLeftButtonDown="Grip_MouseDown"`) without adding the matching method signature to the code-behind (`.xaml.cs`) in the same edit turn before building.

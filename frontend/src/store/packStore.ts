@@ -36,7 +36,7 @@ export interface PackStoreState {
   activeTab: 'all' | 'blocks' | 'items' | 'entities';
   searchQuery: string;
   statusFilter: 'all' | 'ghosts' | 'added' | 'orphans';
-  activeView: 'grid' | 'workspace' | 'entity' | 'manifest';
+  activeView: 'grid' | 'workspace' | 'entity';
   selectedBlockId: string | null;
   selectedAliasKey: string | null;
   selectedFolderPath: string | null;
@@ -64,7 +64,7 @@ export interface PackStoreActions {
   setActiveTab: (tab: 'all' | 'blocks' | 'items' | 'entities') => void;
   setSearchQuery: (query: string) => void;
   setStatusFilter: (filter: 'all' | 'ghosts' | 'added' | 'orphans') => void;
-  setActiveView: (view: 'grid' | 'workspace' | 'entity' | 'manifest') => void;
+  setActiveView: (view: 'grid' | 'workspace' | 'entity') => void;
   setSelectedBlockId: (id: string | null) => void;
   setSelectedAliasKey: (key: string | null) => void;
   setSelectedFolderPath: (path: string | null) => void;
@@ -284,7 +284,7 @@ export const packStoreActions: PackStoreActions = {
     notify();
   },
 
-  setActiveView(view: 'grid' | 'workspace' | 'entity' | 'manifest'): void {
+  setActiveView(view: 'grid' | 'workspace' | 'entity'): void {
     currentState = { ...currentState, activeView: view };
     notify();
   },
