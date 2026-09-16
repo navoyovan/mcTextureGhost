@@ -120,29 +120,23 @@ export const TileHoverMorphPortal: React.FC<TileHoverMorphPortalProps> = ({
     const isSpriteSheet = Boolean(alias.isFlipbook || alias.flipbook || (rawTexHeight >= baseTexWidth * 2));
     const effectiveTexHeight = isSpriteSheet ? baseTexWidth : rawTexHeight;
 
-    // 128x128 resolution ceiling: textures > 128x128 are force-fitted to 128 scale box
-    const MAX_TEXEL_DIM = 128;
-    const maxDimension = Math.max(baseTexWidth, effectiveTexHeight);
-    const fitFactor = maxDimension > MAX_TEXEL_DIM ? MAX_TEXEL_DIM / maxDimension : 1;
-    const effectiveTexelScale = 10 * fitFactor;
-
-    const idealSpriteW = Math.round(baseTexWidth * effectiveTexelScale);
-    const idealSpriteH = Math.round(effectiveTexHeight * effectiveTexelScale);
-
-    // Minimum width for clean UI buttons & metadata is 260px; max bounded by viewport
-    const maxAvailableWidth = viewportWidth - 2 * margin;
-    const maxAvailableHeight = viewportHeight - 2 * margin;
+    // Available space inside viewport for the card
     const metaAndActionsHeight = 115;
+    const maxAreaW = Math.min(viewportWidth - 2 * margin - 28, 700);
+    const maxAreaH = Math.min(viewportHeight - 2 * margin - metaAndActionsHeight - 24, 520);
 
-    // Dynamic width & thumbHeight scaled to texture resolution with padding (max 128-equivalent)
-    const expandedWidth = Math.min(
-      Math.max(260, idealSpriteW + 28),
-      Math.min(760, maxAvailableWidth)
-    );
-    const thumbHeight = Math.min(
-      Math.max(160, idealSpriteH + 24),
-      Math.min(560, maxAvailableHeight - metaAndActionsHeight)
-    );
+    // Compute pixel scale: up to 10px/texel, but guaranteed to fit within maxAreaW & maxAreaH
+    const maxScaleX = maxAreaW / baseTexWidth;
+    const maxScaleY = maxAreaH / effectiveTexHeight;
+    const idealScale = Math.min(10, maxScaleX, maxScaleY);
+    const finalScale = idealScale >= 1 ? Math.floor(idealScale) : idealScale;
+
+    const idealSpriteW = Math.round(baseTexWidth * finalScale);
+    const idealSpriteH = Math.round(effectiveTexHeight * finalScale);
+
+    // Dynamic width & thumbHeight scaled to texture with padding
+    const expandedWidth = Math.max(260, idealSpriteW + 28);
+    const thumbHeight = Math.max(160, idealSpriteH + 24);
     const totalHeight = thumbHeight + metaAndActionsHeight;
 
     const originalCenterX = rect.left + rect.width / 2;
@@ -291,14 +285,20 @@ export const TileHoverMorphPortal: React.FC<TileHoverMorphPortalProps> = ({
   const isSpriteSheet = Boolean(alias.isFlipbook || alias.flipbook || (rawTexHeight >= baseTexWidth * 2));
   const effectiveTexHeight = isSpriteSheet ? baseTexWidth : rawTexHeight;
 
-  // 128x128 resolution ceiling: textures > 128x128 are force-fitted to 128 scale box
-  const MAX_TEXEL_DIM = 128;
-  const maxDimension = Math.max(baseTexWidth, effectiveTexHeight);
-  const fitFactor = maxDimension > MAX_TEXEL_DIM ? MAX_TEXEL_DIM / maxDimension : 1;
-  const effectiveTexelScale = 10 * fitFactor;
+  const viewportWidth = window.innerWidth;
+  const viewportHeight = window.innerHeight;
+  const margin = 16;
+  const metaAndActionsHeight = 115;
+  const maxAreaW = Math.min(viewportWidth - 2 * margin - 28, 700);
+  const maxAreaH = Math.min(viewportHeight - 2 * margin - metaAndActionsHeight - 24, 520);
 
-  const uniformSpriteWidth = Math.round(baseTexWidth * effectiveTexelScale);
-  const uniformSpriteHeight = Math.round(effectiveTexHeight * effectiveTexelScale);
+  const maxScaleX = maxAreaW / baseTexWidth;
+  const maxScaleY = maxAreaH / effectiveTexHeight;
+  const idealScale = Math.min(10, maxScaleX, maxScaleY);
+  const finalScale = idealScale >= 1 ? Math.floor(idealScale) : idealScale;
+
+  const uniformSpriteWidth = Math.round(baseTexWidth * finalScale);
+  const uniformSpriteHeight = Math.round(effectiveTexHeight * finalScale);
 
   const getStatusBadge = () => {
     switch (alias.status) {
