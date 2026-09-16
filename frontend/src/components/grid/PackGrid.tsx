@@ -5,6 +5,7 @@ import { useIpc } from '../../hooks/useIpc';
 import { TextureAliasDto, OpenWithAppDto } from '../../types/ipc';
 import { FlipbookThumbnail } from '../common/FlipbookThumbnail';
 import { TextureContextMenu } from '../common/TextureContextMenu';
+import { TileHoverMorphPortal, TileHoverMorphTarget } from './TileHoverMorphPortal';
 import styles from './PackGrid.module.css';
 
 interface PackGridTileProps {
@@ -14,6 +15,8 @@ interface PackGridTileProps {
   onTileClick: (alias: TextureAliasDto) => void;
   onContextMenu: (e: React.MouseEvent, alias: TextureAliasDto, key: string) => void;
   onOpenMenu: (e: React.MouseEvent, alias: TextureAliasDto, key: string) => void;
+  onMouseEnterTile: (domEl: HTMLElement, alias: TextureAliasDto, key: string) => void;
+  onMouseLeaveTile: () => void;
 }
 
 const getStatusDotClass = (status: string) => {
@@ -38,6 +41,8 @@ const PackGridTile = React.memo<PackGridTileProps>(({
   onTileClick,
   onContextMenu,
   onOpenMenu,
+  onMouseEnterTile,
+  onMouseLeaveTile,
 }) => {
   const isGhost = alias.status === 'GHOST';
 
@@ -57,6 +62,8 @@ const PackGridTile = React.memo<PackGridTileProps>(({
     <div
       className={styles.tileCard}
       onClick={() => onTileClick(alias)}
+      onMouseEnter={(e) => onMouseEnterTile(e.currentTarget, alias, uniqueKey)}
+      onMouseLeave={onMouseLeaveTile}
       onContextMenu={(e) => onContextMenu(e, alias, uniqueKey)}
       title={`${fullFileName}\nAlias: ${alias.alias}\nStatus: ${alias.status}\nPath: ${alias.relativePath}`}
     >
@@ -136,6 +143,10 @@ export const PackGrid: React.FC = () => {
     anchor: { x?: number; y?: number; top?: number; bottom?: number; left?: number; right?: number };
     key: string;
   } | null>(null);
+
+  // 2nd Hover State Morphing Portal target
+  const [hoverMorphTarget, setHoverMorphTarget] = useState<TileHoverMorphTarget | null>(null);
+  const hoverTimerRef = React.useRef<number | null>(null);
 
   const filteredAliases = useMemo(() => {
     if (!aliases || !Array.isArray(aliases)) return [];
@@ -221,12 +232,47 @@ export const PackGrid: React.FC = () => {
   }, [aliases, activeTab, searchQuery, statusFilter, activeFilters, selectedFolderPath]);
 
   const handleTileClick = React.useCallback((alias: TextureAliasDto) => {
+    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+    setHoverMorphTarget(null);
     editTexture(alias.alias, alias.fullPath, alias.status === 'GHOST');
   }, [editTexture]);
+
+  const handleMouseEnterTile = React.useCallback((domEl: HTMLElement, alias: TextureAliasDto, key: string) => {
+    if (hoverTimerRef.current) {
+      clearTimeout(hoverTimerRef.current);
+      hoverTimerRef.current = null;
+    }
+    if (!contextMenuTarget) {
+      hoverTimerRef.current = window.setTimeout(() => {
+        // STRICT CHECK: Element must still be connected AND currently hovered by the pointer
+        if (domEl && document.body.contains(domEl) && domEl.matches(':hover')) {
+          const rect = domEl.getBoundingClientRect();
+          setHoverMorphTarget({
+            alias,
+            key,
+            originRect: rect,
+            domElement: domEl,
+          });
+        }
+      }, 700);
+    }
+  }, [contextMenuTarget]);
+
+  const handleMouseLeaveTile = React.useCallback(() => {
+    if (hoverTimerRef.current) {
+      clearTimeout(hoverTimerRef.current);
+      hoverTimerRef.current = null;
+    }
+  }, []);
 
   const handleContextMenu = React.useCallback((e: React.MouseEvent, alias: TextureAliasDto, key: string) => {
     e.preventDefault();
     e.stopPropagation();
+    if (hoverTimerRef.current) {
+      clearTimeout(hoverTimerRef.current);
+      hoverTimerRef.current = null;
+    }
+    setHoverMorphTarget(null);
     setContextMenuTarget({
       alias,
       key,
@@ -236,6 +282,11 @@ export const PackGrid: React.FC = () => {
 
   const handleOpenMenu = React.useCallback((e: React.MouseEvent, alias: TextureAliasDto, key: string) => {
     e.stopPropagation();
+    if (hoverTimerRef.current) {
+      clearTimeout(hoverTimerRef.current);
+      hoverTimerRef.current = null;
+    }
+    setHoverMorphTarget(null);
     setContextMenuTarget((current) => {
       if (current?.key === key) {
         return null;
@@ -255,7 +306,10 @@ export const PackGrid: React.FC = () => {
   }, []);
 
   return (
-    <div className={styles.gridContainer}>
+    <div
+      className={styles.gridContainer}
+      onMouseLeave={handleMouseLeaveTile}
+    >
       {filteredAliases.length === 0 ? (
         <div className={styles.emptyState}>
           <span className={styles.emptyIcon}>🔍</span>
@@ -282,6 +336,8 @@ export const PackGrid: React.FC = () => {
                 onTileClick={handleTileClick}
                 onContextMenu={handleContextMenu}
                 onOpenMenu={handleOpenMenu}
+                onMouseEnterTile={handleMouseEnterTile}
+                onMouseLeaveTile={handleMouseLeaveTile}
               />
             );
           })}
@@ -317,6 +373,29 @@ export const PackGrid: React.FC = () => {
             if (contextMenuTarget.alias.mersFullPath) {
               editTexture(contextMenuTarget.alias.alias + '_mers', contextMenuTarget.alias.mersFullPath, false);
             }
+          }}
+        />
+      )}
+
+      {/* 2nd Hover State Morphing Portal Preview (photobooth-vendor-portal inspired) */}
+      {hoverMorphTarget && !contextMenuTarget && (
+        <TileHoverMorphPortal
+          target={hoverMorphTarget}
+          onClose={() => setHoverMorphTarget(null)}
+          onEdit={(alias) => {
+            setHoverMorphTarget(null);
+            editTexture(alias.alias, alias.fullPath, alias.status === 'GHOST');
+          }}
+          onOpenContextMenu={(alias, anchor) => {
+            setHoverMorphTarget(null);
+            setContextMenuTarget({
+              alias,
+              key: hoverMorphTarget.key,
+              anchor,
+            });
+          }}
+          onRevealInExplorer={(fullPath) => {
+            openInExplorer(fullPath, true);
           }}
         />
       )}
