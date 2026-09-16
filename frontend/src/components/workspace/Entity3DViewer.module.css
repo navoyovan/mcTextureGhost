@@ -3,7 +3,7 @@
 .viewerContainer {
   position: relative;
   width: 100%;
-  height: 380px;
+  height: 340px;
   background: radial-gradient(circle at center, #1e2029 0%, #101116 100%);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 8px;
@@ -119,6 +119,143 @@
 .dragHandle:hover .dragHandleBar,
 .dragHandle:active .dragHandleBar {
   background: rgba(255, 255, 255, 0.9);
+}
+
+/* Down-left odometer cluster: vertical slots + horizontal variations */
+.odometerCluster {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  z-index: 100;
+  pointer-events: auto;
+  user-select: none;
+}
+
+.verticalOdometerStack {
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.bottomOdometerRow {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+}
+
+.horizontalOdometerTrack {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+}
+
+.odometerButton {
+  min-width: 24px;
+  width: auto;
+  height: 24px;
+  min-height: 24px;
+  padding: 0 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-brand, 'Syne', sans-serif);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  background: rgba(24, 24, 30, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  color: #a1a1aa;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  pointer-events: auto;
+  overflow: hidden;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s, border-color 0.15s, padding 0.25s cubic-bezier(0.16, 1, 0.3, 1) 800ms, box-shadow 0.2s 800ms;
+}
+
+.odometerButton:hover,
+.odometerButtonExpanded {
+  background: rgba(36, 36, 45, 0.95);
+  border-color: rgba(255, 255, 255, 0.4);
+  color: #ffffff;
+  padding: 0 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.odometerButtonActive {
+  background: rgba(6, 182, 212, 0.25);
+  border-color: #06b6d4;
+  color: #22d3ee;
+  font-weight: 700;
+}
+
+.odometerIndex {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-brand, 'Syne', sans-serif);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.odometerExpandWrapper {
+  max-width: 0;
+  opacity: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  transition: max-width 0.25s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease-out, margin 0.2s ease-out;
+  pointer-events: none;
+}
+
+.expandWrapperActive {
+  max-width: 320px;
+  opacity: 1;
+  margin-left: 6px;
+}
+
+.odometerPipe {
+  color: rgba(255, 255, 255, 0.3);
+  font-weight: normal;
+  margin-right: 6px;
+}
+
+.odometerGeometryBadge {
+  font-family: var(--font-brand, 'Syne', sans-serif);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #e2e8f0;
+}
+
+.odometerButtonActive .odometerGeometryBadge {
+  color: #67e8f9;
+}
+
+.odometerDividerH {
+  width: 14px;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.25);
+  margin: 1px 0;
+  flex-shrink: 0;
+}
+
+.odometerDividerV {
+  width: 1px;
+  height: 14px;
+  background: rgba(255, 255, 255, 0.25);
+  margin: 0 1px;
+  flex-shrink: 0;
 }
 
 /* Geometry HUD Tag in bottom-left */

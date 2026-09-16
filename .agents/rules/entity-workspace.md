@@ -88,3 +88,16 @@ If `uv_size` is omitted, defaults to standard face box dimensions (`sx`, `sy`, `
 - **Slot Group & Card Keys:**
   - Alias group cards must key on `${selectedEntity.blockId}-${ag.alias}-${agIndex}` to prevent React reconciliation key collisions when an entity contains multiple distinct geometry slot groups with the same base name.
   - `WorkspaceTileCard` instances must key on `${selectedEntity.blockId}-${ag.alias}-${grp.key}-${grpIndex}` so `React.memo` instances are strictly scoped per entity.
+
+---
+
+## 6. 3D Viewport & Odometer Switcher Standards
+- **Unified Viewport Framing:**
+  - Both Block and Entity 3D Viewports share identical dimensions (`height: 340px`), radial background gradient (`radial-gradient(circle at center, #1e2029 0%, #101116 100%)`), `8px` corner radius, and standard `24×24px` translucent control buttons with `backdrop-filter: blur(8px)`.
+- **Typography Standard:**
+  - All odometer buttons, number badges, active composite badges, and expand labels strictly use `--font-brand` (`Syne 700`).
+- **Kinetic Odometer Switcher Invariants:**
+  - **Vertical Stack:** Cycles through primary variants (Blockstates for blocks, Geometry Slots for entities). Hovering smoothly expands to the right (`max-width: 0 -> 320px`) to reveal the identifier (e.g. `1 | Blockstate 1`, `1 | geometry.cow.cold`).
+  - **State-Locked Grace Period:** Buttons use a dedicated sub-component with an `800ms` `setTimeout` on `mouseleave` so rapid cursor passes guarantee full expansion without clipping.
+  - **Active Corner Indicator:** The active corner button remains compact (`1a`, `1`) and static on hover.
+  - **Tooltip Hygiene:** Never place native HTML `title` attributes on expanding odometer buttons or track containers; use `aria-label` for screen reader accessibility to avoid browser tooltip overlap.

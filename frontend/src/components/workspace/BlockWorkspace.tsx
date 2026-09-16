@@ -297,7 +297,7 @@ export const BlockWorkspace: React.FC = () => {
 
       stateList.push({
         index: i,
-        label: `State ${i + 1}`,
+        label: `Blockstate ${i + 1}`,
         badgeNumber: i + 1,
         textures: variations[0]?.textures ?? {},
         flipbooks: variations[0]?.flipbooks ?? {},
@@ -411,7 +411,11 @@ export const BlockWorkspace: React.FC = () => {
                   </span>
                 )}
               </div>
-              <span className={styles.blockIdSub}>{selectedBlock.blockId}</span>
+              <span className={styles.blockIdSub}>
+                {selectedBlock.blockId === 'uncategorized' || selectedBlock.blockId.includes(':')
+                  ? selectedBlock.blockId
+                  : `minecraft:${selectedBlock.blockId}`}
+              </span>
             </div>
             {selectedBlock.ghostCount > 0 && (
               <span className={styles.ghostBadge}>{selectedBlock.ghostCount} ghosts</span>

@@ -1602,7 +1602,7 @@ public class MainViewModel : INotifyPropertyChanged
             return true;
         }
 
-        // Handle variations between with / without "textures/" prefix
+        // Handle variations between with / without "textures/" prefix for subfolders under textures/
         if (folderNorm.StartsWith("textures/", StringComparison.OrdinalIgnoreCase))
         {
             var folderWithoutTextures = folderNorm.Substring(9);
@@ -1613,29 +1613,37 @@ public class MainViewModel : INotifyPropertyChanged
                 return true;
             }
         }
-        else if (itemNorm.StartsWith("textures/", StringComparison.OrdinalIgnoreCase))
-        {
-            var itemWithoutTextures = itemNorm.Substring(9);
-            if (itemWithoutTextures.Equals(folderNorm, StringComparison.OrdinalIgnoreCase) ||
-                itemWithoutTextures.StartsWith(prefixNorm, StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-        }
 
         return false;
     }
 
     private void ComputeCountsForNode(PackFolderItem node)
     {
-        if (string.IsNullOrEmpty(node.RelativePath))
+        if (!node.IsDirectory || node.IsPlaceholder)
+        {
+            node.TextureCount = 0;
+            node.GhostCount = 0;
+            return;
+        }
+
+        var folderExact = (node.RelativePath ?? "").Replace('\\', '/');
+
+        // Only folders under "textures" (or the "textures" root folder itself) contain texture assets
+        if (!folderExact.Equals("textures", StringComparison.OrdinalIgnoreCase) &&
+            !folderExact.StartsWith("textures/", StringComparison.OrdinalIgnoreCase))
+        {
+            node.TextureCount = 0;
+            node.GhostCount = 0;
+            return;
+        }
+
+        if (folderExact.Equals("textures", StringComparison.OrdinalIgnoreCase))
         {
             node.TextureCount = Aliases.Count;
             node.GhostCount = Aliases.Count(a => !a.Exists);
             return;
         }
 
-        var folderExact = node.RelativePath.Replace('\\', '/');
         var prefix = folderExact.EndsWith('/') ? folderExact : folderExact + "/";
         int texCount = 0;
         int ghostCount = 0;

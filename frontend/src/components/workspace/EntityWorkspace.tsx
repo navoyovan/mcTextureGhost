@@ -4,7 +4,7 @@ import { Box, Layers, Shield } from 'lucide-react';
 import { usePackStore } from '../../store/packStore';
 import { useIpc } from '../../hooks/useIpc';
 import { BlockGroupNodeDto, CatalogLeafDto } from '../../types/ipc';
-import { Entity3DViewer } from './Entity3DViewer';
+import { Entity3DViewer, EntitySlotOption, EntitySlotVariationOption } from './Entity3DViewer';
 import { WorkspaceTileCard, VariantTileGroup } from './WorkspaceTileCard';
 import styles from './BlockWorkspace.module.css';
 
@@ -183,9 +183,58 @@ export const EntityWorkspace: React.FC = () => {
   // Reset active leaf on entity switch
   useEffect(() => {
     setActiveLeafKey(null);
+    setActiveSlotIndex(0);
+    setActiveVariationIndex(0);
   }, [selectedEntity?.blockId]);
 
+  const [activeSlotIndex, setActiveSlotIndex] = useState<number>(0);
+  const [activeVariationIndex, setActiveVariationIndex] = useState<number>(0);
+
+  // Compute all available slots and their variations
+  const slotOptions = useMemo<EntitySlotOption[]>(() => {
+    if (!selectedEntity || !selectedEntity.aliasGroups) return [];
+    return selectedEntity.aliasGroups.map((ag, sIdx) => {
+      const variantGroups = groupLeavesByVariantSlot(ag.leaves ?? []);
+      const variations: EntitySlotVariationOption[] = [];
+
+      let vIdx = 0;
+      for (const grp of variantGroups) {
+        for (const leaf of grp.leaves) {
+          variations.push({
+            index: vIdx++,
+            label: leaf.displayName || leaf.relativePath || `Variation ${vIdx}`,
+            leaf,
+            imageUrl: leaf.imageUrl,
+            isGhost: leaf.status === 'GHOST',
+          });
+        }
+      }
+
+      if (variations.length === 0) {
+        variations.push({
+          index: 0,
+          label: ag.faceSummary || ag.alias,
+          leaf: {} as CatalogLeafDto,
+          imageUrl: null,
+          isGhost: false,
+        });
+      }
+
+      return {
+        index: sIdx,
+        label: ag.geometryId || ag.alias,
+        alias: ag.alias,
+        geometryId: ag.geometryId,
+        variations,
+      };
+    });
+  }, [selectedEntity]);
+
+  const activeSlot = slotOptions[activeSlotIndex] ?? slotOptions[0];
+  const activeVariation = activeSlot?.variations?.[activeVariationIndex] ?? activeSlot?.variations?.[0];
+
   const primaryGeometryId = useMemo<string | null>(() => {
+    if (activeSlot?.geometryId) return activeSlot.geometryId;
     if (!selectedEntity || !selectedEntity.aliasGroups) return null;
     if (activeLeaf?.geometryId) return activeLeaf.geometryId;
     for (const ag of selectedEntity.aliasGroups) {
@@ -194,12 +243,15 @@ export const EntityWorkspace: React.FC = () => {
       if (leafGeo) return leafGeo;
     }
     return null;
-  }, [selectedEntity, activeLeaf]);
+  }, [selectedEntity, activeLeaf, activeSlot]);
 
   const isAttachableEntity = useMemo<boolean>(() => {
     if (!selectedEntity || !selectedEntity.aliasGroups) return false;
     return selectedEntity.aliasGroups.some((ag) => ag.isAttachable || ag.leaves?.some((l) => l.isAttachable));
   }, [selectedEntity]);
+
+  const activeTextureUrl = activeVariation?.imageUrl ?? activeLeaf?.imageUrl;
+  const activeIsGhost = activeVariation ? activeVariation.isGhost : (activeLeaf?.status === 'GHOST');
 
   const handleLeafClick = useCallback((leaf: CatalogLeafDto) => {
     setActiveLeafKey(`${leaf.alias}-${leaf.relativePath}`);
@@ -306,11 +358,12 @@ export const EntityWorkspace: React.FC = () => {
               </div>
               <span className={styles.blockIdSub}>
                 {selectedEntity.blockId}
-                {primaryGeometryId && ` • Geo: ${primaryGeometryId}`}
               </span>
             </div>
             {selectedEntity.ghostCount > 0 && (
-              <span className={styles.ghostBadge}>{selectedEntity.ghostCount} missing</span>
+              <span className={styles.ghostBadge}>
+                {selectedEntity.ghostCount} {selectedEntity.ghostCount === 1 ? 'ghost' : 'ghosts'}
+              </span>
             )}
           </div>
 
@@ -319,9 +372,17 @@ export const EntityWorkspace: React.FC = () => {
             <Entity3DViewer
               entityId={selectedEntity.blockId}
               geometryId={primaryGeometryId}
-              textureUrl={activeLeaf?.imageUrl}
-              isGhost={activeLeaf?.status === 'GHOST'}
+              textureUrl={activeTextureUrl}
+              isGhost={activeIsGhost}
               isAttachable={isAttachableEntity}
+              slots={slotOptions}
+              activeSlotIndex={activeSlotIndex}
+              onSelectSlotIndex={(idx) => {
+                setActiveSlotIndex(idx);
+                setActiveVariationIndex(0);
+              }}
+              activeVariationIndex={activeVariationIndex}
+              onSelectVariationIndex={setActiveVariationIndex}
             />
           </div>
 
@@ -331,12 +392,7 @@ export const EntityWorkspace: React.FC = () => {
               <div key={`${selectedEntity.blockId}-${ag.alias}-${agIndex}`} className={styles.aliasGroupCard}>
                 <div className={styles.aliasHeader}>
                   <Layers size={14} />
-                  <span>Slot: {ag.alias}</span>
-                  {ag.geometryId && (
-                    <span className={styles.vanillaTag} style={{ marginLeft: 'auto' }}>
-                      {ag.geometryId}
-                    </span>
-                  )}
+                  <span>Slot: {ag.geometryId || ag.alias}</span>
                 </div>
 
                 <div className={styles.variantStrip}>

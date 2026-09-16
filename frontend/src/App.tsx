@@ -12,6 +12,7 @@ import { PackGrid } from './components/grid/PackGrid';
 import { BlockWorkspace } from './components/workspace/BlockWorkspace';
 import { EntityWorkspace } from './components/workspace/EntityWorkspace';
 import { ManifestEditor } from './components/manifest/ManifestEditor';
+import { JsonReader } from './components/json/JsonReader';
 import { CatalogDrawer } from './components/catalog/CatalogDrawer';
 import { MenuBar } from './components/menus/MenuBar';
 import { ComponentLibrary } from './components/common/ComponentLibrary';
@@ -29,6 +30,13 @@ export const App: React.FC = () => {
   const setAppConfig = usePackStore((s) => s.setAppConfig);
   const isCatalogOpen = usePackStore((s) => s.isCatalogOpen);
   const setIsCatalogOpen = usePackStore((s) => s.setIsCatalogOpen);
+  const selectedFolderPath = usePackStore((s) => s.selectedFolderPath);
+  const setSelectedFolderPath = usePackStore((s) => s.setSelectedFolderPath);
+
+  const isJsonFileSelected = Boolean(
+    selectedFolderPath &&
+    selectedFolderPath.toLowerCase().endsWith('.json')
+  );
 
 
   const [activeToast, setActiveToast] = useState<ErrorPayload | null>(null);
@@ -197,15 +205,24 @@ export const App: React.FC = () => {
           <div data-testid="workspace-container" className={styles.workspaceContainer}>
             <Sidebar />
             <div className={styles.workspaceContentArea}>
-              <Toolbar />
-              {activeView === 'workspace' ? (
-                <BlockWorkspace />
-              ) : activeView === 'entity' ? (
-                <EntityWorkspace />
-              ) : activeView === 'manifest' ? (
-                <ManifestEditor />
+              {isJsonFileSelected ? (
+                <JsonReader
+                  filePath={selectedFolderPath!}
+                  onBack={() => setSelectedFolderPath(null)}
+                />
               ) : (
-                <PackGrid />
+                <>
+                  <Toolbar />
+                  {activeView === 'workspace' ? (
+                    <BlockWorkspace />
+                  ) : activeView === 'entity' ? (
+                    <EntityWorkspace />
+                  ) : activeView === 'manifest' ? (
+                    <ManifestEditor />
+                  ) : (
+                    <PackGrid />
+                  )}
+                </>
               )}
             </div>
           </div>

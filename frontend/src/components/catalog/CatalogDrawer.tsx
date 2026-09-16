@@ -313,7 +313,9 @@ const CatalogBlockGroup: React.FC<{
               {block.displayName}
             </span>
             <span className={styles.blockIdText} title={block.blockId}>
-              {block.blockId}
+              {block.blockId === 'uncategorized' || block.blockId.includes(':')
+                ? block.blockId
+                : `minecraft:${block.blockId}`}
             </span>
           </div>
         </div>

@@ -7,13 +7,90 @@ import { parseBedrockGeometryJson, buildEntityModel } from './entityGeometryBuil
 import { isTgaUrl, loadTgaAsDataUrl } from '../../utils/tgaDecoder';
 import styles from './Entity3DViewer.module.css';
 
+export interface EntitySlotVariationOption {
+  index: number;
+  label: string;
+  badgeNumber?: number;
+  leaf?: any;
+  imageUrl?: string | null;
+  isGhost?: boolean;
+}
+
+export interface EntitySlotOption {
+  index: number;
+  label: string;
+  alias: string;
+  badgeNumber?: number;
+  geometryId?: string | null;
+  variations: EntitySlotVariationOption[];
+}
+
 export interface Entity3DViewerProps {
   geometryId?: string | null;
   entityId?: string | null;
   textureUrl?: string | null;
   isGhost?: boolean;
   isAttachable?: boolean;
+  slots?: EntitySlotOption[];
+  activeSlotIndex?: number;
+  onSelectSlotIndex?: (index: number) => void;
+  activeVariationIndex?: number;
+  onSelectVariationIndex?: (index: number) => void;
 }
+
+const OdometerSlotButton: React.FC<{
+  st: EntitySlotOption;
+  isSelected: boolean;
+  onSelect: (index: number) => void;
+}> = React.memo(({ st, isSelected, onSelect }) => {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const leaveTimerRef = useRef<number | null>(null);
+
+  const handleMouseEnter = useCallback(() => {
+    if (leaveTimerRef.current !== null) {
+      clearTimeout(leaveTimerRef.current);
+      leaveTimerRef.current = null;
+    }
+    setIsExpanded(true);
+  }, []);
+
+  const handleMouseLeave = useCallback(() => {
+    if (leaveTimerRef.current !== null) {
+      clearTimeout(leaveTimerRef.current);
+    }
+    leaveTimerRef.current = window.setTimeout(() => {
+      setIsExpanded(false);
+      leaveTimerRef.current = null;
+    }, 800);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (leaveTimerRef.current !== null) {
+        clearTimeout(leaveTimerRef.current);
+      }
+    };
+  }, []);
+
+  const stLabel = st.badgeNumber ?? st.index + 1;
+
+  return (
+    <button
+      type="button"
+      className={`${styles.odometerButton} ${isSelected ? styles.odometerButtonActive : ''} ${isExpanded ? styles.odometerButtonExpanded : ''}`}
+      onClick={() => onSelect(st.index)}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+      aria-label={`Slot ${stLabel}: ${st.label}`}
+    >
+      <span className={styles.odometerIndex}>{stLabel}</span>
+      <span className={`${styles.odometerExpandWrapper} ${isExpanded ? styles.expandWrapperActive : ''}`}>
+        <span className={styles.odometerPipe}>|</span>
+        <span className={styles.odometerGeometryBadge}>{st.label}</span>
+      </span>
+    </button>
+  );
+});
 
 export const Entity3DViewer: React.FC<Entity3DViewerProps> = React.memo(({
   geometryId,
@@ -21,6 +98,11 @@ export const Entity3DViewer: React.FC<Entity3DViewerProps> = React.memo(({
   textureUrl,
   isGhost = false,
   isAttachable = false,
+  slots = [],
+  activeSlotIndex = 0,
+  onSelectSlotIndex,
+  activeVariationIndex = 0,
+  onSelectVariationIndex,
 }) => {
   const { subscribe, postCommand } = useIpc();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -40,7 +122,6 @@ export const Entity3DViewer: React.FC<Entity3DViewerProps> = React.memo(({
   // Toggles & Display States
   const [autoRotate, setAutoRotate] = useState<boolean>(false);
   const [wireframe, setWireframe] = useState<boolean>(false);
-  const [geoStats, setGeoStats] = useState<{ bones: number; texSize: string; identifier: string } | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [loadingError, setLoadingError] = useState<string | null>(null);
   const [isDownloading, setIsDownloading] = useState<boolean>(false);
@@ -60,7 +141,6 @@ export const Entity3DViewer: React.FC<Entity3DViewerProps> = React.memo(({
     let isMounted = true;
     setIsLoading(true);
     setLoadingError(null);
-    setGeoStats(null);
 
     const width = containerRef.current.clientWidth || 300;
     const height = containerRef.current.clientHeight || 320;
@@ -176,11 +256,6 @@ export const Entity3DViewer: React.FC<Entity3DViewerProps> = React.memo(({
       hasBuiltGeometry = true;
       setIsLoading(false);
       setLoadingError(null);
-      setGeoStats({
-        bones: geoData.bones.length,
-        texSize: `${geoData.texturewidth || 64}×${geoData.textureheight || 32}`,
-        identifier: geometryId || entityId || 'Entity',
-      });
 
       // Clear previous meshes
       while (pivotGroup.children.length > 0) {
@@ -567,15 +642,110 @@ export const Entity3DViewer: React.FC<Entity3DViewerProps> = React.memo(({
         </button>
       </div>
 
-      {/* Bottom Info HUD */}
-      {geoStats && (
-        <div className={styles.geometryInfoTag}>
-          <span className={styles.geometryInfoId}>{geoStats.identifier}</span>
-          <span className={styles.geometryInfoSub}>
-            {geoStats.bones} bones • {geoStats.texSize} UV
-          </span>
-        </div>
-      )}
+      {/* Entity Slot & Variation Odometer Cluster in down-left */}
+      {(() => {
+        const activeSl = slots.find((s) => s.index === activeSlotIndex) ?? slots[0];
+        const variations = activeSl?.variations ?? [];
+        const hasSlots = slots.length > 1;
+        const hasVariations = variations.length > 1;
+
+        if (!hasSlots && !hasVariations) return null;
+
+        return (
+          <div className={styles.odometerCluster}>
+            {/* Vertical stack of slots ascending upwards */}
+            {hasSlots && (
+              <>
+                <div
+                  className={styles.verticalOdometerStack}
+                  onWheel={(e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    if (!onSelectSlotIndex) return;
+                    const delta = e.deltaY > 0 ? 1 : -1;
+                    const n = slots.length;
+                    const nextIdx = (((activeSlotIndex + delta) % n) + n) % n;
+                    onSelectSlotIndex(nextIdx);
+                  }}
+                >
+                  {slots.map((st) => (
+                    <OdometerSlotButton
+                      key={`slot_${st.index}`}
+                      st={st}
+                      isSelected={st.index === activeSlotIndex}
+                      onSelect={(idx) => onSelectSlotIndex?.(idx)}
+                    />
+                  ))}
+                </div>
+                <div className={styles.odometerDividerH} />
+              </>
+            )}
+
+            {/* Bottom row: Active corner button + Horizontal stack of variations */}
+            <div className={styles.bottomOdometerRow}>
+              {/* Active corner button showing compound index (e.g. 1a, 1b or 1, a) */}
+              {activeSl && (
+                <button
+                  type="button"
+                  className={`${styles.odometerButton} ${styles.odometerButtonActive}`}
+                  onClick={() => {
+                    if (hasSlots && onSelectSlotIndex) {
+                      onSelectSlotIndex((activeSlotIndex + 1) % slots.length);
+                    } else if (hasVariations && onSelectVariationIndex) {
+                      onSelectVariationIndex((activeVariationIndex + 1) % variations.length);
+                    }
+                  }}
+                  title={`Selected: Slot ${activeSl.badgeNumber ?? activeSl.index + 1}${hasVariations ? `, Variation ${String.fromCharCode(97 + (activeVariationIndex % 26))}` : ''}`}
+                >
+                  <span className={styles.odometerIndex}>
+                    {hasSlots && hasVariations
+                      ? `${activeSl.badgeNumber ?? activeSl.index + 1}${String.fromCharCode(97 + (activeVariationIndex % 26))}`
+                      : hasSlots
+                      ? `${activeSl.badgeNumber ?? activeSl.index + 1}`
+                      : `${String.fromCharCode(97 + (activeVariationIndex % 26))}`}
+                  </span>
+                </button>
+              )}
+
+              {/* Horizontal variation list extending to the right */}
+              {hasVariations && (
+                <div
+                  className={styles.horizontalOdometerTrack}
+                  title="Scroll or click to switch texture variation"
+                  onWheel={(e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    if (!onSelectVariationIndex) return;
+                    const delta = e.deltaY > 0 ? 1 : -1;
+                    const n = variations.length;
+                    const nextIdx = (((activeVariationIndex + delta) % n) + n) % n;
+                    onSelectVariationIndex(nextIdx);
+                  }}
+                >
+                  <div className={styles.odometerDividerV} />
+                  {variations.map((v) => {
+                    const isSelected = v.index === activeVariationIndex;
+                    const charLabel = String.fromCharCode(97 + (v.index % 26));
+                    return (
+                      <button
+                        key={`var_${v.index}`}
+                        type="button"
+                        className={`${styles.odometerButton} ${isSelected ? styles.odometerButtonActive : ''}`}
+                        onClick={() => onSelectVariationIndex?.(v.index)}
+                        title={`Variation ${charLabel}: ${v.label}`}
+                      >
+                        {charLabel}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
+
+
 
       {isLoading && !isDownloading && !loadingError && (
         <div className={styles.statusNotice}>
