@@ -25,13 +25,14 @@
   padding: 10px;
   cursor: pointer;
   user-select: none;
-  transition: transform 0.15s, border-color 0.15s, background-color 0.15s, box-shadow 0.15s;
+  transition: transform 0.15s, border-color 0.45s ease, background-color 0.45s ease, box-shadow 0.45s ease;
   text-align: left;
   content-visibility: auto;
   contain-intrinsic-size: auto var(--tile-card-width, 160px);
 }
 
-.tileCard:hover {
+.tileCard:hover,
+.tileCardRecentSnapback {
   transform: translateY(-2px);
   background: #202026;
   border-color: rgba(255, 255, 255, 0.25);
