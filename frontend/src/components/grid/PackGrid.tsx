@@ -12,7 +12,7 @@ interface PackGridTileProps {
   alias: TextureAliasDto;
   uniqueKey: string;
   isMenuOpen: boolean;
-  isFadingSnapback?: boolean;
+  isRecentlySnapped: boolean;
   onTileClick: (alias: TextureAliasDto) => void;
   onContextMenu: (e: React.MouseEvent, alias: TextureAliasDto, key: string) => void;
   onOpenMenu: (e: React.MouseEvent, alias: TextureAliasDto, key: string) => void;
@@ -39,7 +39,7 @@ const PackGridTile = React.memo<PackGridTileProps>(({
   alias,
   uniqueKey,
   isMenuOpen,
-  isFadingSnapback = false,
+  isRecentlySnapped,
   onTileClick,
   onContextMenu,
   onOpenMenu,
@@ -62,7 +62,7 @@ const PackGridTile = React.memo<PackGridTileProps>(({
 
   return (
     <div
-      className={`${styles.tileCard} ${isFadingSnapback ? styles.tileCardRecentSnapback : ''}`}
+      className={`${styles.tileCard} ${isRecentlySnapped ? styles.tileCardSnappedFlash : ''}`}
       onClick={() => onTileClick(alias)}
       onMouseEnter={(e) => onMouseEnterTile(e.currentTarget, alias, uniqueKey)}
       onMouseLeave={onMouseLeaveTile}
@@ -148,11 +148,9 @@ export const PackGrid: React.FC = () => {
 
   // 2nd Hover State Morphing Portal target
   const [hoverMorphTarget, setHoverMorphTarget] = useState<TileHoverMorphTarget | null>(null);
+  const [recentlySnappedKey, setRecentlySnappedKey] = useState<string | null>(null);
   const hoverTimerRef = React.useRef<number | null>(null);
-
-  // Temporary fading snapback key to smoothly fade hovered tile background into idle
-  const [fadingSnapbackKey, setFadingSnapbackKey] = useState<string | null>(null);
-  const fadeSnapbackTimerRef = React.useRef<number | null>(null);
+  const snapFadeTimerRef = React.useRef<number | null>(null);
 
   const filteredAliases = useMemo(() => {
     if (!aliases || !Array.isArray(aliases)) return [];
@@ -311,19 +309,6 @@ export const PackGrid: React.FC = () => {
     });
   }, []);
 
-  const handleCloseHoverMorph = React.useCallback(() => {
-    if (hoverMorphTarget) {
-      const closedKey = hoverMorphTarget.key;
-      setFadingSnapbackKey(closedKey);
-      if (fadeSnapbackTimerRef.current) clearTimeout(fadeSnapbackTimerRef.current);
-      // Give 50ms for initial layout commit, then remove class to trigger CSS 0.45s ease fade into idle
-      fadeSnapbackTimerRef.current = window.setTimeout(() => {
-        setFadingSnapbackKey(null);
-      }, 50);
-    }
-    setHoverMorphTarget(null);
-  }, [hoverMorphTarget]);
-
   return (
     <div
       className={styles.gridContainer}
@@ -345,7 +330,7 @@ export const PackGrid: React.FC = () => {
           {filteredAliases.map((alias, index) => {
             const uniqueKey = `${alias.category}:${alias.alias}:${alias.relativePath || ''}:${alias.textureVariantIndex ?? ''}:${alias.blockVariantIndex ?? ''}:${index}`;
             const isMenuOpen = contextMenuTarget?.key === uniqueKey;
-            const isFadingSnapback = fadingSnapbackKey === uniqueKey;
+            const isRecentlySnapped = recentlySnappedKey === uniqueKey;
 
             return (
               <PackGridTile
@@ -353,7 +338,7 @@ export const PackGrid: React.FC = () => {
                 alias={alias}
                 uniqueKey={uniqueKey}
                 isMenuOpen={isMenuOpen}
-                isFadingSnapback={isFadingSnapback}
+                isRecentlySnapped={isRecentlySnapped}
                 onTileClick={handleTileClick}
                 onContextMenu={handleContextMenu}
                 onOpenMenu={handleOpenMenu}
@@ -402,7 +387,15 @@ export const PackGrid: React.FC = () => {
       {hoverMorphTarget && !contextMenuTarget && (
         <TileHoverMorphPortal
           target={hoverMorphTarget}
-          onClose={handleCloseHoverMorph}
+          onClose={() => {
+            const snappedKey = hoverMorphTarget.key;
+            setHoverMorphTarget(null);
+            setRecentlySnappedKey(snappedKey);
+            if (snapFadeTimerRef.current) clearTimeout(snapFadeTimerRef.current);
+            snapFadeTimerRef.current = window.setTimeout(() => {
+              setRecentlySnappedKey(null);
+            }, 80);
+          }}
           onEdit={(alias) => {
             setHoverMorphTarget(null);
             editTexture(alias.alias, alias.fullPath, alias.status === 'GHOST');
