@@ -69,6 +69,10 @@
   color: var(--accent-primary, #8CEB1F);
 }
 
+.toolbarSearch {
+  width: 240px;
+}
+
 .searchWrapper {
   position: relative;
   display: flex;
@@ -116,7 +120,13 @@
   color: #ffffff;
 }
 
-.filterSelect {
+/* ─── Modernized Filter Checklist Dropdown ─── */
+.filterDropdownWrapper {
+  position: relative;
+  display: inline-flex;
+}
+
+.filterTriggerBtn {
   height: 30px;
   padding: 0 10px;
   background: #18181c;
@@ -124,12 +134,267 @@
   border-radius: 6px;
   color: #d4d4d8;
   font-size: 11.5px;
-  outline: none;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
   cursor: pointer;
+  outline: none;
+  transition: all 0.15s ease;
+  user-select: none;
 }
 
-.filterSelect:focus {
+.filterTriggerBtn:hover {
+  background: #202026;
+  border-color: rgba(255, 255, 255, 0.18);
+  color: #ffffff;
+}
+
+.filterTriggerBtnOpen {
+  border-color: rgba(255, 255, 255, 0.25);
+  background: #222228;
+}
+
+.filterTriggerBtnActive {
+  border-color: rgba(140, 235, 31, 0.4);
+  background: rgba(140, 235, 31, 0.08);
+  color: #ffffff;
+}
+
+.filterIcon {
+  color: #a1a1aa;
+  flex-shrink: 0;
+  transition: color 0.15s;
+}
+
+.filterTriggerBtnActive .filterIcon {
+  color: var(--accent-primary, #8CEB1F);
+}
+
+.filterLabel {
+  font-family: inherit;
+  font-size: 12px;
+  letter-spacing: -0.01em;
+}
+
+.filterCountBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 10px;
+  background: var(--accent-primary, #8CEB1F);
+  color: #000000;
+  font-family: var(--font-brand, sans-serif);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.filterChevron {
+  color: #71717a;
+  flex-shrink: 0;
+  transition: transform 0.2s ease, color 0.15s;
+}
+
+.filterChevronOpen {
+  transform: rotate(180deg);
+  color: #ffffff;
+}
+
+/* ── Popover Menu ── */
+.filterMenuPopover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  width: 220px;
+  background: rgba(22, 22, 26, 0.97);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  padding: 6px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.04);
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  animation: filterMenuAppear 0.15s ease-out;
+}
+
+@keyframes filterMenuAppear {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.filterMenuHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 8px 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  margin-bottom: 2px;
+}
+
+.filterMenuTitle {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #71717a;
+  font-family: var(--font-brand, sans-serif);
+}
+
+.filterResetBtn {
+  background: transparent;
+  border: none;
+  color: #a1a1aa;
+  font-size: 11px;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: color 0.15s, background 0.15s;
+}
+
+.filterResetBtn:hover {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.filterSection {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.filterSectionLabel {
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #52525b;
+  padding: 4px 8px 2px;
+}
+
+.filterDivider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.06);
+  margin: 4px 0;
+}
+
+.filterMenuItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 5px 8px;
+  background: transparent;
+  border: none;
+  border-radius: 5px;
+  color: #d4d4d8;
+  font-size: 11.5px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+  user-select: none;
+}
+
+.filterMenuItem:hover {
+  background: rgba(255, 255, 255, 0.07);
+  color: #ffffff;
+}
+
+.filterMenuItemChecked {
+  color: #ffffff;
+}
+
+.filterCheckbox {
+  width: 15px;
+  height: 15px;
+  border-radius: 3.5px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(0, 0, 0, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.12s ease;
+  color: #000000;
+}
+
+.filterMenuItem:hover .filterCheckbox {
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+.filterCheckboxChecked {
+  background: var(--accent-primary, #8CEB1F);
   border-color: var(--accent-primary, #8CEB1F);
+}
+
+.filterItemIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #a1a1aa;
+  flex-shrink: 0;
+}
+
+.filterMenuItemChecked .filterItemIcon {
+  color: var(--accent-primary, #8CEB1F);
+}
+
+.filterItemLabel {
+  font-size: 11.5px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  flex: 1;
+}
+
+.filterRadio {
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(0, 0, 0, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.12s ease;
+}
+
+.filterMenuItem:hover .filterRadio {
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+.filterRadioChecked {
+  border-color: var(--accent-primary, #8CEB1F);
+}
+
+.filterRadioDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent-primary, #8CEB1F);
+}
+
+.ghostCountPill {
+  font-family: var(--font-brand, 'Syne', sans-serif);
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1.5px 5px;
+  border-radius: 4px;
+  background: rgba(68, 38, 56, 0.75);
+  border: 1px solid rgba(168, 85, 247, 0.35);
+  color: var(--accent-primary, #8CEB1F);
+  margin-left: auto;
 }
 
 /* ─── Zoom Controls ─── */

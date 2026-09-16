@@ -185,8 +185,24 @@ export function useIpc() {
     return postCommand<PackCreatePayload>(IpcMessageTypes.PackCreate, { packName, targetDirectory });
   }, []);
 
-  const editTexture = useCallback((aliasKey: string, fullPath: string, isGhost: boolean = false) => {
-    return postCommand<TextureEditPayload>(IpcMessageTypes.TextureEdit, { aliasKey, fullPath, isGhost });
+  const editTexture = useCallback((
+    aliasKey: string,
+    fullPath: string,
+    isGhost: boolean = false,
+    exePath?: string | null,
+    chooseDialog: boolean = false
+  ) => {
+    return postCommand<TextureEditPayload>(IpcMessageTypes.TextureEdit, {
+      aliasKey,
+      fullPath,
+      isGhost,
+      exePath,
+      chooseDialog,
+    });
+  }, []);
+
+  const getOpenWithApps = useCallback(() => {
+    return postCommand(IpcMessageTypes.OpenWithGetApps, {});
   }, []);
 
   const deleteTextureFile = useCallback((fullPath: string, aliasKey?: string) => {
@@ -234,6 +250,7 @@ export function useIpc() {
     reloadPack,
     createPack,
     editTexture,
+    getOpenWithApps,
     deleteTextureFile,
     deleteTextureEntries,
     windowAction,

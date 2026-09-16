@@ -47,6 +47,7 @@ export const EntityWorkspace: React.FC = () => {
   const entityWorkspaceTree = usePackStore((s) => s.entityWorkspaceTree);
   const searchQuery = usePackStore((s) => s.searchQuery);
   const statusFilter = usePackStore((s) => s.statusFilter);
+  const activeFilters = usePackStore((s) => s.activeFilters);
   const tileZoom = usePackStore((s) => s.tileZoom);
   const { editTexture, deleteTextureFile, deleteTextureEntries } = useIpc();
 
@@ -69,27 +70,62 @@ export const EntityWorkspace: React.FC = () => {
     };
   }, [activeMenuKey]);
 
-  // Filter entity list by toolbar searchQuery and statusFilter
+  // Filter entity list by toolbar searchQuery and activeFilters/statusFilter
   const filteredEntityWorkspaceTree = useMemo(() => {
     if (!entityWorkspaceTree) return [];
     const query = searchQuery.trim().toLowerCase();
 
+    const effectiveFilters = activeFilters.length > 0
+      ? activeFilters
+      : (statusFilter !== 'all' ? [statusFilter as any] : []);
+
     return entityWorkspaceTree.filter((entity) => {
-      // 1. Status filter
-      if (statusFilter === 'ghosts' && (entity.ghostCount ?? 0) <= 0) {
-        return false;
-      }
-      if (statusFilter === 'added') {
-        const hasAdded = entity.aliasGroups?.some((ag) =>
-          ag.leaves?.some((l) => l.status === 'OK' || l.status === 'OVERRIDE')
+      const allLeaves = entity.aliasGroups?.flatMap((ag) => ag.leaves ?? []) ?? [];
+
+      // 1. Active Filters (Checklist)
+      if (effectiveFilters.length > 0) {
+        const hasStatusFilter = effectiveFilters.some((f) => f === 'ghosts' || f === 'added' || f === 'orphans');
+        const hasFeatureFilter = effectiveFilters.some(
+          (f) => f === 'mers' || f === 'flipbook' || f === 'variations' || f === 'blockstates' || f === 'variation'
         );
-        if (!hasAdded) return false;
-      }
-      if (statusFilter === 'orphans') {
-        const hasOrphan = entity.aliasGroups?.some((ag) =>
-          ag.leaves?.some((l) => l.status === 'ORPHAN')
-        );
-        if (!hasOrphan) return false;
+
+        if (hasStatusFilter) {
+          const statusMatch =
+            (effectiveFilters.includes('ghosts') && (entity.ghostCount ?? 0) > 0) ||
+            (effectiveFilters.includes('added') && allLeaves.some((l) => l.status === 'OK' || l.status === 'OVERRIDE')) ||
+            (effectiveFilters.includes('orphans') && allLeaves.some((l) => l.status === 'ORPHAN'));
+          if (!statusMatch) return false;
+        }
+
+        if (hasFeatureFilter) {
+          const hasMers = allLeaves.some((l) => (l as any).hasMers || (l as any).mersFullPath);
+          const hasFlipbook = allLeaves.some((l) => l.isFlipbook || Boolean(l.flipbook));
+          const hasTextureVariation = allLeaves.some(
+            (l) =>
+              (l.totalTextureVariants && l.totalTextureVariants > 1) ||
+              l.variantKind === 'TextureVariant' ||
+              l.variantKind === 'NestedVariant' ||
+              l.textureVariantIndex != null
+          );
+          const hasBlockstate =
+            (entity.totalVariants && entity.totalVariants > 1) ||
+            allLeaves.some(
+              (l) =>
+                (l.totalBlockVariants && l.totalBlockVariants > 1) ||
+                l.variantKind === 'BlockVariant' ||
+                l.variantKind === 'NestedVariant' ||
+                l.blockVariantIndex != null
+            );
+          const hasMergedVariation = hasTextureVariation || hasBlockstate;
+
+          const featureMatch =
+            (effectiveFilters.includes('mers') && hasMers) ||
+            (effectiveFilters.includes('flipbook') && hasFlipbook) ||
+            (effectiveFilters.includes('variations') && hasTextureVariation) ||
+            (effectiveFilters.includes('blockstates') && hasBlockstate) ||
+            (effectiveFilters.includes('variation') && hasMergedVariation);
+          if (!featureMatch) return false;
+        }
       }
 
       // 2. Search query filter
@@ -110,7 +146,7 @@ export const EntityWorkspace: React.FC = () => {
         );
       });
     });
-  }, [entityWorkspaceTree, searchQuery, statusFilter]);
+  }, [entityWorkspaceTree, searchQuery, statusFilter, activeFilters]);
 
   // Keep selectedEntity pointed to a valid entity in the filtered list
   const selectedEntity = useMemo<BlockGroupNodeDto | null>(() => {

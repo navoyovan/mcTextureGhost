@@ -1,7 +1,9 @@
 import React, { useMemo } from 'react';
-import { MoreVertical, Edit3, Trash2, FileX } from 'lucide-react';
-import { CatalogLeafDto } from '../../types/ipc';
+import { MoreVertical } from 'lucide-react';
+import { CatalogLeafDto, OpenWithAppDto } from '../../types/ipc';
+import { useIpc } from '../../hooks/useIpc';
 import { FlipbookThumbnail } from '../common/FlipbookThumbnail';
+import { TextureContextMenu } from '../common/TextureContextMenu';
 import styles from './BlockWorkspace.module.css';
 
 export interface VariantTileGroup {
@@ -63,6 +65,7 @@ export const WorkspaceTileCard: React.FC<WorkspaceTileCardProps> = React.memo(({
 }) => {
   const { alias, leaves } = grp;
   const primary = leaves[0];
+  const { editTexture, openInExplorer } = useIpc();
   if (!primary) return null;
 
   const numVariations = leaves.length;
@@ -95,6 +98,8 @@ export const WorkspaceTileCard: React.FC<WorkspaceTileCardProps> = React.memo(({
     ].filter(Boolean).join('\n');
   }, [selectedBlockName, primary, alias, numVariations, hasTexVariants, leaves]);
 
+  const [menuAnchor, setMenuAnchor] = React.useState<{ x?: number; y?: number; top?: number; bottom?: number; left?: number; right?: number } | null>(null);
+
   return (
     <div
       className={`${styles.leafCard} ${hasTexVariants ? styles.leafCardWithVariants : ''}`}
@@ -103,6 +108,7 @@ export const WorkspaceTileCard: React.FC<WorkspaceTileCardProps> = React.memo(({
       onContextMenu={(e) => {
         e.preventDefault();
         e.stopPropagation();
+        setMenuAnchor({ x: e.clientX, y: e.clientY });
         onToggleMenu(cardKey);
       }}
     >
@@ -112,7 +118,19 @@ export const WorkspaceTileCard: React.FC<WorkspaceTileCardProps> = React.memo(({
         className={`${styles.moreButton} ${isMenuOpen ? styles.moreButtonActive : ''}`}
         onClick={(e) => {
           e.stopPropagation();
-          onToggleMenu(cardKey);
+          if (isMenuOpen) {
+            setMenuAnchor(null);
+            onToggleMenu(cardKey);
+          } else {
+            const rect = e.currentTarget.getBoundingClientRect();
+            setMenuAnchor({
+              top: rect.top,
+              bottom: rect.bottom,
+              left: rect.left,
+              right: rect.right,
+            });
+            onToggleMenu(cardKey);
+          }
         }}
         title="Texture options"
         aria-label="Texture options"
@@ -120,54 +138,35 @@ export const WorkspaceTileCard: React.FC<WorkspaceTileCardProps> = React.memo(({
         <MoreVertical size={14} />
       </button>
 
-      {/* Dropdown Menu */}
+      {/* Dropdown Context Menu */}
       {isMenuOpen && (
-        <div
-          className={styles.dropdownMenu}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <button
-            type="button"
-            className={styles.menuItem}
-            onClick={() => {
-              onToggleMenu(cardKey);
-              onEditTexture(primary);
-            }}
-          >
-            <Edit3 size={13} className={styles.menuIcon} />
-            <span>Edit Texture</span>
-          </button>
-
-          <button
-            type="button"
-            className={`${styles.menuItem} ${styles.menuItemDanger}`}
-            disabled={isGhost || !primary.fullPath}
-            onClick={() => {
-              onToggleMenu(cardKey);
-              if (primary.fullPath) {
-                onDeleteTextureFile(primary.fullPath, primary.alias);
-              }
-            }}
-            title={isGhost ? 'Texture file does not exist on disk' : 'Delete PNG file from disk'}
-          >
-            <Trash2 size={13} className={styles.menuIcon} />
-            <span>Delete Texture</span>
-          </button>
-
-          <button
-            type="button"
-            className={`${styles.menuItem} ${styles.menuItemDanger}`}
-            disabled={primary.status === 'ORPHAN'}
-            onClick={() => {
-              onToggleMenu(cardKey);
-              onDeleteTextureEntries(primary.alias, primary.relativePath);
-            }}
-            title={primary.status === 'ORPHAN' ? 'Orphan has no JSON declarations' : 'Remove declarations from JSON schemas'}
-          >
-            <FileX size={13} className={styles.menuIcon} />
-            <span>Delete Entries</span>
-          </button>
-        </div>
+        <TextureContextMenu
+          item={primary}
+          anchor={menuAnchor}
+          onClose={() => {
+            setMenuAnchor(null);
+            onToggleMenu(cardKey);
+          }}
+          onEdit={(app?: OpenWithAppDto) => {
+            editTexture(primary.alias, primary.fullPath, primary.status === 'GHOST', app?.exePath, false);
+          }}
+          onOpenWithDialog={() => {
+            editTexture(primary.alias, primary.fullPath, primary.status === 'GHOST', null, true);
+          }}
+          onRevealInExplorer={() => {
+            if (primary.fullPath) {
+              openInExplorer(primary.fullPath, true);
+            }
+          }}
+          onDeleteTexture={() => {
+            if (primary.fullPath) {
+              onDeleteTextureFile(primary.fullPath, primary.alias);
+            }
+          }}
+          onDeleteEntries={() => {
+            onDeleteTextureEntries(primary.alias, primary.relativePath);
+          }}
+        />
       )}
 
       {/* Thumbnail area */}

@@ -88,6 +88,13 @@ public class PackFolderItem : INotifyPropertyChanged
         set { _ghostCount = value; OnPropertyChanged(); }
     }
 
+    private int _orphanCount;
+    public int OrphanCount
+    {
+        get => _orphanCount;
+        set { _orphanCount = value; OnPropertyChanged(); }
+    }
+
     private int _depth;
     public int Depth
     {

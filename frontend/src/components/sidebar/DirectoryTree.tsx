@@ -83,6 +83,10 @@ export const DirectoryTreeNode: React.FC<DirectoryTreeNodeProps> = ({
   const isManifest = (node.name?.toLowerCase() === 'manifest.json' || node.relativePath?.toLowerCase() === 'manifest.json');
 
   const handleRowClick = () => {
+    if (isManifest) {
+      if (onOpenManifest) onOpenManifest();
+      return;
+    }
     // Clicking the already selected path clears the filter, otherwise select this node
     onSelect(isSelected ? null : nodePath);
   };
@@ -137,6 +141,11 @@ export const DirectoryTreeNode: React.FC<DirectoryTreeNodeProps> = ({
           {node.ghostCount > 0 && (
             <span className={styles.ghostPill} title={`${node.ghostCount} ghost textures`}>
               {node.ghostCount}
+            </span>
+          )}
+          {node.orphanCount > 0 && (
+            <span className={styles.orphanPill} title={`${node.orphanCount} orphan textures`}>
+              {node.orphanCount}
             </span>
           )}
           {node.textureCount > 0 && (

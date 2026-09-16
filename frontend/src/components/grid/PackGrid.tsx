@@ -1,10 +1,10 @@
-// frontend/src/components/grid/PackGrid.tsx
-import React, { useMemo, useState, useEffect, useRef } from 'react';
-import { MoreVertical, Edit3, Trash2, FileX, Sparkles } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { MoreVertical } from 'lucide-react';
 import { usePackStore, pathMatchesFolder } from '../../store/packStore';
 import { useIpc } from '../../hooks/useIpc';
-import { TextureAliasDto } from '../../types/ipc';
+import { TextureAliasDto, OpenWithAppDto } from '../../types/ipc';
 import { FlipbookThumbnail } from '../common/FlipbookThumbnail';
+import { TextureContextMenu } from '../common/TextureContextMenu';
 import styles from './PackGrid.module.css';
 
 export const PackGrid: React.FC = () => {
@@ -12,30 +12,24 @@ export const PackGrid: React.FC = () => {
   const activeTab = usePackStore((s) => s.activeTab);
   const searchQuery = usePackStore((s) => s.searchQuery);
   const statusFilter = usePackStore((s) => s.statusFilter);
+  const activeFilters = usePackStore((s) => s.activeFilters);
   const selectedFolderPath = usePackStore((s) => s.selectedFolderPath);
   const tileZoom = usePackStore((s) => s.tileZoom);
-  const { editTexture, deleteTextureFile, deleteTextureEntries } = useIpc();
+  const { editTexture, deleteTextureFile, deleteTextureEntries, openInExplorer } = useIpc();
 
-  // Tracks active open menu by tile uniqueKey
-  const [activeMenuKey, setActiveMenuKey] = useState<string | null>(null);
-  const menuRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setActiveMenuKey(null);
-      }
-    };
-    if (activeMenuKey) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [activeMenuKey]);
+  // Single active context menu target (prevents full-grid re-renders on menu toggle)
+  const [contextMenuTarget, setContextMenuTarget] = useState<{
+    alias: TextureAliasDto;
+    anchor: { x?: number; y?: number; top?: number; bottom?: number; left?: number; right?: number };
+    key: string;
+  } | null>(null);
 
   const filteredAliases = useMemo(() => {
     if (!aliases || !Array.isArray(aliases)) return [];
+
+    const effectiveFilters = activeFilters.length > 0
+      ? activeFilters
+      : (statusFilter !== 'all' ? [statusFilter as any] : []);
 
     return aliases.filter((alias) => {
       // 1. Category Filter
@@ -43,10 +37,47 @@ export const PackGrid: React.FC = () => {
       if (activeTab === 'items' && alias.category !== 'item') return false;
       if (activeTab === 'entities' && alias.category !== 'entity') return false;
 
-      // 2. Status Filter
-      if (statusFilter === 'ghosts' && alias.status !== 'GHOST') return false;
-      if (statusFilter === 'added' && alias.status !== 'OK') return false;
-      if (statusFilter === 'orphans' && alias.status !== 'ORPHAN') return false;
+      // 2. Active Filters (Checklist)
+      if (effectiveFilters.length > 0) {
+        const hasStatusFilter = effectiveFilters.some((f) => f === 'ghosts' || f === 'added' || f === 'orphans');
+        const hasFeatureFilter = effectiveFilters.some(
+          (f) => f === 'mers' || f === 'flipbook' || f === 'variations' || f === 'blockstates' || f === 'variation'
+        );
+
+        if (hasStatusFilter) {
+          const statusMatch =
+            (effectiveFilters.includes('ghosts') && alias.status === 'GHOST') ||
+            (effectiveFilters.includes('added') && (alias.status === 'OK' || alias.status === 'OVERRIDE')) ||
+            (effectiveFilters.includes('orphans') && alias.status === 'ORPHAN');
+          if (!statusMatch) return false;
+        }
+
+        if (hasFeatureFilter) {
+          const isMers = Boolean(alias.hasMers || alias.mersFullPath);
+          const isFlipbook = Boolean(alias.isFlipbook || alias.flipbook);
+          const isTextureVariation = Boolean(
+            (alias.totalTextureVariants && alias.totalTextureVariants > 1) ||
+            alias.variantKind === 'TextureVariant' ||
+            alias.variantKind === 'NestedVariant' ||
+            alias.textureVariantIndex != null
+          );
+          const isBlockstate = Boolean(
+            (alias.totalBlockVariants && alias.totalBlockVariants > 1) ||
+            alias.variantKind === 'BlockVariant' ||
+            alias.variantKind === 'NestedVariant' ||
+            alias.blockVariantIndex != null
+          );
+          const isMergedVariation = isTextureVariation || isBlockstate;
+
+          const featureMatch =
+            (effectiveFilters.includes('mers') && isMers) ||
+            (effectiveFilters.includes('flipbook') && isFlipbook) ||
+            (effectiveFilters.includes('variations') && isTextureVariation) ||
+            (effectiveFilters.includes('blockstates') && isBlockstate) ||
+            (effectiveFilters.includes('variation') && isMergedVariation);
+          if (!featureMatch) return false;
+        }
+      }
 
       // 3. Search Query Filter
       if (searchQuery.trim()) {
@@ -74,7 +105,7 @@ export const PackGrid: React.FC = () => {
 
       return true;
     });
-  }, [aliases, activeTab, searchQuery, statusFilter, selectedFolderPath]);
+  }, [aliases, activeTab, searchQuery, statusFilter, activeFilters, selectedFolderPath]);
 
   const handleTileClick = (alias: TextureAliasDto) => {
     editTexture(alias.alias, alias.fullPath, alias.status === 'GHOST');
@@ -126,6 +157,8 @@ export const PackGrid: React.FC = () => {
             const fileBase = rawDotIdx > 0 ? rawFileName.substring(0, rawDotIdx) : rawFileName;
             const fullFileName = `${fileBase}${fileExt}`;
 
+            const isMenuOpen = contextMenuTarget?.key === uniqueKey;
+
             return (
               <div
                 key={uniqueKey}
@@ -134,89 +167,41 @@ export const PackGrid: React.FC = () => {
                 onContextMenu={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
-                  setActiveMenuKey(uniqueKey);
+                  setContextMenuTarget({
+                    alias,
+                    key: uniqueKey,
+                    anchor: { x: e.clientX, y: e.clientY },
+                  });
                 }}
                 title={`${fullFileName}\nAlias: ${alias.alias}\nStatus: ${alias.status}\nPath: ${alias.relativePath}`}
               >
                 {/* 3-Dots Hover Menu Trigger */}
                 <button
                   type="button"
-                  className={`${styles.moreButton} ${activeMenuKey === uniqueKey ? styles.moreButtonActive : ''}`}
+                  className={`${styles.moreButton} ${isMenuOpen ? styles.moreButtonActive : ''}`}
                   onClick={(e) => {
                     e.stopPropagation();
-                    setActiveMenuKey((prev) => (prev === uniqueKey ? null : uniqueKey));
+                    if (isMenuOpen) {
+                      setContextMenuTarget(null);
+                    } else {
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      setContextMenuTarget({
+                        alias,
+                        key: uniqueKey,
+                        anchor: {
+                          top: rect.top,
+                          bottom: rect.bottom,
+                          left: rect.left,
+                          right: rect.right,
+                        },
+                      });
+                    }
                   }}
                   title="Texture options"
                   aria-label="Texture options"
                 >
                   <MoreVertical size={14} />
                 </button>
-
-                {/* Dropdown Menu */}
-                {activeMenuKey === uniqueKey && (
-                  <div
-                    ref={menuRef}
-                    className={styles.dropdownMenu}
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <button
-                      type="button"
-                      className={styles.menuItem}
-                      onClick={() => {
-                        setActiveMenuKey(null);
-                        handleTileClick(alias);
-                      }}
-                    >
-                      <Edit3 size={13} className={styles.menuIcon} />
-                      <span>Edit Texture</span>
-                    </button>
-
-                    {alias.hasMers && alias.mersFullPath && (
-                      <button
-                        type="button"
-                        className={styles.menuItem}
-                        onClick={() => {
-                          setActiveMenuKey(null);
-                          editTexture(alias.alias + '_mers', alias.mersFullPath!, false);
-                        }}
-                        title={`Edit PBR MERS map: ${alias.mersFullPath}`}
-                      >
-                        <Sparkles size={13} className={styles.menuIcon} />
-                        <span>Edit MERS</span>
-                      </button>
-                    )}
-
-                    <button
-                      type="button"
-                      className={`${styles.menuItem} ${styles.menuItemDanger}`}
-                      disabled={isGhost || !alias.fullPath}
-                      onClick={() => {
-                        setActiveMenuKey(null);
-                        if (alias.fullPath) {
-                          deleteTextureFile(alias.fullPath, alias.alias);
-                        }
-                      }}
-                      title={isGhost ? 'Texture file does not exist on disk' : 'Delete PNG file from disk'}
-                    >
-                      <Trash2 size={13} className={styles.menuIcon} />
-                      <span>Delete Texture</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      className={`${styles.menuItem} ${styles.menuItemDanger}`}
-                      disabled={alias.status === 'ORPHAN'}
-                      onClick={() => {
-                        setActiveMenuKey(null);
-                        deleteTextureEntries(alias.alias, alias.category, alias.relativePath);
-                      }}
-                      title={alias.status === 'ORPHAN' ? 'Orphan has no JSON declarations' : 'Remove declarations from JSON schemas'}
-                    >
-                      <FileX size={13} className={styles.menuIcon} />
-                      <span>Delete Entries</span>
-                    </button>
-                  </div>
-                )}
 
                 {/* Thumbnail Container - 100% clean texture display without overlays */}
                 <div
@@ -265,6 +250,39 @@ export const PackGrid: React.FC = () => {
             );
           })}
         </div>
+      )}
+
+      {/* Singleton Context Menu mounted outside loop */}
+      {contextMenuTarget && (
+        <TextureContextMenu
+          item={contextMenuTarget.alias}
+          anchor={contextMenuTarget.anchor}
+          onClose={() => setContextMenuTarget(null)}
+          onEdit={(app?: OpenWithAppDto) => {
+            editTexture(contextMenuTarget.alias.alias, contextMenuTarget.alias.fullPath, contextMenuTarget.alias.status === 'GHOST', app?.exePath, false);
+          }}
+          onOpenWithDialog={() => {
+            editTexture(contextMenuTarget.alias.alias, contextMenuTarget.alias.fullPath, contextMenuTarget.alias.status === 'GHOST', null, true);
+          }}
+          onRevealInExplorer={() => {
+            if (contextMenuTarget.alias.fullPath) {
+              openInExplorer(contextMenuTarget.alias.fullPath, true);
+            }
+          }}
+          onDeleteTexture={() => {
+            if (contextMenuTarget.alias.fullPath) {
+              deleteTextureFile(contextMenuTarget.alias.fullPath, contextMenuTarget.alias.alias);
+            }
+          }}
+          onDeleteEntries={() => {
+            deleteTextureEntries(contextMenuTarget.alias.alias, contextMenuTarget.alias.category, contextMenuTarget.alias.relativePath);
+          }}
+          onEditMers={() => {
+            if (contextMenuTarget.alias.mersFullPath) {
+              editTexture(contextMenuTarget.alias.alias + '_mers', contextMenuTarget.alias.mersFullPath, false);
+            }
+          }}
+        />
       )}
     </div>
   );

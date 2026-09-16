@@ -28,7 +28,6 @@ export const Sidebar: React.FC = () => {
   const setSelectedFolderPath = usePackStore((s) => s.setSelectedFolderPath);
   const isCatalogOpen = usePackStore((s) => s.isCatalogOpen);
   const setIsCatalogOpen = usePackStore((s) => s.setIsCatalogOpen);
-  const setActiveView = usePackStore((s) => s.setActiveView);
   const referencePacks = usePackStore((s) => s.referencePacks);
   const activeReferenceId = usePackStore((s) => s.activeReferenceId);
   const setActiveReferenceId = usePackStore((s) => s.setActiveReferenceId);
@@ -388,7 +387,7 @@ export const Sidebar: React.FC = () => {
           <button
             type="button"
             className={styles.generateManifestBtn}
-            onClick={() => setActiveView('manifest')}
+            onClick={() => setSelectedFolderPath('manifest.json')}
           >
             ⚡ Open Manifest Editor
           </button>
@@ -402,7 +401,7 @@ export const Sidebar: React.FC = () => {
             folders={packFolders}
             selectedPath={selectedFolderPath}
             onSelect={setSelectedFolderPath}
-            onOpenManifest={() => setActiveView('manifest')}
+            onOpenManifest={() => setSelectedFolderPath('manifest.json')}
           />
         </div>
       </div>

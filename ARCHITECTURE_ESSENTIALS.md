@@ -13,17 +13,26 @@ Fast reference for day-to-day tasks. Consult this file first to conserve context
 - `ViewModels/MainViewModel.cs`: Core C# viewmodel and IPC handler.
 - `Models/TextureAlias.cs`: Core texture models (`Block`, `Item`, `Entity`), variant descriptors, and face bindings.
 - `Services/`: Business logic for scanning (`PackScanner` for terrain, items, and client entities/attachables), vanilla sync (`VanillaDataService`), custom reference packs (`CatalogReferenceService`), and JSON scaffolding (`JsonWriterService`).
-- `frontend/src/App.tsx`: Main React entry point. Renders one of four views: `grid`, `workspace`, `entity`, or `manifest` based on `activeView` store state.
-- `frontend/src/components/catalog/CatalogDrawer.tsx`: Reference catalog flyout (supports Vanilla and Custom pack profiles).
+- `frontend/src/App.tsx`: Main React entry point. Renders one of three views: `grid`, `workspace`, or `entity` based on `activeView` store state.
+- `frontend/src/components/catalog/CatalogDrawer.tsx`: Reference catalog flyout (supports Vanilla and Custom pack profiles). Entity items are grouped by primary identifier (`minecraft:<id>`) with slot groups partitioned by geometry ID / attachment type matching `EntityWorkspace.tsx`.
 - `frontend/src/components/workspace/BlockWorkspace.tsx`: 4-tier block hierarchy view with `Block3DViewer` (Three.js) sub-component.
 - `frontend/src/components/workspace/EntityWorkspace.tsx`: Dedicated Entity & Attachable index and slot inspector with `Entity3DViewer` (Three.js) rendering Bedrock `.geo.json` bone/cube hierarchies.
 - `frontend/src/components/workspace/entityGeometryBuilder.ts`: High-performance parser and Three.js hierarchy builder for format 1.8.0 and 1.12.0+ Bedrock geometry models.
-- `frontend/src/components/manifest/ManifestEditor.tsx`: Manifest editor view, reached via `setActiveView('manifest')`.
+- `frontend/src/components/json/JsonReader.tsx`: Unified JSON reader and inspector for all pack `.json` files. When loading `manifest.json`, renders an unboxed 50/50 dual-pane inspector (`ManifestForm.tsx` + live code).
+- `frontend/src/components/sidebar/DirectoryTree.tsx`: Directory tree with 3-tier badge indicators (`ghostCount`, `orphanCount`, and total `textureCount`).
 - `frontend/src/components/`: Sidebar (with hover reference pack switcher and custom pack management), Grid, Toolbar, and Modals.
 
 ## 3. IPC Communication & Virtual Hosts
 - **Host $\rightarrow$ Web:** `MainViewModel` posts JSON string via `CoreWebView2.PostWebMessageAsString`.
 - **Web $\rightarrow$ Host:** React components post message via `window.chrome?.webview?.postMessage({ type, payload })`.
+- **Open With & Context Menu (`OPEN_WITH:*`):**
+  - `OPEN_WITH:GET_APPS` $\rightarrow$ `OPEN_WITH:APPS`: Discovers installed image editors from Windows Registry (`OpenWithService.cs`) with authentic base64 app icons.
+  - `OPEN_WITH:OPEN`: Launches specified texture in selected application executable.
+  - `OPEN_WITH:CHOOSE_APP`: Triggers Windows native "Open With..." app picker.
+  - Rendered via a global singleton portal (`TextureContextMenu.tsx`) outside `.map()` loops with 800ms hover grace period for instant (<2ms) render.
+- **Search System & Shortcuts:**
+  - Unified under `SearchInput.tsx` primitive across pack grid, block workspace, entity workspace, and JSON readers.
+  - Global `/` keyboard shortcut focuses active search bar.
 - **Geometry & 3D Assets (`GEOMETRY:*`, `VANILLA:*`):**
   - `GEOMETRY:GET` $\rightarrow$ `GEOMETRY:DATA`: Requests/returns raw Bedrock geometry JSON for an entity or geometry ID.
   - `VANILLA:DOWNLOAD_3D_ASSETS`: Streams Mojang `bedrock-samples` zip into `%APPDATA%\McTextureGhost\reference_packs\vanilla\` to avoid GitHub API rate limits.
@@ -41,19 +50,21 @@ Fast reference for day-to-day tasks. Consult this file first to conserve context
   - All virtual host mappings buffer files into in-memory streams (`MemoryStream`) using `FileShare.ReadWrite | FileShare.Delete` to prevent file handle locks on user textures.
   - Always ensure new actions are typed on both ends.
 
-## 4. View Navigation Pattern (`activeView`)
-- The app has four routed views: `'grid'` | `'workspace'` | `'entity'` | `'manifest'`.
-- Navigate between them via `setActiveView(view)` from the packStore.
-- The **Manifest** view is intentionally **not** a toolbar tab — it is accessed from the sidebar directory-tree hover edit button, the missing-manifest warning card, and **File → Edit Manifest…** in the MenuBar.
-- When adding a new view, update **all three** of: the `PackState` type field, the `PackStore` interface method signature, and the method implementation in `packStore.ts`. Keeping them out of sync causes a TypeScript contravariance error.
+## 4. View Navigation & File Reader Pattern
+- **Routed Views (`activeView`):** Three main routed views: `'grid'` | `'workspace'` | `'entity'`. Navigate via `setActiveView(view)`.
+- **JSON & Manifest Files:** Opened seamlessly via `setSelectedFolderPath(filePath)` (e.g. `setSelectedFolderPath('manifest.json')`). `JsonReader` mounts as a focused overlay editor without creating artificial routing states.
+- **Window & Shell Invariants:**
+  - `MainWindow.xaml.cs` handles `WM_GETMINMAXINFO` with `SHAppBarMessage` auto-hide taskbar offset (2px margin) to ensure taskbars remain reachable when maximized.
 
-## 5. Build & Verify Commands
-```powershell
-# Safe .NET build (kills zombie lock first):
-Get-Process McTextureGhost -ErrorAction SilentlyContinue | Stop-Process -Force
-dotnet build McTextureGhost.csproj -v q
-
-# Fast frontend typecheck & build (in frontend/ dir):
-node node_modules/typescript/bin/tsc --noEmit
-node node_modules/vite/bin/vite.js build
-```
+## 5. Build & Verify Invariants
+- **Frontend-Only Scope (NO dotnet build, NEVER kill McTextureGhost processes):**
+  - Fast frontend typecheck & build (in `frontend/` dir):
+    ```powershell
+    node node_modules/typescript/bin/tsc --noEmit
+    node node_modules/vite/bin/vite.js build
+    ```
+- **C# Backend Scope (dotnet build only when *.cs, *.xaml, *.csproj modified):**
+  ```powershell
+  Get-Process McTextureGhost -ErrorAction SilentlyContinue | Stop-Process -Force
+  dotnet build McTextureGhost.csproj -v q
+  ```

@@ -23,6 +23,7 @@ import { usePackStore } from '../../store/packStore';
 import { useIpc } from '../../hooks/useIpc';
 import { BlockGroupNodeDto, AliasGroupNodeDto, CatalogLeafDto } from '../../types/ipc';
 import { FlipbookThumbnail } from '../common/FlipbookThumbnail';
+import { SearchInput } from '../common/SearchInput';
 import styles from './CatalogDrawer.module.css';
 
 export interface CatalogDrawerProps {
@@ -113,14 +114,16 @@ const CatalogLeafRow: React.FC<{
     ? (leaf.relativePath.split(/[/\\]/).pop() ?? leaf.displayName ?? leaf.alias)
     : (leaf.displayName ?? leaf.alias);
 
+  const isEntity = (leaf.category || '').toLowerCase() === 'entity';
   const blockVariantSuffix = leaf.blockVariantIndex && leaf.totalBlockVariants
     ? ` (block state ${leaf.blockVariantIndex}/${leaf.totalBlockVariants})`
     : '';
 
   const tooltipText = [
     (blockDisplayName || leaf.displayName || leaf.alias) + blockVariantSuffix,
-    `terrain textures: ${leaf.alias}`,
+    isEntity ? (leaf.geometryId ? `geometry: ${leaf.geometryId}` : `slot: ${leaf.alias}`) : `terrain textures: ${leaf.alias}`,
     `path: ${leaf.relativePath}`,
+    leaf.isAttachable ? 'attachable: true' : '',
     leaf.subtitleCaption ? `info: ${leaf.subtitleCaption}` : '',
   ].filter(Boolean).join('\n');
 
@@ -186,6 +189,8 @@ const CatalogAliasGroup: React.FC<{
   onAdd: (id: string, category: string) => void;
 }> = ({ aliasGroup, category, blockDisplayName, onAdd }) => {
   const isEntity = (aliasGroup.category || category).toLowerCase() === 'entity';
+  const slotName = aliasGroup.geometryId || aliasGroup.alias;
+  const isAttachable = isEntity && (aliasGroup.isAttachable || aliasGroup.leaves?.some((l) => l.isAttachable));
   const isAdded =
     (aliasGroup.notAddedCount ?? 0) === 0 &&
     (aliasGroup.leaves?.length ?? 0) > 0 &&
@@ -196,16 +201,21 @@ const CatalogAliasGroup: React.FC<{
       <div className={styles.aliasGroupHeader}>
         <div className={styles.aliasHeaderLeft}>
           <Layers size={13} className={styles.aliasIcon} />
-          <span className={styles.aliasNameText} title={aliasGroup.alias}>
-            {isEntity ? `Slot: ${aliasGroup.alias}` : `Alias: ${aliasGroup.alias}`}
+          <span className={styles.aliasNameText} title={slotName}>
+            {isEntity ? `Slot: ${slotName}` : `Alias: ${aliasGroup.alias}`}
           </span>
-          {aliasGroup.faceSummary && (
+          {isAttachable && (
+            <span className={styles.faceLabelBadge} title="Attachable entity definition">
+              <span>Attachable</span>
+            </span>
+          )}
+          {!isEntity && aliasGroup.faceSummary && (
             <span
               className={styles.faceLabelBadge}
-              title={isEntity ? `Texture file: ${aliasGroup.faceSummary}` : `Face mapping: ${aliasGroup.faceSummary}`}
+              title={`Face mapping: ${aliasGroup.faceSummary}`}
             >
               <ArrowRight size={9} />
-              <span>{isEntity ? `File: ${aliasGroup.faceSummary}` : `Face: ${aliasGroup.faceSummary}`}</span>
+              <span>Face: {aliasGroup.faceSummary}</span>
             </span>
           )}
           {aliasGroup.ghostCount > 0 && (
@@ -215,22 +225,24 @@ const CatalogAliasGroup: React.FC<{
           )}
         </div>
 
-        {isAdded ? (
-          <span className={styles.addedBadge} title="This item is already in your pack">
-            <Check size={11} />
-            <span>Added</span>
-          </span>
-        ) : (
-          <button
-            type="button"
-            className={styles.addAliasBtn}
-            onClick={() => onAdd(aliasGroup.alias, aliasGroup.category || category)}
-            title={isEntity ? `Add ${blockDisplayName || 'entity'} to pack` : `Add alias '${aliasGroup.alias}' to pack`}
-            aria-label={isEntity ? `Add ${blockDisplayName || 'entity'} to pack` : `Add alias ${aliasGroup.alias}`}
-          >
-            <Plus size={11} />
-            <span>{isEntity ? 'Add Entity' : 'Add Alias'}</span>
-          </button>
+        {!isEntity && (
+          isAdded ? (
+            <span className={styles.addedBadge} title="This item is already in your pack">
+              <Check size={11} />
+              <span>Added</span>
+            </span>
+          ) : (
+            <button
+              type="button"
+              className={styles.addAliasBtn}
+              onClick={() => onAdd(aliasGroup.alias, aliasGroup.category || category)}
+              title={`Add alias '${aliasGroup.alias}' to pack`}
+              aria-label={`Add alias ${aliasGroup.alias}`}
+            >
+              <Plus size={11} />
+              <span>Add Alias</span>
+            </button>
+          )
         )}
       </div>
 
@@ -758,30 +770,15 @@ export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose })
 
         {/* Search Toolbar */}
         <div className={styles.searchToolbar}>
-          <div className={styles.searchInputRow}>
-            <Search size={14} className={styles.searchIcon} />
-            <input
-              type="text"
-              className={styles.searchInput}
-              placeholder="Search vanilla blocks, items, entities, or aliases..."
-              value={searchText}
-              onChange={(e) => setSearchText(e.target.value)}
-              data-testid="catalog-search-input"
-              autoFocus
-            />
-            {searchText && (
-              <button
-                type="button"
-                className={styles.clearSearchBtn}
-                onClick={() => setSearchText('')}
-                title="Clear search query"
-                aria-label="Clear search"
-              >
-                <X size={12} />
-              </button>
-            )}
-          </div>
-
+          <SearchInput
+            value={searchText}
+            onChange={setSearchText}
+            placeholder="Search vanilla blocks, items, entities, or aliases..."
+            shortcutCue={isOpen ? '/' : null}
+            enableSlashShortcut={isOpen}
+            autoFocus
+            data-testid="catalog-search-input"
+          />
         </div>
 
         {/* Scrollable Catalog Tree */}

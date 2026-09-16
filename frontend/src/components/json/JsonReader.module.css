@@ -91,15 +91,6 @@
   letter-spacing: 0.02em;
 }
 
-.filePathBadge {
-  font-family: var(--font-mono, monospace);
-  font-size: 10.5px;
-  color: var(--text-dimmed, #71717a);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
 .headerRight {
   display: flex;
   align-items: center;
@@ -169,6 +160,11 @@
   gap: 12px;
   flex-shrink: 0;
   user-select: none;
+}
+
+.jsonSearchWrapper {
+  max-width: 320px;
+  width: 100%;
 }
 
 .searchInputGroup {
@@ -343,4 +339,469 @@
   max-width: 420px;
   line-height: 1.5;
   margin: 0;
+}
+
+/* ─── 5. Split View & Manifest Form ─── */
+/* ─── 5. Split View & Manifest Inspector (Unboxed & Flat) ─── */
+.splitContentArea {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+.formColumn {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  padding: 24px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+/* ─── Hero Pack Header ─── */
+.packHeaderSection {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.packHeaderRow {
+  display: flex;
+  align-items: flex-end;
+  gap: 20px;
+}
+
+.packIconBox {
+  width: 168px;
+  height: 168px;
+  border-radius: 0;
+  background: #141418;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.packIconImg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  image-rendering: pixelated;
+}
+
+.packIconFallback {
+  color: #71717a;
+}
+
+.packHeaderMeta {
+  flex: 1;
+  min-width: 0;
+  height: 168px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: flex-start;
+  gap: 8px;
+  padding-bottom: 4px;
+}
+
+.packTitleWrapper {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  max-width: 100%;
+}
+
+.packTitleInput {
+  font-family: var(--font-brand, sans-serif);
+  font-size: 20px;
+  font-weight: 700;
+  color: #ffffff;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid transparent;
+  padding: 2px 0;
+  outline: none;
+  transition: border-color 0.15s ease;
+  field-sizing: content;
+  min-width: 80px;
+  max-width: 100%;
+  letter-spacing: -0.01em;
+}
+
+.packTitleInput:focus {
+  border-bottom-color: var(--accent-primary, #8CEB1F);
+}
+
+.packTitleEditBtn {
+  background: transparent;
+  border: none;
+  padding: 2px 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: 4px;
+  outline: none;
+  transition: background 0.15s ease;
+}
+
+.packTitleEditBtn:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.packTitleEditIcon {
+  color: rgba(255, 255, 255, 0.25);
+  flex-shrink: 0;
+  transition: color 0.15s ease;
+}
+
+.packTitleEditBtn:hover .packTitleEditIcon,
+.packTitleWrapper:hover .packTitleEditIcon,
+.packTitleWrapper:focus-within .packTitleEditIcon {
+  color: var(--accent-primary, #8CEB1F);
+}
+
+.packMetaActionsRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+}
+
+.packMetaTags {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.metaPill {
+  font-family: var(--font-mono, monospace);
+  font-size: 10.5px;
+  color: var(--text-muted, #71717a);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 1px 7px;
+  border-radius: 4px;
+}
+
+.metaPillHighlight {
+  font-family: var(--font-mono, monospace);
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--accent-primary, #8CEB1F);
+  background: rgba(140, 235, 31, 0.1);
+  border: 1px solid rgba(140, 235, 31, 0.25);
+  padding: 1px 7px;
+  border-radius: 4px;
+}
+
+.packDescTextarea {
+  width: 100%;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 5px;
+  padding: 8px 10px;
+  font-family: var(--font-sans, sans-serif);
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: #d4d4d8;
+  resize: vertical;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.packDescTextarea:focus {
+  border-color: var(--accent-primary, #8CEB1F);
+}
+
+.divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.06);
+  margin: 2px 0;
+}
+
+/* ─── Flat Property Rows Grid ─── */
+.fieldsGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.fieldRow {
+  display: grid;
+  grid-template-columns: 150px 1fr;
+  align-items: center;
+  gap: 16px;
+  padding: 6px 0;
+}
+
+.fieldRowTop {
+  align-items: flex-start;
+}
+
+.fieldRowTop .fieldLabelGroup {
+  padding-top: 6px;
+}
+
+.fieldLabelGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.fieldLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: #e4e4e7;
+}
+
+.fieldMeta {
+  font-family: var(--font-mono, monospace);
+  font-size: 10px;
+  color: #71717a;
+}
+
+/* Detached Version Steppers with custom arrows and dot dividers */
+.versionInputs {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.versionFieldBox {
+  display: inline-flex;
+  align-items: center;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 5px;
+  overflow: hidden;
+  transition: border-color 0.15s ease;
+}
+
+.versionFieldBox:focus-within {
+  border-color: var(--accent-primary, #8CEB1F);
+}
+
+.versionSegmentInput {
+  width: 34px;
+  height: 28px;
+  text-align: center;
+  background: transparent;
+  border: none;
+  font-size: 12.5px;
+  font-family: var(--font-mono, monospace);
+  font-weight: 600;
+  color: #fff;
+  outline: none;
+  padding: 0;
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+.versionSegmentInput::-webkit-outer-spin-button,
+.versionSegmentInput::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.versionSegmentInput:focus {
+  color: var(--accent-primary, #8CEB1F);
+}
+
+.stepperArrows {
+  display: flex;
+  flex-direction: column;
+  height: 28px;
+  width: 16px;
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.stepperArrowBtn {
+  flex: 1;
+  width: 100%;
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #71717a;
+  cursor: pointer;
+  transition: background 0.1s ease, color 0.1s ease;
+}
+
+.stepperArrowBtn:first-child {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.stepperArrowBtn:hover {
+  background: rgba(140, 235, 31, 0.18);
+  color: var(--accent-primary, #8CEB1F);
+}
+
+.stepperArrowBtn:active {
+  background: rgba(140, 235, 31, 0.35);
+}
+
+.versionDot {
+  color: #71717a;
+  font-weight: 700;
+  font-size: 13px;
+  user-select: none;
+  padding: 0 1px;
+}
+
+/* UUID Input Group */
+.uuidFieldGroup {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.uuidFieldInput {
+  flex: 1;
+  font-family: var(--font-mono, monospace);
+  font-size: 11.5px;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 5px;
+  padding: 6px 10px;
+  color: #a5b4fc;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.uuidFieldInput:focus {
+  border-color: var(--accent-primary, #8CEB1F);
+}
+
+.fieldActionBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 5px;
+  color: #a1a1aa;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.fieldActionBtn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.fieldActionSuccess {
+  background: rgba(34, 197, 94, 0.2) !important;
+  border-color: rgba(34, 197, 94, 0.4) !important;
+  color: #4ade80 !important;
+}
+
+.textFieldInput {
+  max-width: 220px;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 5px;
+  padding: 6px 10px;
+  font-size: 12px;
+  color: #fff;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.textFieldInput:focus {
+  border-color: var(--accent-primary, #8CEB1F);
+}
+
+/* ─── Docked Action Footer ─── */
+.formFooter {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+  margin-top: auto;
+}
+
+.primaryBtn {
+  background: var(--accent-primary, #8CEB1F);
+  color: #0c1406;
+  font-weight: 700;
+  font-family: var(--font-brand, sans-serif);
+}
+
+.primaryBtn:hover {
+  background: var(--accent-primary-hover, #a3f446);
+}
+
+.secondaryBtn {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: var(--border-subtle, rgba(255, 255, 255, 0.12));
+  color: var(--text-secondary, #a1a1aa);
+  font-family: var(--font-brand, sans-serif);
+}
+
+.secondaryBtn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--text-primary, #fff);
+}
+
+.statusBadgeExists {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  background: rgba(34, 197, 94, 0.15);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  color: var(--color-ok, #22c55e);
+}
+
+.statusBadgeMissing {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #ef4444;
+}
+
+.statusBadgeDirty {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  background: rgba(245, 158, 11, 0.15);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  color: #f59e0b;
+}
+
+.previewColumn {
+  flex: 1;
+  min-width: 0;
+  border-left: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+  background: #0d0e12;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }

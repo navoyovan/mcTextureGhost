@@ -30,14 +30,23 @@ Consult these project specification files **only when relevant** to the task at 
 
 ---
 
-## Technology & Build Safety Invariants
-
-### 1. Windows Native & Build Safety (Zero-Error Compilation)
-- **Executable File Locks (`MSB3021` / `MSB3027`):**
-  If `McTextureGhost.exe` is running, `dotnet build` fails. Before executing `dotnet build`, kill any running instance:
-  ```powershell
-  Get-Process McTextureGhost -ErrorAction SilentlyContinue | Stop-Process -Force
-  ```
+### 1. Build Verification & Process Preservation Invariants
+- **Frontend-Only Scope (STRICT: NO dotnet build, NEVER kill McTextureGhost processes):**
+  - When changes are strictly within `frontend/` (`*.tsx`, `*.ts`, `*.module.css`, `*.json`, etc.):
+    - **DO NOT** run `dotnet build`.
+    - **NEVER** kill running `McTextureGhost` processes (`Stop-Process`). The user is actively running/testing the application with WebView2 live reload.
+    - Verify frontend changes ONLY via:
+      ```powershell
+      # Inside frontend/ directory:
+      node node_modules/typescript/bin/tsc --noEmit
+      node node_modules/vite/bin/vite.js build
+      ```
+- **C# / Native Backend Scope (dotnet build only when needed):**
+  - ONLY run `dotnet build` when backend files (`*.cs`, `*.xaml`, `*.csproj`) are actually created or modified.
+  - If (and only if) running `dotnet build` fails due to executable file locks (`MSB3021` / `MSB3027`), terminate the locking instance before rebuilding:
+    ```powershell
+    Get-Process McTextureGhost -ErrorAction SilentlyContinue | Stop-Process -Force
+    ```
 - **WPF-UI 4.x Invariants:**
   - Subtle buttons: Use `Appearance="Transparent"` (never `Appearance="Subtle"`).
   - TitleBar Caption Buttons: When replacing `TitleBarButton` `ControlTemplate`, always set `Property="CommandParameter"` to `{x:Static ui:TitleBarButtonType.<Type>}` to avoid `ElementNotEnabledException`.

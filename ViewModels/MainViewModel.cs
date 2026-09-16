@@ -1639,6 +1639,7 @@ public class MainViewModel : INotifyPropertyChanged
         {
             node.TextureCount = 0;
             node.GhostCount = 0;
+            node.OrphanCount = 0;
             return;
         }
 
@@ -1650,6 +1651,7 @@ public class MainViewModel : INotifyPropertyChanged
         {
             node.TextureCount = 0;
             node.GhostCount = 0;
+            node.OrphanCount = 0;
             return;
         }
 
@@ -1657,12 +1659,14 @@ public class MainViewModel : INotifyPropertyChanged
         {
             node.TextureCount = Aliases.Count;
             node.GhostCount = Aliases.Count(a => !a.Exists);
+            node.OrphanCount = Aliases.Count(a => a.IsOrphan);
             return;
         }
 
         var prefix = folderExact.EndsWith('/') ? folderExact : folderExact + "/";
         int texCount = 0;
         int ghostCount = 0;
+        int orphanCount = 0;
 
         foreach (var a in Aliases)
         {
@@ -1670,11 +1674,13 @@ public class MainViewModel : INotifyPropertyChanged
             {
                 texCount++;
                 if (!a.Exists) ghostCount++;
+                if (a.IsOrphan) orphanCount++;
             }
         }
 
         node.TextureCount = texCount;
         node.GhostCount = ghostCount;
+        node.OrphanCount = orphanCount;
     }
 
     private void RefreshTreeCounts()
