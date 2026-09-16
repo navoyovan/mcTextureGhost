@@ -4,8 +4,6 @@ import {
   ArrowLeft,
   Copy,
   Check,
-  Search,
-  X,
   ExternalLink,
   Layers,
   RotateCw,
@@ -14,6 +12,7 @@ import { usePackStore } from '../../store/packStore';
 import { useIpc } from '../../hooks/useIpc';
 import { IpcMessageTypes, ManifestModelDto } from '../../types/ipc';
 import { ManifestForm } from './ManifestForm';
+import { SearchInput } from '../common/SearchInput';
 import styles from './JsonReader.module.css';
 
 export interface JsonReaderProps {
@@ -392,26 +391,15 @@ export const JsonReader: React.FC<JsonReaderProps> = ({ filePath, onBack }) => {
         <>
           {/* Search Sub-bar */}
           <div className={styles.searchBar}>
-            <div className={styles.searchInputGroup}>
-              <Search size={13} className={styles.searchIcon} />
-              <input
-                type="text"
-                className={styles.searchInput}
-                placeholder="Search in JSON..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-              {searchQuery && (
-                <button
-                  type="button"
-                  className={styles.searchClearBtn}
-                  onClick={() => setSearchQuery('')}
-                  title="Clear search"
-                >
-                  <X size={12} />
-                </button>
-              )}
-            </div>
+            <SearchInput
+              value={searchQuery}
+              onChange={setSearchQuery}
+              placeholder="Search in JSON..."
+              shortcutCue="/"
+              enableSlashShortcut={true}
+              size="sm"
+              wrapperClassName={styles.jsonSearchWrapper}
+            />
 
             {searchQuery.trim() && (
               <span className={styles.matchCountBadge}>

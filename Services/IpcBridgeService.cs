@@ -72,7 +72,7 @@ public interface IIpcBridgeService : IDisposable
     void PushTextureUpdated(string aliasKey, string newStatus, string fullPath, string? imageUrl = null);
 
     /// <summary>Convenience: pushes app theme/debug configuration to web.</summary>
-    void PushAppConfig(int tintOpacity, int tintBrightness, string tintHex, bool debugMode, string windowTitle = "McTextureGhost");
+    void PushAppConfig(int tintOpacity, int tintBrightness, string tintHex, bool debugMode, string windowTitle = "McTextureGhost", List<OpenWithAppDto>? openWithApps = null);
 
     /// <summary>Convenience: pushes an error notification to web.</summary>
     void PushError(string title, string message, string severity = "error");
@@ -469,8 +469,8 @@ public sealed class IpcBridgeService : IIpcBridgeService
     public void PushTextureUpdated(string aliasKey, string newStatus, string fullPath, string? imageUrl = null) =>
         PostMessage(IpcMessageTypes.TextureUpdated, new TextureUpdatedPayload(aliasKey, newStatus, fullPath, imageUrl));
 
-    public void PushAppConfig(int tintOpacity, int tintBrightness, string tintHex, bool debugMode, string windowTitle = "McTextureGhost") =>
-        PostMessage(IpcMessageTypes.AppConfig, new AppConfigPayload(tintOpacity, tintBrightness, tintHex, debugMode, windowTitle));
+    public void PushAppConfig(int tintOpacity, int tintBrightness, string tintHex, bool debugMode, string windowTitle = "McTextureGhost", List<OpenWithAppDto>? openWithApps = null) =>
+        PostMessage(IpcMessageTypes.AppConfig, new AppConfigPayload(tintOpacity, tintBrightness, tintHex, debugMode, windowTitle, openWithApps ?? OpenWithService.GetOpenWithApps()));
 
     public void PushError(string title, string message, string severity = "error") =>
         PostMessage(IpcMessageTypes.ErrorNotify, new ErrorPayload(title, message, severity));

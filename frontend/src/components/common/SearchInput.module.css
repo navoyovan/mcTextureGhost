@@ -1,0 +1,142 @@
+/* frontend/src/components/common/SearchInput.module.css */
+
+.searchWrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  width: 100%;
+  box-sizing: border-box;
+  background: #18181c;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+  cursor: text;
+}
+
+.searchWrapper:hover {
+  border-color: rgba(255, 255, 255, 0.18);
+  background: #1c1c22;
+}
+
+.searchWrapperFocused {
+  border-color: var(--accent-primary, #8CEB1F);
+  background: #1e1e24;
+  box-shadow: 0 0 0 1px rgba(140, 235, 31, 0.25);
+}
+
+.searchWrapperDisabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+/* ── Sizes ── */
+.sizeSm {
+  height: 26px;
+  padding: 0 6px 0 8px;
+  gap: 6px;
+}
+
+.sizeSm .searchInput {
+  font-size: 11px;
+}
+
+.sizeMd {
+  height: 30px;
+  padding: 0 8px 0 10px;
+  gap: 8px;
+}
+
+.sizeMd .searchInput {
+  font-size: 12px;
+}
+
+.sizeLg {
+  height: 36px;
+  padding: 0 10px 0 12px;
+  gap: 10px;
+}
+
+.sizeLg .searchInput {
+  font-size: 13px;
+}
+
+/* ── Icons & Input ── */
+.searchIcon {
+  color: #71717a;
+  flex-shrink: 0;
+  pointer-events: none;
+  transition: color 0.15s ease;
+}
+
+.searchWrapperFocused .searchIcon {
+  color: var(--accent-primary, #8CEB1F);
+}
+
+.searchInput {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin: 0;
+  color: #f4f4f5;
+  font-family: inherit;
+  outline: none;
+  letter-spacing: -0.01em;
+}
+
+.searchInput::placeholder {
+  color: #71717a;
+  font-size: inherit;
+  user-select: none;
+}
+
+/* ── Clear Button ── */
+.clearBtn {
+  background: transparent;
+  border: none;
+  padding: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #71717a;
+  cursor: pointer;
+  border-radius: 4px;
+  outline: none;
+  transition: color 0.15s ease, background 0.15s ease;
+  flex-shrink: 0;
+}
+
+.clearBtn:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* ── Keyboard Shortcut Cue Badge ── */
+.kbdCue {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  font-family: var(--font-brand, sans-serif);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  color: #71717a;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 3.5px;
+  box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.25);
+  user-select: none;
+  pointer-events: none;
+  flex-shrink: 0;
+  transition: opacity 0.15s ease, border-color 0.15s ease;
+}
+
+.searchWrapper:hover .kbdCue {
+  color: #a1a1aa;
+  border-color: rgba(255, 255, 255, 0.18);
+}

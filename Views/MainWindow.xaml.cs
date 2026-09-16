@@ -37,6 +37,58 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
     [StructLayout(LayoutKind.Sequential)]
     private struct POINT { public int X, Y; }
 
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MINMAXINFO
+    {
+        public POINT ptReserved;
+        public POINT ptMaxSize;
+        public POINT ptMaxPosition;
+        public POINT ptMinTrackSize;
+        public POINT ptMaxTrackSize;
+    }
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
+    private struct MONITORINFO
+    {
+        public int cbSize;
+        public RECT rcMonitor;
+        public RECT rcWork;
+        public int dwFlags;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct APPBARDATA
+    {
+        public int cbSize;
+        public IntPtr hWnd;
+        public uint uCallbackMessage;
+        public uint uEdge;
+        public RECT rc;
+        public IntPtr lParam;
+    }
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr MonitorFromWindow(IntPtr handle, int flags);
+
+    [DllImport("user32.dll", CharSet = CharSet.Auto)]
+    private static extern bool GetMonitorInfo(IntPtr hMonitor, ref MONITORINFO lpmi);
+
+    [DllImport("shell32.dll", EntryPoint = "SHAppBarMessage")]
+    private static extern IntPtr SHAppBarMessage(uint dwMessage, ref APPBARDATA pData);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern IntPtr FindWindow(string lpClassName, string? lpWindowName);
+
+    private const uint ABM_GETSTATE = 0x00000004;
+    private const uint ABM_GETTASKBARPOS = 0x00000005;
+    private const uint ABS_AUTOHIDE = 0x00000001;
+    private const uint ABE_LEFT = 0;
+    private const uint ABE_TOP = 1;
+    private const uint ABE_RIGHT = 2;
+    private const uint ABE_BOTTOM = 3;
+
+    private const int WM_GETMINMAXINFO = 0x0024;
+    private const int MONITOR_DEFAULTTONEAREST = 0x00000002;
     private const int WM_NCLBUTTONDOWN = 0xA1;
     private const int HTCAPTION = 0x2;
     private const int HTLEFT = 10;
@@ -141,6 +193,33 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
 
     private IntPtr MainWindowWndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
     {
+        if (msg == WM_GETMINMAXINFO)
+        {
+            var mmi = Marshal.PtrToStructure<MINMAXINFO>(lParam);
+            var monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+            if (monitor != IntPtr.Zero)
+            {
+                var monitorInfo = new MONITORINFO { cbSize = Marshal.SizeOf<MONITORINFO>() };
+                if (GetMonitorInfo(monitor, ref monitorInfo))
+                {
+                    var rcWork = monitorInfo.rcWork;
+                    var rcMonitor = monitorInfo.rcMonitor;
+
+                    AdjustForAutoHideTaskbar(monitor, ref rcWork, rcMonitor);
+
+                    mmi.ptMaxPosition.X = rcWork.Left - rcMonitor.Left;
+                    mmi.ptMaxPosition.Y = rcWork.Top - rcMonitor.Top;
+                    mmi.ptMaxSize.X = rcWork.Right - rcWork.Left;
+                    mmi.ptMaxSize.Y = rcWork.Bottom - rcWork.Top;
+                    mmi.ptMaxTrackSize.X = mmi.ptMaxSize.X;
+                    mmi.ptMaxTrackSize.Y = mmi.ptMaxSize.Y;
+                }
+            }
+            Marshal.StructureToPtr(mmi, lParam, true);
+            handled = true;
+            return IntPtr.Zero;
+        }
+
         if (msg != WM_NCHITTEST || WindowState == WindowState.Maximized || !GetWindowRect(hwnd, out var rect))
             return IntPtr.Zero;
 
@@ -158,6 +237,49 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
             : bottom ? (left ? HTBOTTOMLEFT : right ? HTBOTTOMRIGHT : HTBOTTOM)
             : left ? HTLEFT : HTRIGHT;
         return new IntPtr(hit);
+    }
+
+    private static void AdjustForAutoHideTaskbar(IntPtr monitor, ref RECT rcWork, RECT rcMonitor)
+    {
+        var appbarData = new APPBARDATA { cbSize = Marshal.SizeOf<APPBARDATA>() };
+        IntPtr taskbarHwnd = FindWindow("Shell_TrayWnd", null);
+        if (taskbarHwnd != IntPtr.Zero)
+        {
+            appbarData.hWnd = taskbarHwnd;
+            uint state = (uint)SHAppBarMessage(ABM_GETSTATE, ref appbarData);
+            if ((state & ABS_AUTOHIDE) != 0)
+            {
+                if (SHAppBarMessage(ABM_GETTASKBARPOS, ref appbarData) != IntPtr.Zero)
+                {
+                    var taskbarMonitor = MonitorFromWindow(taskbarHwnd, MONITOR_DEFAULTTONEAREST);
+                    if (taskbarMonitor == monitor)
+                    {
+                        switch (appbarData.uEdge)
+                        {
+                            case ABE_LEFT:
+                                rcWork.Left += 2;
+                                break;
+                            case ABE_TOP:
+                                rcWork.Top += 2;
+                                break;
+                            case ABE_RIGHT:
+                                rcWork.Right -= 2;
+                                break;
+                            case ABE_BOTTOM:
+                                rcWork.Bottom -= 2;
+                                break;
+                        }
+                        return;
+                    }
+                }
+
+                // Fallback if taskbar is on this screen or full work area matches monitor
+                if (rcWork.Bottom == rcMonitor.Bottom)
+                {
+                    rcWork.Bottom -= 2;
+                }
+            }
+        }
     }
 
     private async Task InitializeWebViewAsync()
@@ -363,7 +485,8 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
                 }
                 try
                 {
-                    OpenWithLauncher.Show(payload.FullPath);
+                    var parentHwnd = new WindowInteropHelper(this).Handle;
+                    OpenWithService.OpenFileWith(payload.FullPath, payload.ExePath, payload.ChooseDialog, parentHwnd);
                 }
                 catch (Exception ex)
                 {
@@ -733,8 +856,17 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
                     ViewModel.TintBrightness,
                     ViewModel.TintHexCode,
                     IsDebugMode,
-                    ViewModel.WindowTitle);
+                    ViewModel.WindowTitle,
+                    OpenWithService.GetOpenWithApps());
             });
+            return Task.CompletedTask;
+        });
+
+        // 16b. OPEN_WITH:GET_APPS
+        _ipcBridge.RegisterHandler(IpcMessageTypes.OpenWithGetApps, (payload, corrId) =>
+        {
+            var apps = OpenWithService.GetOpenWithApps(forceRefresh: true);
+            _ipcBridge.PostMessage(IpcMessageTypes.OpenWithAppsList, new OpenWithAppsListPayload(apps));
             return Task.CompletedTask;
         });
 

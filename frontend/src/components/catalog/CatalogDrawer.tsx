@@ -23,6 +23,7 @@ import { usePackStore } from '../../store/packStore';
 import { useIpc } from '../../hooks/useIpc';
 import { BlockGroupNodeDto, AliasGroupNodeDto, CatalogLeafDto } from '../../types/ipc';
 import { FlipbookThumbnail } from '../common/FlipbookThumbnail';
+import { SearchInput } from '../common/SearchInput';
 import styles from './CatalogDrawer.module.css';
 
 export interface CatalogDrawerProps {
@@ -769,30 +770,15 @@ export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose })
 
         {/* Search Toolbar */}
         <div className={styles.searchToolbar}>
-          <div className={styles.searchInputRow}>
-            <Search size={14} className={styles.searchIcon} />
-            <input
-              type="text"
-              className={styles.searchInput}
-              placeholder="Search vanilla blocks, items, entities, or aliases..."
-              value={searchText}
-              onChange={(e) => setSearchText(e.target.value)}
-              data-testid="catalog-search-input"
-              autoFocus
-            />
-            {searchText && (
-              <button
-                type="button"
-                className={styles.clearSearchBtn}
-                onClick={() => setSearchText('')}
-                title="Clear search query"
-                aria-label="Clear search"
-              >
-                <X size={12} />
-              </button>
-            )}
-          </div>
-
+          <SearchInput
+            value={searchText}
+            onChange={setSearchText}
+            placeholder="Search vanilla blocks, items, entities, or aliases..."
+            shortcutCue={isOpen ? '/' : null}
+            enableSlashShortcut={isOpen}
+            autoFocus
+            data-testid="catalog-search-input"
+          />
         </div>
 
         {/* Scrollable Catalog Tree */}

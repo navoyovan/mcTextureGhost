@@ -94,6 +94,7 @@ export const App: React.FC = () => {
 
     // Notify host that frontend is mounted and ready to receive state
     postCommand('APP:READY', {});
+    postCommand(IpcMessageTypes.OpenWithGetApps, {});
 
     // 1. PACK:STATE_CHANGED
     const unsubPackState = subscribe(IpcMessageTypes.PackStateChanged, (payload) => {
@@ -115,6 +116,9 @@ export const App: React.FC = () => {
     const unsubAppConfig = subscribe(IpcMessageTypes.AppConfig, (payload) => {
       setAppConfig(payload);
       applyTintTokens(payload);
+      if (payload.openWithApps) {
+        usePackStore.getState().setOpenWithApps(payload.openWithApps);
+      }
     });
 
     // 5. ERROR:NOTIFY
@@ -124,12 +128,20 @@ export const App: React.FC = () => {
       return () => clearTimeout(timer);
     });
 
+    // 6. OPEN_WITH:APPS_LIST
+    const unsubOpenWith = subscribe(IpcMessageTypes.OpenWithAppsList, (payload: any) => {
+      if (payload?.apps) {
+        usePackStore.getState().setOpenWithApps(payload.apps);
+      }
+    });
+
     return () => {
       unsubPackState();
       unsubScanProgress();
       unsubTextureUpdated();
       unsubAppConfig();
       unsubError();
+      unsubOpenWith();
     };
   }, [subscribe, setPackState, updateTexture, setScanProgress, setAppConfig]);
 

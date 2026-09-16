@@ -36,6 +36,7 @@ export const IpcMessageTypes = {
   GeometryGet: 'GEOMETRY:GET',
   VanillaDownload3DAssets: 'VANILLA:DOWNLOAD_3D_ASSETS',
   VanillaGet3DStatus: 'VANILLA:GET_3D_STATUS',
+  OpenWithGetApps: 'OPEN_WITH:GET_APPS',
 
   // Outgoing from C# to Web
   PackStateChanged: 'PACK:STATE_CHANGED',
@@ -47,6 +48,7 @@ export const IpcMessageTypes = {
   GeometryData: 'GEOMETRY:DATA',
   Vanilla3DStatus: 'VANILLA:3D_STATUS',
   DownloadProgress: 'DOWNLOAD:PROGRESS',
+  OpenWithAppsList: 'OPEN_WITH:APPS_LIST',
 } as const;
 
 export type IpcMessageType = (typeof IpcMessageTypes)[keyof typeof IpcMessageTypes];
@@ -65,10 +67,24 @@ export interface PackCreatePayload {
   targetDirectory?: string | null;
 }
 
+export interface OpenWithAppDto {
+  id: string;
+  name: string;
+  exePath: string;
+  iconDataUrl?: string | null;
+  isDefault?: boolean;
+}
+
+export interface OpenWithAppsListPayload {
+  apps: OpenWithAppDto[];
+}
+
 export interface TextureEditPayload {
   aliasKey: string;
   fullPath: string;
   isGhost?: boolean;
+  exePath?: string | null;
+  chooseDialog?: boolean;
 }
 
 export interface TextureDeleteFilePayload {
@@ -357,6 +373,7 @@ export interface AppConfigPayload {
   tintHex: string;
   debugMode: boolean;
   windowTitle: string;
+  openWithApps?: OpenWithAppDto[] | null;
 }
 
 export interface ErrorPayload {

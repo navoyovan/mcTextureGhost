@@ -71,6 +71,7 @@ public static class IpcMessageTypes
     public const string GeometryGet      = "GEOMETRY:GET";
     public const string VanillaDownload3DAssets = "VANILLA:DOWNLOAD_3D_ASSETS";
     public const string VanillaGet3DStatus      = "VANILLA:GET_3D_STATUS";
+    public const string OpenWithGetApps         = "OPEN_WITH:GET_APPS";
 
     // Outgoing from C# to Web
     public const string PackStateChanged = "PACK:STATE_CHANGED";
@@ -82,6 +83,7 @@ public static class IpcMessageTypes
     public const string GeometryData     = "GEOMETRY:DATA";
     public const string Vanilla3DStatus  = "VANILLA:3D_STATUS";
     public const string DownloadProgress = "DOWNLOAD:PROGRESS";
+    public const string OpenWithAppsList = "OPEN_WITH:APPS_LIST";
 }
 
 #endregion
@@ -114,7 +116,9 @@ public record PackCreatePayload(
 public record TextureEditPayload(
     [property: JsonPropertyName("aliasKey")] string AliasKey,
     [property: JsonPropertyName("fullPath")] string FullPath,
-    [property: JsonPropertyName("isGhost")] bool IsGhost = false
+    [property: JsonPropertyName("isGhost")] bool IsGhost = false,
+    [property: JsonPropertyName("exePath")] string? ExePath = null,
+    [property: JsonPropertyName("chooseDialog")] bool ChooseDialog = false
 );
 
 /// <summary>
@@ -337,7 +341,12 @@ public record AppConfigPayload(
     [property: JsonPropertyName("tintBrightness")] int TintBrightness,
     [property: JsonPropertyName("tintHex")] string TintHex,
     [property: JsonPropertyName("debugMode")] bool DebugMode,
-    [property: JsonPropertyName("windowTitle")] string WindowTitle = "McTextureGhost"
+    [property: JsonPropertyName("windowTitle")] string WindowTitle = "McTextureGhost",
+    [property: JsonPropertyName("openWithApps")] List<OpenWithAppDto>? OpenWithApps = null
+);
+
+public record OpenWithAppsListPayload(
+    [property: JsonPropertyName("apps")] List<OpenWithAppDto> Apps
 );
 
 /// <summary>

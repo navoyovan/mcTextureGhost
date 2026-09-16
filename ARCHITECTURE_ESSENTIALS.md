@@ -25,6 +25,14 @@ Fast reference for day-to-day tasks. Consult this file first to conserve context
 ## 3. IPC Communication & Virtual Hosts
 - **Host $\rightarrow$ Web:** `MainViewModel` posts JSON string via `CoreWebView2.PostWebMessageAsString`.
 - **Web $\rightarrow$ Host:** React components post message via `window.chrome?.webview?.postMessage({ type, payload })`.
+- **Open With & Context Menu (`OPEN_WITH:*`):**
+  - `OPEN_WITH:GET_APPS` $\rightarrow$ `OPEN_WITH:APPS`: Discovers installed image editors from Windows Registry (`OpenWithService.cs`) with authentic base64 app icons.
+  - `OPEN_WITH:OPEN`: Launches specified texture in selected application executable.
+  - `OPEN_WITH:CHOOSE_APP`: Triggers Windows native "Open With..." app picker.
+  - Rendered via a global singleton portal (`TextureContextMenu.tsx`) outside `.map()` loops with 800ms hover grace period for instant (<2ms) render.
+- **Search System & Shortcuts:**
+  - Unified under `SearchInput.tsx` primitive across pack grid, block workspace, entity workspace, and JSON readers.
+  - Global `/` keyboard shortcut focuses active search bar.
 - **Geometry & 3D Assets (`GEOMETRY:*`, `VANILLA:*`):**
   - `GEOMETRY:GET` $\rightarrow$ `GEOMETRY:DATA`: Requests/returns raw Bedrock geometry JSON for an entity or geometry ID.
   - `VANILLA:DOWNLOAD_3D_ASSETS`: Streams Mojang `bedrock-samples` zip into `%APPDATA%\McTextureGhost\reference_packs\vanilla\` to avoid GitHub API rate limits.
@@ -45,6 +53,8 @@ Fast reference for day-to-day tasks. Consult this file first to conserve context
 ## 4. View Navigation & File Reader Pattern
 - **Routed Views (`activeView`):** Three main routed views: `'grid'` | `'workspace'` | `'entity'`. Navigate via `setActiveView(view)`.
 - **JSON & Manifest Files:** Opened seamlessly via `setSelectedFolderPath(filePath)` (e.g. `setSelectedFolderPath('manifest.json')`). `JsonReader` mounts as a focused overlay editor without creating artificial routing states.
+- **Window & Shell Invariants:**
+  - `MainWindow.xaml.cs` handles `WM_GETMINMAXINFO` with `SHAppBarMessage` auto-hide taskbar offset (2px margin) to ensure taskbars remain reachable when maximized.
 
 ## 5. Build & Verify Invariants
 - **Frontend-Only Scope (NO dotnet build, NEVER kill McTextureGhost processes):**

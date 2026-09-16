@@ -11,7 +11,10 @@ import {
   ScanProgressPayload,
   AppConfigPayload,
   ReferencePackProfile,
+  OpenWithAppDto,
 } from '../types/ipc';
+
+export type TextureFilterKey = 'ghosts' | 'orphans' | 'added' | 'mers' | 'flipbook' | 'variations' | 'blockstates' | 'variation';
 
 export interface PackStoreState {
   // Domain Pack State
@@ -35,7 +38,8 @@ export interface PackStoreState {
   // UI & Filter State
   activeTab: 'all' | 'blocks' | 'items' | 'entities';
   searchQuery: string;
-  statusFilter: 'all' | 'ghosts' | 'added' | 'orphans';
+  statusFilter: 'all' | 'ghosts' | 'added' | 'orphans' | 'mers' | 'flipbook' | 'variations' | 'blockstates' | 'variation';
+  activeFilters: TextureFilterKey[];
   activeView: 'grid' | 'workspace' | 'entity';
   selectedBlockId: string | null;
   selectedAliasKey: string | null;
@@ -53,6 +57,7 @@ export interface PackStoreState {
   tintHex: string;
   debugMode: boolean;
   windowTitle: string;
+  openWithApps: OpenWithAppDto[];
 }
 
 export interface PackStoreActions {
@@ -63,7 +68,10 @@ export interface PackStoreActions {
   setIsScanning: (scanning: boolean) => void;
   setActiveTab: (tab: 'all' | 'blocks' | 'items' | 'entities') => void;
   setSearchQuery: (query: string) => void;
-  setStatusFilter: (filter: 'all' | 'ghosts' | 'added' | 'orphans') => void;
+  setStatusFilter: (filter: 'all' | 'ghosts' | 'added' | 'orphans' | 'mers' | 'flipbook' | 'variations' | 'blockstates' | 'variation') => void;
+  setActiveFilters: (filters: TextureFilterKey[]) => void;
+  toggleFilter: (filter: TextureFilterKey) => void;
+  clearFilters: () => void;
   setActiveView: (view: 'grid' | 'workspace' | 'entity') => void;
   setSelectedBlockId: (id: string | null) => void;
   setSelectedAliasKey: (key: string | null) => void;
@@ -75,6 +83,7 @@ export interface PackStoreActions {
   setActiveReferenceId: (id: string) => void;
   setTileZoom: (zoom: number) => void;
   setAppConfig: (config: Partial<AppConfigPayload>) => void;
+  setOpenWithApps: (apps: OpenWithAppDto[]) => void;
 }
 
 export type PackStore = PackStoreState & PackStoreActions;
@@ -116,6 +125,7 @@ const initialState: PackStoreState = {
   activeTab: 'all',
   searchQuery: '',
   statusFilter: 'all',
+  activeFilters: [],
   activeView: 'grid',
   selectedBlockId: null,
   selectedAliasKey: null,
@@ -140,6 +150,7 @@ const initialState: PackStoreState = {
   tintHex: '#121214',
   debugMode: false,
   windowTitle: 'mcTextureGhost',
+  openWithApps: [],
 };
 
 function computeStats(aliases: TextureAliasDto[]): PackStatsDto {
@@ -279,8 +290,30 @@ export const packStoreActions: PackStoreActions = {
     notify();
   },
 
-  setStatusFilter(filter: 'all' | 'ghosts' | 'added' | 'orphans'): void {
-    currentState = { ...currentState, statusFilter: filter };
+  setStatusFilter(filter: 'all' | 'ghosts' | 'added' | 'orphans' | 'mers' | 'flipbook' | 'variations' | 'blockstates' | 'variation'): void {
+    const activeFilters: TextureFilterKey[] = filter === 'all' ? [] : [filter as TextureFilterKey];
+    currentState = { ...currentState, statusFilter: filter, activeFilters };
+    notify();
+  },
+
+  setActiveFilters(filters: TextureFilterKey[]): void {
+    const statusFilter = filters.length > 0 ? (filters[0] ?? 'all') : 'all';
+    currentState = { ...currentState, activeFilters: filters, statusFilter };
+    notify();
+  },
+
+  toggleFilter(filter: TextureFilterKey): void {
+    const current = currentState.activeFilters;
+    const next = current.includes(filter)
+      ? current.filter((f) => f !== filter)
+      : [...current, filter];
+    const statusFilter = next.length > 0 ? (next[0] ?? 'all') : 'all';
+    currentState = { ...currentState, activeFilters: next, statusFilter };
+    notify();
+  },
+
+  clearFilters(): void {
+    currentState = { ...currentState, activeFilters: [], statusFilter: 'all' };
     notify();
   },
 
@@ -343,7 +376,13 @@ export const packStoreActions: PackStoreActions = {
       tintHex: config.tintHex ?? currentState.tintHex,
       debugMode: config.debugMode ?? currentState.debugMode,
       windowTitle: config.windowTitle ?? currentState.windowTitle,
+      openWithApps: config.openWithApps ?? currentState.openWithApps,
     };
+    notify();
+  },
+
+  setOpenWithApps(apps: OpenWithAppDto[]): void {
+    currentState = { ...currentState, openWithApps: apps };
     notify();
   },
 };

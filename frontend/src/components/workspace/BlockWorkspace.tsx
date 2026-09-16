@@ -51,6 +51,7 @@ export const BlockWorkspace: React.FC = () => {
   const blockWorkspaceTree = usePackStore((s) => s.blockWorkspaceTree);
   const searchQuery = usePackStore((s) => s.searchQuery);
   const statusFilter = usePackStore((s) => s.statusFilter);
+  const activeFilters = usePackStore((s) => s.activeFilters);
   const { editTexture, deleteTextureFile, deleteTextureEntries } = useIpc();
 
   const [activeMenuKey, setActiveMenuKey] = useState<string | null>(null);
@@ -70,29 +71,65 @@ export const BlockWorkspace: React.FC = () => {
     };
   }, [activeMenuKey]);
 
-  // Filter block list by toolbar searchQuery and statusFilter
+  // Filter block list by toolbar searchQuery and activeFilters/statusFilter
   const filteredBlockWorkspaceTree = useMemo(() => {
     if (!blockWorkspaceTree) return [];
     const query = searchQuery.trim().toLowerCase();
 
+    const effectiveFilters = activeFilters.length > 0
+      ? activeFilters
+      : (statusFilter !== 'all' ? [statusFilter as any] : []);
+
     return blockWorkspaceTree.filter((block) => {
-      // 1. Status filter
-      if (statusFilter === 'ghosts' && (block.ghostCount ?? 0) <= 0) {
-        return false;
-      }
-      if (statusFilter === 'added') {
-        const hasAdded = block.aliasGroups?.some((ag) =>
-          (ag.leaves?.some((l) => l.status === 'OK') ?? false) ||
-          (ag.faceNodes?.some((fn) => fn.leaves?.some((l) => l.status === 'OK') ?? false) ?? false)
+      const allLeaves = [
+        ...(block.aliasGroups?.flatMap((ag) => ag.leaves ?? []) ?? []),
+        ...(block.aliasGroups?.flatMap((ag) => ag.faceNodes?.flatMap((fn) => fn.leaves ?? []) ?? []) ?? []),
+      ];
+
+      // 1. Active Filters (Checklist)
+      if (effectiveFilters.length > 0) {
+        const hasStatusFilter = effectiveFilters.some((f) => f === 'ghosts' || f === 'added' || f === 'orphans');
+        const hasFeatureFilter = effectiveFilters.some(
+          (f) => f === 'mers' || f === 'flipbook' || f === 'variations' || f === 'blockstates' || f === 'variation'
         );
-        if (!hasAdded) return false;
-      }
-      if (statusFilter === 'orphans') {
-        const hasOrphan = block.aliasGroups?.some((ag) =>
-          (ag.leaves?.some((l) => l.status === 'ORPHAN') ?? false) ||
-          (ag.faceNodes?.some((fn) => fn.leaves?.some((l) => l.status === 'ORPHAN') ?? false) ?? false)
-        );
-        if (!hasOrphan) return false;
+
+        if (hasStatusFilter) {
+          const statusMatch =
+            (effectiveFilters.includes('ghosts') && (block.ghostCount ?? 0) > 0) ||
+            (effectiveFilters.includes('added') && allLeaves.some((l) => l.status === 'OK' || l.status === 'OVERRIDE')) ||
+            (effectiveFilters.includes('orphans') && allLeaves.some((l) => l.status === 'ORPHAN'));
+          if (!statusMatch) return false;
+        }
+
+        if (hasFeatureFilter) {
+          const hasMers = allLeaves.some((l) => (l as any).hasMers || (l as any).mersFullPath);
+          const hasFlipbook = allLeaves.some((l) => l.isFlipbook || Boolean(l.flipbook));
+          const hasTextureVariation = allLeaves.some(
+            (l) =>
+              (l.totalTextureVariants && l.totalTextureVariants > 1) ||
+              l.variantKind === 'TextureVariant' ||
+              l.variantKind === 'NestedVariant' ||
+              l.textureVariantIndex != null
+          );
+          const hasBlockstate =
+            (block.totalVariants && block.totalVariants > 1) ||
+            allLeaves.some(
+              (l) =>
+                (l.totalBlockVariants && l.totalBlockVariants > 1) ||
+                l.variantKind === 'BlockVariant' ||
+                l.variantKind === 'NestedVariant' ||
+                l.blockVariantIndex != null
+            );
+          const hasMergedVariation = hasTextureVariation || hasBlockstate;
+
+          const featureMatch =
+            (effectiveFilters.includes('mers') && hasMers) ||
+            (effectiveFilters.includes('flipbook') && hasFlipbook) ||
+            (effectiveFilters.includes('variations') && hasTextureVariation) ||
+            (effectiveFilters.includes('blockstates') && hasBlockstate) ||
+            (effectiveFilters.includes('variation') && hasMergedVariation);
+          if (!featureMatch) return false;
+        }
       }
 
       // 2. Search query filter
@@ -105,10 +142,6 @@ export const BlockWorkspace: React.FC = () => {
       // Check inner aliases, paths, or leaf display names
       return block.aliasGroups?.some((ag) => {
         if ((ag.alias || '').toLowerCase().includes(query)) return true;
-        const allLeaves = [
-          ...(ag.leaves ?? []),
-          ...(ag.faceNodes ? ag.faceNodes.flatMap((fn) => fn.leaves ?? []) : []),
-        ];
         return allLeaves.some(
           (l) =>
             (l.relativePath || '').toLowerCase().includes(query) ||
@@ -117,7 +150,7 @@ export const BlockWorkspace: React.FC = () => {
         );
       });
     });
-  }, [blockWorkspaceTree, searchQuery, statusFilter]);
+  }, [blockWorkspaceTree, searchQuery, statusFilter, activeFilters]);
 
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
 
