@@ -108,16 +108,37 @@ export const TileHoverMorphPortal: React.FC<TileHoverMorphPortalProps> = ({
     }, 220);
   }, [isClosing, target.domElement, onClose]);
 
-  // Initial calculation of morph coordinates
+  // Initial and dynamic calculation of morph coordinates
   useEffect(() => {
     const rect = target.originRect;
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
     const margin = 16;
 
-    const expandedWidth = Math.min(290, viewportWidth - 2 * margin);
-    const thumbHeight = 190;
-    const totalHeight = thumbHeight + 115;
+    const texelScale = 10;
+    const baseTexWidth = imgDimensions?.width ?? 16;
+    const rawTexHeight = imgDimensions?.height ?? 16;
+    const isSpriteSheet = Boolean(alias.isFlipbook || alias.flipbook || (rawTexHeight >= baseTexWidth * 2));
+    const effectiveTexHeight = isSpriteSheet ? baseTexWidth : rawTexHeight;
+
+    const idealSpriteW = baseTexWidth * texelScale;
+    const idealSpriteH = effectiveTexHeight * texelScale;
+
+    // Minimum width for clean UI buttons & metadata is 260px; max bounded by viewport
+    const maxAvailableWidth = viewportWidth - 2 * margin;
+    const maxAvailableHeight = viewportHeight - 2 * margin;
+    const metaAndActionsHeight = 115;
+
+    // Dynamic width & thumbHeight scaled to texture resolution with padding
+    const expandedWidth = Math.min(
+      Math.max(260, idealSpriteW + 28),
+      Math.min(760, maxAvailableWidth)
+    );
+    const thumbHeight = Math.min(
+      Math.max(160, idealSpriteH + 24),
+      Math.min(560, maxAvailableHeight - metaAndActionsHeight)
+    );
+    const totalHeight = thumbHeight + metaAndActionsHeight;
 
     const originalCenterX = rect.left + rect.width / 2;
     let left = originalCenterX - expandedWidth / 2;
@@ -158,7 +179,7 @@ export const TileHoverMorphPortal: React.FC<TileHoverMorphPortalProps> = ({
       cancelAnimationFrame(raf);
       if (closingTimerRef.current) clearTimeout(closingTimerRef.current);
     };
-  }, [target.originRect]);
+  }, [target.originRect, imgDimensions, alias.isFlipbook, alias.flipbook]);
 
   // Scroll tracking
   useEffect(() => {
