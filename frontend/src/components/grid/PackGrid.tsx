@@ -238,24 +238,25 @@ export const PackGrid: React.FC = () => {
   }, [editTexture]);
 
   const handleMouseEnterTile = React.useCallback((domEl: HTMLElement, alias: TextureAliasDto, key: string) => {
-    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
-    setContextMenuTarget((currentMenu) => {
-      if (!currentMenu) {
-        hoverTimerRef.current = window.setTimeout(() => {
-          if (domEl && document.body.contains(domEl)) {
-            const rect = domEl.getBoundingClientRect();
-            setHoverMorphTarget({
-              alias,
-              key,
-              originRect: rect,
-              domElement: domEl,
-            });
-          }
-        }, 1200);
-      }
-      return currentMenu;
-    });
-  }, []);
+    if (hoverTimerRef.current) {
+      clearTimeout(hoverTimerRef.current);
+      hoverTimerRef.current = null;
+    }
+    if (!contextMenuTarget) {
+      hoverTimerRef.current = window.setTimeout(() => {
+        // STRICT CHECK: Element must still be connected AND currently hovered by the pointer
+        if (domEl && document.body.contains(domEl) && domEl.matches(':hover')) {
+          const rect = domEl.getBoundingClientRect();
+          setHoverMorphTarget({
+            alias,
+            key,
+            originRect: rect,
+            domElement: domEl,
+          });
+        }
+      }, 700);
+    }
+  }, [contextMenuTarget]);
 
   const handleMouseLeaveTile = React.useCallback(() => {
     if (hoverTimerRef.current) {
@@ -267,7 +268,10 @@ export const PackGrid: React.FC = () => {
   const handleContextMenu = React.useCallback((e: React.MouseEvent, alias: TextureAliasDto, key: string) => {
     e.preventDefault();
     e.stopPropagation();
-    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+    if (hoverTimerRef.current) {
+      clearTimeout(hoverTimerRef.current);
+      hoverTimerRef.current = null;
+    }
     setHoverMorphTarget(null);
     setContextMenuTarget({
       alias,
@@ -278,7 +282,10 @@ export const PackGrid: React.FC = () => {
 
   const handleOpenMenu = React.useCallback((e: React.MouseEvent, alias: TextureAliasDto, key: string) => {
     e.stopPropagation();
-    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+    if (hoverTimerRef.current) {
+      clearTimeout(hoverTimerRef.current);
+      hoverTimerRef.current = null;
+    }
     setHoverMorphTarget(null);
     setContextMenuTarget((current) => {
       if (current?.key === key) {
@@ -299,7 +306,10 @@ export const PackGrid: React.FC = () => {
   }, []);
 
   return (
-    <div className={styles.gridContainer}>
+    <div
+      className={styles.gridContainer}
+      onMouseLeave={handleMouseLeaveTile}
+    >
       {filteredAliases.length === 0 ? (
         <div className={styles.emptyState}>
           <span className={styles.emptyIcon}>🔍</span>

@@ -178,12 +178,12 @@ export const TileHoverMorphPortal: React.FC<TileHoverMorphPortalProps> = ({
     return () => window.removeEventListener('scroll', handleScroll, { capture: true });
   }, [target.domElement, isClosing, triggerSnapBack]);
 
-  // Mousemove safety buffer tracking (24px padding around expanded card)
+  // Global dismiss listeners for outside click, window blur, and mousemove bounding
   useEffect(() => {
     if (!coords || isClosing) return;
 
     const handleMouseMove = (e: MouseEvent) => {
-      const pad = 24;
+      const pad = 16;
       const inX = e.clientX >= coords.left - pad && e.clientX <= coords.left + coords.width + pad;
       const inY = e.clientY >= coords.top - pad && e.clientY <= coords.top + coords.totalHeight + pad;
 
@@ -192,8 +192,24 @@ export const TileHoverMorphPortal: React.FC<TileHoverMorphPortalProps> = ({
       }
     };
 
+    const handleGlobalPointerDown = (e: PointerEvent) => {
+      if (cardRef.current && !cardRef.current.contains(e.target as Node)) {
+        triggerSnapBack();
+      }
+    };
+
+    const handleBlur = () => {
+      triggerSnapBack();
+    };
+
     window.addEventListener('mousemove', handleMouseMove, { passive: true });
-    return () => window.removeEventListener('mousemove', handleMouseMove);
+    window.addEventListener('pointerdown', handleGlobalPointerDown);
+    window.addEventListener('blur', handleBlur);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('pointerdown', handleGlobalPointerDown);
+      window.removeEventListener('blur', handleBlur);
+    };
   }, [coords, isClosing, triggerSnapBack]);
 
   const handleCopyPath = (e: React.MouseEvent) => {
@@ -256,7 +272,9 @@ export const TileHoverMorphPortal: React.FC<TileHoverMorphPortalProps> = ({
           top: `${currentTop}px`,
           width: `${currentWidth}px`,
           height: `${currentHeight}px`,
+          pointerEvents: isClosing ? 'none' : 'auto',
         }}
+        onMouseLeave={triggerSnapBack}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Top Floating Badges */}
