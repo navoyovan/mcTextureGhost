@@ -19,7 +19,7 @@ interface WorkspaceTileCardProps {
   selectedBlockName: string;
   isMenuOpen: boolean;
   onToggleMenu: (key: string) => void;
-  onEditTexture: (leaf: CatalogLeafDto) => void;
+  onTileClick: (domEl: HTMLElement, leaf: CatalogLeafDto, key: string) => void;
   onDeleteTextureFile: (path: string, alias: string) => void;
   onDeleteTextureEntries: (alias: string, relativePath?: string | null) => void;
 }
@@ -59,7 +59,7 @@ export const WorkspaceTileCard: React.FC<WorkspaceTileCardProps> = React.memo(({
   selectedBlockName,
   isMenuOpen,
   onToggleMenu,
-  onEditTexture,
+  onTileClick,
   onDeleteTextureFile,
   onDeleteTextureEntries,
 }) => {
@@ -105,6 +105,9 @@ export const WorkspaceTileCard: React.FC<WorkspaceTileCardProps> = React.memo(({
       className={`${styles.leafCard} ${hasTexVariants ? styles.leafCardWithVariants : ''}`}
       style={cardStyle}
       title={tooltipTitle}
+      onClick={(e) => {
+        onTileClick(e.currentTarget, primary, cardKey);
+      }}
       onContextMenu={(e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -181,7 +184,10 @@ export const WorkspaceTileCard: React.FC<WorkspaceTileCardProps> = React.memo(({
               {i > 0 && <div className={styles.texVarDivider} />}
               <div
                 className={`${hasTexVariants ? styles.texVarThumbSlot : styles.leafThumbInner} ${!isLeafGhost ? styles.texVarThumbSlotAdded : ''}`}
-                onClick={() => onEditTexture(leaf)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onTileClick(e.currentTarget, leaf, `${cardKey}-${i}`);
+                }}
                 title={leafName}
               >
                 {!isLeafGhost && leaf.imageUrl ? (

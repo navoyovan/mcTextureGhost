@@ -1,8 +1,9 @@
 // frontend/src/components/grid/TileHoverMorphPortal.tsx
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { Edit3, ExternalLink, FolderOpen, Copy, Check } from 'lucide-react';
+import { Edit3, ExternalLink, FolderOpen, Copy, Check, Layers } from 'lucide-react';
 import { TextureAliasDto } from '../../types/ipc';
+import { usePackStore } from '../../store/packStore';
 import { FlipbookThumbnail } from '../common/FlipbookThumbnail';
 import styles from './TileHoverMorphPortal.module.css';
 
@@ -77,12 +78,13 @@ const computeMorphCoords = (
     left = viewportWidth - margin - expandedWidth;
   }
 
+  const topMargin = 36;
   let top = rect.top - 20;
   if (top + totalHeight > viewportHeight - margin) {
     top = viewportHeight - margin - totalHeight;
   }
-  if (top < margin) {
-    top = margin;
+  if (top < topMargin) {
+    top = topMargin;
   }
 
   return {
@@ -110,22 +112,72 @@ export const TileHoverMorphPortal: React.FC<TileHoverMorphPortalProps> = ({
   const [isMorphed, setIsMorphed] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [imgDimensions, setImgDimensions] = useState<{ width: number; height: number } | null>(null);
+  const [imgDimensions, setImgDimensions] = useState<{ width: number; height: number } | null>(() => {
+    if (target.domElement) {
+      const img = target.domElement.querySelector('img');
+      if (img && img.naturalWidth > 0 && img.naturalHeight > 0) {
+        return { width: img.naturalWidth, height: img.naturalHeight };
+      }
+      const canvas = target.domElement.querySelector('canvas');
+      if (canvas && canvas.width > 0 && canvas.height > 0) {
+        return { width: canvas.width, height: canvas.height };
+      }
+    }
+    return null;
+  });
 
   // Synchronous initial coordinate computation prevents blank mount frame
   const [coords, setCoords] = useState<Coords>(() =>
-    computeMorphCoords(target.originRect, null, Boolean(target.alias.isFlipbook || target.alias.flipbook))
+    computeMorphCoords(
+      target.originRect,
+      target.domElement
+        ? (() => {
+            const img = target.domElement.querySelector('img');
+            if (img && img.naturalWidth > 0 && img.naturalHeight > 0) {
+              return { width: img.naturalWidth, height: img.naturalHeight };
+            }
+            const canvas = target.domElement.querySelector('canvas');
+            if (canvas && canvas.width > 0 && canvas.height > 0) {
+              return { width: canvas.width, height: canvas.height };
+            }
+            return null;
+          })()
+        : null,
+      Boolean(target.alias.isFlipbook || target.alias.flipbook)
+    )
   );
 
   const cardRef = useRef<HTMLDivElement>(null);
   const closingTimerRef = useRef<number | null>(null);
+  const leaveTimerRef = useRef<number | null>(null);
 
   const alias = target.alias;
   const isGhost = alias.status === 'GHOST';
 
-  // Load natural dimensions to calibrate uniform pixel-art scaling
+  const [isPeekingMers, setIsPeekingMers] = useState(false);
+
+  // Derive virtual URL for companion PBR MERS map
+  const mersUrl = useMemo(() => {
+    if (!alias.mersFullPath) return null;
+    const packRoot = usePackStore.getState().packRoot;
+    if (packRoot && alias.mersFullPath.startsWith(packRoot)) {
+      const rel = alias.mersFullPath.slice(packRoot.length).replace(/^[/\\]+/, '').replace(/\\/g, '/');
+      return `https://pack.local/${rel}`;
+    }
+    if (alias.imageUrl) {
+      const mersFileName = alias.mersFullPath.split(/[/\\]/).pop();
+      if (mersFileName) {
+        return alias.imageUrl.replace(/[^/?#]+(\?.*)?$/, `${mersFileName}$1`);
+      }
+    }
+    return null;
+  }, [alias.mersFullPath, alias.imageUrl]);
+
+  const activePreviewSrc = (isPeekingMers && mersUrl) ? mersUrl : alias.imageUrl;
+
+  // Fallback dimension loader if DOM image was not yet loaded at mount
   useEffect(() => {
-    if (!alias.imageUrl) return;
+    if (imgDimensions || isGhost || !alias.imageUrl) return;
     const img = new Image();
     img.src = alias.imageUrl;
     img.onload = () => {
@@ -134,7 +186,7 @@ export const TileHoverMorphPortal: React.FC<TileHoverMorphPortalProps> = ({
         height: img.naturalHeight || 16,
       });
     };
-  }, [alias.imageUrl]);
+  }, [alias.imageUrl, isGhost, imgDimensions]);
 
   // Update target coordinates smoothly when image dimensions become available
   useEffect(() => {
@@ -154,13 +206,10 @@ export const TileHoverMorphPortal: React.FC<TileHoverMorphPortalProps> = ({
     if (cardRef.current) {
       void cardRef.current.offsetHeight; // Force initial style commit
     }
-    const raf1 = requestAnimationFrame(() => {
-      const raf2 = requestAnimationFrame(() => {
-        setIsMorphed(true);
-      });
-      return () => cancelAnimationFrame(raf2);
+    const raf = requestAnimationFrame(() => {
+      setIsMorphed(true);
     });
-    return () => cancelAnimationFrame(raf1);
+    return () => cancelAnimationFrame(raf);
   }, []);
 
   // Calculate file base and extension
@@ -174,8 +223,16 @@ export const TileHoverMorphPortal: React.FC<TileHoverMorphPortalProps> = ({
   const rawDotIdx = rawFileName.lastIndexOf('.');
   const fileBase = rawDotIdx > 0 ? rawFileName.substring(0, rawDotIdx) : rawFileName;
 
+  const clearLeaveTimer = useCallback(() => {
+    if (leaveTimerRef.current) {
+      clearTimeout(leaveTimerRef.current);
+      leaveTimerRef.current = null;
+    }
+  }, []);
+
   const triggerSnapBack = useCallback(() => {
     if (isClosing) return;
+    clearLeaveTimer();
 
     // Refresh original rect from live DOM element if still attached
     if (target.domElement) {
@@ -198,7 +255,24 @@ export const TileHoverMorphPortal: React.FC<TileHoverMorphPortalProps> = ({
     closingTimerRef.current = window.setTimeout(() => {
       onClose();
     }, 220);
-  }, [isClosing, target.domElement, onClose]);
+  }, [isClosing, target.domElement, onClose, clearLeaveTimer]);
+
+  const scheduleSnapBack = useCallback(() => {
+    if (isClosing) return;
+    if (!leaveTimerRef.current) {
+      leaveTimerRef.current = window.setTimeout(() => {
+        triggerSnapBack();
+      }, 100);
+    }
+  }, [isClosing, triggerSnapBack]);
+
+  // Cleanup timers on unmount
+  useEffect(() => {
+    return () => {
+      if (closingTimerRef.current) clearTimeout(closingTimerRef.current);
+      clearLeaveTimer();
+    };
+  }, [clearLeaveTimer]);
 
   // Scroll tracking
   useEffect(() => {
@@ -238,18 +312,22 @@ export const TileHoverMorphPortal: React.FC<TileHoverMorphPortalProps> = ({
       const inX = e.clientX >= coords.left - pad && e.clientX <= coords.left + coords.width + pad;
       const inY = e.clientY >= coords.top - pad && e.clientY <= coords.top + coords.totalHeight + pad;
 
-      if (!inX || !inY) {
-        triggerSnapBack();
+      if (inX && inY) {
+        clearLeaveTimer();
+      } else {
+        scheduleSnapBack();
       }
     };
 
     const handleGlobalPointerDown = (e: PointerEvent) => {
       if (cardRef.current && !cardRef.current.contains(e.target as Node)) {
+        clearLeaveTimer();
         triggerSnapBack();
       }
     };
 
     const handleBlur = () => {
+      clearLeaveTimer();
       triggerSnapBack();
     };
 
@@ -261,7 +339,7 @@ export const TileHoverMorphPortal: React.FC<TileHoverMorphPortalProps> = ({
       window.removeEventListener('pointerdown', handleGlobalPointerDown);
       window.removeEventListener('blur', handleBlur);
     };
-  }, [coords, isClosing, triggerSnapBack]);
+  }, [coords, isClosing, triggerSnapBack, clearLeaveTimer, scheduleSnapBack]);
 
   const handleCopyPath = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -345,20 +423,20 @@ export const TileHoverMorphPortal: React.FC<TileHoverMorphPortalProps> = ({
           height: `${currentHeight}px`,
           pointerEvents: isClosing ? 'none' : 'auto',
         }}
-        onMouseLeave={triggerSnapBack}
+        onMouseEnter={clearLeaveTimer}
+        onMouseLeave={scheduleSnapBack}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Top Floating Badges */}
+        {/* Outside Floating Badges */}
         {isMorphed && (
-          <div className={styles.topOverlay}>
-            <div className={styles.badgeGroup}>
-              {getStatusBadge()}
-              {alias.isFlipbook && <span className={`${styles.badge} ${styles.badgeAnim}`}>ANIM</span>}
-              {alias.hasMers && <span className={`${styles.badge} ${styles.badgeMers}`}>MERS</span>}
-            </div>
-            <span className={styles.resChip}>
-              {baseTexWidth}×{effectiveTexHeight} • {alias.category?.toUpperCase() || 'TEXTURE'}
-            </span>
+          <div className={styles.outsideBadgeRow}>
+            {getStatusBadge()}
+            {alias.isFlipbook && <span className={`${styles.badge} ${styles.badgeAnim}`}>ANIM</span>}
+            {alias.hasMers && (
+              <span className={`${styles.badge} ${styles.badgeMers} ${isPeekingMers ? styles.badgeMersActive : ''}`}>
+                {isPeekingMers ? 'MERS MAP' : 'MERS'}
+              </span>
+            )}
           </div>
         )}
 
@@ -369,8 +447,17 @@ export const TileHoverMorphPortal: React.FC<TileHoverMorphPortalProps> = ({
         >
           {isMorphed && <div className={styles.thumbCheckerboardBg} />}
 
+          {/* Resolution & Category Chip inside container */}
+          {isMorphed && (
+            <div className={styles.thumbInnerChip}>
+              <span className={styles.resChip}>
+                {baseTexWidth}×{effectiveTexHeight} • {alias.category?.toUpperCase() || 'TEXTURE'}
+              </span>
+            </div>
+          )}
+
           <div className={styles.thumbImageWrapper}>
-            {!isGhost && alias.imageUrl ? (
+            {!isGhost && activePreviewSrc ? (
               <div
                 className={styles.spriteScaler}
                 style={
@@ -380,17 +467,17 @@ export const TileHoverMorphPortal: React.FC<TileHoverMorphPortalProps> = ({
                         height: `${uniformSpriteHeight}px`,
                       }
                     : {
-                        width: '100%',
-                        height: '100%',
+                        width: `${unmorphedThumbSize}px`,
+                        height: `${unmorphedThumbSize}px`,
                       }
                 }
               >
                 <FlipbookThumbnail
-                  src={alias.imageUrl}
-                  alt={alias.alias}
+                  src={activePreviewSrc}
+                  alt={isPeekingMers ? `${alias.alias} (MERS Map)` : alias.alias}
                   className={styles.spriteImg}
-                  isFlipbook={alias.isFlipbook}
-                  flipbook={alias.flipbook}
+                  isFlipbook={!isPeekingMers && Boolean(alias.isFlipbook)}
+                  flipbook={!isPeekingMers ? alias.flipbook : null}
                 />
               </div>
             ) : (
@@ -428,6 +515,31 @@ export const TileHoverMorphPortal: React.FC<TileHoverMorphPortalProps> = ({
                 <Edit3 size={13} />
                 <span>{isGhost ? 'Create' : 'Edit'}</span>
               </button>
+
+              {/* Hold to Peek MERS PBR Map Button */}
+              {alias.hasMers && mersUrl && (
+                <button
+                  type="button"
+                  className={`${styles.mersHoldBtn} ${isPeekingMers ? styles.mersHoldBtnActive : ''}`}
+                  onPointerDown={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setIsPeekingMers(true);
+                  }}
+                  onPointerUp={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setIsPeekingMers(false);
+                  }}
+                  onPointerLeave={() => setIsPeekingMers(false)}
+                  onPointerCancel={() => setIsPeekingMers(false)}
+                  title="Hold to peek companion MERS PBR map"
+                  aria-label="Hold to peek companion MERS PBR map"
+                >
+                  <Layers size={13} />
+                  <span>MERS</span>
+                </button>
+              )}
 
               <button
                 type="button"

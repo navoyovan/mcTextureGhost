@@ -2,10 +2,43 @@ import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react'
 import { Box, Layers, ArrowRight } from 'lucide-react';
 import { usePackStore } from '../../store/packStore';
 import { useIpc } from '../../hooks/useIpc';
-import { BlockGroupNodeDto, CatalogLeafDto } from '../../types/ipc';
+import { BlockGroupNodeDto, CatalogLeafDto, TextureAliasDto } from '../../types/ipc';
 import { Block3DViewer } from './Block3DViewer';
 import { WorkspaceTileCard, VariantTileGroup } from './WorkspaceTileCard';
+import { TileHoverMorphPortal, TileHoverMorphTarget } from '../grid/TileHoverMorphPortal';
 import styles from './BlockWorkspace.module.css';
+
+function leafToAliasDto(leaf: CatalogLeafDto): TextureAliasDto {
+  return {
+    alias: leaf.alias,
+    displayName: leaf.displayName,
+    relativePath: leaf.relativePath,
+    fullPath: leaf.fullPath,
+    category: (leaf.category as any) || 'block',
+    entityId: leaf.entityId,
+    textureKey: leaf.textureKey,
+    geometryId: leaf.geometryId,
+    isAttachable: leaf.isAttachable,
+    status: (leaf.status === 'VANILLA' ? 'OK' : leaf.status) as any,
+    exists: leaf.status !== 'GHOST',
+    imageUrl: leaf.imageUrl,
+    blockFaces: [],
+    usedByBlocks: [],
+    variantKind: leaf.variantKind || 'None',
+    blockVariantIndex: leaf.blockVariantIndex,
+    totalBlockVariants: leaf.totalBlockVariants,
+    textureVariantIndex: leaf.textureVariantIndex,
+    totalTextureVariants: leaf.totalTextureVariants,
+    weight: leaf.weight,
+    isFlipbook: leaf.isFlipbook,
+    flipbook: leaf.flipbook,
+    primaryFaceBadgeText: leaf.primaryFaceBadgeText || '',
+    subtitleCaption: leaf.subtitleCaption || '',
+    hasMers: (leaf as any).hasMers,
+    mersFullPath: (leaf as any).mersFullPath,
+    key: leaf.alias,
+  };
+}
 
 // Group a flat leaf array by alias + block variant slot.
 // Leaves in the same group are texture variations ("variations": [ ... ]) of the same block state slot.
@@ -13,7 +46,6 @@ import styles from './BlockWorkspace.module.css';
 function groupLeavesByVariantSlot(leaves: CatalogLeafDto[]): VariantTileGroup[] {
   const map = new Map<string, VariantTileGroup>();
   for (const leaf of leaves) {
-    // A tile is a texture variation if totalTextureVariants > 1 or variantKind is TextureVariant/NestedVariant
     const isTexVar = Boolean(
       (leaf.totalTextureVariants && leaf.totalTextureVariants > 1) ||
       leaf.variantKind === 'TextureVariant' ||
@@ -26,12 +58,10 @@ function groupLeavesByVariantSlot(leaves: CatalogLeafDto[]): VariantTileGroup[] 
 
     const existing = map.get(slotKey);
     if (existing) {
-      // Deduplicate leaves that point to the exact same relativePath & indices
       const exists = existing.leaves.some(
         (l) =>
           l.relativePath === leaf.relativePath &&
-          l.textureVariantIndex === leaf.textureVariantIndex &&
-          l.blockVariantIndex === leaf.blockVariantIndex
+          l.textureVariantIndex === leaf.textureVariantIndex
       );
       if (!exists) {
         existing.leaves.push(leaf);
@@ -52,7 +82,7 @@ export const BlockWorkspace: React.FC = () => {
   const searchQuery = usePackStore((s) => s.searchQuery);
   const statusFilter = usePackStore((s) => s.statusFilter);
   const activeFilters = usePackStore((s) => s.activeFilters);
-  const { editTexture, deleteTextureFile, deleteTextureEntries } = useIpc();
+  const { editTexture, deleteTextureFile, deleteTextureEntries, openInExplorer } = useIpc();
 
   const [activeMenuKey, setActiveMenuKey] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
@@ -360,9 +390,17 @@ export const BlockWorkspace: React.FC = () => {
     return { textures: {}, flipbooks: {} };
   }, [activeState, activeVariation]);
 
-  const handleLeafClick = useCallback((leaf: CatalogLeafDto) => {
-    editTexture(leaf.alias, leaf.fullPath, leaf.status === 'GHOST');
-  }, [editTexture]);
+  const [hoverMorphTarget, setHoverMorphTarget] = useState<TileHoverMorphTarget | null>(null);
+
+  const handleTileClick = useCallback((domEl: HTMLElement, leaf: CatalogLeafDto, key: string) => {
+    const rect = domEl.getBoundingClientRect();
+    setHoverMorphTarget({
+      alias: leafToAliasDto(leaf),
+      key,
+      originRect: rect,
+      domElement: domEl,
+    });
+  }, []);
 
   const handleToggleMenu = useCallback((cardKey: string) => {
     setActiveMenuKey((prev) => (prev === cardKey ? null : cardKey));
@@ -506,7 +544,7 @@ export const BlockWorkspace: React.FC = () => {
                                   selectedBlockName={selectedBlockDisplayName}
                                   isMenuOpen={activeMenuKey === cardKey}
                                   onToggleMenu={handleToggleMenu}
-                                  onEditTexture={handleLeafClick}
+                                  onTileClick={handleTileClick}
                                   onDeleteTextureFile={handleDeleteTextureFile}
                                   onDeleteTextureEntries={handleDeleteTextureEntries}
                                 />
@@ -527,7 +565,7 @@ export const BlockWorkspace: React.FC = () => {
                           selectedBlockName={selectedBlockDisplayName}
                           isMenuOpen={activeMenuKey === grp.key}
                           onToggleMenu={handleToggleMenu}
-                          onEditTexture={handleLeafClick}
+                          onTileClick={handleTileClick}
                           onDeleteTextureFile={handleDeleteTextureFile}
                           onDeleteTextureEntries={handleDeleteTextureEntries}
                         />
@@ -541,6 +579,24 @@ export const BlockWorkspace: React.FC = () => {
         </section>
       ) : (
         <div className={styles.emptySelection}>Select a block to inspect</div>
+      )}
+
+      {/* Morphing Portal Preview (opened on tile click) */}
+      {hoverMorphTarget && (
+        <TileHoverMorphPortal
+          target={hoverMorphTarget}
+          onClose={() => setHoverMorphTarget(null)}
+          onEdit={(alias) => {
+            setHoverMorphTarget(null);
+            editTexture(alias.alias, alias.fullPath, alias.status === 'GHOST');
+          }}
+          onOpenContextMenu={() => {
+            setHoverMorphTarget(null);
+          }}
+          onRevealInExplorer={(fullPath) => {
+            openInExplorer(fullPath, true);
+          }}
+        />
       )}
     </div>
   );
