@@ -296,7 +296,8 @@ export const TileHoverMorphPortal: React.FC<TileHoverMorphPortalProps> = ({
   const currentTop = isMorphed ? coords.top : coords.originalRect.top;
   const currentWidth = isMorphed ? coords.width : coords.originalRect.width;
   const currentHeight = isMorphed ? coords.totalHeight : coords.originalRect.height;
-  const currentThumbHeight = isMorphed ? coords.thumbHeight : coords.originalRect.height;
+  const unmorphedThumbSize = Math.max(0, coords.originalRect.width - 20);
+  const currentThumbHeight = isMorphed ? coords.thumbHeight : unmorphedThumbSize;
   const baseTexWidth = imgDimensions?.width ?? 16;
   const rawTexHeight = imgDimensions?.height ?? 16;
   const isSpriteSheet = Boolean(alias.isFlipbook || alias.flipbook || (rawTexHeight >= baseTexWidth * 2));
@@ -398,8 +399,8 @@ export const TileHoverMorphPortal: React.FC<TileHoverMorphPortalProps> = ({
           </div>
         </div>
 
-        {/* Expanded Metadata */}
-        {isMorphed && (
+        {/* Bottom Section: Full Metadata & Actions when Morphed, lightweight placeholder when unmorphed */}
+        {isMorphed ? (
           <>
             <div className={styles.metaArea}>
               <div className={styles.fileNameRow} title={`${fileBase}${fileExt}`}>
@@ -461,6 +462,8 @@ export const TileHoverMorphPortal: React.FC<TileHoverMorphPortalProps> = ({
               </button>
             </div>
           </>
+        ) : (
+          <div className={styles.bottomSectionUnmorphed} />
         )}
       </div>
     </div>,
