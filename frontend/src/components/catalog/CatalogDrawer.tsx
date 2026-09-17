@@ -196,15 +196,17 @@ const CatalogAliasGroup: React.FC<{
   aliasGroup: AliasGroupNodeDto;
   category: string;
   blockDisplayName?: string;
+  parentBlockId?: string;
   onAdd: (id: string, category: string) => void;
-}> = ({ aliasGroup, category, blockDisplayName, onAdd }) => {
+  isAliasDeclaredInPack: (alias: string, category: string, parentBlockId?: string) => boolean;
+}> = ({ aliasGroup, category, blockDisplayName, parentBlockId, onAdd, isAliasDeclaredInPack }) => {
   const isEntity = (aliasGroup.category || category).toLowerCase() === 'entity';
   const slotName = aliasGroup.geometryId || aliasGroup.alias;
   const isAttachable = isEntity && (aliasGroup.isAttachable || aliasGroup.leaves?.some((l) => l.isAttachable));
-  const isAdded =
-    (aliasGroup.notAddedCount ?? 0) === 0 &&
-    (aliasGroup.leaves?.length ?? 0) > 0 &&
-    aliasGroup.leaves.every((l) => l.status !== 'VANILLA');
+  const hasNotAdded = aliasGroup.notAddedCount > 0 || Boolean(aliasGroup.leaves?.some((l) => l.status === 'VANILLA'));
+  const isAdded = isEntity
+    ? false
+    : !hasNotAdded && isAliasDeclaredInPack(aliasGroup.alias, aliasGroup.category || category, parentBlockId);
 
   return (
     <div className={styles.aliasGroupCard} data-testid={`alias-group-${aliasGroup.alias}`}>
@@ -280,27 +282,28 @@ const CatalogBlockGroup: React.FC<{
   isExpanded: boolean;
   onToggleExpand: () => void;
   onAdd: (id: string, category: string) => void;
-  isBlockInWorkspace: (blockId: string) => boolean;
+  isBlockUserDefined: (blockId: string) => boolean;
   isEntityInWorkspace: (entityId: string) => boolean;
-}> = ({ block, blockKey, isExpanded, onToggleExpand, onAdd, isBlockInWorkspace, isEntityInWorkspace }) => {
+  isAliasDeclaredInPack: (alias: string, category: string, parentBlockId?: string) => boolean;
+}> = ({
+  block,
+  blockKey,
+  isExpanded,
+  onToggleExpand,
+  onAdd,
+  isBlockUserDefined,
+  isEntityInWorkspace,
+  isAliasDeclaredInPack,
+}) => {
   const cat = (block.category || 'block').toLowerCase();
   const isItem = cat === 'item';
   const isEntity = cat === 'entity';
 
-  const allAliasesAdded =
-    (block.aliasGroups?.length ?? 0) > 0 &&
-    block.aliasGroups.every(
-      (ag) =>
-        (ag.notAddedCount ?? 0) === 0 &&
-        (ag.leaves?.length ?? 0) > 0 &&
-        ag.leaves.every((l) => l.status !== 'VANILLA')
-    );
-
   const isAdded = isEntity
     ? isEntityInWorkspace(block.blockId)
     : isItem
-    ? allAliasesAdded
-    : (isBlockInWorkspace(block.blockId) && allAliasesAdded);
+    ? isAliasDeclaredInPack(block.blockId, 'item')
+    : isBlockUserDefined(block.blockId);
 
   return (
     <div className={styles.blockGroupCard} data-testid={`block-group-${block.blockId}`}>
@@ -405,6 +408,7 @@ const CatalogBlockGroup: React.FC<{
               aliasGroup={aliasGroup}
               category={block.category}
               blockDisplayName={block.displayName}
+              parentBlockId={block.blockId}
               onAdd={(id, cat) => {
                 if (isEntity) {
                   onAdd(block.blockId, 'entity');
@@ -412,6 +416,7 @@ const CatalogBlockGroup: React.FC<{
                   onAdd(id, cat);
                 }
               }}
+              isAliasDeclaredInPack={isAliasDeclaredInPack}
             />
           ))}
         </div>
@@ -429,7 +434,116 @@ export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose })
   const entityWorkspaceTree = usePackStore((s) => s.entityWorkspaceTree);
   const referencePacks = usePackStore((s) => s.referencePacks);
   const activeReferenceId = usePackStore((s) => s.activeReferenceId);
+  const aliases = usePackStore((s) => s.aliases);
+  const packFolders = usePackStore((s) => s.packFolders);
   const { postCommand, loadCatalog, subscribe } = useIpc();
+
+  const hasTerrainTextureJson = useMemo(() => {
+    function check(items: any[]): boolean {
+      if (!items) return false;
+      for (const item of items) {
+        const p = (item.relativePath || item.name || '').replace(/\\/g, '/').toLowerCase();
+        if (
+          (p === 'textures/terrain_texture.json' ||
+           p.endsWith('/terrain_texture.json') ||
+           p === 'terrain_texture.json') &&
+          !item.isMissing
+        ) {
+          return true;
+        }
+        if (item.subFolders && item.subFolders.length > 0) {
+          if (check(item.subFolders)) return true;
+        }
+      }
+      return false;
+    }
+    return check(packFolders || []);
+  }, [packFolders]);
+
+  const hasItemTextureJson = useMemo(() => {
+    function check(items: any[]): boolean {
+      if (!items) return false;
+      for (const item of items) {
+        const p = (item.relativePath || item.name || '').replace(/\\/g, '/').toLowerCase();
+        if (
+          (p === 'textures/item_texture.json' ||
+           p.endsWith('/item_texture.json') ||
+           p === 'item_texture.json') &&
+          !item.isMissing
+        ) {
+          return true;
+        }
+        if (item.subFolders && item.subFolders.length > 0) {
+          if (check(item.subFolders)) return true;
+        }
+      }
+      return false;
+    }
+    return check(packFolders || []);
+  }, [packFolders]);
+
+  const hasBlocksJson = useMemo(() => {
+    function check(items: any[]): boolean {
+      if (!items) return false;
+      for (const item of items) {
+        const p = (item.relativePath || item.name || '').replace(/\\/g, '/').toLowerCase();
+        if ((p === 'blocks.json' || p.endsWith('/blocks.json')) && !item.isMissing) {
+          return true;
+        }
+        if (item.subFolders && item.subFolders.length > 0) {
+          if (check(item.subFolders)) return true;
+        }
+      }
+      return false;
+    }
+    return check(packFolders || []);
+  }, [packFolders]);
+
+  const isBlockUserDefined = useCallback(
+    (blockId: string): boolean => {
+      if (!hasBlocksJson || !blockWorkspaceTree || !Array.isArray(blockWorkspaceTree)) return false;
+      return blockWorkspaceTree.some(
+        (b) => b.blockId.toLowerCase() === blockId.toLowerCase() && b.isUserDefined !== false
+      );
+    },
+    [hasBlocksJson, blockWorkspaceTree]
+  );
+
+  const isAliasDeclaredInPack = useCallback(
+    (alias: string, category: string, parentBlockId?: string): boolean => {
+      const cat = category.toLowerCase();
+      if (cat === 'block') {
+        if (!hasTerrainTextureJson || !blockWorkspaceTree || !Array.isArray(blockWorkspaceTree)) return false;
+        return blockWorkspaceTree.some(
+          (b) =>
+            b.isUserDefined !== false &&
+            (parentBlockId ? b.blockId.toLowerCase() === parentBlockId.toLowerCase() : true) &&
+            b.aliasGroups?.some((ag) => ag.alias.toLowerCase() === alias.toLowerCase())
+        );
+      }
+      if (cat === 'item') {
+        if (!hasItemTextureJson) return false;
+        return aliases.some(
+          (a) =>
+            a.alias.toLowerCase() === alias.toLowerCase() &&
+            a.category.toLowerCase() === 'item' &&
+            a.status !== 'ORPHAN'
+        );
+      }
+      return false;
+    },
+    [blockWorkspaceTree, hasTerrainTextureJson, hasItemTextureJson, aliases]
+  );
+
+  const isEntityInWorkspace = useCallback(
+    (entityId: string): boolean => {
+      if (!entityWorkspaceTree || !Array.isArray(entityWorkspaceTree)) return false;
+      return entityWorkspaceTree.some(
+        (e) => e.blockId.toLowerCase() === entityId.toLowerCase()
+      );
+    },
+    [entityWorkspaceTree]
+  );
 
   const [searchText, setSearchText] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<'all' | 'block' | 'item' | 'entity'>('all');
@@ -477,26 +591,6 @@ export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose })
       isVanilla: true,
     };
   }, [referencePacks, activeReferenceId]);
-
-  const isBlockInWorkspace = useCallback(
-    (blockId: string): boolean => {
-      if (!blockWorkspaceTree || !Array.isArray(blockWorkspaceTree)) return false;
-      return blockWorkspaceTree.some(
-        (b) => b.blockId.toLowerCase() === blockId.toLowerCase()
-      );
-    },
-    [blockWorkspaceTree]
-  );
-
-  const isEntityInWorkspace = useCallback(
-    (entityId: string): boolean => {
-      if (!entityWorkspaceTree || !Array.isArray(entityWorkspaceTree)) return false;
-      return entityWorkspaceTree.some(
-        (e) => e.blockId.toLowerCase() === entityId.toLowerCase()
-      );
-    },
-    [entityWorkspaceTree]
-  );
 
   // Ask the parent to close; unmount happens after the GSAP exit animation finishes.
   const handleClose = useCallback(() => {
@@ -876,8 +970,9 @@ export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose })
                     isExpanded={isBlockExpanded(blockKey)}
                     onToggleExpand={() => toggleExpand(blockKey)}
                     onAdd={handleAdd}
-                    isBlockInWorkspace={isBlockInWorkspace}
+                    isBlockUserDefined={isBlockUserDefined}
                     isEntityInWorkspace={isEntityInWorkspace}
+                    isAliasDeclaredInPack={isAliasDeclaredInPack}
                   />
                 );
               })}

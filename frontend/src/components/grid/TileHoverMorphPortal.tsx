@@ -56,10 +56,12 @@ const computeMorphCoords = (
   const maxAreaW = Math.min(viewportWidth - 2 * margin - 28, 700);
   const maxAreaH = Math.min(viewportHeight - 2 * margin - metaAndActionsHeight - 24, 520);
 
-  // Compute pixel scale: up to 10px/texel, guaranteed to fit within viewport
+  // Compute pixel scale: textures < 32px scale up to match 32x32 baseline (at least ~256px sprite)
+  const minScaleForSmall = Math.floor(256 / Math.max(baseTexWidth, effectiveTexHeight));
+  const maxScaleCap = Math.max(10, minScaleForSmall);
   const maxScaleX = maxAreaW / baseTexWidth;
   const maxScaleY = maxAreaH / effectiveTexHeight;
-  const idealScale = Math.min(10, maxScaleX, maxScaleY);
+  const idealScale = Math.min(maxScaleCap, maxScaleX, maxScaleY);
   const finalScale = idealScale >= 1 ? Math.floor(idealScale) : idealScale;
 
   const idealSpriteW = Math.round(baseTexWidth * finalScale);
@@ -209,15 +211,18 @@ const TileHoverMorphCard: React.FC<TileHoverMorphPortalProps> = ({
     }));
   }, [imgDimensions, target.originRect, alias.isFlipbook, alias.flipbook]);
 
-  // Guaranteed transition trigger: forced reflow ensures browser registers the initial tile rect
+  // Guaranteed transition trigger without forced synchronous layout reflow
   React.useLayoutEffect(() => {
-    if (cardRef.current) {
-      void cardRef.current.offsetHeight; // Force initial style commit
-    }
-    const raf = requestAnimationFrame(() => {
-      setIsMorphed(true);
+    let innerRaf: number | null = null;
+    const outerRaf = requestAnimationFrame(() => {
+      innerRaf = requestAnimationFrame(() => {
+        setIsMorphed(true);
+      });
     });
-    return () => cancelAnimationFrame(raf);
+    return () => {
+      cancelAnimationFrame(outerRaf);
+      if (innerRaf !== null) cancelAnimationFrame(innerRaf);
+    };
   }, []);
 
   // Calculate file base and extension
@@ -311,20 +316,28 @@ const TileHoverMorphCard: React.FC<TileHoverMorphPortalProps> = ({
     return () => window.removeEventListener('scroll', handleScroll, { capture: true });
   }, [target.domElement, isClosing, triggerSnapBack]);
 
-  // Global dismiss listeners for outside click, window blur, and mousemove bounding
+  // Global dismiss listeners for outside click, window blur, and mousemove bounding (RAF throttled)
   useEffect(() => {
     if (!coords || isClosing) return;
 
-    const handleMouseMove = (e: MouseEvent) => {
-      const pad = 16;
-      const inX = e.clientX >= coords.left - pad && e.clientX <= coords.left + coords.width + pad;
-      const inY = e.clientY >= coords.top - pad && e.clientY <= coords.top + coords.totalHeight + pad;
+    let rafId: number | null = null;
 
-      if (inX && inY) {
-        clearLeaveTimer();
-      } else {
-        scheduleSnapBack();
-      }
+    const handleMouseMove = (e: MouseEvent) => {
+      if (rafId !== null) return;
+      const clientX = e.clientX;
+      const clientY = e.clientY;
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
+        const pad = 20;
+        const inX = clientX >= coords.left - pad && clientX <= coords.left + coords.width + pad;
+        const inY = clientY >= coords.top - pad && clientY <= coords.top + coords.totalHeight + pad;
+
+        if (inX && inY) {
+          clearLeaveTimer();
+        } else {
+          scheduleSnapBack();
+        }
+      });
     };
 
     const handleGlobalPointerDown = (e: PointerEvent) => {
@@ -343,6 +356,7 @@ const TileHoverMorphCard: React.FC<TileHoverMorphPortalProps> = ({
     window.addEventListener('pointerdown', handleGlobalPointerDown);
     window.addEventListener('blur', handleBlur);
     return () => {
+      if (rafId !== null) cancelAnimationFrame(rafId);
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('pointerdown', handleGlobalPointerDown);
       window.removeEventListener('blur', handleBlur);
@@ -382,27 +396,11 @@ const TileHoverMorphCard: React.FC<TileHoverMorphPortalProps> = ({
   const currentTop = isMorphed ? coords.top : coords.originalRect.top;
   const currentWidth = isMorphed ? coords.width : coords.originalRect.width;
   const currentHeight = isMorphed ? coords.totalHeight : coords.originalRect.height;
-  const unmorphedThumbSize = Math.max(0, coords.originalRect.width - 20);
-  const currentThumbHeight = isMorphed ? coords.thumbHeight : unmorphedThumbSize;
+  const currentThumbHeight = isMorphed ? coords.thumbHeight : Math.max(0, coords.originalRect.width - 20);
   const baseTexWidth = imgDimensions?.width ?? 16;
   const rawTexHeight = imgDimensions?.height ?? 16;
   const isSpriteSheet = Boolean(alias.isFlipbook || alias.flipbook || (rawTexHeight >= baseTexWidth * 2));
   const effectiveTexHeight = isSpriteSheet ? baseTexWidth : rawTexHeight;
-
-  const viewportWidth = window.innerWidth;
-  const viewportHeight = window.innerHeight;
-  const margin = 16;
-  const metaAndActionsHeight = 115;
-  const maxAreaW = Math.min(viewportWidth - 2 * margin - 28, 700);
-  const maxAreaH = Math.min(viewportHeight - 2 * margin - metaAndActionsHeight - 24, 520);
-
-  const maxScaleX = maxAreaW / baseTexWidth;
-  const maxScaleY = maxAreaH / effectiveTexHeight;
-  const idealScale = Math.min(10, maxScaleX, maxScaleY);
-  const finalScale = idealScale >= 1 ? Math.floor(idealScale) : idealScale;
-
-  const uniformSpriteWidth = Math.round(baseTexWidth * finalScale);
-  const uniformSpriteHeight = Math.round(effectiveTexHeight * finalScale);
 
   const getStatusBadge = () => {
     switch (alias.status) {
@@ -448,13 +446,12 @@ const TileHoverMorphCard: React.FC<TileHoverMorphPortalProps> = ({
           </div>
         )}
 
-        {/* Thumbnail Viewport with Animated Checkerboard */}
+        {/* Thumbnail Viewport with Checkerboard */}
         <div
           className={styles.thumbArea}
           style={{ height: `${currentThumbHeight}px` }}
         >
           {isMorphed && <div className={styles.thumbCheckerboardBg} />}
-
           {/* Resolution & Category Chip inside container */}
           {isMorphed && (
             <div className={styles.thumbInnerChip}>
@@ -466,28 +463,13 @@ const TileHoverMorphCard: React.FC<TileHoverMorphPortalProps> = ({
 
           <div className={styles.thumbImageWrapper}>
             {!isGhost && activePreviewSrc ? (
-              <div
-                className={styles.spriteScaler}
-                style={
-                  isMorphed
-                    ? {
-                      width: `${uniformSpriteWidth}px`,
-                      height: `${uniformSpriteHeight}px`,
-                    }
-                    : {
-                      width: `${unmorphedThumbSize}px`,
-                      height: `${unmorphedThumbSize}px`,
-                    }
-                }
-              >
-                <FlipbookThumbnail
-                  src={activePreviewSrc}
-                  alt={isPeekingMers ? `${alias.alias} (MERS Map)` : alias.alias}
-                  className={styles.spriteImg}
-                  isFlipbook={!isPeekingMers && Boolean(alias.isFlipbook)}
-                  flipbook={!isPeekingMers ? alias.flipbook : null}
-                />
-              </div>
+              <FlipbookThumbnail
+                src={activePreviewSrc}
+                alt={isPeekingMers ? `${alias.alias} (MERS Map)` : alias.alias}
+                className={styles.spriteImg}
+                isFlipbook={!isPeekingMers && Boolean(alias.isFlipbook)}
+                flipbook={!isPeekingMers ? alias.flipbook : null}
+              />
             ) : (
               <span className={styles.ghostPlaceholder}>?</span>
             )}

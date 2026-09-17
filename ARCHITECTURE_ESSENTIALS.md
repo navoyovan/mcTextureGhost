@@ -23,7 +23,7 @@ Paths are repository-relative. Read the entry point relevant to the task, not ev
 | Texture models, variants, face bindings | `Models/TextureAlias.cs` |
 | Pack scanning and JSON scaffolding | `Services/PackScanner.cs` and `Services/JsonWriterService.cs` |
 | Vanilla data and custom catalog references | `Services/VanillaDataService.cs`, `Services/CatalogReferenceService.cs`, `frontend/src/components/catalog/CatalogDrawer.tsx` |
-| Block workspace and 3D preview | `frontend/src/components/workspace/BlockWorkspace.tsx`, `Block3DViewer.tsx` in the same directory |
+| Block workspace, hierarchy tree, and 3D preview | `frontend/src/components/workspace/BlockWorkspace.tsx`, `BlockEntryTree.tsx`, `Block3DViewer.tsx` in the same directory |
 | Block shape and geometry investigation | `frontend/src/config/blockShapes.ts` and `frontend/src/components/workspace/blockGeometryBuilder.ts` |
 | Entity/attachable workspace and 3D preview | `frontend/src/components/workspace/EntityWorkspace.tsx`, `Entity3DViewer.tsx`, `entityGeometryBuilder.ts` in the same directory; consult `.agents/rules/entity-workspace.md` |
 | JSON reader and manifest editor | `frontend/src/components/json/JsonReader.tsx` and `ManifestForm.tsx` in the same directory |

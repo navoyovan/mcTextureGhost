@@ -6,8 +6,8 @@ using System.Drawing.Imaging;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Text.Json;
 using System.Text.Json.Serialization;
-using Microsoft.Win32;
 
 namespace McTextureGhost.Services;
 
@@ -21,7 +21,15 @@ public record OpenWithAppDto(
 
 public static class OpenWithService
 {
-    private static List<OpenWithAppDto>? _cachedApps;
+    private static readonly string SettingsFilePath = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+        "McTextureGhost",
+        "custom_editors.json"
+    );
+
+    private static readonly List<OpenWithAppDto> _customApps = new();
+    private static string? _defaultAppId;
+    private static bool _loaded = false;
     private static readonly object _lock = new();
 
     [DllImport("shell32.dll", SetLastError = true)]
@@ -41,201 +49,200 @@ public static class OpenWithService
     private const uint OAIF_REGISTER_EXT = 0x00000002;
     private const uint OAIF_EXEC = 0x00000004;
 
+    private static void EnsureLoaded()
+    {
+        lock (_lock)
+        {
+            if (_loaded) return;
+            _loaded = true;
+
+            try
+            {
+                if (File.Exists(SettingsFilePath))
+                {
+                    var json = File.ReadAllText(SettingsFilePath);
+                    using var doc = JsonDocument.Parse(json);
+                    var root = doc.RootElement;
+
+                    if (root.TryGetProperty("defaultAppId", out var defProp) && defProp.ValueKind == JsonValueKind.String)
+                    {
+                        _defaultAppId = defProp.GetString();
+                    }
+
+                    if (root.TryGetProperty("editors", out var editorsProp) && editorsProp.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var item in editorsProp.EnumerateArray())
+                        {
+                            var id = item.TryGetProperty("id", out var idProp) ? idProp.GetString() : null;
+                            var name = item.TryGetProperty("name", out var nProp) ? nProp.GetString() : null;
+                            var exePath = item.TryGetProperty("exePath", out var pProp) ? pProp.GetString() : null;
+
+                            if (!string.IsNullOrWhiteSpace(id) && !string.IsNullOrWhiteSpace(exePath))
+                            {
+                                string? iconUrl = GetAppIconDataUrl(exePath);
+                                bool isDef = string.Equals(id, _defaultAppId, StringComparison.OrdinalIgnoreCase);
+                                _customApps.Add(new OpenWithAppDto(
+                                    Id: id,
+                                    Name: name ?? Path.GetFileNameWithoutExtension(exePath),
+                                    ExePath: exePath,
+                                    IconDataUrl: iconUrl,
+                                    IsDefault: isDef
+                                ));
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[OpenWithService] Failed to load custom editors: {ex.Message}");
+            }
+        }
+    }
+
+    private static void SaveSettings()
+    {
+        lock (_lock)
+        {
+            try
+            {
+                var dir = Path.GetDirectoryName(SettingsFilePath);
+                if (dir != null && !Directory.Exists(dir))
+                {
+                    Directory.CreateDirectory(dir);
+                }
+
+                var data = new
+                {
+                    defaultAppId = _defaultAppId,
+                    editors = _customApps.Select(a => new
+                    {
+                        id = a.Id,
+                        name = a.Name,
+                        exePath = a.ExePath
+                    }).ToList()
+                };
+
+                var options = new JsonSerializerOptions { WriteIndented = true };
+                File.WriteAllText(SettingsFilePath, JsonSerializer.Serialize(data, options));
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[OpenWithService] Failed to save custom editors: {ex.Message}");
+            }
+        }
+    }
+
     /// <summary>
-    /// Returns the list of registered Open With image editors and viewers.
+    /// Returns the list of user-configured Open With editors. Default is empty until user adds them.
     /// </summary>
     public static List<OpenWithAppDto> GetOpenWithApps(bool forceRefresh = false)
     {
         lock (_lock)
         {
-            if (_cachedApps != null && !forceRefresh)
-            {
-                return _cachedApps;
-            }
+            EnsureLoaded();
 
-            var appMap = new Dictionary<string, OpenWithAppDto>(StringComparer.OrdinalIgnoreCase);
-            string? defaultProgId = GetDefaultProgId(".png");
-
-            // 1. Query HKCU FileExts OpenWithList
-            try
-            {
-                using var extKey = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Explorer\FileExts\.png\OpenWithList");
-                if (extKey != null)
-                {
-                    foreach (var valName in extKey.GetValueNames())
-                    {
-                        if (string.Equals(valName, "MRUList", StringComparison.OrdinalIgnoreCase)) continue;
-                        var exeName = extKey.GetValue(valName)?.ToString();
-                        if (!string.IsNullOrWhiteSpace(exeName))
-                        {
-                            TryAddApp(appMap, exeName, defaultProgId);
-                        }
-                    }
-                }
-            }
-            catch { }
-
-            // 2. Query HKCR .png OpenWithList
-            try
-            {
-                using var extKey = Registry.ClassesRoot.OpenSubKey(@".png\OpenWithList");
-                if (extKey != null)
-                {
-                    foreach (var subKeyName in extKey.GetSubKeyNames())
-                    {
-                        TryAddApp(appMap, subKeyName, defaultProgId);
-                    }
-                }
-            }
-            catch { }
-
-            // 3. Look for standard known editors if not already populated
-            var knownCandidates = new[]
-            {
-                "mspaint.exe",
-                "FireAlpaca.exe",
-                "Photoshop.exe",
-                "Aseprite.exe",
-                "PaintDotNet.exe",
-                "gimp.exe",
-                "Blockbench.exe",
-                "krita.exe",
-                "firefox.exe",
-                "chrome.exe",
-                "Photos.exe",
-                "Code.exe"
-            };
-
-            foreach (var candidate in knownCandidates)
-            {
-                TryAddApp(appMap, candidate, defaultProgId);
-            }
-
-            _cachedApps = appMap.Values.OrderByDescending(a => a.IsDefault).ThenBy(a => a.Name).ToList();
-            return _cachedApps;
+            return _customApps
+                .Select(a => a with { IsDefault = string.Equals(a.Id, _defaultAppId, StringComparison.OrdinalIgnoreCase) })
+                .OrderByDescending(a => a.IsDefault)
+                .ThenBy(a => a.Name)
+                .ToList();
         }
     }
 
-    private static void TryAddApp(Dictionary<string, OpenWithAppDto> appMap, string rawExe, string? defaultProgId)
+    public static OpenWithAppDto? GetDefaultApp()
     {
-        if (string.IsNullOrWhiteSpace(rawExe)) return;
-
-        // Skip internal/non-editor entries
-        if (rawExe.Contains("PickerHost", StringComparison.OrdinalIgnoreCase) ||
-            rawExe.Contains("PhoneExperience", StringComparison.OrdinalIgnoreCase) ||
-            rawExe.Contains("nearby_share", StringComparison.OrdinalIgnoreCase) ||
-            rawExe.Contains("McTextureGhost", StringComparison.OrdinalIgnoreCase))
+        lock (_lock)
         {
-            return;
+            EnsureLoaded();
+            if (string.IsNullOrEmpty(_defaultAppId)) return null;
+            return _customApps.FirstOrDefault(a => string.Equals(a.Id, _defaultAppId, StringComparison.OrdinalIgnoreCase));
         }
-
-        string? resolvedPath = ResolveExePath(rawExe);
-        if (string.IsNullOrEmpty(resolvedPath) && !string.Equals(rawExe, "mspaint.exe", StringComparison.OrdinalIgnoreCase))
-        {
-            return;
-        }
-
-        string effectivePath = resolvedPath ?? rawExe;
-        string id = Path.GetFileNameWithoutExtension(rawExe).ToLowerInvariant();
-        if (appMap.ContainsKey(id) || appMap.ContainsKey(effectivePath)) return;
-
-        string displayName = GetDisplayName(effectivePath, rawExe);
-        string? iconUrl = GetAppIconDataUrl(effectivePath);
-        bool isDefault = defaultProgId != null && (
-            defaultProgId.Contains(id, StringComparison.OrdinalIgnoreCase) ||
-            (id.Equals("mspaint", StringComparison.OrdinalIgnoreCase) && defaultProgId.Contains("Paint", StringComparison.OrdinalIgnoreCase))
-        );
-
-        appMap[id] = new OpenWithAppDto(
-            Id: id,
-            Name: displayName,
-            ExePath: effectivePath,
-            IconDataUrl: iconUrl,
-            IsDefault: isDefault
-        );
     }
 
-    private static string? ResolveExePath(string exeName)
+    public static OpenWithAppDto? AddApp(string exePath, string? customName = null)
     {
-        if (File.Exists(exeName)) return exeName;
+        if (string.IsNullOrWhiteSpace(exePath)) return null;
 
-        // 1. Check HKCR\Applications\<exe>\shell\open\command
-        try
+        lock (_lock)
         {
-            using var cmdKey = Registry.ClassesRoot.OpenSubKey($@"Applications\{exeName}\shell\open\command");
-            var cmd = cmdKey?.GetValue("")?.ToString();
-            if (!string.IsNullOrWhiteSpace(cmd))
+            EnsureLoaded();
+
+            var cleanPath = Path.GetFullPath(exePath);
+            var id = "app_" + Math.Abs(cleanPath.ToLowerInvariant().GetHashCode()).ToString("X8");
+
+            var existing = _customApps.FirstOrDefault(a => string.Equals(a.ExePath, cleanPath, StringComparison.OrdinalIgnoreCase));
+            if (existing != null)
             {
-                var parsed = ParseExeFromCommand(cmd);
-                if (!string.IsNullOrEmpty(parsed) && File.Exists(parsed)) return parsed;
+                return existing;
             }
-        }
-        catch { }
 
-        // 2. Check App Paths (HKLM & HKCU)
-        try
-        {
-            using var hklmAppPath = Registry.LocalMachine.OpenSubKey($@"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\{exeName}");
-            var path = hklmAppPath?.GetValue("")?.ToString();
-            if (!string.IsNullOrWhiteSpace(path) && File.Exists(path)) return path;
+            var displayName = !string.IsNullOrWhiteSpace(customName)
+                ? customName
+                : GetDisplayName(cleanPath, Path.GetFileName(cleanPath));
 
-            using var hkcuAppPath = Registry.CurrentUser.OpenSubKey($@"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\{exeName}");
-            path = hkcuAppPath?.GetValue("")?.ToString();
-            if (!string.IsNullOrWhiteSpace(path) && File.Exists(path)) return path;
-        }
-        catch { }
+            var iconUrl = GetAppIconDataUrl(cleanPath);
 
-        // 3. Known common application paths
-        var knownLocations = new[]
-        {
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "FireAlpaca", "FireAlpaca64", "FireAlpaca20", "FireAlpaca.exe"),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "FireAlpaca", "FireAlpaca.exe"),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "paint.net", "PaintDotNet.exe"),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "Steam", "steamapps", "common", "Aseprite", "Aseprite.exe"),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "Blockbench", "Blockbench.exe"),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "Microsoft VS Code", "Code.exe"),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "mspaint.exe")
-        };
+            var app = new OpenWithAppDto(
+                Id: id,
+                Name: displayName,
+                ExePath: cleanPath,
+                IconDataUrl: iconUrl,
+                IsDefault: _customApps.Count == 0 // Make default if first editor added
+            );
 
-        foreach (var loc in knownLocations)
-        {
-            if (File.Exists(loc) && Path.GetFileName(loc).Equals(exeName, StringComparison.OrdinalIgnoreCase))
+            if (app.IsDefault)
             {
-                return loc;
+                _defaultAppId = id;
             }
-        }
 
-        // 4. Try PATH environment
-        var envPath = Environment.GetEnvironmentVariable("PATH");
-        if (envPath != null)
+            _customApps.Add(app);
+            SaveSettings();
+            return app;
+        }
+    }
+
+    public static bool RemoveApp(string id)
+    {
+        lock (_lock)
         {
-            foreach (var folder in envPath.Split(Path.PathSeparator))
+            EnsureLoaded();
+            var item = _customApps.FirstOrDefault(a => string.Equals(a.Id, id, StringComparison.OrdinalIgnoreCase));
+            if (item != null)
             {
-                try
+                _customApps.Remove(item);
+                if (string.Equals(_defaultAppId, id, StringComparison.OrdinalIgnoreCase))
                 {
-                    var full = Path.Combine(folder.Trim(), exeName);
-                    if (File.Exists(full)) return full;
+                    _defaultAppId = _customApps.FirstOrDefault()?.Id;
                 }
-                catch { }
+                SaveSettings();
+                return true;
             }
+            return false;
         }
-
-        return null;
     }
 
-    private static string ParseExeFromCommand(string cmd)
+    public static bool SetDefaultApp(string? id)
     {
-        var trimmed = cmd.Trim();
-        if (trimmed.StartsWith("\""))
+        lock (_lock)
         {
-            int nextQuote = trimmed.IndexOf('"', 1);
-            if (nextQuote > 1)
+            EnsureLoaded();
+            if (string.IsNullOrEmpty(id))
             {
-                return trimmed.Substring(1, nextQuote - 1);
+                _defaultAppId = null;
+                SaveSettings();
+                return true;
             }
+
+            var match = _customApps.FirstOrDefault(a => string.Equals(a.Id, id, StringComparison.OrdinalIgnoreCase));
+            if (match != null)
+            {
+                _defaultAppId = match.Id;
+                SaveSettings();
+                return true;
+            }
+            return false;
         }
-        int spaceIdx = trimmed.IndexOf(' ');
-        return spaceIdx > 0 ? trimmed.Substring(0, spaceIdx) : trimmed;
     }
 
     private static string GetDisplayName(string exePath, string rawName)
@@ -281,19 +288,6 @@ public static class OpenWithService
         }
     }
 
-    private static string? GetDefaultProgId(string extension)
-    {
-        try
-        {
-            using var key = Registry.CurrentUser.OpenSubKey($@"Software\Microsoft\Windows\CurrentVersion\Explorer\FileExts\{extension}\UserChoice");
-            return key?.GetValue("ProgId")?.ToString();
-        }
-        catch
-        {
-            return null;
-        }
-    }
-
     public static void OpenFileWith(string fullPath, string? exePath = null, bool chooseDialog = false, IntPtr parentHwnd = default)
     {
         if (!File.Exists(fullPath)) return;
@@ -321,10 +315,34 @@ public static class OpenWithService
             return;
         }
 
+        // If no explicit exePath passed, check configured default app
+        if (string.IsNullOrWhiteSpace(exePath))
+        {
+            var defApp = GetDefaultApp();
+            if (defApp != null && !string.IsNullOrWhiteSpace(defApp.ExePath))
+            {
+                exePath = defApp.ExePath;
+            }
+        }
+
         if (!string.IsNullOrWhiteSpace(exePath))
         {
             try
             {
+                var fileName = Path.GetFileName(exePath);
+                // Handle packaged Paint on modern Windows
+                if (fileName.Equals("mspaint.exe", StringComparison.OrdinalIgnoreCase) ||
+                    fileName.Equals("mspaint", StringComparison.OrdinalIgnoreCase))
+                {
+                    Process.Start(new ProcessStartInfo
+                    {
+                        FileName = "mspaint",
+                        Arguments = $"\"{fullPath}\"",
+                        UseShellExecute = true
+                    });
+                    return;
+                }
+
                 var psi = new ProcessStartInfo
                 {
                     FileName = exePath,
@@ -334,7 +352,10 @@ public static class OpenWithService
                 Process.Start(psi);
                 return;
             }
-            catch { }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[OpenWithService] Custom exe launch failed: {ex.Message}");
+            }
         }
 
         // Default shell launch

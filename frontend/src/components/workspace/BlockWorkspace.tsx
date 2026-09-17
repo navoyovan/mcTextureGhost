@@ -4,6 +4,7 @@ import { usePackStore } from '../../store/packStore';
 import { useIpc } from '../../hooks/useIpc';
 import { BlockGroupNodeDto, CatalogLeafDto, TextureAliasDto } from '../../types/ipc';
 import { Block3DViewer } from './Block3DViewer';
+import { BlockEntryTree } from './BlockEntryTree';
 import { WorkspaceTileCard, VariantTileGroup } from './WorkspaceTileCard';
 import { TileHoverMorphPortal, TileHoverMorphTarget } from '../grid/TileHoverMorphPortal';
 import styles from './BlockWorkspace.module.css';
@@ -510,6 +511,11 @@ export const BlockWorkspace: React.FC = () => {
               />
             </div>
           )}
+
+          <BlockEntryTree
+            block={selectedBlock}
+            onTileClick={handleTileClick}
+          />
 
           <div className={styles.hierarchySection}>
             {selectedBlock.aliasGroups?.map((ag) => (

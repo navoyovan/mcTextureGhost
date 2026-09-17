@@ -1,6 +1,6 @@
 // frontend/src/components/workspace/EntityWorkspace.tsx
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
-import { Box, Layers, Shield } from 'lucide-react';
+import { Box, Layers, Shield, Trash2 } from 'lucide-react';
 import { usePackStore } from '../../store/packStore';
 import { useIpc } from '../../hooks/useIpc';
 import { BlockGroupNodeDto, CatalogLeafDto, TextureAliasDto } from '../../types/ipc';
@@ -346,6 +346,14 @@ export const EntityWorkspace: React.FC = () => {
     deleteTextureEntries(alias, 'entity', relativePath ?? undefined);
   }, [deleteTextureEntries]);
 
+  const handleDeleteEntity = useCallback(() => {
+    if (!selectedEntity) return;
+    const name = selectedEntity.displayName || selectedEntity.blockId;
+    if (window.confirm(`Are you sure you want to delete entity "${name}" and its definition JSON from the pack?`)) {
+      deleteTextureEntries(selectedEntity.blockId, 'entity');
+    }
+  }, [selectedEntity, deleteTextureEntries]);
+
   const selectedEntityDisplayName = selectedEntity?.displayName || selectedEntity?.blockId || '';
 
   if (!entityWorkspaceTree || entityWorkspaceTree.length === 0) {
@@ -436,11 +444,24 @@ export const EntityWorkspace: React.FC = () => {
                 {selectedEntity.blockId}
               </span>
             </div>
-            {selectedEntity.ghostCount > 0 && (
-              <span className={styles.ghostBadge}>
-                {selectedEntity.ghostCount} {selectedEntity.ghostCount === 1 ? 'ghost' : 'ghosts'}
-              </span>
-            )}
+            <div className={styles.detailHeaderActions}>
+              {selectedEntity.isUserDefined !== false && (
+                <button
+                  type="button"
+                  className={styles.deleteEntityBtn}
+                  onClick={handleDeleteEntity}
+                  title="Delete this entity definition JSON from the pack"
+                >
+                  <Trash2 size={13} />
+                  <span>Delete Entity</span>
+                </button>
+              )}
+              {selectedEntity.ghostCount > 0 && (
+                <span className={styles.ghostBadge}>
+                  {selectedEntity.ghostCount} {selectedEntity.ghostCount === 1 ? 'ghost' : 'ghosts'}
+                </span>
+              )}
+            </div>
           </div>
 
           {/* 3D Entity Model Viewer */}

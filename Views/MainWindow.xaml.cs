@@ -908,6 +908,63 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
             return Task.CompletedTask;
         });
 
+        // 16c. OPEN_WITH:ADD_CUSTOM_APP
+        _ipcBridge.RegisterHandler<OpenWithAddCustomAppPayload>(IpcMessageTypes.OpenWithAddCustomApp, (payload, corrId) =>
+        {
+            Dispatcher.Invoke(() =>
+            {
+                string? selectedPath = payload?.ExePath;
+                if (string.IsNullOrWhiteSpace(selectedPath))
+                {
+                    var dlg = new Microsoft.Win32.OpenFileDialog
+                    {
+                        Title = "Select Image Editor Executable",
+                        Filter = "Executable files (*.exe)|*.exe|All files (*.*)|*.*",
+                        CheckFileExists = true
+                    };
+                    if (dlg.ShowDialog(this) == true)
+                    {
+                        selectedPath = dlg.FileName;
+                    }
+                }
+
+                if (!string.IsNullOrWhiteSpace(selectedPath))
+                {
+                    OpenWithService.AddApp(selectedPath);
+                    var apps = OpenWithService.GetOpenWithApps(forceRefresh: true);
+                    _ipcBridge.PostMessage(IpcMessageTypes.OpenWithAppsList, new OpenWithAppsListPayload(apps));
+                }
+            });
+            return Task.CompletedTask;
+        });
+
+        // 16d. OPEN_WITH:REMOVE_APP
+        _ipcBridge.RegisterHandler<OpenWithRemoveAppPayload>(IpcMessageTypes.OpenWithRemoveApp, (payload, corrId) =>
+        {
+            Dispatcher.Invoke(() =>
+            {
+                if (payload != null && !string.IsNullOrWhiteSpace(payload.Id))
+                {
+                    OpenWithService.RemoveApp(payload.Id);
+                    var apps = OpenWithService.GetOpenWithApps(forceRefresh: true);
+                    _ipcBridge.PostMessage(IpcMessageTypes.OpenWithAppsList, new OpenWithAppsListPayload(apps));
+                }
+            });
+            return Task.CompletedTask;
+        });
+
+        // 16e. OPEN_WITH:SET_DEFAULT
+        _ipcBridge.RegisterHandler<OpenWithSetDefaultPayload>(IpcMessageTypes.OpenWithSetDefault, (payload, corrId) =>
+        {
+            Dispatcher.Invoke(() =>
+            {
+                OpenWithService.SetDefaultApp(payload?.Id);
+                var apps = OpenWithService.GetOpenWithApps(forceRefresh: true);
+                _ipcBridge.PostMessage(IpcMessageTypes.OpenWithAppsList, new OpenWithAppsListPayload(apps));
+            });
+            return Task.CompletedTask;
+        });
+
         // 17. VANILLA:LOAD_CATALOG
         _ipcBridge.RegisterHandler(IpcMessageTypes.VanillaLoadCatalog, async (payload, corrId) =>
         {

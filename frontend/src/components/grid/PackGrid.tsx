@@ -251,20 +251,24 @@ export const PackGrid: React.FC = () => {
   const handleOpenMenu = React.useCallback((e: React.MouseEvent, alias: TextureAliasDto, key: string) => {
     e.stopPropagation();
     setHoverMorphTarget(null);
+    const targetEl = e.currentTarget as HTMLElement | null;
+    const rect = targetEl ? targetEl.getBoundingClientRect() : null;
+
     setContextMenuTarget((current) => {
       if (current?.key === key) {
         return null;
       }
-      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
       return {
         alias,
         key,
-        anchor: {
-          top: rect.top,
-          bottom: rect.bottom,
-          left: rect.left,
-          right: rect.right,
-        },
+        anchor: rect
+          ? {
+              top: rect.top,
+              bottom: rect.bottom,
+              left: rect.left,
+              right: rect.right,
+            }
+          : { x: e.clientX, y: e.clientY },
       };
     });
   }, []);

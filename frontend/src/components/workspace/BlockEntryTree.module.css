@@ -1,0 +1,228 @@
+/* frontend/src/components/workspace/BlockEntryTree.module.css */
+
+.treeContainer {
+  background: #141418;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  height: 340px;
+  min-height: 340px;
+  box-sizing: border-box;
+  font-family: var(--font-mono, monospace);
+  user-select: none;
+}
+
+.treeHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.03);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  flex-shrink: 0;
+}
+
+.treeHeaderLeft {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.treeHeaderTitle {
+  font-family: var(--font-brand, 'Syne', sans-serif);
+  font-size: 12px;
+  font-weight: 700;
+  color: #e4e4e7;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.treeHeaderBadge {
+  font-size: 10px;
+  color: #71717a;
+  padding: 2px 6px;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.treeHeaderActions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.treeToggleBtn {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #a1a1aa;
+  font-size: 10px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.treeToggleBtn:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.treeContent {
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  overflow-y: auto;
+}
+
+/* Tree Nodes */
+.treeNode {
+  display: flex;
+  flex-direction: column;
+}
+
+.treeRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  border-radius: 5px;
+  transition: background 0.15s ease, opacity 0.15s ease;
+  font-size: 11.5px;
+  cursor: pointer;
+}
+
+.treeRow:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+/* Visual Weight Distinction: Added vs Missing/Fallback */
+.normalWeight {
+  color: #ffffff;
+  opacity: 1;
+}
+
+.normalWeight .nodeIcon {
+  color: #a78bfa;
+  opacity: 1;
+}
+
+.dimmedWeight {
+  color: #71717a;
+  opacity: 0.55;
+}
+
+.dimmedWeight .nodeIcon {
+  color: #71717a;
+  opacity: 0.6;
+}
+
+.dimmedWeight:hover {
+  opacity: 0.85;
+  color: #a1a1aa;
+}
+
+.chevronBtn {
+  background: transparent;
+  border: none;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #71717a;
+  cursor: pointer;
+  width: 14px;
+  height: 14px;
+}
+
+.chevronPlaceholder {
+  width: 14px;
+  height: 14px;
+}
+
+.nodeIcon {
+  flex-shrink: 0;
+}
+
+.nodeLabel {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.nodeKey {
+  color: #93c5fd;
+  font-weight: 500;
+}
+
+.nodeValue {
+  color: #cbd5e1;
+  word-break: break-all;
+}
+
+.nodeSub {
+  font-size: 10px;
+  color: #71717a;
+  margin-left: 4px;
+}
+
+.badge {
+  font-family: var(--font-brand, 'Syne', sans-serif);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  padding: 2.5px 6px;
+  border-radius: 4px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.vanillaBadge {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  color: #38bdf8;
+}
+
+.addedBadge {
+  background: rgba(56, 189, 248, 0.15);
+  border: 1px solid rgba(56, 189, 248, 0.4);
+  color: #38bdf8;
+}
+
+.okBadge {
+  background: rgba(56, 189, 248, 0.15);
+  border: 1px solid rgba(56, 189, 248, 0.4);
+  color: #38bdf8;
+}
+
+.ghostBadge {
+  background: rgba(244, 114, 182, 0.15);
+  border: 1px solid rgba(244, 114, 182, 0.3);
+  color: #f472b6;
+}
+
+/* Branch Indentation */
+.treeChildren {
+  margin-left: 18px;
+  padding-left: 8px;
+  border-left: 1px dashed rgba(255, 255, 255, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 2px;
+}
+
+.thumbPreview {
+  width: 14px;
+  height: 14px;
+  image-rendering: pixelated;
+  border-radius: 2px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  object-fit: contain;
+  flex-shrink: 0;
+}

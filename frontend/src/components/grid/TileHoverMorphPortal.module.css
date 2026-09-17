@@ -38,7 +38,7 @@
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6),
               0 0 0 1px rgba(255, 255, 255, 0.08),
               0 24px 64px rgba(0, 0, 0, 0.7);
-  border-radius: 12px;
+  border-radius: 0;
   padding: 0;
   overflow: visible;
 }
@@ -63,9 +63,24 @@
 }
 
 .morphed .thumbArea {
-  background: #0f0f14;
+  background: #101014;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 11px 11px 0 0;
+  border-radius: 0;
+}
+
+.thumbCheckerboardBg {
+  position: absolute;
+  inset: 0;
+  background-color: #101014;
+  background-image:
+    linear-gradient(45deg, rgba(255, 255, 255, 0.04) 25%, transparent 25%),
+    linear-gradient(-45deg, rgba(255, 255, 255, 0.04) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, rgba(255, 255, 255, 0.04) 75%),
+    linear-gradient(-45deg, transparent 75%, rgba(255, 255, 255, 0.04) 75%);
+  background-size: 16px 16px;
+  background-position: 0 0, 0 8px, 8px -8px, -8px 0px;
+  pointer-events: none;
+  z-index: 1;
 }
 
 .bottomSectionUnmorphed {
@@ -73,39 +88,6 @@
   min-height: 32px;
   background: transparent;
   pointer-events: none;
-}
-
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-@keyframes moveDiagonal {
-  0% {
-    background-position: 0 0;
-  }
-  100% {
-    background-position: 24px 24px;
-  }
-}
-
-.thumbCheckerboardBg {
-  position: absolute;
-  inset: 0;
-  background-image: conic-gradient(
-    rgba(255, 255, 255, 0.04) 90deg,
-    transparent 90deg 180deg,
-    rgba(255, 255, 255, 0.04) 180deg 270deg,
-    transparent 270deg
-  );
-  background-size: 16px 16px;
-  animation: fadeIn 0.2s ease 0.04s both, moveDiagonal 4s linear infinite;
-  pointer-events: none;
-  z-index: 1;
 }
 
 .thumbImageWrapper {
@@ -122,15 +104,7 @@
 }
 
 .morphed .thumbImageWrapper {
-  padding: 12px;
-}
-
-.spriteScaler {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  transition: width 0.22s cubic-bezier(0.2, 0.8, 0.2, 1), height 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+  padding: 10px;
 }
 
 .spriteImg {

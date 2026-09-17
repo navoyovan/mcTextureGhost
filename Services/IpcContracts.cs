@@ -72,6 +72,9 @@ public static class IpcMessageTypes
     public const string VanillaDownload3DAssets = "VANILLA:DOWNLOAD_3D_ASSETS";
     public const string VanillaGet3DStatus      = "VANILLA:GET_3D_STATUS";
     public const string OpenWithGetApps         = "OPEN_WITH:GET_APPS";
+    public const string OpenWithAddCustomApp    = "OPEN_WITH:ADD_CUSTOM_APP";
+    public const string OpenWithRemoveApp       = "OPEN_WITH:REMOVE_APP";
+    public const string OpenWithSetDefault      = "OPEN_WITH:SET_DEFAULT";
     public const string CatalogGetDetailedStatus = "CATALOG:GET_DETAILED_STATUS";
     public const string CatalogPurgeTempArchive  = "CATALOG:PURGE_TEMP_ARCHIVE";
     public const string CatalogPurgeExtractedData = "CATALOG:PURGE_EXTRACTED_DATA";
@@ -255,6 +258,27 @@ public record CatalogSetReferencePayload(
 /// </summary>
 public record CatalogRemoveReferencePayload(
     [property: JsonPropertyName("id")] string Id
+);
+
+/// <summary>
+/// Payload for "OPEN_WITH:ADD_CUSTOM_APP". Optional exePath or null to open file picker dialog.
+/// </summary>
+public record OpenWithAddCustomAppPayload(
+    [property: JsonPropertyName("exePath")] string? ExePath = null
+);
+
+/// <summary>
+/// Payload for "OPEN_WITH:REMOVE_APP".
+/// </summary>
+public record OpenWithRemoveAppPayload(
+    [property: JsonPropertyName("id")] string Id
+);
+
+/// <summary>
+/// Payload for "OPEN_WITH:SET_DEFAULT".
+/// </summary>
+public record OpenWithSetDefaultPayload(
+    [property: JsonPropertyName("id")] string? Id = null
 );
 
 /// <summary>
