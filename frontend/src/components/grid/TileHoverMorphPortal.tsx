@@ -102,7 +102,12 @@ const computeMorphCoords = (
   };
 };
 
-export const TileHoverMorphPortal: React.FC<TileHoverMorphPortalProps> = ({
+export const TileHoverMorphPortal: React.FC<TileHoverMorphPortalProps> = (props) => (
+  // Each target owns its animation state and timers; switching cancels the old close.
+  <TileHoverMorphCard key={props.target.key} {...props} />
+);
+
+const TileHoverMorphCard: React.FC<TileHoverMorphPortalProps> = ({
   target,
   onClose,
   onEdit,
@@ -132,16 +137,16 @@ export const TileHoverMorphPortal: React.FC<TileHoverMorphPortalProps> = ({
       target.originRect,
       target.domElement
         ? (() => {
-            const img = target.domElement.querySelector('img');
-            if (img && img.naturalWidth > 0 && img.naturalHeight > 0) {
-              return { width: img.naturalWidth, height: img.naturalHeight };
-            }
-            const canvas = target.domElement.querySelector('canvas');
-            if (canvas && canvas.width > 0 && canvas.height > 0) {
-              return { width: canvas.width, height: canvas.height };
-            }
-            return null;
-          })()
+          const img = target.domElement.querySelector('img');
+          if (img && img.naturalWidth > 0 && img.naturalHeight > 0) {
+            return { width: img.naturalWidth, height: img.naturalHeight };
+          }
+          const canvas = target.domElement.querySelector('canvas');
+          if (canvas && canvas.width > 0 && canvas.height > 0) {
+            return { width: canvas.width, height: canvas.height };
+          }
+          return null;
+        })()
         : null,
       Boolean(target.alias.isFlipbook || target.alias.flipbook)
     )
@@ -179,12 +184,15 @@ export const TileHoverMorphPortal: React.FC<TileHoverMorphPortalProps> = ({
   useEffect(() => {
     if (imgDimensions || isGhost || !alias.imageUrl) return;
     const img = new Image();
-    img.src = alias.imageUrl;
     img.onload = () => {
       setImgDimensions({
         width: img.naturalWidth || 16,
         height: img.naturalHeight || 16,
       });
+    };
+    img.src = alias.imageUrl;
+    return () => {
+      img.onload = null;
     };
   }, [alias.imageUrl, isGhost, imgDimensions]);
 
@@ -463,13 +471,13 @@ export const TileHoverMorphPortal: React.FC<TileHoverMorphPortalProps> = ({
                 style={
                   isMorphed
                     ? {
-                        width: `${uniformSpriteWidth}px`,
-                        height: `${uniformSpriteHeight}px`,
-                      }
+                      width: `${uniformSpriteWidth}px`,
+                      height: `${uniformSpriteHeight}px`,
+                    }
                     : {
-                        width: `${unmorphedThumbSize}px`,
-                        height: `${unmorphedThumbSize}px`,
-                      }
+                      width: `${unmorphedThumbSize}px`,
+                      height: `${unmorphedThumbSize}px`,
+                    }
                 }
               >
                 <FlipbookThumbnail

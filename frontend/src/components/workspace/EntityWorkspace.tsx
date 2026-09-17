@@ -468,7 +468,7 @@ export const EntityWorkspace: React.FC = () => {
               <div key={`${selectedEntity.blockId}-${ag.alias}-${agIndex}`} className={styles.aliasGroupCard}>
                 <div className={styles.aliasHeader}>
                   <Layers size={14} />
-                  <span>Slot: {ag.geometryId || ag.alias}</span>
+                  <span>Slot: {ag.alias}{ag.geometryId ? ` | ${ag.geometryId}` : ''}</span>
                 </div>
 
                 <div className={styles.variantStrip}>
