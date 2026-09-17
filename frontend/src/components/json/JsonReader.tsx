@@ -12,7 +12,6 @@ import { usePackStore } from '../../store/packStore';
 import { useIpc } from '../../hooks/useIpc';
 import { IpcMessageTypes, ManifestModelDto } from '../../types/ipc';
 import { ManifestForm } from './ManifestForm';
-import { SearchInput } from '../common/SearchInput';
 import styles from './JsonReader.module.css';
 
 export interface JsonReaderProps {
@@ -125,6 +124,7 @@ export const JsonReader: React.FC<JsonReaderProps> = ({ filePath, onBack }) => {
   const rawManifest = usePackStore((s) => s.manifest);
   const hasManifest = usePackStore((s) => s.hasManifest);
   const setActiveView = usePackStore((s) => s.setActiveView);
+  const searchQuery = usePackStore((s) => s.searchQuery);
   const { postCommand, saveManifest } = useIpc();
 
   const cleanPath = useMemo(() => {
@@ -153,7 +153,6 @@ export const JsonReader: React.FC<JsonReaderProps> = ({ filePath, onBack }) => {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [copied, setCopied] = useState<boolean>(false);
-  const [searchQuery, setSearchQuery] = useState<string>('');
 
   // Manifest Form state
   const [manifestForm, setManifestForm] = useState<ManifestModelDto | null>(() => {
@@ -317,6 +316,11 @@ export const JsonReader: React.FC<JsonReaderProps> = ({ filePath, onBack }) => {
         </div>
 
         <div className={styles.headerRight}>
+          {searchQuery.trim() && (
+            <span className={styles.matchCountBadge} role="status">
+              {matchingLines.size} {matchingLines.size === 1 ? 'match' : 'matches'} found
+            </span>
+          )}
           <span className={styles.statsBadge}>
             {lineCount} lines • {formattedSize}
           </span>
@@ -379,7 +383,7 @@ export const JsonReader: React.FC<JsonReaderProps> = ({ filePath, onBack }) => {
               </div>
               <div className={styles.codeContent}>
                 {lines.map((line, i) => (
-                  <div key={i} className={styles.codeLine}>
+                  <div key={i} className={`${styles.codeLine} ${matchingLines.has(i) ? styles.codeLineHighlight : ''}`}>
                     {renderHighlightedLine(line)}
                   </div>
                 ))}
@@ -389,25 +393,6 @@ export const JsonReader: React.FC<JsonReaderProps> = ({ filePath, onBack }) => {
         </div>
       ) : (
         <>
-          {/* Search Sub-bar */}
-          <div className={styles.searchBar}>
-            <SearchInput
-              value={searchQuery}
-              onChange={setSearchQuery}
-              placeholder="Search in JSON..."
-              shortcutCue="/"
-              enableSlashShortcut={true}
-              size="sm"
-              wrapperClassName={styles.jsonSearchWrapper}
-            />
-
-            {searchQuery.trim() && (
-              <span className={styles.matchCountBadge}>
-                {matchingLines.size} {matchingLines.size === 1 ? 'match' : 'matches'} found
-              </span>
-            )}
-          </div>
-
           {/* Code Viewport */}
           {isLoading ? (
             <div className={styles.loadingContainer}>

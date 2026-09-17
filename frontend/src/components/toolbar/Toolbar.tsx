@@ -51,6 +51,9 @@ export const Toolbar: React.FC = () => {
   const setActiveView = usePackStore((s) => s.setActiveView);
   const setSelectedFolderPath = usePackStore((s) => s.setSelectedFolderPath);
   const selectedFolderPath = usePackStore((s) => s.selectedFolderPath);
+  const isJsonFileSelected = Boolean(
+    selectedFolderPath && /\.(json|material)$/i.test(selectedFolderPath)
+  );
 
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const filterDropdownRef = useRef<HTMLDivElement | null>(null);
@@ -77,8 +80,12 @@ export const Toolbar: React.FC = () => {
     };
   }, [isFilterOpen]);
 
+  useEffect(() => {
+    if (isJsonFileSelected) setIsFilterOpen(false);
+  }, [isJsonFileSelected]);
+
   const handleSelectView = (view: 'grid' | 'workspace' | 'entity') => {
-    if (selectedFolderPath && selectedFolderPath.toLowerCase().endsWith('.json')) {
+    if (isJsonFileSelected) {
       setSelectedFolderPath(null);
     }
     setActiveView(view);
@@ -94,14 +101,14 @@ export const Toolbar: React.FC = () => {
         <SearchInput
           value={searchQuery}
           onChange={setSearchQuery}
-          placeholder="Search textures..."
+          placeholder={isJsonFileSelected ? 'Search in JSON...' : 'Search textures...'}
           shortcutCue="/"
           enableSlashShortcut={true}
           wrapperClassName={styles.toolbarSearch}
         />
 
         {/* Modernized Filter Checklist Dropdown */}
-        <div className={styles.filterDropdownWrapper} ref={filterDropdownRef}>
+        {!isJsonFileSelected && <div className={styles.filterDropdownWrapper} ref={filterDropdownRef}>
           <button
             type="button"
             className={`${styles.filterTriggerBtn} ${isFilterOpen ? styles.filterTriggerBtnOpen : ''} ${isFilterActive ? styles.filterTriggerBtnActive : ''}`}
@@ -220,7 +227,7 @@ export const Toolbar: React.FC = () => {
               </div>
             </div>
           )}
-        </div>
+        </div>}
       </div>
 
       {/* Right Controls: Zoom + View Mode */}

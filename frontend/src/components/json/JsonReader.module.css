@@ -148,76 +148,7 @@
   color: #ffffff !important;
 }
 
-/* ─── 2. Search Sub-bar ─── */
-.searchBar {
-  height: 38px;
-  padding: 0 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  background: rgba(16, 16, 20, 0.9);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-shrink: 0;
-  user-select: none;
-}
-
-.jsonSearchWrapper {
-  max-width: 320px;
-  width: 100%;
-}
-
-.searchInputGroup {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  position: relative;
-  max-width: 320px;
-  width: 100%;
-}
-
-.searchIcon {
-  color: var(--text-muted, #71717a);
-  pointer-events: none;
-  position: absolute;
-  left: 8px;
-}
-
-.searchInput {
-  width: 100%;
-  height: 26px;
-  padding: 0 24px 0 28px;
-  background: rgba(0, 0, 0, 0.35);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 4px;
-  font-family: var(--font-sans, sans-serif);
-  font-size: 11.5px;
-  color: #f4f4f5;
-  outline: none;
-  transition: border-color 0.15s ease;
-}
-
-.searchInput:focus {
-  border-color: var(--accent-primary, #8CEB1F);
-}
-
-.searchClearBtn {
-  position: absolute;
-  right: 6px;
-  background: transparent;
-  border: none;
-  color: #71717a;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 2px;
-}
-
-.searchClearBtn:hover {
-  color: #f4f4f5;
-}
-
+/* ─── 2. Search (matches come from the shared toolbar search) ─── */
 .matchCountBadge {
   font-family: var(--font-mono, monospace);
   font-size: 10px;
@@ -287,27 +218,33 @@
 
 /* Syntax Token Colors */
 .tokenKey {
-  color: #8CEB1F; /* Neon Accent Lime for JSON Property Keys */
+  color: #8CEB1F;
+  /* Neon Accent Lime for JSON Property Keys */
 }
 
 .tokenString {
-  color: #38bdf8; /* Cyan Sky for String Values */
+  color: #38bdf8;
+  /* Cyan Sky for String Values */
 }
 
 .tokenNumber {
-  color: #fbbf24; /* Amber for Numbers */
+  color: #fbbf24;
+  /* Amber for Numbers */
 }
 
 .tokenBoolean {
-  color: #c084fc; /* Purple for Booleans */
+  color: #c084fc;
+  /* Purple for Booleans */
 }
 
 .tokenNull {
-  color: #f87171; /* Coral Red for Null */
+  color: #f87171;
+  /* Coral Red for Null */
 }
 
 .tokenPunctuation {
-  color: #94a3b8; /* Slate for braces, brackets, colons, commas */
+  color: #94a3b8;
+  /* Slate for braces, brackets, colons, commas */
 }
 
 /* ─── 4. Loading / Empty / Error States ─── */

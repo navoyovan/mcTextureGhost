@@ -216,6 +216,7 @@ export const App: React.FC = () => {
           <div data-testid="workspace-container" className={styles.workspaceContainer}>
             <Sidebar />
             <div className={styles.workspaceContentArea}>
+              <Toolbar />
               {isJsonFileSelected ? (
                 <JsonReader
                   filePath={selectedFolderPath!}
@@ -223,7 +224,6 @@ export const App: React.FC = () => {
                 />
               ) : (
                 <>
-                  <Toolbar />
                   {activeView === 'workspace' ? (
                     <BlockWorkspace />
                   ) : activeView === 'entity' ? (
