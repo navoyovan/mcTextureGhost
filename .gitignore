@@ -48,3 +48,9 @@ frontend/node_modules/
 frontend/dist/
 frontend/.vite/
 *.tsbuildinfo
+
+## Graphify cache and graph outputs
+graphify-out/
+.graphify/
+.graphify*
+

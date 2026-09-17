@@ -241,6 +241,18 @@ export function useIpc() {
     return postCommand(IpcMessageTypes.VanillaLoadCatalog, {});
   }, []);
 
+  const getDetailedCatalogStatus = useCallback(() => {
+    return postCommand(IpcMessageTypes.CatalogGetDetailedStatus, {});
+  }, []);
+
+  const purgeTempArchive = useCallback(() => {
+    return postCommand(IpcMessageTypes.CatalogPurgeTempArchive, {});
+  }, []);
+
+  const purgeExtractedCatalog = useCallback(() => {
+    return postCommand(IpcMessageTypes.CatalogPurgeExtractedData, {});
+  }, []);
+
   return {
     isAvailable,
     postCommand,
@@ -260,5 +272,9 @@ export function useIpc() {
     saveManifest,
     addVanillaEntry,
     loadCatalog,
+    getDetailedCatalogStatus,
+    purgeTempArchive,
+    purgeExtractedCatalog,
   };
 }
+

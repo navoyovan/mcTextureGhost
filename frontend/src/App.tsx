@@ -30,7 +30,6 @@ export const App: React.FC = () => {
   const isCatalogOpen = usePackStore((s) => s.isCatalogOpen);
   const setIsCatalogOpen = usePackStore((s) => s.setIsCatalogOpen);
   const selectedFolderPath = usePackStore((s) => s.selectedFolderPath);
-  const setSelectedFolderPath = usePackStore((s) => s.setSelectedFolderPath);
 
   const isJsonFileSelected = Boolean(
     selectedFolderPath &&
@@ -170,7 +169,11 @@ export const App: React.FC = () => {
           <MenuBar />
 
           {packRoot && (
-            <span className={styles.packBadge} data-testid="pack-badge">
+            <span
+              className={styles.packBadge}
+              data-testid="pack-badge"
+              title={packLocationLabel}
+            >
               {packLocationLabel}
             </span>
           )}
@@ -219,8 +222,8 @@ export const App: React.FC = () => {
               <Toolbar />
               {isJsonFileSelected ? (
                 <JsonReader
+                  key={`${packRoot}:${selectedFolderPath}`}
                   filePath={selectedFolderPath!}
-                  onBack={() => setSelectedFolderPath(null)}
                 />
               ) : (
                 <>

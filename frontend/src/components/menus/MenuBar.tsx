@@ -12,10 +12,12 @@ import {
   Terminal,
   Radio,
   ChevronDown,
+  Database,
 } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { usePackStore } from '../../store/packStore';
 import { useIpc } from '../../hooks/useIpc';
+import { ReferencePackManagerModal } from '../catalog/ReferencePackManagerModal';
 import styles from './MenuBar.module.css';
 
 interface MenuItemDef {
@@ -41,6 +43,7 @@ interface OpenMenuState {
 
 export const MenuBar: React.FC = () => {
   const [openMenu, setOpenMenu] = useState<OpenMenuState | null>(null);
+  const [isReferenceManagerOpen, setIsReferenceManagerOpen] = useState(false);
   const barRef = useRef<HTMLDivElement>(null);
 
   const { postCommand, openPackFolder, reloadPack, createPack, openInExplorer, closePack } = useIpc();
@@ -161,6 +164,11 @@ export const MenuBar: React.FC = () => {
           label: isCatalogOpen ? 'Close Vanilla Catalog' : 'Open Vanilla Catalog',
           icon: <LayoutGrid size={13} />,
           action: () => toggleCatalog(),
+        },
+        {
+          label: 'Reference Pack Manager\u2026',
+          icon: <Database size={13} />,
+          action: () => setIsReferenceManagerOpen(true),
         },
         {
           label: 'Refresh Vanilla Cache',
@@ -317,6 +325,12 @@ export const MenuBar: React.FC = () => {
           </div>,
           document.body
         )}
+
+      {/* Vanilla Reference & Catalog Manager Modal */}
+      <ReferencePackManagerModal
+        isOpen={isReferenceManagerOpen}
+        onClose={() => setIsReferenceManagerOpen(false)}
+      />
     </nav>
   );
 };

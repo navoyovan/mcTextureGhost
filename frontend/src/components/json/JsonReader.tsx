@@ -1,22 +1,14 @@
 // frontend/src/components/json/JsonReader.tsx
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import {
-  ArrowLeft,
-  Copy,
-  Check,
-  ExternalLink,
-  Layers,
-  RotateCw,
-} from 'lucide-react';
+import { RotateCw } from 'lucide-react';
 import { usePackStore } from '../../store/packStore';
 import { useIpc } from '../../hooks/useIpc';
-import { IpcMessageTypes, ManifestModelDto } from '../../types/ipc';
+import { ManifestModelDto } from '../../types/ipc';
 import { ManifestForm } from './ManifestForm';
 import styles from './JsonReader.module.css';
 
 export interface JsonReaderProps {
   filePath: string;
-  onBack: () => void;
 }
 
 /**
@@ -118,14 +110,14 @@ function createDefaultManifest(packName: string | null, packRoot: string | null)
   };
 }
 
-export const JsonReader: React.FC<JsonReaderProps> = ({ filePath, onBack }) => {
+export const JsonReader: React.FC<JsonReaderProps> = ({ filePath }) => {
   const packRoot = usePackStore((s) => s.packRoot);
   const packName = usePackStore((s) => s.packName);
   const rawManifest = usePackStore((s) => s.manifest);
   const hasManifest = usePackStore((s) => s.hasManifest);
-  const setActiveView = usePackStore((s) => s.setActiveView);
   const searchQuery = usePackStore((s) => s.searchQuery);
-  const { postCommand, saveManifest } = useIpc();
+  const setJsonViewerInfo = usePackStore((s) => s.setJsonViewerInfo);
+  const { saveManifest } = useIpc();
 
   const cleanPath = useMemo(() => {
     return filePath.replace(/\\/g, '/').replace(/^\/+/, '');
@@ -135,24 +127,14 @@ export const JsonReader: React.FC<JsonReaderProps> = ({ filePath, onBack }) => {
     return cleanPath.split('/').pop() || cleanPath;
   }, [cleanPath]);
 
-  const fullDiskPath = useMemo(() => {
-    if (!packRoot) return null;
-    return `${packRoot}\\${cleanPath.replace(/\//g, '\\')}`;
-  }, [packRoot, cleanPath]);
-
   const isManifest = useMemo(() => {
     return fileName.toLowerCase() === 'manifest.json' || cleanPath.toLowerCase() === 'manifest.json';
   }, [fileName, cleanPath]);
-
-  const isEntity = useMemo(() => {
-    return cleanPath.startsWith('entity/') || cleanPath.startsWith('attachables/') || fileName.endsWith('.entity.json');
-  }, [cleanPath, fileName]);
 
   // Standard JSON file loading state
   const [rawText, setRawText] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [copied, setCopied] = useState<boolean>(false);
 
   // Manifest Form state
   const [manifestForm, setManifestForm] = useState<ManifestModelDto | null>(() => {
@@ -202,7 +184,10 @@ export const JsonReader: React.FC<JsonReaderProps> = ({ filePath, onBack }) => {
   }, [loadFileContent]);
 
   // Serialized JSON for display (either live from manifest form or from disk for standard json)
-  const currentForm = manifestForm || createDefaultManifest(packName, packRoot);
+  const currentForm = useMemo(
+    () => manifestForm || createDefaultManifest(packName, packRoot),
+    [manifestForm, packName, packRoot]
+  );
 
   const manifestJsonString = useMemo(() => {
     if (!isManifest) return '';
@@ -255,21 +240,6 @@ export const JsonReader: React.FC<JsonReaderProps> = ({ filePath, onBack }) => {
     return `${(byteSize / 1024).toFixed(1)} KB`;
   }, [byteSize]);
 
-  const handleCopy = useCallback(() => {
-    if (!activeJsonText) return;
-    navigator.clipboard.writeText(activeJsonText);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1800);
-  }, [activeJsonText]);
-
-  const handleOpenInEditor = useCallback(() => {
-    if (!fullDiskPath) return;
-    postCommand(IpcMessageTypes.TextureEdit, {
-      aliasKey: fileName,
-      fullPath: fullDiskPath,
-      isGhost: false,
-    });
-  }, [fullDiskPath, fileName, postCommand]);
 
   const handleSaveManifest = useCallback(() => {
     const payload: ManifestModelDto = {
@@ -299,70 +269,19 @@ export const JsonReader: React.FC<JsonReaderProps> = ({ filePath, onBack }) => {
     return matches;
   }, [lines, searchQuery]);
 
+  // Publish viewer stats to the shared toolbar badge
+  useEffect(() => {
+    setJsonViewerInfo(isLoading || loadError ? null : {
+      lineCount,
+      sizeLabel: formattedSize,
+      matchCount: searchQuery.trim() ? matchingLines.size : null,
+    });
+    return () => setJsonViewerInfo(null);
+  }, [setJsonViewerInfo, lineCount, formattedSize, searchQuery, matchingLines, isLoading, loadError]);
+
   return (
     <div className={styles.container} data-testid="json-reader">
-      {/* 1. Header Toolbar */}
-      <header className={styles.header}>
-        <div className={styles.headerLeft}>
-          <button
-            type="button"
-            className={styles.backBtn}
-            onClick={onBack}
-            title="Return to Pack Grid"
-          >
-            <ArrowLeft size={13} />
-            <span>Grid</span>
-          </button>
-        </div>
-
-        <div className={styles.headerRight}>
-          {searchQuery.trim() && (
-            <span className={styles.matchCountBadge} role="status">
-              {matchingLines.size} {matchingLines.size === 1 ? 'match' : 'matches'} found
-            </span>
-          )}
-          <span className={styles.statsBadge}>
-            {lineCount} lines • {formattedSize}
-          </span>
-
-          {isEntity && (
-            <button
-              type="button"
-              className={`${styles.actionBtn} ${styles.actionBtnHighlight}`}
-              onClick={() => {
-                onBack();
-                setActiveView('entity');
-              }}
-              title="Open Entity Workspace with 3D Model View"
-            >
-              <Layers size={13} />
-              <span>3D Workspace</span>
-            </button>
-          )}
-
-          <button
-            type="button"
-            className={styles.actionBtn}
-            onClick={handleOpenInEditor}
-            title="Open in external system editor"
-          >
-            <ExternalLink size={13} />
-            <span>Open in Editor</span>
-          </button>
-
-          <button
-            type="button"
-            className={`${styles.actionBtn} ${copied ? styles.actionBtnSuccess : ''}`}
-            onClick={handleCopy}
-            title="Copy entire JSON to clipboard"
-          >
-            {copied ? <Check size={13} /> : <Copy size={13} />}
-            <span>{copied ? 'Copied!' : 'Copy'}</span>
-          </button>
-        </div>
-      </header>
-
-      {/* 2. Body: Either Split Manifest Editor or Standard JSON Code Viewport */}
+      {/* Body: Either Split Manifest Editor or Standard JSON Code Viewport */}
       {isManifest ? (
         <div className={styles.splitContentArea}>
           <ManifestForm

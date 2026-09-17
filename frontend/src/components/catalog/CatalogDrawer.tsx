@@ -18,10 +18,20 @@ import {
   Check,
   Plus,
   Minus,
+  Download,
+  Loader2,
+  CheckCircle2,
 } from 'lucide-react';
 import { usePackStore } from '../../store/packStore';
 import { useIpc } from '../../hooks/useIpc';
-import { BlockGroupNodeDto, AliasGroupNodeDto, CatalogLeafDto } from '../../types/ipc';
+import {
+  BlockGroupNodeDto,
+  AliasGroupNodeDto,
+  CatalogLeafDto,
+  IpcMessageTypes,
+  DownloadProgressPayload,
+  Vanilla3DStatusPayload,
+} from '../../types/ipc';
 import { FlipbookThumbnail } from '../common/FlipbookThumbnail';
 import { SearchInput } from '../common/SearchInput';
 import styles from './CatalogDrawer.module.css';
@@ -419,15 +429,43 @@ export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose })
   const entityWorkspaceTree = usePackStore((s) => s.entityWorkspaceTree);
   const referencePacks = usePackStore((s) => s.referencePacks);
   const activeReferenceId = usePackStore((s) => s.activeReferenceId);
-  const { postCommand, loadCatalog } = useIpc();
+  const { postCommand, loadCatalog, subscribe } = useIpc();
 
   const [searchText, setSearchText] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<'all' | 'block' | 'item' | 'entity'>('all');
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [isMounted, setIsMounted] = useState(isOpen);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState<DownloadProgressPayload | null>(null);
+  const [has3DInstalled, setHas3DInstalled] = useState<boolean | null>(null);
   const overlayRef = useRef<HTMLDivElement | null>(null);
   const drawerRef = useRef<HTMLElement | null>(null);
   const animationRef = useRef<gsap.core.Timeline | null>(null);
+
+  // Check 3D status on mount / open & listen to download progress
+  useEffect(() => {
+    if (!isOpen) return;
+
+    postCommand(IpcMessageTypes.VanillaGet3DStatus, {});
+
+    const unsubStatus = subscribe(IpcMessageTypes.Vanilla3DStatus, (payload: Vanilla3DStatusPayload) => {
+      setHas3DInstalled(payload.has3DModels);
+    });
+
+    const unsubProgress = subscribe(IpcMessageTypes.DownloadProgress, (payload: DownloadProgressPayload) => {
+      setDownloadProgress(payload);
+      if (payload.progress >= 1) {
+        setIsDownloading(false);
+        setHas3DInstalled(true);
+        postCommand(IpcMessageTypes.VanillaGet3DStatus, {});
+      }
+    });
+
+    return () => {
+      unsubStatus();
+      unsubProgress();
+    };
+  }, [isOpen, subscribe, postCommand]);
 
   const activeReference = useMemo(() => {
     return referencePacks?.find((p) => p.id === activeReferenceId) || referencePacks?.[0] || {
@@ -636,6 +674,13 @@ export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose })
     }
   }, [loadCatalog, postCommand]);
 
+  const handleDownloadReferenceAssets = useCallback(() => {
+    if (isDownloading) return;
+    setIsDownloading(true);
+    setDownloadProgress({ task: 'download_3d_assets', progress: 0.05, message: 'Connecting to Mojang bedrock-samples...' });
+    postCommand(IpcMessageTypes.VanillaDownload3DAssets, {});
+  }, [isDownloading, postCommand]);
+
   if (!isMounted) return null;
 
   const totalCatalogCount = catalogTree?.length || 0;
@@ -745,12 +790,43 @@ export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose })
                 <span className={styles.versionBadge}>{activeReference.version}</span>
               </div>
               <span className={styles.headerSubtitle}>
-                {activeReference.description || (activeReference.isVanilla ? 'Mojang bedrock-samples offline reference database' : 'Custom local resource pack reference')}
+                {activeReference.description || (activeReference.isVanilla ? 'Mojang bedrock-samples official reference database' : 'Custom local resource pack reference')}
               </span>
             </div>
           </div>
 
           <div className={styles.headerRightActions}>
+            <button
+              type="button"
+              className={`${styles.syncReferenceBtn} ${isDownloading ? styles.syncReferenceBtnLoading : ''} ${has3DInstalled ? styles.syncReferenceBtnInstalled : ''}`}
+              onClick={handleDownloadReferenceAssets}
+              disabled={isDownloading}
+              title={
+                isDownloading
+                  ? downloadProgress?.message || 'Downloading Bedrock Reference Assets...'
+                  : has3DInstalled
+                  ? '3D models & reference assets installed. Click to re-sync latest Bedrock assets'
+                  : 'Download official Vanilla Bedrock 3D models & textures'
+              }
+            >
+              {isDownloading ? (
+                <>
+                  <Loader2 size={13} className={styles.spinnerIcon} />
+                  <span>{Math.round((downloadProgress?.progress ?? 0.05) * 100)}%</span>
+                </>
+              ) : has3DInstalled ? (
+                <>
+                  <CheckCircle2 size={13} className={styles.installedIcon} />
+                  <span>Assets Synced</span>
+                </>
+              ) : (
+                <>
+                  <Download size={13} />
+                  <span>Sync 3D Assets</span>
+                </>
+              )}
+            </button>
+
             <span className={styles.resultCountBadge} data-testid="result-count-badge">
               {isSearching
                 ? `${visibleBlocks.length} / ${filteredBlocks.length}`

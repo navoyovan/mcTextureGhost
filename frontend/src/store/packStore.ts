@@ -50,6 +50,8 @@ export interface PackStoreState {
   activeReferenceId: string;
   /** Tile thumbnail size in px: 80 | 120 | 160 | 200 */
   tileZoom: number;
+  /** Live stats for the shared-toolbar JSON viewer (matches, line count, formatted size) */
+  jsonViewerInfo: { lineCount: number; sizeLabel: string; matchCount: number | null } | null;
 
   // App & Theme Config
   tintOpacity: number;
@@ -82,6 +84,7 @@ export interface PackStoreActions {
   setReferencePacks: (packs: ReferencePackProfile[]) => void;
   setActiveReferenceId: (id: string) => void;
   setTileZoom: (zoom: number) => void;
+  setJsonViewerInfo: (info: { lineCount: number; sizeLabel: string; matchCount: number | null } | null) => void;
   setAppConfig: (config: Partial<AppConfigPayload>) => void;
   setOpenWithApps: (apps: OpenWithAppDto[]) => void;
 }
@@ -144,6 +147,7 @@ const initialState: PackStoreState = {
   ],
   activeReferenceId: 'vanilla',
   tileZoom: 120,
+  jsonViewerInfo: null,
 
   tintOpacity: 85,
   tintBrightness: 30,
@@ -365,6 +369,11 @@ export const packStoreActions: PackStoreActions = {
   setTileZoom(zoom: number): void {
     const clamped = Math.max(80, Math.min(200, zoom));
     currentState = { ...currentState, tileZoom: clamped };
+    notify();
+  },
+
+  setJsonViewerInfo(info: { lineCount: number; sizeLabel: string; matchCount: number | null } | null): void {
+    currentState = { ...currentState, jsonViewerInfo: info };
     notify();
   },
 

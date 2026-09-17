@@ -33,7 +33,7 @@
   align-items: center;
   gap: 10px;
   -webkit-app-region: no-drag;
-  flex-shrink: 1;
+  flex: 1 1 auto;
   /* overflow:hidden removed — menus need to be able to overflow titlebar */
   min-width: 0;
 }
@@ -94,10 +94,13 @@
   border: 1px solid rgba(140, 235, 31, 0.35);
   color: var(--accent-primary, #8CEB1F);
   font-weight: 500;
-  max-width: 240px;
+  max-width: min(65vw, calc(100vw - 360px));
+  min-width: 0;
+  flex-shrink: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  display: inline-block;
 }
 
 .dragHandle {

@@ -742,7 +742,45 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
                     }
                     bool has3D = CatalogReferenceService.Has3DModelsInstalled();
                     _ipcBridge.PostMessage(IpcMessageTypes.Vanilla3DStatus, new Vanilla3DStatusPayload(has3D, CatalogReferenceService.VanillaReferencePackDirectory));
+                    _ipcBridge.PostMessage(IpcMessageTypes.CatalogDetailedStatus, CatalogReferenceService.GetDetailedStatus());
                 });
+            });
+        });
+
+        // 12d. CATALOG:GET_DETAILED_STATUS
+        _ipcBridge.RegisterHandler(IpcMessageTypes.CatalogGetDetailedStatus, (payload, corrId) =>
+        {
+            Dispatcher.Invoke(() =>
+            {
+                var detailedStatus = CatalogReferenceService.GetDetailedStatus();
+                _ipcBridge.PostMessage(IpcMessageTypes.CatalogDetailedStatus, detailedStatus);
+            });
+            return Task.CompletedTask;
+        });
+
+        // 12e. CATALOG:PURGE_TEMP_ARCHIVE
+        _ipcBridge.RegisterHandler(IpcMessageTypes.CatalogPurgeTempArchive, (payload, corrId) =>
+        {
+            Dispatcher.Invoke(() =>
+            {
+                CatalogReferenceService.PurgeTempArchive();
+                var detailedStatus = CatalogReferenceService.GetDetailedStatus();
+                _ipcBridge.PostMessage(IpcMessageTypes.CatalogDetailedStatus, detailedStatus);
+            });
+            return Task.CompletedTask;
+        });
+
+        // 12f. CATALOG:PURGE_EXTRACTED_DATA
+        _ipcBridge.RegisterHandler(IpcMessageTypes.CatalogPurgeExtractedData, async (payload, corrId) =>
+        {
+            await Dispatcher.InvokeAsync(async () =>
+            {
+                CatalogReferenceService.PurgeExtractedData();
+                await ViewModel.RescanAsync();
+                var detailedStatus = CatalogReferenceService.GetDetailedStatus();
+                _ipcBridge.PostMessage(IpcMessageTypes.CatalogDetailedStatus, detailedStatus);
+                bool has3D = CatalogReferenceService.Has3DModelsInstalled();
+                _ipcBridge.PostMessage(IpcMessageTypes.Vanilla3DStatus, new Vanilla3DStatusPayload(has3D, CatalogReferenceService.VanillaReferencePackDirectory));
             });
         });
 

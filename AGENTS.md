@@ -15,7 +15,9 @@ Consult these project specification files **only when relevant** to the task at 
    - **When to read:** Only when modifying Bedrock `.geo.json` parsers, bone hierarchies, Three.js box UVs, or EntityWorkspace.
 6. **`.agents/rules/wpf-ui.md`** (WPF-UI & Native UI Invariants)
    - **When to read:** Only when modifying WPF controls, caption buttons, native UI, or inspecting WPF-UI APIs.
-7. **`AGENTS.md`** (System Instructions & Workflow - THIS FILE)
+7. **`.agents/rules/graphify.md`** (Optional Codebase Navigation)
+   - **When to read:** For unfamiliar cross-file dependencies or architecture questions when a generated Graphify graph is available. Known-file edits should go directly to source.
+8. **`AGENTS.md`** (System Instructions & Workflow - THIS FILE)
    - **Scope:** Execution rules, code style, build safety invariants.
 
 ---

@@ -37,6 +37,9 @@ export const IpcMessageTypes = {
   VanillaDownload3DAssets: 'VANILLA:DOWNLOAD_3D_ASSETS',
   VanillaGet3DStatus: 'VANILLA:GET_3D_STATUS',
   OpenWithGetApps: 'OPEN_WITH:GET_APPS',
+  CatalogGetDetailedStatus: 'CATALOG:GET_DETAILED_STATUS',
+  CatalogPurgeTempArchive: 'CATALOG:PURGE_TEMP_ARCHIVE',
+  CatalogPurgeExtractedData: 'CATALOG:PURGE_EXTRACTED_DATA',
 
   // Outgoing from C# to Web
   PackStateChanged: 'PACK:STATE_CHANGED',
@@ -49,6 +52,7 @@ export const IpcMessageTypes = {
   Vanilla3DStatus: 'VANILLA:3D_STATUS',
   DownloadProgress: 'DOWNLOAD:PROGRESS',
   OpenWithAppsList: 'OPEN_WITH:APPS_LIST',
+  CatalogDetailedStatus: 'CATALOG:DETAILED_STATUS',
 } as const;
 
 export type IpcMessageType = (typeof IpcMessageTypes)[keyof typeof IpcMessageTypes];
@@ -391,4 +395,23 @@ export interface DownloadProgressPayload {
   task: string;
   progress: number;
   message: string;
+}
+
+export interface ReferencePackDetailedStatusPayload {
+  activeId: string;
+  activeName: string;
+  referencePath: string;
+  directoryExists: boolean;
+  hasExtractedModels: boolean;
+  modelFilesCount: number;
+  textureFilesCount: number;
+  jsonFilesCount: number;
+  totalExtractedSizeBytes: number;
+  totalExtractedSizeFormatted: string;
+  tempArchiveExists: boolean;
+  tempArchivePath: string | null;
+  tempArchiveSizeBytes: number;
+  tempArchiveSizeFormatted: string;
+  versionTag: string;
+  lastModifiedUtc: string | null;
 }

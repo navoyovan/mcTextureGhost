@@ -72,6 +72,9 @@ public static class IpcMessageTypes
     public const string VanillaDownload3DAssets = "VANILLA:DOWNLOAD_3D_ASSETS";
     public const string VanillaGet3DStatus      = "VANILLA:GET_3D_STATUS";
     public const string OpenWithGetApps         = "OPEN_WITH:GET_APPS";
+    public const string CatalogGetDetailedStatus = "CATALOG:GET_DETAILED_STATUS";
+    public const string CatalogPurgeTempArchive  = "CATALOG:PURGE_TEMP_ARCHIVE";
+    public const string CatalogPurgeExtractedData = "CATALOG:PURGE_EXTRACTED_DATA";
 
     // Outgoing from C# to Web
     public const string PackStateChanged = "PACK:STATE_CHANGED";
@@ -84,6 +87,7 @@ public static class IpcMessageTypes
     public const string Vanilla3DStatus  = "VANILLA:3D_STATUS";
     public const string DownloadProgress = "DOWNLOAD:PROGRESS";
     public const string OpenWithAppsList = "OPEN_WITH:APPS_LIST";
+    public const string CatalogDetailedStatus = "CATALOG:DETAILED_STATUS";
 }
 
 #endregion
@@ -832,5 +836,24 @@ public static class IpcContractMapper
         );
     }
 }
+
+public record ReferencePackDetailedStatusPayload(
+    [property: JsonPropertyName("activeId")] string ActiveId,
+    [property: JsonPropertyName("activeName")] string ActiveName,
+    [property: JsonPropertyName("referencePath")] string ReferencePath,
+    [property: JsonPropertyName("directoryExists")] bool DirectoryExists,
+    [property: JsonPropertyName("hasExtractedModels")] bool HasExtractedModels,
+    [property: JsonPropertyName("modelFilesCount")] int ModelFilesCount,
+    [property: JsonPropertyName("textureFilesCount")] int TextureFilesCount,
+    [property: JsonPropertyName("jsonFilesCount")] int JsonFilesCount,
+    [property: JsonPropertyName("totalExtractedSizeBytes")] long TotalExtractedSizeBytes,
+    [property: JsonPropertyName("totalExtractedSizeFormatted")] string TotalExtractedSizeFormatted,
+    [property: JsonPropertyName("tempArchiveExists")] bool TempArchiveExists,
+    [property: JsonPropertyName("tempArchivePath")] string? TempArchivePath,
+    [property: JsonPropertyName("tempArchiveSizeBytes")] long TempArchiveSizeBytes,
+    [property: JsonPropertyName("tempArchiveSizeFormatted")] string TempArchiveSizeFormatted,
+    [property: JsonPropertyName("versionTag")] string VersionTag,
+    [property: JsonPropertyName("lastModifiedUtc")] string? LastModifiedUtc
+);
 
 #endregion
