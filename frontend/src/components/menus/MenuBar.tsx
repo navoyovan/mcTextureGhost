@@ -148,6 +148,7 @@ export const MenuBar: React.FC = () => {
           action: () => {
             closePack();
             resetPackState();
+            window.location.reload();
           },
           disabled: !isPackLoaded,
         },

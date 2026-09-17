@@ -140,9 +140,9 @@
   display: inline-flex;
   align-items: center;
   border-radius: 4px;
-  background: rgba(139, 92, 246, 0.25);
-  border: 1px solid rgba(139, 92, 246, 0.45);
-  color: #c4b5fd;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(190, 242, 100, 0.35);
+  color: #bef264;
   letter-spacing: 0.04em;
   flex-shrink: 0;
   margin-left: auto;
@@ -159,9 +159,9 @@
   display: inline-flex;
   align-items: center;
   border-radius: 4px;
-  background: rgba(56, 189, 248, 0.2);
-  border: 1px solid rgba(56, 189, 248, 0.4);
-  color: #7dd3fc;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(244, 114, 182, 0.35);
+  color: #f472b6;
   letter-spacing: 0.04em;
   flex-shrink: 0;
   margin-left: auto;

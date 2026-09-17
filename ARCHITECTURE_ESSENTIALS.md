@@ -20,7 +20,7 @@ Fast reference for day-to-day tasks. Consult this file first to conserve context
 - `frontend/src/components/workspace/entityGeometryBuilder.ts`: High-performance parser and Three.js hierarchy builder for format 1.8.0 and 1.12.0+ Bedrock geometry models.
 - `frontend/src/components/json/JsonReader.tsx`: Unified JSON reader and inspector for all pack `.json` files. When loading `manifest.json`, renders an unboxed 50/50 dual-pane inspector (`ManifestForm.tsx` + live code).
 - `frontend/src/components/grid/PackGrid.tsx`: Virtualized/memoized grid tile renderer (`PackGridTile` wrapped in `React.memo`) with stable callbacks to eliminate re-rendering 5,000+ items on hover or context menu toggle.
-- `frontend/src/components/grid/TileHoverMorphPortal.tsx`: Singleton portal providing Tier 2 morphing hover preview after 700ms dwell with strict `:hover` cursor validation, animated checkerboard backdrop, dynamic card bounds with auto-fitting up to 128×128 texture resolution, and seamless idle-tile contrast snapback.
+- `frontend/src/components/grid/TileHoverMorphPortal.tsx`: Universal singleton morphing portal for `PackGrid`, `BlockWorkspace`, and `EntityWorkspace`. Clicking any tile/leaf opens the morph card with animated checkerboard backdrop, auto-scaling up to 128×128, outside status badges (`OK`, `ANIM`, `MERS`), inner resolution chip, Hold-to-Peek MERS preview, quick action toolbar, and 100ms mouse-leave minimize grace period with seamless idle-tile snapback.
 - `frontend/src/components/common/FlipbookThumbnail.tsx`: Dual-path texture renderer with zero-canvas static `<img>` fast-path and `IntersectionObserver` viewport culling for animated Bedrock flipbooks (pausing offscreen 20Hz canvas tick loops).
 
 ## 3. IPC Communication & Virtual Hosts

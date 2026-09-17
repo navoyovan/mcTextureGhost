@@ -3,10 +3,43 @@ import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react'
 import { Box, Layers, Shield } from 'lucide-react';
 import { usePackStore } from '../../store/packStore';
 import { useIpc } from '../../hooks/useIpc';
-import { BlockGroupNodeDto, CatalogLeafDto } from '../../types/ipc';
+import { BlockGroupNodeDto, CatalogLeafDto, TextureAliasDto } from '../../types/ipc';
 import { Entity3DViewer, EntitySlotOption, EntitySlotVariationOption } from './Entity3DViewer';
 import { WorkspaceTileCard, VariantTileGroup } from './WorkspaceTileCard';
+import { TileHoverMorphPortal, TileHoverMorphTarget } from '../grid/TileHoverMorphPortal';
 import styles from './BlockWorkspace.module.css';
+
+function leafToAliasDto(leaf: CatalogLeafDto): TextureAliasDto {
+  return {
+    alias: leaf.alias,
+    displayName: leaf.displayName,
+    relativePath: leaf.relativePath,
+    fullPath: leaf.fullPath,
+    category: (leaf.category as any) || 'entity',
+    entityId: leaf.entityId,
+    textureKey: leaf.textureKey,
+    geometryId: leaf.geometryId,
+    isAttachable: leaf.isAttachable,
+    status: (leaf.status === 'VANILLA' ? 'OK' : leaf.status) as any,
+    exists: leaf.status !== 'GHOST',
+    imageUrl: leaf.imageUrl,
+    blockFaces: [],
+    usedByBlocks: [],
+    variantKind: leaf.variantKind || 'None',
+    blockVariantIndex: leaf.blockVariantIndex,
+    totalBlockVariants: leaf.totalBlockVariants,
+    textureVariantIndex: leaf.textureVariantIndex,
+    totalTextureVariants: leaf.totalTextureVariants,
+    weight: leaf.weight,
+    isFlipbook: leaf.isFlipbook,
+    flipbook: leaf.flipbook,
+    primaryFaceBadgeText: leaf.primaryFaceBadgeText || '',
+    subtitleCaption: leaf.subtitleCaption || '',
+    hasMers: (leaf as any).hasMers,
+    mersFullPath: (leaf as any).mersFullPath,
+    key: leaf.alias,
+  };
+}
 
 // Group entity leaves by alias slot
 function groupLeavesByVariantSlot(leaves: CatalogLeafDto[]): VariantTileGroup[] {
@@ -49,11 +82,12 @@ export const EntityWorkspace: React.FC = () => {
   const statusFilter = usePackStore((s) => s.statusFilter);
   const activeFilters = usePackStore((s) => s.activeFilters);
   const tileZoom = usePackStore((s) => s.tileZoom);
-  const { editTexture, deleteTextureFile, deleteTextureEntries } = useIpc();
+  const { editTexture, deleteTextureFile, deleteTextureEntries, openInExplorer } = useIpc();
 
   const [selectedEntityId, setSelectedEntityId] = useState<string | null>(null);
   const [activeLeafKey, setActiveLeafKey] = useState<string | null>(null);
   const [activeMenuKey, setActiveMenuKey] = useState<string | null>(null);
+  const [hoverMorphTarget, setHoverMorphTarget] = useState<TileHoverMorphTarget | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -289,10 +323,16 @@ export const EntityWorkspace: React.FC = () => {
   const activeTextureUrl = activeVariation?.imageUrl ?? activeLeaf?.imageUrl;
   const activeIsGhost = activeVariation ? activeVariation.isGhost : (activeLeaf?.status === 'GHOST');
 
-  const handleLeafClick = useCallback((leaf: CatalogLeafDto) => {
+  const handleTileClick = useCallback((domEl: HTMLElement, leaf: CatalogLeafDto, key: string) => {
     setActiveLeafKey(`${leaf.alias}-${leaf.relativePath}`);
-    editTexture(leaf.alias, leaf.fullPath, leaf.status === 'GHOST');
-  }, [editTexture]);
+    const rect = domEl.getBoundingClientRect();
+    setHoverMorphTarget({
+      alias: leafToAliasDto(leaf),
+      key,
+      originRect: rect,
+      domElement: domEl,
+    });
+  }, []);
 
   const handleToggleMenu = useCallback((cardKey: string) => {
     setActiveMenuKey((prev) => (prev === cardKey ? null : cardKey));
@@ -443,7 +483,7 @@ export const EntityWorkspace: React.FC = () => {
                         selectedBlockName={selectedEntityDisplayName}
                         isMenuOpen={activeMenuKey === cardKey}
                         onToggleMenu={handleToggleMenu}
-                        onEditTexture={handleLeafClick}
+                        onTileClick={handleTileClick}
                         onDeleteTextureFile={handleDeleteTextureFile}
                         onDeleteTextureEntries={handleDeleteTextureEntries}
                       />
@@ -457,7 +497,24 @@ export const EntityWorkspace: React.FC = () => {
       ) : (
         <div className={styles.emptySelection}>Select an entity to inspect</div>
       )}
+
+      {/* Morphing Portal Preview (opened on tile click) */}
+      {hoverMorphTarget && (
+        <TileHoverMorphPortal
+          target={hoverMorphTarget}
+          onClose={() => setHoverMorphTarget(null)}
+          onEdit={(alias) => {
+            setHoverMorphTarget(null);
+            editTexture(alias.alias, alias.fullPath, alias.status === 'GHOST');
+          }}
+          onOpenContextMenu={() => {
+            setHoverMorphTarget(null);
+          }}
+          onRevealInExplorer={(fullPath) => {
+            openInExplorer(fullPath, true);
+          }}
+        />
+      )}
     </div>
   );
 };
-
