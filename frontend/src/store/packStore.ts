@@ -48,6 +48,7 @@ export interface PackStoreState {
   catalogTree: BlockGroupNodeDto[] | null;
   referencePacks: ReferencePackProfile[];
   activeReferenceId: string;
+  hasVanillaAssets: boolean;
   /** Tile thumbnail size in px: 80 | 120 | 160 | 200 */
   tileZoom: number;
   /** Live stats for the shared-toolbar JSON viewer (matches, line count, formatted size) */
@@ -83,6 +84,7 @@ export interface PackStoreActions {
   setCatalogTree: (tree: BlockGroupNodeDto[] | null) => void;
   setReferencePacks: (packs: ReferencePackProfile[]) => void;
   setActiveReferenceId: (id: string) => void;
+  setHasVanillaAssets: (has: boolean) => void;
   setTileZoom: (zoom: number) => void;
   setJsonViewerInfo: (info: { lineCount: number; sizeLabel: string; matchCount: number | null } | null) => void;
   setAppConfig: (config: Partial<AppConfigPayload>) => void;
@@ -146,6 +148,7 @@ const initialState: PackStoreState = {
     },
   ],
   activeReferenceId: 'vanilla',
+  hasVanillaAssets: false,
   tileZoom: 120,
   jsonViewerInfo: null,
 
@@ -363,6 +366,11 @@ export const packStoreActions: PackStoreActions = {
 
   setActiveReferenceId(id: string): void {
     currentState = { ...currentState, activeReferenceId: id };
+    notify();
+  },
+
+  setHasVanillaAssets(has: boolean): void {
+    currentState = { ...currentState, hasVanillaAssets: has };
     notify();
   },
 

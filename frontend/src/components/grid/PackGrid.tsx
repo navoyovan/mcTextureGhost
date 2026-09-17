@@ -225,9 +225,7 @@ export const PackGrid: React.FC = () => {
   }, [aliases, activeTab, searchQuery, statusFilter, activeFilters, selectedFolderPath]);
 
   const handleTileClick = React.useCallback((domEl: HTMLElement, alias: TextureAliasDto, key: string) => {
-    if (contextMenuTarget) {
-      setContextMenuTarget(null);
-    }
+    setContextMenuTarget(null);
     const rect = domEl.getBoundingClientRect();
     setHoverMorphTarget({
       alias,
@@ -235,7 +233,7 @@ export const PackGrid: React.FC = () => {
       originRect: rect,
       domElement: domEl,
     });
-  }, [contextMenuTarget]);
+  }, []);
 
   const handleContextMenu = React.useCallback((e: React.MouseEvent, alias: TextureAliasDto, key: string) => {
     e.preventDefault();
@@ -314,9 +312,11 @@ export const PackGrid: React.FC = () => {
           anchor={contextMenuTarget.anchor}
           onClose={() => setContextMenuTarget(null)}
           onEdit={(app?: OpenWithAppDto) => {
+            setHoverMorphTarget(null);
             editTexture(contextMenuTarget.alias.alias, contextMenuTarget.alias.fullPath, contextMenuTarget.alias.status === 'GHOST', app?.exePath, false);
           }}
           onOpenWithDialog={() => {
+            setHoverMorphTarget(null);
             editTexture(contextMenuTarget.alias.alias, contextMenuTarget.alias.fullPath, contextMenuTarget.alias.status === 'GHOST', null, true);
           }}
           onRevealInExplorer={() => {
@@ -325,14 +325,17 @@ export const PackGrid: React.FC = () => {
             }
           }}
           onDeleteTexture={() => {
+            setHoverMorphTarget(null);
             if (contextMenuTarget.alias.fullPath) {
               deleteTextureFile(contextMenuTarget.alias.fullPath, contextMenuTarget.alias.alias);
             }
           }}
           onDeleteEntries={() => {
+            setHoverMorphTarget(null);
             deleteTextureEntries(contextMenuTarget.alias.alias, contextMenuTarget.alias.category, contextMenuTarget.alias.relativePath);
           }}
           onEditMers={() => {
+            setHoverMorphTarget(null);
             if (contextMenuTarget.alias.mersFullPath) {
               editTexture(contextMenuTarget.alias.alias + '_mers', contextMenuTarget.alias.mersFullPath, false);
             }
@@ -341,24 +344,21 @@ export const PackGrid: React.FC = () => {
       )}
 
       {/* 2nd Hover State Morphing Portal Preview (photobooth-vendor-portal inspired) */}
-      {hoverMorphTarget && !contextMenuTarget && (
+      {hoverMorphTarget && (
         <TileHoverMorphPortal
           target={hoverMorphTarget}
+          isMenuOpen={Boolean(contextMenuTarget)}
           onClose={() => setHoverMorphTarget(null)}
           onEdit={(alias) => {
             setHoverMorphTarget(null);
             editTexture(alias.alias, alias.fullPath, alias.status === 'GHOST');
           }}
           onOpenContextMenu={(alias, anchor) => {
-            setHoverMorphTarget(null);
             setContextMenuTarget({
               alias,
               key: hoverMorphTarget.key,
               anchor,
             });
-          }}
-          onRevealInExplorer={(fullPath) => {
-            openInExplorer(fullPath, true);
           }}
         />
       )}

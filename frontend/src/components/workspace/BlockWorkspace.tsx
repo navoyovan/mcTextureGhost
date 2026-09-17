@@ -83,7 +83,7 @@ export const BlockWorkspace: React.FC = () => {
   const searchQuery = usePackStore((s) => s.searchQuery);
   const statusFilter = usePackStore((s) => s.statusFilter);
   const activeFilters = usePackStore((s) => s.activeFilters);
-  const { editTexture, deleteTextureFile, deleteTextureEntries, openInExplorer } = useIpc();
+  const { editTexture, deleteTextureFile, deleteTextureEntries } = useIpc();
 
   const [activeMenuKey, setActiveMenuKey] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
@@ -598,9 +598,6 @@ export const BlockWorkspace: React.FC = () => {
           }}
           onOpenContextMenu={() => {
             setHoverMorphTarget(null);
-          }}
-          onRevealInExplorer={(fullPath) => {
-            openInExplorer(fullPath, true);
           }}
         />
       )}

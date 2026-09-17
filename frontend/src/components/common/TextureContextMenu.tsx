@@ -175,11 +175,12 @@ export const TextureContextMenu: React.FC<TextureContextMenuProps> = ({
         <button
           type="button"
           className={styles.menuItem}
+          disabled={isGhost}
           onClick={() => {
             onClose();
             onEdit(defaultApp);
           }}
-          title={defaultApp ? `Edit with ${defaultApp.name} (${defaultApp.exePath})` : 'Edit with default image editor'}
+          title={isGhost ? 'Texture file does not exist on disk' : defaultApp ? `Edit with ${defaultApp.name} (${defaultApp.exePath})` : 'Edit with default image editor'}
         >
           {defaultApp?.iconDataUrl ? (
             <img src={defaultApp.iconDataUrl} alt={defaultApp.name} className={styles.appIconImg} />
@@ -196,13 +197,16 @@ export const TextureContextMenu: React.FC<TextureContextMenuProps> = ({
         {/* 2. Open With Submenu Trigger & Flyout */}
         <div
           className={styles.hasSubmenu}
-          onMouseEnter={handleSubmenuEnter}
-          onMouseLeave={handleSubmenuLeave}
+          onMouseEnter={!isGhost ? handleSubmenuEnter : undefined}
+          onMouseLeave={!isGhost ? handleSubmenuLeave : undefined}
         >
           <button
             type="button"
             className={styles.menuItem}
+            disabled={isGhost}
+            title={isGhost ? 'Texture file does not exist on disk' : undefined}
             onClick={(e) => {
+              if (isGhost) return;
               e.stopPropagation();
               clearCloseTimer();
               setIsSubmenuOpen((prev) => !prev);

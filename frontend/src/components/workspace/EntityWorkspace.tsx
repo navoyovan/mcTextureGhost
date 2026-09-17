@@ -82,7 +82,7 @@ export const EntityWorkspace: React.FC = () => {
   const statusFilter = usePackStore((s) => s.statusFilter);
   const activeFilters = usePackStore((s) => s.activeFilters);
   const tileZoom = usePackStore((s) => s.tileZoom);
-  const { editTexture, deleteTextureFile, deleteTextureEntries, openInExplorer } = useIpc();
+  const { editTexture, deleteTextureFile, deleteTextureEntries } = useIpc();
 
   const [selectedEntityId, setSelectedEntityId] = useState<string | null>(null);
   const [activeLeafKey, setActiveLeafKey] = useState<string | null>(null);
@@ -530,9 +530,6 @@ export const EntityWorkspace: React.FC = () => {
           }}
           onOpenContextMenu={() => {
             setHoverMorphTarget(null);
-          }}
-          onRevealInExplorer={(fullPath) => {
-            openInExplorer(fullPath, true);
           }}
         />
       )}

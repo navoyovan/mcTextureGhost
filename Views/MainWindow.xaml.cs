@@ -483,14 +483,17 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
                         IpcContractMapper.BuildVirtualTextureUrl(alias?.RelativePath ?? Path.GetFileName(payload.FullPath), payload.FullPath)
                     );
                 }
-                try
+                if (!payload.CreateOnly)
                 {
-                    var parentHwnd = new WindowInteropHelper(this).Handle;
-                    OpenWithService.OpenFileWith(payload.FullPath, payload.ExePath, payload.ChooseDialog, parentHwnd);
-                }
-                catch (Exception ex)
-                {
-                    _ipcBridge.PushError("Editor Launch Failed", ex.Message, "warning");
+                    try
+                    {
+                        var parentHwnd = new WindowInteropHelper(this).Handle;
+                        OpenWithService.OpenFileWith(payload.FullPath, payload.ExePath, payload.ChooseDialog, parentHwnd);
+                    }
+                    catch (Exception ex)
+                    {
+                        _ipcBridge.PushError("Editor Launch Failed", ex.Message, "warning");
+                    }
                 }
             });
         });
@@ -672,40 +675,85 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
             });
         });
 
-        // 12. VANILLA:ADD
+        // 12. VANILLA:ADD (Catalog Drawer -> scaffolds JSON schema definitions into pack; creates GHOSTS without needing PNGs or downloads)
         _ipcBridge.RegisterHandler<VanillaAddPayload>(IpcMessageTypes.VanillaAdd, async (payload, corrId) =>
         {
             await Dispatcher.InvokeAsync(async () =>
             {
-                if (payload != null && ViewModel.PackRootPath != null && ViewModel.VanillaData != null)
+                if (payload != null && ViewModel.PackRootPath != null)
                 {
-                    if (string.Equals(payload.Category, "entity", StringComparison.OrdinalIgnoreCase))
+                    if (ViewModel.VanillaData != null)
                     {
-                        JsonWriterService.AddVanillaEntity(ViewModel.PackRootPath, payload.Id, ViewModel.VanillaData);
-                    }
-                    else if (string.Equals(payload.Category, "item", StringComparison.OrdinalIgnoreCase))
-                    {
-                        JsonWriterService.AddVanillaItem(ViewModel.PackRootPath, payload.Id, ViewModel.VanillaData);
-                    }
-                    else
-                    {
-                        // Check if payload.Id is a known BlockId in blocks.json
-                        if (ViewModel.VanillaData.RawBlocksJson.ContainsKey(payload.Id))
+                        if (string.Equals(payload.Category, "entity", StringComparison.OrdinalIgnoreCase))
                         {
-                            JsonWriterService.AddVanillaBlock(ViewModel.PackRootPath, payload.Id, ViewModel.VanillaData);
+                            JsonWriterService.AddVanillaEntity(ViewModel.PackRootPath, payload.Id, ViewModel.VanillaData);
                         }
-                        else if (ViewModel.VanillaData.RawTerrainTextureJson.ContainsKey(payload.Id))
+                        else if (string.Equals(payload.Category, "item", StringComparison.OrdinalIgnoreCase))
                         {
-                            // It's a specific alias (e.g. "door_upper" or "door_lower")
-                            JsonWriterService.AddVanillaBlockAlias(ViewModel.PackRootPath, payload.Id, ViewModel.VanillaData);
+                            JsonWriterService.AddVanillaItem(ViewModel.PackRootPath, payload.Id, ViewModel.VanillaData);
                         }
                         else
                         {
-                            // Fallback
-                            JsonWriterService.AddVanillaBlock(ViewModel.PackRootPath, payload.Id, ViewModel.VanillaData);
+                            // Check if payload.Id is a known BlockId in blocks.json
+                            if (ViewModel.VanillaData.RawBlocksJson.ContainsKey(payload.Id))
+                            {
+                                JsonWriterService.AddVanillaBlock(ViewModel.PackRootPath, payload.Id, ViewModel.VanillaData);
+                            }
+                            else if (ViewModel.VanillaData.RawTerrainTextureJson.ContainsKey(payload.Id))
+                            {
+                                // It's a specific alias (e.g. "door_upper" or "door_lower")
+                                JsonWriterService.AddVanillaBlockAlias(ViewModel.PackRootPath, payload.Id, ViewModel.VanillaData);
+                            }
+                            else
+                            {
+                                // Fallback
+                                JsonWriterService.AddVanillaBlock(ViewModel.PackRootPath, payload.Id, ViewModel.VanillaData);
+                            }
                         }
                     }
+
+                    // Scaffolding JSON entries creates GHOSTS in the pack without needing PNG files or downloads
                     await ViewModel.RescanAsync();
+                }
+            });
+        });
+
+        // 12b. TEXTURE:EXTRACT_REFERENCE (Ghost Morph Tile -> copies authentic reference PNG into pack)
+        _ipcBridge.RegisterHandler<TextureExtractReferencePayload>(IpcMessageTypes.TextureExtractReference, async (payload, corrId) =>
+        {
+            await Dispatcher.InvokeAsync(async () =>
+            {
+                if (payload != null && ViewModel.PackRootPath != null && !string.IsNullOrEmpty(payload.FullPath))
+                {
+                    var refDir = CatalogReferenceService.GetActiveProfile()?.PackPath ?? CatalogReferenceService.VanillaReferencePackDirectory;
+                    var srcPath = ResolveReferenceTexturePath(refDir, payload.FullPath, payload.RelativePath, payload.AliasKey, payload.Category, ViewModel.PackRootPath);
+
+                    if (!string.IsNullOrEmpty(srcPath) && File.Exists(srcPath))
+                    {
+                        var dir = Path.GetDirectoryName(payload.FullPath);
+                        if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+                        {
+                            Directory.CreateDirectory(dir);
+                        }
+
+                        File.Copy(srcPath, payload.FullPath, overwrite: true);
+                        ImagePathConverter.ClearCache();
+
+                        var matchedAlias = ViewModel.Aliases.FirstOrDefault(a => a.Alias.Equals(payload.AliasKey, StringComparison.OrdinalIgnoreCase));
+                        if (matchedAlias != null)
+                        {
+                            matchedAlias.Status = TextureStatus.Ok;
+                        }
+
+                        _ipcBridge.PushTextureUpdated(
+                            payload.AliasKey,
+                            "OK",
+                            payload.FullPath,
+                            IpcContractMapper.BuildVirtualTextureUrl(payload.RelativePath ?? Path.GetFileName(payload.FullPath), payload.FullPath)
+                        );
+
+                        await ViewModel.RescanAsync();
+                    }
                 }
             });
         });
@@ -1426,6 +1474,88 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
                     break;
             }
         });
+    }
+
+    private static string? ResolveReferenceTexturePath(string refDir, string targetFullPath, string? relPath, string aliasKey, string? category, string? packRootPath)
+    {
+        var dirsToSearch = new List<string>();
+        if (!string.IsNullOrEmpty(refDir) && Directory.Exists(refDir))
+        {
+            dirsToSearch.Add(refDir);
+        }
+        var vanillaDir = CatalogReferenceService.VanillaReferencePackDirectory;
+        if (!string.IsNullOrEmpty(vanillaDir) && Directory.Exists(vanillaDir) && !dirsToSearch.Contains(vanillaDir, StringComparer.OrdinalIgnoreCase))
+        {
+            dirsToSearch.Add(vanillaDir);
+        }
+
+        foreach (var searchDir in dirsToSearch)
+        {
+            var candidates = new List<string>();
+
+            if (!string.IsNullOrEmpty(relPath))
+            {
+                var cleanRel = relPath.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar);
+                candidates.Add(Path.Combine(searchDir, cleanRel));
+                if (!cleanRel.EndsWith(".png", StringComparison.OrdinalIgnoreCase))
+                {
+                    candidates.Add(Path.Combine(searchDir, cleanRel + ".png"));
+                }
+            }
+
+            if (!string.IsNullOrEmpty(targetFullPath) && !string.IsNullOrEmpty(packRootPath))
+            {
+                try
+                {
+                    var relFromRoot = Path.GetRelativePath(packRootPath, targetFullPath);
+                    candidates.Add(Path.Combine(searchDir, relFromRoot));
+                }
+                catch { }
+            }
+
+            var fileName = Path.GetFileName(targetFullPath);
+            if (!string.IsNullOrEmpty(fileName))
+            {
+                candidates.Add(Path.Combine(searchDir, "textures", "blocks", fileName));
+                candidates.Add(Path.Combine(searchDir, "textures", "items", fileName));
+                candidates.Add(Path.Combine(searchDir, "textures", "entity", fileName));
+                candidates.Add(Path.Combine(searchDir, "textures", fileName));
+            }
+
+            if (!string.IsNullOrEmpty(aliasKey))
+            {
+                candidates.Add(Path.Combine(searchDir, "textures", "blocks", $"{aliasKey}.png"));
+                candidates.Add(Path.Combine(searchDir, "textures", "items", $"{aliasKey}.png"));
+                candidates.Add(Path.Combine(searchDir, "textures", "entity", $"{aliasKey}.png"));
+                candidates.Add(Path.Combine(searchDir, "textures", $"{aliasKey}.png"));
+            }
+
+            foreach (var path in candidates)
+            {
+                if (File.Exists(path))
+                {
+                    return path;
+                }
+            }
+
+            // Fallback: search textures folder for matching file name
+            try
+            {
+                var texturesDir = Path.Combine(searchDir, "textures");
+                if (Directory.Exists(texturesDir))
+                {
+                    var searchPattern = !string.IsNullOrEmpty(fileName) ? fileName : $"{aliasKey}.png";
+                    var match = Directory.EnumerateFiles(texturesDir, searchPattern, SearchOption.AllDirectories).FirstOrDefault();
+                    if (match != null && File.Exists(match))
+                    {
+                        return match;
+                    }
+                }
+            }
+            catch { }
+        }
+
+        return null;
     }
 
     protected override void OnClosed(EventArgs e)

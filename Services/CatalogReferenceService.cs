@@ -203,7 +203,7 @@ public static class CatalogReferenceService
                 Name: "Vanilla Bedrock",
                 Version: "1.21.x",
                 Description: "Mojang bedrock-samples official reference database",
-                PackPath: VanillaDataService.CacheDirectory,
+                PackPath: VanillaReferencePackDirectory,
                 IconUrl: "https://vanilla.local/pack_icon.png",
                 IsVanilla: true
             )

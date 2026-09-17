@@ -201,9 +201,9 @@
 }
 
 .ghostBadge {
-  background: rgba(244, 114, 182, 0.15);
-  border: 1px solid rgba(244, 114, 182, 0.3);
-  color: #f472b6;
+  background: rgba(68, 38, 56, 0.75);
+  border: 1px solid rgba(168, 85, 247, 0.35);
+  color: var(--accent-primary, #8CEB1F);
 }
 
 /* Branch Indentation */

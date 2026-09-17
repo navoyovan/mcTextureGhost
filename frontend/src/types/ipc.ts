@@ -23,6 +23,7 @@ export const IpcMessageTypes = {
   WindowAction: 'WINDOW:ACTION',
   TintSet: 'TINT:SET',
   VanillaAdd: 'VANILLA:ADD',
+  TextureExtractReference: 'TEXTURE:EXTRACT_REFERENCE',
   VanillaLoadCatalog: 'VANILLA:LOAD_CATALOG',
   CatalogPickReference: 'CATALOG:PICK_REFERENCE',
   CatalogSetReference: 'CATALOG:SET_REFERENCE',
@@ -92,6 +93,7 @@ export interface TextureEditPayload {
   isGhost?: boolean;
   exePath?: string | null;
   chooseDialog?: boolean;
+  createOnly?: boolean;
 }
 
 export interface TextureDeleteFilePayload {
@@ -150,6 +152,13 @@ export interface TintSetPayload {
 export interface VanillaAddPayload {
   id: string;
   category: 'block' | 'item';
+}
+
+export interface TextureExtractReferencePayload {
+  aliasKey: string;
+  fullPath: string;
+  relativePath?: string;
+  category?: string;
 }
 
 export interface GeometryGetPayload {

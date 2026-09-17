@@ -94,6 +94,7 @@ export const App: React.FC = () => {
     // Notify host that frontend is mounted and ready to receive state
     postCommand('APP:READY', {});
     postCommand(IpcMessageTypes.OpenWithGetApps, {});
+    postCommand(IpcMessageTypes.VanillaGet3DStatus, {});
 
     // 1. PACK:STATE_CHANGED
     const unsubPackState = subscribe(IpcMessageTypes.PackStateChanged, (payload) => {
@@ -134,6 +135,20 @@ export const App: React.FC = () => {
       }
     });
 
+    // 7. VANILLA:3D_STATUS
+    const unsubVanillaStatus = subscribe(IpcMessageTypes.Vanilla3DStatus, (payload: any) => {
+      if (payload?.has3DModels !== undefined) {
+        usePackStore.getState().setHasVanillaAssets(Boolean(payload.has3DModels));
+      }
+    });
+
+    // 8. DOWNLOAD:PROGRESS
+    const unsubDownloadProgress = subscribe(IpcMessageTypes.DownloadProgress, (payload: any) => {
+      if (payload?.progress !== undefined && payload.progress >= 1) {
+        usePackStore.getState().setHasVanillaAssets(true);
+      }
+    });
+
     return () => {
       unsubPackState();
       unsubScanProgress();
@@ -141,6 +156,8 @@ export const App: React.FC = () => {
       unsubAppConfig();
       unsubError();
       unsubOpenWith();
+      unsubVanillaStatus();
+      unsubDownloadProgress();
     };
   }, [subscribe, setPackState, updateTexture, setScanProgress, setAppConfig]);
 

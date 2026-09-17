@@ -1,10 +1,11 @@
-// frontend/src/components/grid/TileHoverMorphPortal.tsx
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { Edit3, ExternalLink, FolderOpen, Copy, Check, Layers } from 'lucide-react';
-import { TextureAliasDto } from '../../types/ipc';
+import { Edit3, MoreVertical, Layers, Plus } from 'lucide-react';
+import { TextureAliasDto, IpcMessageTypes } from '../../types/ipc';
 import { usePackStore } from '../../store/packStore';
+import { useIpc } from '../../hooks/useIpc';
 import { FlipbookThumbnail } from '../common/FlipbookThumbnail';
+import { ContextMenuAnchor } from '../common/TextureContextMenu';
 import styles from './TileHoverMorphPortal.module.css';
 
 export interface TileHoverMorphTarget {
@@ -16,10 +17,10 @@ export interface TileHoverMorphTarget {
 
 interface TileHoverMorphPortalProps {
   target: TileHoverMorphTarget;
+  isMenuOpen?: boolean;
   onClose: () => void;
   onEdit: (alias: TextureAliasDto) => void;
-  onOpenContextMenu: (alias: TextureAliasDto, anchor: { x: number; y: number }) => void;
-  onRevealInExplorer: (fullPath: string) => void;
+  onOpenContextMenu: (alias: TextureAliasDto, anchor: ContextMenuAnchor) => void;
 }
 
 interface Coords {
@@ -111,14 +112,13 @@ export const TileHoverMorphPortal: React.FC<TileHoverMorphPortalProps> = (props)
 
 const TileHoverMorphCard: React.FC<TileHoverMorphPortalProps> = ({
   target,
+  isMenuOpen = false,
   onClose,
   onEdit,
   onOpenContextMenu,
-  onRevealInExplorer,
 }) => {
   const [isMorphed, setIsMorphed] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
-  const [copied, setCopied] = useState(false);
   const [imgDimensions, setImgDimensions] = useState<{ width: number; height: number } | null>(() => {
     if (target.domElement) {
       const img = target.domElement.querySelector('img');
@@ -132,6 +132,35 @@ const TileHoverMorphCard: React.FC<TileHoverMorphPortalProps> = ({
     }
     return null;
   });
+
+  const storeAlias = usePackStore((s) =>
+    s.aliases.find((a) => {
+      if (target.alias.fullPath && a.fullPath && a.fullPath.toLowerCase() === target.alias.fullPath.toLowerCase()) {
+        return true;
+      }
+      if (target.alias.relativePath && a.relativePath && a.relativePath.toLowerCase() === target.alias.relativePath.toLowerCase()) {
+        return true;
+      }
+      if (
+        a.alias.toLowerCase() === target.alias.alias.toLowerCase() &&
+        a.blockVariantIndex === target.alias.blockVariantIndex &&
+        a.textureVariantIndex === target.alias.textureVariantIndex
+      ) {
+        return true;
+      }
+      return false;
+    })
+  );
+  const [localAdded, setLocalAdded] = useState(false);
+  const alias = storeAlias ? { ...target.alias, ...storeAlias } : target.alias;
+  const isGhost = localAdded ? false : alias.status === 'GHOST';
+  const { postCommand } = useIpc();
+  const hasVanillaAssets = usePackStore((s) => s.hasVanillaAssets);
+  const activeReferenceId = usePackStore((s) => s.activeReferenceId);
+  const referencePacks = usePackStore((s) => s.referencePacks);
+  const isInstalled = activeReferenceId === 'vanilla'
+    ? hasVanillaAssets
+    : Boolean(referencePacks?.find((p) => p.id === activeReferenceId)?.packPath);
 
   // Synchronous initial coordinate computation prevents blank mount frame
   const [coords, setCoords] = useState<Coords>(() =>
@@ -157,9 +186,6 @@ const TileHoverMorphCard: React.FC<TileHoverMorphPortalProps> = ({
   const cardRef = useRef<HTMLDivElement>(null);
   const closingTimerRef = useRef<number | null>(null);
   const leaveTimerRef = useRef<number | null>(null);
-
-  const alias = target.alias;
-  const isGhost = alias.status === 'GHOST';
 
   const [isPeekingMers, setIsPeekingMers] = useState(false);
 
@@ -234,6 +260,9 @@ const TileHoverMorphCard: React.FC<TileHoverMorphPortalProps> = ({
   const cleanExt = dotIdx > 0 ? (sourceForExt.substring(dotIdx).split('?')[0] ?? '').split('#')[0] ?? '' : '';
   const fileExt = cleanExt && cleanExt.length <= 5 ? cleanExt : '.png';
   const rawDotIdx = rawFileName.lastIndexOf('.');
+  const isMenuOpenRef = useRef(isMenuOpen);
+  isMenuOpenRef.current = isMenuOpen;
+
   const fileBase = rawDotIdx > 0 ? rawFileName.substring(0, rawDotIdx) : rawFileName;
 
   const clearLeaveTimer = useCallback(() => {
@@ -244,7 +273,7 @@ const TileHoverMorphCard: React.FC<TileHoverMorphPortalProps> = ({
   }, []);
 
   const triggerSnapBack = useCallback(() => {
-    if (isClosing) return;
+    if (isClosing || isMenuOpenRef.current) return;
     clearLeaveTimer();
 
     // Refresh original rect from live DOM element if still attached
@@ -271,9 +300,10 @@ const TileHoverMorphCard: React.FC<TileHoverMorphPortalProps> = ({
   }, [isClosing, target.domElement, onClose, clearLeaveTimer]);
 
   const scheduleSnapBack = useCallback(() => {
-    if (isClosing) return;
+    if (isClosing || isMenuOpenRef.current) return;
     if (!leaveTimerRef.current) {
       leaveTimerRef.current = window.setTimeout(() => {
+        if (isMenuOpenRef.current) return;
         triggerSnapBack();
       }, 100);
     }
@@ -319,6 +349,10 @@ const TileHoverMorphCard: React.FC<TileHoverMorphPortalProps> = ({
   // Global dismiss listeners for outside click, window blur, and mousemove bounding (RAF throttled)
   useEffect(() => {
     if (!coords || isClosing) return;
+    if (isMenuOpen) {
+      clearLeaveTimer();
+      return;
+    }
 
     let rafId: number | null = null;
 
@@ -361,15 +395,7 @@ const TileHoverMorphCard: React.FC<TileHoverMorphPortalProps> = ({
       window.removeEventListener('pointerdown', handleGlobalPointerDown);
       window.removeEventListener('blur', handleBlur);
     };
-  }, [coords, isClosing, triggerSnapBack, clearLeaveTimer, scheduleSnapBack]);
-
-  const handleCopyPath = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    const pathToCopy = alias.fullPath || alias.relativePath || alias.alias;
-    navigator.clipboard?.writeText(pathToCopy);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1200);
-  };
+  }, [coords, isClosing, isMenuOpen, triggerSnapBack, clearLeaveTimer, scheduleSnapBack]);
 
   const handleEditClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -377,17 +403,39 @@ const TileHoverMorphCard: React.FC<TileHoverMorphPortalProps> = ({
     onEdit(alias);
   };
 
-  const handleOpenContextMenuClick = (e: React.MouseEvent) => {
+  const handleCreateStub = (e: React.MouseEvent) => {
     e.stopPropagation();
-    const rect = e.currentTarget.getBoundingClientRect();
-    onOpenContextMenu(alias, { x: rect.left, y: rect.bottom + 4 });
+    setLocalAdded(true);
+    postCommand(IpcMessageTypes.TextureEdit, {
+      aliasKey: alias.alias,
+      fullPath: alias.fullPath,
+      isGhost: true,
+      createOnly: true,
+    });
   };
 
-  const handleRevealClick = (e: React.MouseEvent) => {
+  const handleExtractReference = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (alias.fullPath) {
-      onRevealInExplorer(alias.fullPath);
-    }
+    setLocalAdded(true);
+    postCommand(IpcMessageTypes.TextureExtractReference, {
+      aliasKey: alias.alias,
+      fullPath: alias.fullPath,
+      relativePath: alias.relativePath,
+      category: (alias.category || 'block').toLowerCase(),
+    });
+  };
+
+  const handleOpenContextMenuClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    clearLeaveTimer();
+    const rect = e.currentTarget.getBoundingClientRect();
+    onOpenContextMenu(alias, {
+      top: rect.top,
+      bottom: rect.bottom,
+      left: rect.left,
+      right: rect.right,
+    });
   };
 
   if (!coords) return null;
@@ -430,7 +478,12 @@ const TileHoverMorphCard: React.FC<TileHoverMorphPortalProps> = ({
           pointerEvents: isClosing ? 'none' : 'auto',
         }}
         onMouseEnter={clearLeaveTimer}
-        onMouseLeave={scheduleSnapBack}
+        onMouseLeave={() => {
+          if (!isMenuOpenRef.current) {
+            scheduleSnapBack();
+          }
+        }}
+        onPointerDown={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Outside Floating Badges */}
@@ -496,18 +549,66 @@ const TileHoverMorphCard: React.FC<TileHoverMorphPortalProps> = ({
 
             {/* Quick Action Buttons Toolbar */}
             <div className={styles.actionsBar}>
-              <button
-                type="button"
-                className={styles.primaryActionBtn}
-                onClick={handleEditClick}
-                title={isGhost ? 'Create and edit texture' : 'Edit texture in default editor'}
-              >
-                <Edit3 size={13} />
-                <span>{isGhost ? 'Create' : 'Edit'}</span>
-              </button>
+              {isGhost ? (
+                <div className={styles.ghostActionsGroup}>
+                  {isInstalled ? (
+                    <>
+                      <button
+                        type="button"
+                        className={styles.primaryActionBtn}
+                        onClick={handleExtractReference}
+                        title="Add authentic vanilla texture to pack"
+                      >
+                        <Plus size={13} />
+                        <span>ADD</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        className={styles.stubSquareBtn}
+                        onClick={handleCreateStub}
+                        title="Create stub PNG file"
+                        aria-label="Create stub PNG"
+                      >
+                        <svg
+                          viewBox="0 0 16 16"
+                          className={styles.stubSvgFull}
+                          preserveAspectRatio="none"
+                          aria-hidden="true"
+                        >
+                          <rect x="0" y="0" width="8" height="8" fill="#000000" />
+                          <rect x="8" y="0" width="8" height="8" fill="var(--accent-primary, #8CEB1F)" />
+                          <rect x="0" y="8" width="8" height="8" fill="var(--accent-primary, #8CEB1F)" />
+                          <rect x="8" y="8" width="8" height="8" fill="#000000" />
+                        </svg>
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      type="button"
+                      className={styles.primaryActionBtn}
+                      onClick={handleCreateStub}
+                      title="Create stub PNG texture file"
+                    >
+                      <Plus size={13} />
+                      <span>CREATE STUB</span>
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  className={`${styles.primaryActionBtn} ${styles.editBtnAnimIn}`}
+                  onClick={handleEditClick}
+                  title="Edit texture in default editor"
+                >
+                  <Edit3 size={13} />
+                  <span>Edit</span>
+                </button>
+              )}
 
               {/* Hold to Peek MERS PBR Map Button */}
-              {alias.hasMers && mersUrl && (
+              {!isGhost && alias.hasMers && mersUrl && (
                 <button
                   type="button"
                   className={`${styles.mersHoldBtn} ${isPeekingMers ? styles.mersHoldBtnActive : ''}`}
@@ -535,32 +636,10 @@ const TileHoverMorphCard: React.FC<TileHoverMorphPortalProps> = ({
                 type="button"
                 className={styles.iconActionBtn}
                 onClick={handleOpenContextMenuClick}
-                title="Open With ▸"
-                aria-label="Open With options"
+                title="Texture options"
+                aria-label="Texture options"
               >
-                <ExternalLink size={13} />
-              </button>
-
-              {alias.fullPath && (
-                <button
-                  type="button"
-                  className={styles.iconActionBtn}
-                  onClick={handleRevealClick}
-                  title="Reveal in Explorer"
-                  aria-label="Reveal in Explorer"
-                >
-                  <FolderOpen size={13} />
-                </button>
-              )}
-
-              <button
-                type="button"
-                className={`${styles.iconActionBtn} ${copied ? styles.iconCopied : ''}`}
-                onClick={handleCopyPath}
-                title={copied ? 'Copied!' : 'Copy relative path'}
-                aria-label="Copy relative path"
-              >
-                {copied ? <Check size={13} /> : <Copy size={13} />}
+                <MoreVertical size={14} />
               </button>
             </div>
           </>

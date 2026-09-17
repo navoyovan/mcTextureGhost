@@ -58,6 +58,7 @@ public static class IpcMessageTypes
     public const string WindowAction     = "WINDOW:ACTION";
     public const string TintSet          = "TINT:SET";
     public const string VanillaAdd       = "VANILLA:ADD";
+    public const string TextureExtractReference = "TEXTURE:EXTRACT_REFERENCE";
     public const string VanillaLoadCatalog = "VANILLA:LOAD_CATALOG";
     public const string CatalogPickReference = "CATALOG:PICK_REFERENCE";
     public const string CatalogSetReference  = "CATALOG:SET_REFERENCE";
@@ -125,7 +126,8 @@ public record TextureEditPayload(
     [property: JsonPropertyName("fullPath")] string FullPath,
     [property: JsonPropertyName("isGhost")] bool IsGhost = false,
     [property: JsonPropertyName("exePath")] string? ExePath = null,
-    [property: JsonPropertyName("chooseDialog")] bool ChooseDialog = false
+    [property: JsonPropertyName("chooseDialog")] bool ChooseDialog = false,
+    [property: JsonPropertyName("createOnly")] bool CreateOnly = false
 );
 
 /// <summary>
@@ -214,6 +216,16 @@ public record TintSetPayload(
 public record VanillaAddPayload(
     [property: JsonPropertyName("id")] string Id,
     [property: JsonPropertyName("category")] string Category // "block" | "item"
+);
+
+/// <summary>
+/// Payload for "TEXTURE:EXTRACT_REFERENCE". Copies authentic reference PNG into the pack for a ghost tile.
+/// </summary>
+public record TextureExtractReferencePayload(
+    [property: JsonPropertyName("aliasKey")] string AliasKey,
+    [property: JsonPropertyName("fullPath")] string FullPath,
+    [property: JsonPropertyName("relativePath")] string? RelativePath = null,
+    [property: JsonPropertyName("category")] string? Category = null
 );
 
 /// <summary>
