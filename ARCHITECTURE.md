@@ -45,7 +45,7 @@ graph TD
 ## 2. Core Subsystems
 
 ### A. WPF Desktop Host (`.NET 8`)
-- **`MainWindow.xaml`**: Hosts Mica title bar, custom non-client caption buttons, and the `WebView2` element.
+- **`Views/MainWindow.xaml` / `Views/MainWindow.xaml.cs`**: Native shell, title bar, window behavior, and WebView2 hosting.
 - **`ViewModels/MainViewModel.cs`**:
   - Acts as state hub and command processor.
   - Handles two-way IPC messaging between C# and the React web app.
@@ -67,8 +67,9 @@ graph TD
 - Communication between C# and WebView2 occurs over JSON messages:
   - **C# to JS**: `webView.CoreWebView2.PostWebMessageAsString(json)`
   - **JS to C#**: `window.chrome.webview.postMessage(payload)`
-- Payload format: `{ type: string, payload: any }`.
-- Key message types: `SET_PACK_DATA`, `SELECT_TEXTURE`, `OPEN_TEXTURE`, `SCAFFOLD_TEXTURE`, `UPDATE_ZOOM`, `FILTER_DIRECTORY`.
+- Envelope: `type`, `payload`, and correlation/timestamp metadata. Canonical message names and payload definitions live in `Services/IpcContracts.cs` and `frontend/src/types/ipc.ts`; update both sides together when changing a contract.
+- Frontend sending, subscriptions, and correlated request-response helpers live in `frontend/src/hooks/useIpc.ts`.
+- Backend dispatch lives in `Services/IpcBridgeService.cs`; `ViewModels/MainViewModel.cs` coordinates application command handling.
 
 ---
 
