@@ -93,7 +93,7 @@ McTextureGhost is source-available under the [Business Source License 1.1](./LIC
 - Cannot be resold or repackaged as a commercial product without a separate agreement.
 - Automatically converts to **Apache 2.0** four years after each release date.
 
-Contributions welcome — first-time contributors will be prompted to sign the [CLA](./CLA.md) when opening a pull request. Questions about commercial licensing? Open an issue.
+Contributions and feedback are welcome! For bug reports, feature requests, or questions about commercial licensing, feel free to [open an issue](https://github.com/navoyovan/mcTextureGhost/issues).
 
 ---
 
