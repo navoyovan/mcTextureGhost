@@ -11,10 +11,10 @@ import {
   Zap,
   RotateCw,
   Layers,
+  PawPrint,
   ArrowRight,
   Box,
   Sword,
-  Ghost,
   Check,
   Plus,
   Minus,
@@ -212,7 +212,11 @@ const CatalogAliasGroup: React.FC<{
     <div className={styles.aliasGroupCard} data-testid={`alias-group-${aliasGroup.alias}`}>
       <div className={styles.aliasGroupHeader}>
         <div className={styles.aliasHeaderLeft}>
-          <Layers size={13} className={styles.aliasIcon} />
+          {isEntity ? (
+            <PawPrint size={13} className={styles.aliasIcon} />
+          ) : (
+            <Box size={13} className={styles.aliasIcon} />
+          )}
           <span className={styles.aliasNameText} title={slotName}>
             {isEntity ? `Slot: ${slotName}` : `Alias: ${aliasGroup.alias}`}
           </span>
@@ -357,7 +361,7 @@ const CatalogBlockGroup: React.FC<{
             title={block.category}
           >
             {isEntity ? (
-              <Ghost size={11} className={styles.badgeIcon} />
+              <PawPrint size={11} className={styles.badgeIcon} />
             ) : isItem ? (
               <Sword size={11} className={styles.badgeIcon} />
             ) : (
@@ -854,7 +858,7 @@ export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose })
             }}
           >
             <span className={styles.floatingBtnIcon}>
-              <Ghost size={16} />
+              <PawPrint size={16} />
             </span>
             <span className={styles.floatingBtnTooltip}>Filter Entities</span>
           </button>

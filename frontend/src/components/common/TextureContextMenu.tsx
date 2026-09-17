@@ -164,6 +164,15 @@ export const TextureContextMenu: React.FC<TextureContextMenuProps> = ({
     [item.fullPath, item.relativePath]
   );
 
+  const rawFileName = item.relativePath
+    ? (item.relativePath.split(/[/\\]/).pop() ?? item.alias)
+    : item.alias;
+  const dotIdx = rawFileName.lastIndexOf('.');
+  const cleanExt = dotIdx > 0 ? (rawFileName.substring(dotIdx).split('?')[0] ?? '').split('#')[0] ?? '' : '';
+  const fileExt = cleanExt && cleanExt.length <= 5 ? cleanExt : (item.relativePath?.endsWith('.png') ? '.png' : '');
+  const fileBase = dotIdx > 0 ? rawFileName.substring(0, dotIdx) : rawFileName;
+  const fullDisplayName = fileExt ? `${fileBase}${fileExt}` : fileBase;
+
   return createPortal(
     <div className={styles.dropdownPortalBackdrop} onMouseDown={onClose}>
       <div
@@ -171,6 +180,27 @@ export const TextureContextMenu: React.FC<TextureContextMenuProps> = ({
         style={{ top: `${menuPos.top}px`, left: `${menuPos.left}px` }}
         onMouseDown={(e) => e.stopPropagation()}
       >
+        {/* Header Displaying Texture Name */}
+        <div className={styles.menuHeader} title={item.relativePath || fullDisplayName}>
+          <div className={styles.headerTitleRow}>
+            <span className={styles.headerFileName}>{fileBase}</span>
+            {fileExt && <span className={styles.headerFileExt}>{fileExt}</span>}
+          </div>
+          {item.relativePath ? (
+            <div className={styles.headerSubPath} title={item.relativePath}>
+              {item.relativePath}
+            </div>
+          ) : (
+            item.alias && (
+              <div className={styles.headerSubPath} title={`Alias: ${item.alias}`}>
+                alias: {item.alias}
+              </div>
+            )
+          )}
+        </div>
+
+        <div className={styles.menuDivider} />
+
         {/* 1. Default Edit Texture (Uses default app icon/name if configured) */}
         <button
           type="button"

@@ -8,6 +8,7 @@ Fast reference for day-to-day tasks. Start with the relevant code below; load sp
 - **Dependency versions:** `McTextureGhost.csproj` and `frontend/package.json`.
 - **Styling:** CSS Modules (`*.module.css`) + CSS Custom Properties. **No Tailwind CSS**.
 - **Fonts:** Preserve design tokens in `frontend/src/styles/` (`Syne`, `Press Start 2P`, and system code/UI fonts).
+- **Category Icons:** Standardized Lucide icons across UI: Blocks (`<Box />`), Items (`<Sword />`), Entities (`<PawPrint />`, attachable: `<Shield />`), All (`<LayoutGrid />`). `<Ghost />` is strictly reserved for ghost texture status.
 
 ## 2. Task-to-Code Lookup
 

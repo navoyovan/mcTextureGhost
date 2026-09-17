@@ -3,11 +3,11 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
   LayoutGrid,
   Box,
-  Layers,
   Filter,
   ChevronDown,
   Check,
   Ghost,
+  PawPrint,
   Sparkles,
   Film,
   Shuffle,
@@ -194,10 +194,10 @@ export const Toolbar: React.FC = () => {
               <div className={styles.filterSection}>
                 <div className={styles.filterSectionLabel}>Category</div>
                 {[
-                  { id: 'all', label: 'All Categories', icon: <Layers size={12} /> },
+                  { id: 'all', label: 'All Categories', icon: <LayoutGrid size={12} /> },
                   { id: 'blocks', label: 'Blocks', icon: <Box size={12} />, ghostCount: stats.blocksGhostCount },
                   { id: 'items', label: 'Items', icon: <Sword size={12} />, ghostCount: stats.itemsGhostCount },
-                  { id: 'entities', label: 'Entities', icon: <Ghost size={12} />, ghostCount: stats.entitiesGhostCount },
+                  { id: 'entities', label: 'Entities', icon: <PawPrint size={12} />, ghostCount: stats.entitiesGhostCount },
                 ].map((item) => {
                   const isChecked = activeTab === item.id;
                   return (
@@ -317,7 +317,7 @@ export const Toolbar: React.FC = () => {
             onClick={() => handleSelectView('entity')}
             title="Entity Workspace (3D model & slot inspector)"
           >
-            <Layers size={13} />
+            <PawPrint size={13} />
             <span>Entities</span>
           </button>
         </div>

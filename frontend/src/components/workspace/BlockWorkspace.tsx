@@ -2,11 +2,12 @@ import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react'
 import { Box, Layers, ArrowRight } from 'lucide-react';
 import { usePackStore } from '../../store/packStore';
 import { useIpc } from '../../hooks/useIpc';
-import { BlockGroupNodeDto, CatalogLeafDto, TextureAliasDto } from '../../types/ipc';
+import { BlockGroupNodeDto, CatalogLeafDto, TextureAliasDto, OpenWithAppDto } from '../../types/ipc';
 import { Block3DViewer } from './Block3DViewer';
 import { BlockEntryTree } from './BlockEntryTree';
 import { WorkspaceTileCard, VariantTileGroup } from './WorkspaceTileCard';
 import { TileHoverMorphPortal, TileHoverMorphTarget } from '../grid/TileHoverMorphPortal';
+import { TextureContextMenu } from '../common/TextureContextMenu';
 import styles from './BlockWorkspace.module.css';
 
 function leafToAliasDto(leaf: CatalogLeafDto): TextureAliasDto {
@@ -83,9 +84,14 @@ export const BlockWorkspace: React.FC = () => {
   const searchQuery = usePackStore((s) => s.searchQuery);
   const statusFilter = usePackStore((s) => s.statusFilter);
   const activeFilters = usePackStore((s) => s.activeFilters);
-  const { editTexture, deleteTextureFile, deleteTextureEntries } = useIpc();
+  const { editTexture, deleteTextureFile, deleteTextureEntries, openInExplorer } = useIpc();
 
   const [activeMenuKey, setActiveMenuKey] = useState<string | null>(null);
+  const [contextMenuTarget, setContextMenuTarget] = useState<{
+    alias: TextureAliasDto;
+    key: string;
+    anchor?: { top?: number; bottom?: number; left?: number; right?: number; x?: number; y?: number };
+  } | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -591,13 +597,53 @@ export const BlockWorkspace: React.FC = () => {
       {hoverMorphTarget && (
         <TileHoverMorphPortal
           target={hoverMorphTarget}
+          isMenuOpen={Boolean(contextMenuTarget)}
           onClose={() => setHoverMorphTarget(null)}
           onEdit={(alias) => {
             setHoverMorphTarget(null);
             editTexture(alias.alias, alias.fullPath, alias.status === 'GHOST');
           }}
-          onOpenContextMenu={() => {
+          onOpenContextMenu={(alias, anchor) => {
+            setContextMenuTarget({
+              alias,
+              key: hoverMorphTarget.key,
+              anchor,
+            });
+          }}
+        />
+      )}
+
+      {/* Standalone Context Menu triggered from morph or tiles */}
+      {contextMenuTarget && (
+        <TextureContextMenu
+          item={contextMenuTarget.alias}
+          anchor={contextMenuTarget.anchor}
+          onClose={() => setContextMenuTarget(null)}
+          onEdit={(app?: OpenWithAppDto) => {
             setHoverMorphTarget(null);
+            editTexture(contextMenuTarget.alias.alias, contextMenuTarget.alias.fullPath, contextMenuTarget.alias.status === 'GHOST', app?.exePath, false);
+          }}
+          onOpenWithDialog={() => {
+            setHoverMorphTarget(null);
+            editTexture(contextMenuTarget.alias.alias, contextMenuTarget.alias.fullPath, contextMenuTarget.alias.status === 'GHOST', null, true);
+          }}
+          onRevealInExplorer={() => {
+            if (contextMenuTarget.alias.fullPath) {
+              openInExplorer(contextMenuTarget.alias.fullPath, true);
+            }
+          }}
+          onDeleteTexture={() => {
+            if (contextMenuTarget.alias.fullPath) {
+              deleteTextureFile(contextMenuTarget.alias.fullPath);
+            }
+          }}
+          onDeleteEntries={() => {
+            deleteTextureEntries(contextMenuTarget.alias.alias, contextMenuTarget.alias.category || 'block');
+          }}
+          onEditMers={() => {
+            if (contextMenuTarget.alias.mersFullPath) {
+              editTexture(contextMenuTarget.alias.alias, contextMenuTarget.alias.mersFullPath, false);
+            }
           }}
         />
       )}

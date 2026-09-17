@@ -1,5 +1,4 @@
 import React, { useMemo, useState } from 'react';
-import { MoreVertical } from 'lucide-react';
 import { usePackStore, pathMatchesFolder } from '../../store/packStore';
 import { useIpc } from '../../hooks/useIpc';
 import { TextureAliasDto, OpenWithAppDto } from '../../types/ipc';
@@ -11,10 +10,8 @@ import styles from './PackGrid.module.css';
 interface PackGridTileProps {
   alias: TextureAliasDto;
   uniqueKey: string;
-  isMenuOpen: boolean;
   onTileClick: (domEl: HTMLElement, alias: TextureAliasDto, key: string) => void;
   onContextMenu: (e: React.MouseEvent, alias: TextureAliasDto, key: string) => void;
-  onOpenMenu: (e: React.MouseEvent, alias: TextureAliasDto, key: string) => void;
 }
 
 const getStatusDotClass = (status: string) => {
@@ -35,10 +32,8 @@ const getStatusDotClass = (status: string) => {
 const PackGridTile = React.memo<PackGridTileProps>(({
   alias,
   uniqueKey,
-  isMenuOpen,
   onTileClick,
   onContextMenu,
-  onOpenMenu,
 }) => {
   const isGhost = alias.status === 'GHOST';
 
@@ -61,17 +56,6 @@ const PackGridTile = React.memo<PackGridTileProps>(({
       onContextMenu={(e) => onContextMenu(e, alias, uniqueKey)}
       title={`${fullFileName}\nAlias: ${alias.alias}\nStatus: ${alias.status}\nPath: ${alias.relativePath}`}
     >
-      {/* 3-Dots Hover Menu Trigger */}
-      <button
-        type="button"
-        className={`${styles.moreButton} ${isMenuOpen ? styles.moreButtonActive : ''}`}
-        onClick={(e) => onOpenMenu(e, alias, uniqueKey)}
-        title="Texture options"
-        aria-label="Texture options"
-      >
-        <MoreVertical size={14} />
-      </button>
-
       {/* Thumbnail Container - 100% clean texture display without overlays */}
       <div
         className={`${styles.tileThumbnailWrapper} ${!isGhost ? styles.tileThumbnailAdded : ''}`}
@@ -246,31 +230,6 @@ export const PackGrid: React.FC = () => {
     });
   }, []);
 
-  const handleOpenMenu = React.useCallback((e: React.MouseEvent, alias: TextureAliasDto, key: string) => {
-    e.stopPropagation();
-    setHoverMorphTarget(null);
-    const targetEl = e.currentTarget as HTMLElement | null;
-    const rect = targetEl ? targetEl.getBoundingClientRect() : null;
-
-    setContextMenuTarget((current) => {
-      if (current?.key === key) {
-        return null;
-      }
-      return {
-        alias,
-        key,
-        anchor: rect
-          ? {
-              top: rect.top,
-              bottom: rect.bottom,
-              left: rect.left,
-              right: rect.right,
-            }
-          : { x: e.clientX, y: e.clientY },
-      };
-    });
-  }, []);
-
   return (
     <div className={styles.gridContainer}>
       {filteredAliases.length === 0 ? (
@@ -288,17 +247,14 @@ export const PackGrid: React.FC = () => {
         >
           {filteredAliases.map((alias, index) => {
             const uniqueKey = `${alias.category}:${alias.alias}:${alias.relativePath || ''}:${alias.textureVariantIndex ?? ''}:${alias.blockVariantIndex ?? ''}:${index}`;
-            const isMenuOpen = contextMenuTarget?.key === uniqueKey;
 
             return (
               <PackGridTile
                 key={uniqueKey}
                 alias={alias}
                 uniqueKey={uniqueKey}
-                isMenuOpen={isMenuOpen}
                 onTileClick={handleTileClick}
                 onContextMenu={handleContextMenu}
-                onOpenMenu={handleOpenMenu}
               />
             );
           })}

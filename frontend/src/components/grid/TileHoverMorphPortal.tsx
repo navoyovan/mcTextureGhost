@@ -505,14 +505,6 @@ const TileHoverMorphCard: React.FC<TileHoverMorphPortalProps> = ({
           style={{ height: `${currentThumbHeight}px` }}
         >
           {isMorphed && <div className={styles.thumbCheckerboardBg} />}
-          {/* Resolution & Category Chip inside container */}
-          {isMorphed && (
-            <div className={styles.thumbInnerChip}>
-              <span className={styles.resChip}>
-                {baseTexWidth}×{effectiveTexHeight} • {alias.category?.toUpperCase() || 'TEXTURE'}
-              </span>
-            </div>
-          )}
 
           <div className={styles.thumbImageWrapper}>
             {!isGhost && activePreviewSrc ? (
@@ -540,9 +532,9 @@ const TileHoverMorphCard: React.FC<TileHoverMorphPortalProps> = ({
               <div className={styles.relPath} title={alias.relativePath || alias.alias}>
                 {alias.relativePath || alias.alias}
               </div>
-              <div className={styles.aliasRow}>
-                <span className={styles.aliasTag} title={`Alias: ${alias.alias}`}>
-                  alias: {alias.alias}
+              <div className={styles.resRow}>
+                <span className={styles.resBadge}>
+                  {baseTexWidth}×{effectiveTexHeight} • {alias.category?.toUpperCase() || 'TEXTURE'}
                 </span>
               </div>
             </div>

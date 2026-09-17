@@ -55,11 +55,10 @@
   justify-content: center;
   overflow: hidden;
   box-sizing: border-box;
-  border-radius: 7px 7px 0 0;
+  border-radius: 0;
   transition: height 0.22s cubic-bezier(0.2, 0.8, 0.2, 1),
               background-color 0.22s ease,
-              border-color 0.22s ease,
-              border-radius 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+              border-color 0.22s ease;
 }
 
 .morphed .thumbArea {
@@ -208,17 +207,6 @@
   box-shadow: 0 0 12px rgba(244, 114, 182, 0.75) !important;
 }
 
-.resChip {
-  font-family: 'Consolas', monospace;
-  font-size: 10px;
-  color: rgba(255, 255, 255, 0.7);
-  background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  padding: 3px 6px;
-  border-radius: 4px;
-}
-
 /* ── Metadata Area ────────────────────────────────────────────────────────── */
 
 .metaArea {
@@ -266,20 +254,20 @@
   white-space: nowrap;
 }
 
-.aliasRow {
+.resRow {
   display: flex;
   align-items: center;
   gap: 6px;
   margin-top: 2px;
 }
 
-.aliasTag {
+.resBadge {
   font-family: 'Consolas', monospace;
   font-size: 10px;
-  color: #38bdf8;
-  background: rgba(56, 189, 248, 0.1);
-  border: 1px solid rgba(56, 189, 248, 0.25);
-  padding: 1px 6px;
+  color: rgba(255, 255, 255, 0.75);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 1.5px 6px;
   border-radius: 3px;
   max-width: 100%;
   overflow: hidden;

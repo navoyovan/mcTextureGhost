@@ -28,6 +28,52 @@
   user-select: none;
 }
 
+.menuHeader {
+  padding: 6px 8px 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.03);
+  max-width: 220px;
+}
+
+.headerTitleRow {
+  display: flex;
+  align-items: baseline;
+  gap: 1px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.headerFileName {
+  font-family: var(--font-brand, 'Syne', sans-serif);
+  font-size: 12px;
+  font-weight: 700;
+  color: #ffffff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.headerFileExt {
+  font-family: var(--font-brand, 'Syne', sans-serif);
+  font-size: 10px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.4);
+  flex-shrink: 0;
+}
+
+.headerSubPath {
+  font-family: var(--font-mono, 'Consolas', monospace);
+  font-size: 9.5px;
+  color: rgba(255, 255, 255, 0.45);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 @keyframes menuAppear {
   from {
     opacity: 0;

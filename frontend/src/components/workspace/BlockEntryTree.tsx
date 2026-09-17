@@ -211,7 +211,7 @@ const TextureLeafRow: React.FC<TextureLeafRowProps> = ({ leaf, onTileClick }) =>
 
   const getStatusBadge = () => {
     if (isVanilla) {
-      return <span className={`${styles.badge} ${styles.vanillaBadge}`}>vanilla fallback</span>;
+      return <span className={`${styles.badge} ${styles.vanillaBadge}`}>vanilla</span>;
     }
     if (isGhost) {
       return <span className={`${styles.badge} ${styles.ghostBadge}`}>ghost</span>;
