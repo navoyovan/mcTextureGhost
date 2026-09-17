@@ -38,7 +38,7 @@
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6),
               0 0 0 1px rgba(255, 255, 255, 0.08),
               0 24px 64px rgba(0, 0, 0, 0.7);
-  border-radius: 12px;
+  border-radius: 0;
   padding: 0;
   overflow: visible;
 }
@@ -55,17 +55,31 @@
   justify-content: center;
   overflow: hidden;
   box-sizing: border-box;
-  border-radius: 7px 7px 0 0;
+  border-radius: 0;
   transition: height 0.22s cubic-bezier(0.2, 0.8, 0.2, 1),
               background-color 0.22s ease,
-              border-color 0.22s ease,
-              border-radius 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+              border-color 0.22s ease;
 }
 
 .morphed .thumbArea {
-  background: #0f0f14;
+  background: #101014;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 11px 11px 0 0;
+  border-radius: 0;
+}
+
+.thumbCheckerboardBg {
+  position: absolute;
+  inset: 0;
+  background-color: #101014;
+  background-image:
+    linear-gradient(45deg, rgba(255, 255, 255, 0.04) 25%, transparent 25%),
+    linear-gradient(-45deg, rgba(255, 255, 255, 0.04) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, rgba(255, 255, 255, 0.04) 75%),
+    linear-gradient(-45deg, transparent 75%, rgba(255, 255, 255, 0.04) 75%);
+  background-size: 16px 16px;
+  background-position: 0 0, 0 8px, 8px -8px, -8px 0px;
+  pointer-events: none;
+  z-index: 1;
 }
 
 .bottomSectionUnmorphed {
@@ -73,39 +87,6 @@
   min-height: 32px;
   background: transparent;
   pointer-events: none;
-}
-
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-@keyframes moveDiagonal {
-  0% {
-    background-position: 0 0;
-  }
-  100% {
-    background-position: 24px 24px;
-  }
-}
-
-.thumbCheckerboardBg {
-  position: absolute;
-  inset: 0;
-  background-image: conic-gradient(
-    rgba(255, 255, 255, 0.04) 90deg,
-    transparent 90deg 180deg,
-    rgba(255, 255, 255, 0.04) 180deg 270deg,
-    transparent 270deg
-  );
-  background-size: 16px 16px;
-  animation: fadeIn 0.2s ease 0.04s both, moveDiagonal 4s linear infinite;
-  pointer-events: none;
-  z-index: 1;
 }
 
 .thumbImageWrapper {
@@ -122,15 +103,7 @@
 }
 
 .morphed .thumbImageWrapper {
-  padding: 12px;
-}
-
-.spriteScaler {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  transition: width 0.22s cubic-bezier(0.2, 0.8, 0.2, 1), height 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+  padding: 10px;
 }
 
 .spriteImg {
@@ -145,8 +118,8 @@
   font-family: 'Press Start 2P', monospace;
   font-size: 24px;
   font-weight: 700;
-  color: #8CEB1F;
-  background: rgba(68, 38, 56, 0.75);
+  color: var(--accent-primary, #8CEB1F);
+  background: transparent;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -178,12 +151,13 @@
 }
 
 .badge {
-  font-family: 'Press Start 2P', monospace;
-  font-size: 8px;
+  font-family: var(--font-brand, 'Syne', sans-serif);
+  font-size: 9.5px;
+  font-weight: 700;
   padding: 3.5px 7px;
   border-radius: 4px;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.03em;
   line-height: 1;
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.7);
   backdrop-filter: blur(8px);
@@ -196,9 +170,9 @@
 }
 
 .badgeGhost {
-  background: rgba(36, 10, 14, 0.92);
-  border: 1px solid rgba(239, 68, 68, 0.75);
-  color: #f87171;
+  background: rgba(68, 38, 56, 0.75);
+  border: 1px solid rgba(168, 85, 247, 0.35);
+  color: var(--accent-primary, #8CEB1F);
 }
 
 .badgeOrphan {
@@ -231,17 +205,6 @@
   border-color: #f472b6 !important;
   color: #ffffff !important;
   box-shadow: 0 0 12px rgba(244, 114, 182, 0.75) !important;
-}
-
-.resChip {
-  font-family: 'Consolas', monospace;
-  font-size: 10px;
-  color: rgba(255, 255, 255, 0.7);
-  background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  padding: 3px 6px;
-  border-radius: 4px;
 }
 
 /* ── Metadata Area ────────────────────────────────────────────────────────── */
@@ -291,20 +254,20 @@
   white-space: nowrap;
 }
 
-.aliasRow {
+.resRow {
   display: flex;
   align-items: center;
   gap: 6px;
   margin-top: 2px;
 }
 
-.aliasTag {
+.resBadge {
   font-family: 'Consolas', monospace;
   font-size: 10px;
-  color: #38bdf8;
-  background: rgba(56, 189, 248, 0.1);
-  border: 1px solid rgba(56, 189, 248, 0.25);
-  padding: 1px 6px;
+  color: rgba(255, 255, 255, 0.75);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 1.5px 6px;
   border-radius: 3px;
   max-width: 100%;
   overflow: hidden;
@@ -322,6 +285,29 @@
   background: #18181f;
   border-top: 1px solid rgba(255, 255, 255, 0.06);
   animation: fadeIn 0.18s cubic-bezier(0.2, 0.8, 0.2, 1) 0.08s both;
+}
+
+.ghostActionsGroup {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+
+@keyframes editBtnEnter {
+  0% {
+    opacity: 0;
+    transform: translateY(4px) scale(0.97);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.editBtnAnimIn {
+  animation: editBtnEnter 0.22s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 .primaryActionBtn {
@@ -355,6 +341,39 @@
 
 .primaryActionBtn:active {
   transform: translateY(0);
+}
+
+.stubSquareBtn {
+  all: unset;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  cursor: pointer;
+  transition: all 0.18s ease;
+  box-sizing: border-box;
+  flex-shrink: 0;
+  padding: 0;
+}
+
+.stubSquareBtn:hover {
+  border-color: rgba(255, 255, 255, 0.5);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4), 0 0 8px rgba(140, 235, 31, 0.3);
+}
+
+.stubSquareBtn:active {
+  transform: translateY(0);
+}
+
+.stubSvgFull {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 
 .mersHoldBtn {

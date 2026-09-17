@@ -205,6 +205,18 @@ export function useIpc() {
     return postCommand(IpcMessageTypes.OpenWithGetApps, {});
   }, []);
 
+  const addCustomEditor = useCallback((exePath?: string | null) => {
+    return postCommand(IpcMessageTypes.OpenWithAddCustomApp, { exePath });
+  }, []);
+
+  const removeCustomEditor = useCallback((id: string) => {
+    return postCommand(IpcMessageTypes.OpenWithRemoveApp, { id });
+  }, []);
+
+  const setDefaultEditor = useCallback((id: string | null) => {
+    return postCommand(IpcMessageTypes.OpenWithSetDefault, { id });
+  }, []);
+
   const deleteTextureFile = useCallback((fullPath: string, aliasKey?: string) => {
     return postCommand(IpcMessageTypes.TextureDeleteFile, { fullPath, aliasKey });
   }, []);
@@ -241,6 +253,18 @@ export function useIpc() {
     return postCommand(IpcMessageTypes.VanillaLoadCatalog, {});
   }, []);
 
+  const getDetailedCatalogStatus = useCallback(() => {
+    return postCommand(IpcMessageTypes.CatalogGetDetailedStatus, {});
+  }, []);
+
+  const purgeTempArchive = useCallback(() => {
+    return postCommand(IpcMessageTypes.CatalogPurgeTempArchive, {});
+  }, []);
+
+  const purgeExtractedCatalog = useCallback(() => {
+    return postCommand(IpcMessageTypes.CatalogPurgeExtractedData, {});
+  }, []);
+
   return {
     isAvailable,
     postCommand,
@@ -251,6 +275,9 @@ export function useIpc() {
     createPack,
     editTexture,
     getOpenWithApps,
+    addCustomEditor,
+    removeCustomEditor,
+    setDefaultEditor,
     deleteTextureFile,
     deleteTextureEntries,
     windowAction,
@@ -260,5 +287,9 @@ export function useIpc() {
     saveManifest,
     addVanillaEntry,
     loadCatalog,
+    getDetailedCatalogStatus,
+    purgeTempArchive,
+    purgeExtractedCatalog,
   };
 }
+

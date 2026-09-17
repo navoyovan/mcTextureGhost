@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import * as THREE from 'three';
-import { RotateCcw, Play, Pause, Eye, EyeOff, Download } from 'lucide-react';
+import { RotateCcw, Play, Pause, Eye, EyeOff } from 'lucide-react';
 import { useIpc } from '../../hooks/useIpc';
 import { IpcMessageTypes, GeometryDataPayload, DownloadProgressPayload } from '../../types/ipc';
 import { parseBedrockGeometryJson, buildEntityModel } from './entityGeometryBuilder';
@@ -289,6 +289,7 @@ export const Entity3DViewer: React.FC<Entity3DViewerProps> = React.memo(({
     const unsubGeometryData = subscribe(IpcMessageTypes.GeometryData, (payload: GeometryDataPayload) => {
       if (!isMounted || hasBuiltGeometry) return;
       if (payload && payload.rawJson && payload.rawJson.trim().startsWith('{')) {
+        clearTimeout(missingTimeout);
         buildMeshFromGeoJson(payload.rawJson);
       }
     });
@@ -307,75 +308,13 @@ export const Entity3DViewer: React.FC<Entity3DViewerProps> = React.memo(({
     // Request geometry from host via IPC
     postCommand(IpcMessageTypes.GeometryGet, { geometryId, entityId });
 
-    // 7. Concurrent HTTP candidate fetcher
-    const tryFetchGeometry = async () => {
-      const candidates: string[] = [];
-
-      const cleanEntity = (entityId || '').replace(/^minecraft:/i, '').toLowerCase();
-      const cleanGeo = (geometryId || '').replace(/^geometry\./i, '').toLowerCase();
-      const isBaby = cleanGeo.includes('baby') || (entityId || '').includes('baby');
-      const baseGeo = cleanGeo.replace(/\.baby$/, '').split('.')[0];
-
-      // Exact model candidates
-      if (cleanGeo) {
-        candidates.push(`https://pack.local/models/entity/${cleanGeo}.geo.json`);
-        candidates.push(`https://vanilla.local/models/entity/${cleanGeo}.geo.json`);
+    // Graceful timeout if geometry is missing from both pack and vanilla data
+    const missingTimeout = setTimeout(() => {
+      if (isMounted && !hasBuiltGeometry) {
+        setIsLoading(false);
+        setLoadingError(`No 3D geometry found for ${geometryId || entityId || 'entity'}`);
       }
-
-      // If this is a baby model, prioritize baby_<baseGeo> before adult models
-      if (isBaby) {
-        if (baseGeo) {
-          candidates.push(`https://pack.local/models/entity/baby_${baseGeo}.geo.json`);
-          candidates.push(`https://vanilla.local/models/entity/baby_${baseGeo}.geo.json`);
-        }
-        if (cleanEntity && cleanEntity !== baseGeo) {
-          candidates.push(`https://pack.local/models/entity/baby_${cleanEntity}.geo.json`);
-          candidates.push(`https://vanilla.local/models/entity/baby_${cleanEntity}.geo.json`);
-        }
-      }
-
-      // Base geometry (adult) fallback ONLY if NOT a baby request
-      if (!isBaby && baseGeo && baseGeo !== cleanGeo) {
-        candidates.push(`https://pack.local/models/entity/${baseGeo}.geo.json`);
-        candidates.push(`https://vanilla.local/models/entity/${baseGeo}.geo.json`);
-      }
-      if (!isBaby && cleanEntity) {
-        candidates.push(`https://pack.local/models/entity/${cleanEntity}.geo.json`);
-        candidates.push(`https://vanilla.local/models/entity/${cleanEntity}.geo.json`);
-      }
-
-      // Attachables & Armor models
-      if (isAttachable || cleanEntity.includes('helmet') || cleanEntity.includes('chestplate') || cleanEntity.includes('leggings') || cleanEntity.includes('boots')) {
-        candidates.push('https://vanilla.local/models/entity/armor.geo.json');
-        candidates.push('https://vanilla.local/models/entity/armor_stand.geo.json');
-      }
-
-      for (const url of candidates) {
-        if (hasBuiltGeometry || !isMounted) return;
-        try {
-          const res = await fetch(url);
-          if (res.ok) {
-            const text = await res.text();
-            if (isMounted && !hasBuiltGeometry && text && text.trim().startsWith('{')) {
-              buildMeshFromGeoJson(text);
-              return;
-            }
-          }
-        } catch {
-          // Continue to next candidate
-        }
-      }
-
-      // If still not resolved after all fetches & IPC grace period, report missing model (NO humanoid fallback!)
-      setTimeout(() => {
-        if (isMounted && !hasBuiltGeometry) {
-          setIsLoading(false);
-          setLoadingError(`No 3D geometry found for ${geometryId || entityId || 'entity'}`);
-        }
-      }, 600);
-    };
-
-    tryFetchGeometry();
+    }, 450);
 
     // 8. Render Loop
     let animId: number;
@@ -427,6 +366,7 @@ export const Entity3DViewer: React.FC<Entity3DViewerProps> = React.memo(({
 
     return () => {
       isMounted = false;
+      clearTimeout(missingTimeout);
       unsubGeometryData();
       unsubProgress();
       cancelAnimationFrame(animId);
@@ -543,12 +483,6 @@ export const Entity3DViewer: React.FC<Entity3DViewerProps> = React.memo(({
       cameraRef.current.lookAt(cameraTargetRef.current);
     }
   }, []);
-
-  const handleDownload3DAssets = useCallback(() => {
-    setIsDownloading(true);
-    setDownloadProgress({ task: '3D Assets', progress: 0, message: 'Initiating download of Bedrock 3D assets...' });
-    postCommand(IpcMessageTypes.VanillaDownload3DAssets, {});
-  }, [postCommand]);
 
   return (
     <div
@@ -758,15 +692,15 @@ export const Entity3DViewer: React.FC<Entity3DViewerProps> = React.memo(({
         <div className={styles.downloadPromptOverlay}>
           <div className={styles.downloadPromptCard}>
             <h4 className={styles.downloadPromptTitle}>
-              {isDownloading ? 'Downloading 3D Assets' : '3D Models Not Installed'}
+              {isDownloading ? 'Downloading 3D Assets' : '3D Model Not Found'}
             </h4>
             <p className={styles.downloadPromptDesc}>
               {isDownloading
                 ? downloadProgress?.message || 'Extracting vanilla 3D models into local reference pack...'
-                : 'Vanilla entity geometry files (.geo.json) are downloaded on demand to keep initial install light.'}
+                : 'Geometry definition file (.geo.json) not found in pack or vanilla reference.'}
             </p>
 
-            {isDownloading ? (
+            {isDownloading && (
               <div className={styles.progressContainer}>
                 <div className={styles.progressBarBg}>
                   <div
@@ -779,15 +713,6 @@ export const Entity3DViewer: React.FC<Entity3DViewerProps> = React.memo(({
                   <span>{Math.round(downloadProgress?.progress ?? 0)}%</span>
                 </div>
               </div>
-            ) : (
-              <button
-                type="button"
-                className={styles.downloadBtn}
-                onClick={handleDownload3DAssets}
-              >
-                <Download size={13} />
-                <span>Install 3D Model Pack</span>
-              </button>
             )}
           </div>
         </div>

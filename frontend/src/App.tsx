@@ -30,7 +30,6 @@ export const App: React.FC = () => {
   const isCatalogOpen = usePackStore((s) => s.isCatalogOpen);
   const setIsCatalogOpen = usePackStore((s) => s.setIsCatalogOpen);
   const selectedFolderPath = usePackStore((s) => s.selectedFolderPath);
-  const setSelectedFolderPath = usePackStore((s) => s.setSelectedFolderPath);
 
   const isJsonFileSelected = Boolean(
     selectedFolderPath &&
@@ -95,6 +94,7 @@ export const App: React.FC = () => {
     // Notify host that frontend is mounted and ready to receive state
     postCommand('APP:READY', {});
     postCommand(IpcMessageTypes.OpenWithGetApps, {});
+    postCommand(IpcMessageTypes.VanillaGet3DStatus, {});
 
     // 1. PACK:STATE_CHANGED
     const unsubPackState = subscribe(IpcMessageTypes.PackStateChanged, (payload) => {
@@ -135,6 +135,20 @@ export const App: React.FC = () => {
       }
     });
 
+    // 7. VANILLA:3D_STATUS
+    const unsubVanillaStatus = subscribe(IpcMessageTypes.Vanilla3DStatus, (payload: any) => {
+      if (payload?.has3DModels !== undefined) {
+        usePackStore.getState().setHasVanillaAssets(Boolean(payload.has3DModels));
+      }
+    });
+
+    // 8. DOWNLOAD:PROGRESS
+    const unsubDownloadProgress = subscribe(IpcMessageTypes.DownloadProgress, (payload: any) => {
+      if (payload?.progress !== undefined && payload.progress >= 1) {
+        usePackStore.getState().setHasVanillaAssets(true);
+      }
+    });
+
     return () => {
       unsubPackState();
       unsubScanProgress();
@@ -142,6 +156,8 @@ export const App: React.FC = () => {
       unsubAppConfig();
       unsubError();
       unsubOpenWith();
+      unsubVanillaStatus();
+      unsubDownloadProgress();
     };
   }, [subscribe, setPackState, updateTexture, setScanProgress, setAppConfig]);
 
@@ -170,7 +186,11 @@ export const App: React.FC = () => {
           <MenuBar />
 
           {packRoot && (
-            <span className={styles.packBadge} data-testid="pack-badge">
+            <span
+              className={styles.packBadge}
+              data-testid="pack-badge"
+              title={packLocationLabel}
+            >
               {packLocationLabel}
             </span>
           )}
@@ -216,14 +236,14 @@ export const App: React.FC = () => {
           <div data-testid="workspace-container" className={styles.workspaceContainer}>
             <Sidebar />
             <div className={styles.workspaceContentArea}>
+              <Toolbar />
               {isJsonFileSelected ? (
                 <JsonReader
+                  key={`${packRoot}:${selectedFolderPath}`}
                   filePath={selectedFolderPath!}
-                  onBack={() => setSelectedFolderPath(null)}
                 />
               ) : (
                 <>
-                  <Toolbar />
                   {activeView === 'workspace' ? (
                     <BlockWorkspace />
                   ) : activeView === 'entity' ? (

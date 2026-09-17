@@ -5,7 +5,7 @@ Review this document before implementing state changes, IPC bridges, or file sys
 ## 1. Windows File Locks & Process Hazards
 - **`McTextureGhost.exe` Lock (`MSB3021` / `MSB3027`):**
   - **Risk:** When testing the app, Windows keeps the executable loaded in memory. Running `dotnet build` fails after 10 retry timeouts.
-  - **Remedy:** Always terminate existing processes (`Get-Process McTextureGhost -ErrorAction SilentlyContinue | Stop-Process -Force`) before rebuilding.
+  - **Remedy:** Follow the build-scope and executable-lock recovery policy in `AGENTS.md` §1. Never terminate the app preemptively; recovery applies only after a required backend build fails with `MSB3021` / `MSB3027`.
 - **External Image Editor & Deletion File Contention:**
   - **Risk:** External graphic editors (Aseprite, Photoshop) fail to save, or right-click file deletion fails with `ERROR_SHARING_VIOLATION`, if McTextureGhost or WebView2 holds open handles to PNG files.
   - **Remedy:** All texture reading must use in-memory decoding with `BitmapCacheOption.OnLoad` or `FileShare.ReadWrite | FileShare.Delete`. Never pass unbuffered `FileStream` objects into WebView2's `CreateWebResourceResponse`; copy to `MemoryStream` and close the handle immediately. Clear `ImagePathConverter` cache prior to deleting texture files from disk.

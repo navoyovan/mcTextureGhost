@@ -377,20 +377,123 @@ public static class JsonWriterService
         }
         else if (string.Equals(category, "entity", StringComparison.OrdinalIgnoreCase))
         {
-            var cleanId = alias.StartsWith("minecraft:", StringComparison.OrdinalIgnoreCase)
-                ? alias.Substring(10)
-                : alias;
-
-            var entityPath = Path.Combine(packRoot, "entity", $"{cleanId}.entity.json");
-            if (File.Exists(entityPath))
+            // Extract cleanId and slotKey if alias is formatted as "cleanId:slotKey" or "minecraft:cleanId:slotKey"
+            var targetId = alias;
+            string cleanId;
+            string? targetSlotKey = null;
+            var colonIdx = targetId.IndexOf(':');
+            if (colonIdx >= 0)
             {
-                File.Delete(entityPath);
+                if (targetId.StartsWith("minecraft:", StringComparison.OrdinalIgnoreCase))
+                {
+                    var secondColon = targetId.IndexOf(':', 10);
+                    if (secondColon >= 0)
+                    {
+                        cleanId = targetId.Substring(10, secondColon - 10);
+                        targetSlotKey = targetId.Substring(secondColon + 1);
+                    }
+                    else
+                    {
+                        cleanId = targetId.Substring(10);
+                    }
+                }
+                else
+                {
+                    cleanId = targetId.Substring(0, colonIdx);
+                    targetSlotKey = targetId.Substring(colonIdx + 1);
+                }
+            }
+            else
+            {
+                cleanId = targetId.StartsWith("minecraft:", StringComparison.OrdinalIgnoreCase)
+                    ? targetId.Substring(10)
+                    : targetId;
             }
 
-            var attachablePath = Path.Combine(packRoot, "attachables", $"{cleanId}.json");
-            if (File.Exists(attachablePath))
+            // 1. If an explicit relativePath is provided and points to a JSON definition file, delete it
+            if (!string.IsNullOrWhiteSpace(relativePath))
             {
-                File.Delete(attachablePath);
+                var explicitPath = Path.Combine(packRoot, relativePath.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar));
+                if (File.Exists(explicitPath) && explicitPath.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
+                {
+                    try { File.Delete(explicitPath); } catch { }
+                }
+            }
+
+            // Direct standard file paths
+            var directPaths = new[]
+            {
+                Path.Combine(packRoot, "entity", $"{cleanId}.entity.json"),
+                Path.Combine(packRoot, "entity", $"{cleanId}.json"),
+                Path.Combine(packRoot, "attachables", $"{cleanId}.entity.json"),
+                Path.Combine(packRoot, "attachables", $"{cleanId}.json")
+            };
+
+            foreach (var p in directPaths)
+            {
+                if (File.Exists(p))
+                {
+                    try { File.Delete(p); } catch { }
+                }
+            }
+
+            // Search in entity/ and attachables/ directories for any JSON files declaring this entity or containing texture slots
+            string[] searchDirs = { Path.Combine(packRoot, "entity"), Path.Combine(packRoot, "attachables") };
+            foreach (var dir in searchDirs)
+            {
+                if (Directory.Exists(dir))
+                {
+                    try
+                    {
+                        var files = Directory.GetFiles(dir, "*.json", SearchOption.AllDirectories);
+                        foreach (var file in files)
+                        {
+                            var fname = Path.GetFileNameWithoutExtension(file);
+                            if (fname.EndsWith(".entity", StringComparison.OrdinalIgnoreCase))
+                            {
+                                fname = fname.Substring(0, fname.Length - 7);
+                            }
+
+                            // Match by filename
+                            if (string.Equals(fname, cleanId, StringComparison.OrdinalIgnoreCase) ||
+                                string.Equals(fname, alias, StringComparison.OrdinalIgnoreCase))
+                            {
+                                if (File.Exists(file))
+                                {
+                                    try { File.Delete(file); continue; } catch { }
+                                }
+                            }
+
+                            // Inspect JSON content for identifier match or texture slot match
+                            try
+                            {
+                                var jsonContent = File.ReadAllText(file);
+                                if (jsonContent.Contains(cleanId, StringComparison.OrdinalIgnoreCase) ||
+                                    (!string.IsNullOrEmpty(relativePath) && jsonContent.Contains(relativePath, StringComparison.OrdinalIgnoreCase)) ||
+                                    (!string.IsNullOrEmpty(targetSlotKey) && jsonContent.Contains(targetSlotKey, StringComparison.OrdinalIgnoreCase)))
+                                {
+                                    var details = PackScanner.ParseClientEntityDetails(file);
+                                    if (details.Any(d =>
+                                        string.Equals(d.Identifier, cleanId, StringComparison.OrdinalIgnoreCase) ||
+                                        string.Equals(d.Identifier, $"minecraft:{cleanId}", StringComparison.OrdinalIgnoreCase) ||
+                                        string.Equals(d.Identifier, alias, StringComparison.OrdinalIgnoreCase) ||
+                                        (!string.IsNullOrEmpty(targetSlotKey) && d.Textures.ContainsKey(targetSlotKey))))
+                                    {
+                                        File.Delete(file);
+                                    }
+                                }
+                            }
+                            catch
+                            {
+                                // Ignore json parsing errors
+                            }
+                        }
+                    }
+                    catch
+                    {
+                        // Ignore file search permission errors
+                    }
+                }
             }
         }
         else

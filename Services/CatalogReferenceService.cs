@@ -203,7 +203,7 @@ public static class CatalogReferenceService
                 Name: "Vanilla Bedrock",
                 Version: "1.21.x",
                 Description: "Mojang bedrock-samples official reference database",
-                PackPath: VanillaDataService.CacheDirectory,
+                PackPath: VanillaReferencePackDirectory,
                 IconUrl: "https://vanilla.local/pack_icon.png",
                 IsVanilla: true
             )
@@ -596,6 +596,147 @@ public static class CatalogReferenceService
             DateTime.Now,
             $"Custom Pack: {packName}"
         );
+    }
+
+    public static ReferencePackDetailedStatusPayload GetDetailedStatus()
+    {
+        var active = GetActiveProfile();
+        var targetDir = active?.IsVanilla == true
+            ? VanillaReferencePackDirectory
+            : (active?.PackPath ?? VanillaReferencePackDirectory);
+
+        bool dirExists = Directory.Exists(targetDir);
+        int modelCount = 0;
+        int textureCount = 0;
+        int jsonCount = 0;
+        long totalBytes = 0;
+        DateTime? lastModified = null;
+
+        if (dirExists)
+        {
+            try
+            {
+                var dirInfo = new DirectoryInfo(targetDir);
+                lastModified = dirInfo.LastWriteTimeUtc;
+
+                var modelsDir = Path.Combine(targetDir, "models", "entity");
+                if (Directory.Exists(modelsDir))
+                {
+                    modelCount = Directory.EnumerateFiles(modelsDir, "*.json", SearchOption.AllDirectories).Count();
+                }
+
+                var texturesDir = Path.Combine(targetDir, "textures");
+                if (Directory.Exists(texturesDir))
+                {
+                    textureCount = Directory.EnumerateFiles(texturesDir, "*.*", SearchOption.AllDirectories)
+                        .Count(f => f.EndsWith(".png", StringComparison.OrdinalIgnoreCase) || f.EndsWith(".tga", StringComparison.OrdinalIgnoreCase));
+                }
+
+                jsonCount = Directory.EnumerateFiles(targetDir, "*.json", SearchOption.AllDirectories).Count();
+
+                foreach (var file in Directory.EnumerateFiles(targetDir, "*.*", SearchOption.AllDirectories))
+                {
+                    try { totalBytes += new FileInfo(file).Length; } catch { }
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[CatalogReferenceService] Error scanning directory stats: {ex.Message}");
+            }
+        }
+
+        // Check for lingering temporary archive zip files
+        string? tempZipPath = null;
+        long tempZipBytes = 0;
+        bool tempZipExists = false;
+
+        var defaultTempZip = Path.Combine(Path.GetTempPath(), "bedrock-samples-main.zip");
+        if (File.Exists(defaultTempZip))
+        {
+            tempZipPath = defaultTempZip;
+            tempZipExists = true;
+            try { tempZipBytes = new FileInfo(defaultTempZip).Length; } catch { }
+        }
+        else
+        {
+            var appDataZip = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "McTextureGhost", "bedrock-samples-main.zip");
+            if (File.Exists(appDataZip))
+            {
+                tempZipPath = appDataZip;
+                tempZipExists = true;
+                try { tempZipBytes = new FileInfo(appDataZip).Length; } catch { }
+            }
+        }
+
+        return new ReferencePackDetailedStatusPayload(
+            ActiveId: active?.Id ?? "vanilla",
+            ActiveName: active?.Name ?? "Vanilla Bedrock",
+            ReferencePath: targetDir,
+            DirectoryExists: dirExists,
+            HasExtractedModels: modelCount > 0,
+            ModelFilesCount: modelCount,
+            TextureFilesCount: textureCount,
+            JsonFilesCount: jsonCount,
+            TotalExtractedSizeBytes: totalBytes,
+            TotalExtractedSizeFormatted: FormatBytes(totalBytes),
+            TempArchiveExists: tempZipExists,
+            TempArchivePath: tempZipPath,
+            TempArchiveSizeBytes: tempZipBytes,
+            TempArchiveSizeFormatted: FormatBytes(tempZipBytes),
+            VersionTag: active?.Version ?? "1.21.x",
+            LastModifiedUtc: lastModified?.ToString("o")
+        );
+    }
+
+    public static bool PurgeTempArchive()
+    {
+        bool deleted = false;
+        var defaultTempZip = Path.Combine(Path.GetTempPath(), "bedrock-samples-main.zip");
+        if (File.Exists(defaultTempZip))
+        {
+            try { File.Delete(defaultTempZip); deleted = true; } catch { }
+        }
+
+        var appDataZip = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "McTextureGhost", "bedrock-samples-main.zip");
+        if (File.Exists(appDataZip))
+        {
+            try { File.Delete(appDataZip); deleted = true; } catch { }
+        }
+
+        return deleted;
+    }
+
+    public static bool PurgeExtractedData()
+    {
+        try
+        {
+            var targetDir = VanillaReferencePackDirectory;
+            if (Directory.Exists(targetDir))
+            {
+                Directory.Delete(targetDir, true);
+            }
+            _dataCache.Clear();
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[CatalogReferenceService] Failed to purge extracted data: {ex.Message}");
+            return false;
+        }
+    }
+
+    private static string FormatBytes(long bytes)
+    {
+        if (bytes <= 0) return "0 B";
+        string[] suffixes = { "B", "KB", "MB", "GB", "TB" };
+        int counter = 0;
+        decimal number = bytes;
+        while (Math.Round(number / 1024) >= 1 && counter < suffixes.Length - 1)
+        {
+            number /= 1024;
+            counter++;
+        }
+        return $"{number:n1} {suffixes[counter]}";
     }
 
     private class SavedPackConfig

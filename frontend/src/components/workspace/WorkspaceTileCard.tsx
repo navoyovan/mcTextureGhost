@@ -1,5 +1,4 @@
 import React, { useMemo } from 'react';
-import { MoreVertical } from 'lucide-react';
 import { CatalogLeafDto, OpenWithAppDto } from '../../types/ipc';
 import { useIpc } from '../../hooks/useIpc';
 import { FlipbookThumbnail } from '../common/FlipbookThumbnail';
@@ -115,32 +114,6 @@ export const WorkspaceTileCard: React.FC<WorkspaceTileCardProps> = React.memo(({
         onToggleMenu(cardKey);
       }}
     >
-      {/* 3-Dots Hover Menu Trigger */}
-      <button
-        type="button"
-        className={`${styles.moreButton} ${isMenuOpen ? styles.moreButtonActive : ''}`}
-        onClick={(e) => {
-          e.stopPropagation();
-          if (isMenuOpen) {
-            setMenuAnchor(null);
-            onToggleMenu(cardKey);
-          } else {
-            const rect = e.currentTarget.getBoundingClientRect();
-            setMenuAnchor({
-              top: rect.top,
-              bottom: rect.bottom,
-              left: rect.left,
-              right: rect.right,
-            });
-            onToggleMenu(cardKey);
-          }
-        }}
-        title="Texture options"
-        aria-label="Texture options"
-      >
-        <MoreVertical size={14} />
-      </button>
-
       {/* Dropdown Context Menu */}
       {isMenuOpen && (
         <TextureContextMenu

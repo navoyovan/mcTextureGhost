@@ -24,7 +24,11 @@ Save in Aseprite, Photoshop, or Paint and the tile updates instantly — no app 
 
 ### Block Workspace
 
-A relational 4-tier view of your pack's block texture hierarchy: Block → Alias → Variant → Face. Useful when a single block alias has state variants, random cosmetic variations, or multiple directional faces that need to be managed together.
+A relational 4-tier view of your pack's block texture hierarchy: Block → Alias → Variant → Face, paired with an interactive 3D block viewport. Useful when a single block alias has state variants, random cosmetic variations, or multiple directional faces that need to be managed together.
+
+### Entity Workspace
+
+3D visualizer and relational hierarchy for Bedrock entities and attachables. Maps client definitions (`entity/*.json`, `attachables/*.json`) to their Bedrock `.geo.json` bone geometries and texture slots with live 3D previews and slot variation cycling.
 
 ### Vanilla Reference Catalog
 
@@ -53,11 +57,12 @@ Sidebar tree of your pack's directory structure with live texture and ghost coun
 - [X] JSON scaffolding (blocks, aliases, items, flipbooks)
 - [X] Pack creation wizard and manifest editor
 - [X] Block Workspace — 4-tier relational hierarchy view
+- [X] Entity Workspace — 3D model visualizer and texture slot mapping
 - [X] Context menu: block state formatting and deletion
-- [ ] Entity texture atlas and model texture mapping
+- [ ] Curating each 3D preview for blocks and entities to accurately reflect their original in-game shapes
 - [ ] UI and particle texture support
 - [X] `.tga` format decoding and preview
-- [ ] Per-texture vanilla reference preview alongside stubs
+- [X] Per-texture vanilla reference preview alongside stubs
 - [ ] Target Bedrock engine version selector
 
 ---
@@ -88,7 +93,7 @@ McTextureGhost is source-available under the [Business Source License 1.1](./LIC
 - Cannot be resold or repackaged as a commercial product without a separate agreement.
 - Automatically converts to **Apache 2.0** four years after each release date.
 
-Contributions welcome — first-time contributors will be prompted to sign the [CLA](./CLA.md) when opening a pull request. Questions about commercial licensing? Open an issue.
+Contributions and feedback are welcome! For bug reports, feature requests, or questions about commercial licensing, feel free to [open an issue](https://github.com/navoyovan/mcTextureGhost/issues).
 
 ---
 

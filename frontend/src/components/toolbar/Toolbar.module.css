@@ -73,6 +73,45 @@
   width: 240px;
 }
 
+.jsonInfoBadge {
+  font-family: var(--font-mono, monospace);
+  font-size: 10px;
+  color: var(--text-secondary, #a1a1aa);
+  white-space: nowrap;
+}
+
+.openEditorBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 10px;
+  flex-shrink: 0;
+  white-space: nowrap;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-default, rgba(255, 255, 255, 0.12));
+  border-radius: 6px;
+  color: var(--text-secondary, #a1a1aa);
+  font-family: var(--font-brand, sans-serif);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.openEditorBtn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-primary, #ffffff);
+}
+
+.openEditorBtn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.openEditorBtn:focus-visible {
+  outline: 2px solid var(--accent-primary, #8CEB1F);
+  outline-offset: 2px;
+}
+
 .searchWrapper {
   position: relative;
   display: flex;
@@ -228,6 +267,7 @@
     opacity: 0;
     transform: translateY(-4px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);

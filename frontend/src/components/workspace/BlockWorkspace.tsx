@@ -2,10 +2,12 @@ import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react'
 import { Box, Layers, ArrowRight } from 'lucide-react';
 import { usePackStore } from '../../store/packStore';
 import { useIpc } from '../../hooks/useIpc';
-import { BlockGroupNodeDto, CatalogLeafDto, TextureAliasDto } from '../../types/ipc';
+import { BlockGroupNodeDto, CatalogLeafDto, TextureAliasDto, OpenWithAppDto } from '../../types/ipc';
 import { Block3DViewer } from './Block3DViewer';
+import { BlockEntryTree } from './BlockEntryTree';
 import { WorkspaceTileCard, VariantTileGroup } from './WorkspaceTileCard';
 import { TileHoverMorphPortal, TileHoverMorphTarget } from '../grid/TileHoverMorphPortal';
+import { TextureContextMenu } from '../common/TextureContextMenu';
 import styles from './BlockWorkspace.module.css';
 
 function leafToAliasDto(leaf: CatalogLeafDto): TextureAliasDto {
@@ -82,9 +84,55 @@ export const BlockWorkspace: React.FC = () => {
   const searchQuery = usePackStore((s) => s.searchQuery);
   const statusFilter = usePackStore((s) => s.statusFilter);
   const activeFilters = usePackStore((s) => s.activeFilters);
+  const packFolders = usePackStore((s) => s.packFolders);
+  const packAliases = usePackStore((s) => s.aliases ?? []);
   const { editTexture, deleteTextureFile, deleteTextureEntries, openInExplorer } = useIpc();
 
+  const hasTerrainTextureJson = useMemo(() => {
+    function check(items: any[]): boolean {
+      if (!items) return false;
+      for (const item of items) {
+        const p = (item.relativePath || item.name || '').replace(/\\/g, '/').toLowerCase();
+        if (
+          (p === 'textures/terrain_texture.json' ||
+           p.endsWith('/terrain_texture.json') ||
+           p === 'terrain_texture.json') &&
+          !item.isMissing
+        ) {
+          return true;
+        }
+        if (item.subFolders && item.subFolders.length > 0) {
+          if (check(item.subFolders)) return true;
+        }
+      }
+      return false;
+    }
+    return check(packFolders || []);
+  }, [packFolders]);
+
+  const hasBlocksJson = useMemo(() => {
+    function check(items: any[]): boolean {
+      if (!items) return false;
+      for (const item of items) {
+        const p = (item.relativePath || item.name || '').replace(/\\/g, '/').toLowerCase();
+        if ((p === 'blocks.json' || p.endsWith('/blocks.json')) && !item.isMissing) {
+          return true;
+        }
+        if (item.subFolders && item.subFolders.length > 0) {
+          if (check(item.subFolders)) return true;
+        }
+      }
+      return false;
+    }
+    return check(packFolders || []);
+  }, [packFolders]);
+
   const [activeMenuKey, setActiveMenuKey] = useState<string | null>(null);
+  const [contextMenuTarget, setContextMenuTarget] = useState<{
+    alias: TextureAliasDto;
+    key: string;
+    anchor?: { top?: number; bottom?: number; left?: number; right?: number; x?: number; y?: number };
+  } | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -453,7 +501,7 @@ export const BlockWorkspace: React.FC = () => {
                 </div>
                 <div className={styles.blockItemBadges}>
                   {!isCustom && block.blockId !== 'uncategorized' && (
-                    <span className={styles.vanillaTag} title="Inferred from vanilla blocks.json">vanilla</span>
+                    <span className={styles.vanillaTag} title="Inferred from vanilla blocks.json">fallback</span>
                   )}
                   {block.ghostCount > 0 && (
                     <span className={styles.ghostBadge}>{block.ghostCount}</span>
@@ -511,13 +559,35 @@ export const BlockWorkspace: React.FC = () => {
             </div>
           )}
 
+          <BlockEntryTree
+            block={selectedBlock}
+            onTileClick={handleTileClick}
+          />
+
           <div className={styles.hierarchySection}>
-            {selectedBlock.aliasGroups?.map((ag) => (
-              <div key={ag.alias} className={styles.aliasGroupCard}>
-                <div className={styles.aliasHeader}>
-                  <Layers size={14} />
-                  <span>Alias: {ag.alias}</span>
-                </div>
+            {selectedBlock.aliasGroups?.map((ag) => {
+              const isBlockUserDefined = hasBlocksJson && selectedBlock.isUserDefined !== false;
+              const isDeclaredInTerrainTexture =
+                isBlockUserDefined &&
+                hasTerrainTextureJson &&
+                packAliases.some(
+                  (a: TextureAliasDto) =>
+                    a.alias.toLowerCase() === ag.alias.toLowerCase() &&
+                    a.category === 'block' &&
+                    a.status !== 'ORPHAN'
+                );
+
+              return (
+                <div key={ag.alias} className={styles.aliasGroupCard}>
+                  <div className={styles.aliasHeader}>
+                    <Layers size={14} />
+                    <span>Alias: {ag.alias}</span>
+                    {!isDeclaredInTerrainTexture && (
+                      <span className={styles.vanillaHeaderBadge} title="Using vanilla terrain_texture.json definition">
+                        Vanilla Fallback
+                      </span>
+                    )}
+                  </div>
 
                 <div className={styles.faceNodeGroup}>
                   {ag.faceNodes && ag.faceNodes.length > 0 ? (
@@ -574,7 +644,8 @@ export const BlockWorkspace: React.FC = () => {
                   )}
                 </div>
               </div>
-            ))}
+            );
+          })}
           </div>
         </section>
       ) : (
@@ -585,16 +656,53 @@ export const BlockWorkspace: React.FC = () => {
       {hoverMorphTarget && (
         <TileHoverMorphPortal
           target={hoverMorphTarget}
+          isMenuOpen={Boolean(contextMenuTarget)}
           onClose={() => setHoverMorphTarget(null)}
           onEdit={(alias) => {
             setHoverMorphTarget(null);
             editTexture(alias.alias, alias.fullPath, alias.status === 'GHOST');
           }}
-          onOpenContextMenu={() => {
-            setHoverMorphTarget(null);
+          onOpenContextMenu={(alias, anchor) => {
+            setContextMenuTarget({
+              alias,
+              key: hoverMorphTarget.key,
+              anchor,
+            });
           }}
-          onRevealInExplorer={(fullPath) => {
-            openInExplorer(fullPath, true);
+        />
+      )}
+
+      {/* Standalone Context Menu triggered from morph or tiles */}
+      {contextMenuTarget && (
+        <TextureContextMenu
+          item={contextMenuTarget.alias}
+          anchor={contextMenuTarget.anchor}
+          onClose={() => setContextMenuTarget(null)}
+          onEdit={(app?: OpenWithAppDto) => {
+            setHoverMorphTarget(null);
+            editTexture(contextMenuTarget.alias.alias, contextMenuTarget.alias.fullPath, contextMenuTarget.alias.status === 'GHOST', app?.exePath, false);
+          }}
+          onOpenWithDialog={() => {
+            setHoverMorphTarget(null);
+            editTexture(contextMenuTarget.alias.alias, contextMenuTarget.alias.fullPath, contextMenuTarget.alias.status === 'GHOST', null, true);
+          }}
+          onRevealInExplorer={() => {
+            if (contextMenuTarget.alias.fullPath) {
+              openInExplorer(contextMenuTarget.alias.fullPath, true);
+            }
+          }}
+          onDeleteTexture={() => {
+            if (contextMenuTarget.alias.fullPath) {
+              deleteTextureFile(contextMenuTarget.alias.fullPath);
+            }
+          }}
+          onDeleteEntries={() => {
+            deleteTextureEntries(contextMenuTarget.alias.alias, contextMenuTarget.alias.category || 'block');
+          }}
+          onEditMers={() => {
+            if (contextMenuTarget.alias.mersFullPath) {
+              editTexture(contextMenuTarget.alias.alias, contextMenuTarget.alias.mersFullPath, false);
+            }
           }}
         />
       )}

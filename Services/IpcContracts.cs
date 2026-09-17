@@ -58,6 +58,7 @@ public static class IpcMessageTypes
     public const string WindowAction     = "WINDOW:ACTION";
     public const string TintSet          = "TINT:SET";
     public const string VanillaAdd       = "VANILLA:ADD";
+    public const string TextureExtractReference = "TEXTURE:EXTRACT_REFERENCE";
     public const string VanillaLoadCatalog = "VANILLA:LOAD_CATALOG";
     public const string CatalogPickReference = "CATALOG:PICK_REFERENCE";
     public const string CatalogSetReference  = "CATALOG:SET_REFERENCE";
@@ -72,6 +73,12 @@ public static class IpcMessageTypes
     public const string VanillaDownload3DAssets = "VANILLA:DOWNLOAD_3D_ASSETS";
     public const string VanillaGet3DStatus      = "VANILLA:GET_3D_STATUS";
     public const string OpenWithGetApps         = "OPEN_WITH:GET_APPS";
+    public const string OpenWithAddCustomApp    = "OPEN_WITH:ADD_CUSTOM_APP";
+    public const string OpenWithRemoveApp       = "OPEN_WITH:REMOVE_APP";
+    public const string OpenWithSetDefault      = "OPEN_WITH:SET_DEFAULT";
+    public const string CatalogGetDetailedStatus = "CATALOG:GET_DETAILED_STATUS";
+    public const string CatalogPurgeTempArchive  = "CATALOG:PURGE_TEMP_ARCHIVE";
+    public const string CatalogPurgeExtractedData = "CATALOG:PURGE_EXTRACTED_DATA";
 
     // Outgoing from C# to Web
     public const string PackStateChanged = "PACK:STATE_CHANGED";
@@ -84,6 +91,7 @@ public static class IpcMessageTypes
     public const string Vanilla3DStatus  = "VANILLA:3D_STATUS";
     public const string DownloadProgress = "DOWNLOAD:PROGRESS";
     public const string OpenWithAppsList = "OPEN_WITH:APPS_LIST";
+    public const string CatalogDetailedStatus = "CATALOG:DETAILED_STATUS";
 }
 
 #endregion
@@ -118,7 +126,8 @@ public record TextureEditPayload(
     [property: JsonPropertyName("fullPath")] string FullPath,
     [property: JsonPropertyName("isGhost")] bool IsGhost = false,
     [property: JsonPropertyName("exePath")] string? ExePath = null,
-    [property: JsonPropertyName("chooseDialog")] bool ChooseDialog = false
+    [property: JsonPropertyName("chooseDialog")] bool ChooseDialog = false,
+    [property: JsonPropertyName("createOnly")] bool CreateOnly = false
 );
 
 /// <summary>
@@ -210,6 +219,16 @@ public record VanillaAddPayload(
 );
 
 /// <summary>
+/// Payload for "TEXTURE:EXTRACT_REFERENCE". Copies authentic reference PNG into the pack for a ghost tile.
+/// </summary>
+public record TextureExtractReferencePayload(
+    [property: JsonPropertyName("aliasKey")] string AliasKey,
+    [property: JsonPropertyName("fullPath")] string FullPath,
+    [property: JsonPropertyName("relativePath")] string? RelativePath = null,
+    [property: JsonPropertyName("category")] string? Category = null
+);
+
+/// <summary>
 /// Payload for "OPEN_IN_EXPLORER" and "PACK:OPEN_EXPLORER". Opens directory or selects file in Windows File Explorer.
 /// </summary>
 public record OpenInExplorerPayload(
@@ -251,6 +270,27 @@ public record CatalogSetReferencePayload(
 /// </summary>
 public record CatalogRemoveReferencePayload(
     [property: JsonPropertyName("id")] string Id
+);
+
+/// <summary>
+/// Payload for "OPEN_WITH:ADD_CUSTOM_APP". Optional exePath or null to open file picker dialog.
+/// </summary>
+public record OpenWithAddCustomAppPayload(
+    [property: JsonPropertyName("exePath")] string? ExePath = null
+);
+
+/// <summary>
+/// Payload for "OPEN_WITH:REMOVE_APP".
+/// </summary>
+public record OpenWithRemoveAppPayload(
+    [property: JsonPropertyName("id")] string Id
+);
+
+/// <summary>
+/// Payload for "OPEN_WITH:SET_DEFAULT".
+/// </summary>
+public record OpenWithSetDefaultPayload(
+    [property: JsonPropertyName("id")] string? Id = null
 );
 
 /// <summary>
@@ -832,5 +872,24 @@ public static class IpcContractMapper
         );
     }
 }
+
+public record ReferencePackDetailedStatusPayload(
+    [property: JsonPropertyName("activeId")] string ActiveId,
+    [property: JsonPropertyName("activeName")] string ActiveName,
+    [property: JsonPropertyName("referencePath")] string ReferencePath,
+    [property: JsonPropertyName("directoryExists")] bool DirectoryExists,
+    [property: JsonPropertyName("hasExtractedModels")] bool HasExtractedModels,
+    [property: JsonPropertyName("modelFilesCount")] int ModelFilesCount,
+    [property: JsonPropertyName("textureFilesCount")] int TextureFilesCount,
+    [property: JsonPropertyName("jsonFilesCount")] int JsonFilesCount,
+    [property: JsonPropertyName("totalExtractedSizeBytes")] long TotalExtractedSizeBytes,
+    [property: JsonPropertyName("totalExtractedSizeFormatted")] string TotalExtractedSizeFormatted,
+    [property: JsonPropertyName("tempArchiveExists")] bool TempArchiveExists,
+    [property: JsonPropertyName("tempArchivePath")] string? TempArchivePath,
+    [property: JsonPropertyName("tempArchiveSizeBytes")] long TempArchiveSizeBytes,
+    [property: JsonPropertyName("tempArchiveSizeFormatted")] string TempArchiveSizeFormatted,
+    [property: JsonPropertyName("versionTag")] string VersionTag,
+    [property: JsonPropertyName("lastModifiedUtc")] string? LastModifiedUtc
+);
 
 #endregion

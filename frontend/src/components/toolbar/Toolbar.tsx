@@ -3,19 +3,23 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
   LayoutGrid,
   Box,
-  Layers,
   Filter,
   ChevronDown,
   Check,
   Ghost,
+  PawPrint,
   Sparkles,
   Film,
   Shuffle,
   Boxes,
   AlertCircle,
   Sword,
+  FileCode2,
+  ExternalLink,
 } from 'lucide-react';
 import { usePackStore, TextureFilterKey } from '../../store/packStore';
+import { useIpc } from '../../hooks/useIpc';
+import { IpcMessageTypes } from '../../types/ipc';
 import { SearchInput } from '../common/SearchInput';
 import styles from './Toolbar.module.css';
 
@@ -51,6 +55,29 @@ export const Toolbar: React.FC = () => {
   const setActiveView = usePackStore((s) => s.setActiveView);
   const setSelectedFolderPath = usePackStore((s) => s.setSelectedFolderPath);
   const selectedFolderPath = usePackStore((s) => s.selectedFolderPath);
+  const packRoot = usePackStore((s) => s.packRoot);
+  const jsonViewerInfo = usePackStore((s) => s.jsonViewerInfo);
+  const { postCommand } = useIpc();
+
+  const isJsonFileSelected = Boolean(
+    selectedFolderPath && /\.(json|material)$/i.test(selectedFolderPath)
+  );
+
+  const jsonFileName = isJsonFileSelected
+    ? (selectedFolderPath!.replace(/\\/g, '/').split('/').pop() || selectedFolderPath!)
+    : null;
+  const jsonFullPath = isJsonFileSelected && packRoot
+    ? `${packRoot}\\${selectedFolderPath!.replace(/\\/g, '/').replace(/^\/+/, '').replace(/\//g, '\\')}`
+    : null;
+
+  const handleOpenJsonInEditor = () => {
+    if (!jsonFullPath || !jsonFileName) return;
+    postCommand(IpcMessageTypes.TextureEdit, {
+      aliasKey: jsonFileName,
+      fullPath: jsonFullPath,
+      isGhost: false,
+    });
+  };
 
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const filterDropdownRef = useRef<HTMLDivElement | null>(null);
@@ -77,8 +104,12 @@ export const Toolbar: React.FC = () => {
     };
   }, [isFilterOpen]);
 
+  useEffect(() => {
+    if (isJsonFileSelected) setIsFilterOpen(false);
+  }, [isJsonFileSelected]);
+
   const handleSelectView = (view: 'grid' | 'workspace' | 'entity') => {
-    if (selectedFolderPath && selectedFolderPath.toLowerCase().endsWith('.json')) {
+    if (isJsonFileSelected) {
       setSelectedFolderPath(null);
     }
     setActiveView(view);
@@ -94,14 +125,36 @@ export const Toolbar: React.FC = () => {
         <SearchInput
           value={searchQuery}
           onChange={setSearchQuery}
-          placeholder="Search textures..."
+          placeholder={isJsonFileSelected ? 'Search in JSON...' : 'Search textures...'}
           shortcutCue="/"
           enableSlashShortcut={true}
           wrapperClassName={styles.toolbarSearch}
         />
 
+        {/* JSON viewer stats + external editor shortcut (replaces the reader's own header bar) */}
+        {isJsonFileSelected && (
+          <>
+            {jsonViewerInfo && (
+              <span className={styles.jsonInfoBadge} role="status">
+                {jsonViewerInfo.matchCount !== null && `${jsonViewerInfo.matchCount} matches • `}
+                {jsonViewerInfo.lineCount} lines • {jsonViewerInfo.sizeLabel}
+              </span>
+            )}
+            <button
+              type="button"
+              className={styles.openEditorBtn}
+              onClick={handleOpenJsonInEditor}
+              title="Open in external system editor"
+              disabled={!jsonFullPath}
+            >
+              <ExternalLink size={13} />
+              <span>Open in Editor</span>
+            </button>
+          </>
+        )}
+
         {/* Modernized Filter Checklist Dropdown */}
-        <div className={styles.filterDropdownWrapper} ref={filterDropdownRef}>
+        {!isJsonFileSelected && <div className={styles.filterDropdownWrapper} ref={filterDropdownRef}>
           <button
             type="button"
             className={`${styles.filterTriggerBtn} ${isFilterOpen ? styles.filterTriggerBtnOpen : ''} ${isFilterActive ? styles.filterTriggerBtnActive : ''}`}
@@ -141,10 +194,10 @@ export const Toolbar: React.FC = () => {
               <div className={styles.filterSection}>
                 <div className={styles.filterSectionLabel}>Category</div>
                 {[
-                  { id: 'all', label: 'All Categories', icon: <Layers size={12} /> },
+                  { id: 'all', label: 'All Categories', icon: <LayoutGrid size={12} /> },
                   { id: 'blocks', label: 'Blocks', icon: <Box size={12} />, ghostCount: stats.blocksGhostCount },
                   { id: 'items', label: 'Items', icon: <Sword size={12} />, ghostCount: stats.itemsGhostCount },
-                  { id: 'entities', label: 'Entities', icon: <Ghost size={12} />, ghostCount: stats.entitiesGhostCount },
+                  { id: 'entities', label: 'Entities', icon: <PawPrint size={12} />, ghostCount: stats.entitiesGhostCount },
                 ].map((item) => {
                   const isChecked = activeTab === item.id;
                   return (
@@ -220,15 +273,27 @@ export const Toolbar: React.FC = () => {
               </div>
             </div>
           )}
-        </div>
+        </div>}
       </div>
 
       {/* Right Controls: Zoom + View Mode */}
       <div className={styles.rightControls}>
         <div className={styles.viewModeGroup}>
+          {isJsonFileSelected && (
+            <button
+              type="button"
+              className={`${styles.viewModeButton} ${styles.viewModeButtonActive}`}
+              title="JSON Viewer (open file from the sidebar)"
+              aria-pressed={true}
+            >
+              <FileCode2 size={13} />
+              <span>JSON Viewer</span>
+            </button>
+          )}
           <button
             type="button"
-            className={`${styles.viewModeButton} ${activeView === 'grid' ? styles.viewModeButtonActive : ''}`}
+            className={`${styles.viewModeButton} ${!isJsonFileSelected && activeView === 'grid' ? styles.viewModeButtonActive : ''}`}
+            aria-pressed={!isJsonFileSelected && activeView === 'grid'}
             onClick={() => handleSelectView('grid')}
             title="Pack Grid overview"
           >
@@ -237,7 +302,8 @@ export const Toolbar: React.FC = () => {
           </button>
           <button
             type="button"
-            className={`${styles.viewModeButton} ${activeView === 'workspace' ? styles.viewModeButtonActive : ''}`}
+            className={`${styles.viewModeButton} ${!isJsonFileSelected && activeView === 'workspace' ? styles.viewModeButtonActive : ''}`}
+            aria-pressed={!isJsonFileSelected && activeView === 'workspace'}
             onClick={() => handleSelectView('workspace')}
             title="Block Workspace (4-Tier relational hierarchy)"
           >
@@ -246,11 +312,12 @@ export const Toolbar: React.FC = () => {
           </button>
           <button
             type="button"
-            className={`${styles.viewModeButton} ${activeView === 'entity' ? styles.viewModeButtonActive : ''}`}
+            className={`${styles.viewModeButton} ${!isJsonFileSelected && activeView === 'entity' ? styles.viewModeButtonActive : ''}`}
+            aria-pressed={!isJsonFileSelected && activeView === 'entity'}
             onClick={() => handleSelectView('entity')}
             title="Entity Workspace (3D model & slot inspector)"
           >
-            <Layers size={13} />
+            <PawPrint size={13} />
             <span>Entities</span>
           </button>
         </div>

@@ -11,17 +11,27 @@ import {
   Zap,
   RotateCw,
   Layers,
+  PawPrint,
   ArrowRight,
   Box,
   Sword,
-  Ghost,
   Check,
   Plus,
   Minus,
+  Download,
+  Loader2,
+  CheckCircle2,
 } from 'lucide-react';
 import { usePackStore } from '../../store/packStore';
 import { useIpc } from '../../hooks/useIpc';
-import { BlockGroupNodeDto, AliasGroupNodeDto, CatalogLeafDto } from '../../types/ipc';
+import {
+  BlockGroupNodeDto,
+  AliasGroupNodeDto,
+  CatalogLeafDto,
+  IpcMessageTypes,
+  DownloadProgressPayload,
+  Vanilla3DStatusPayload,
+} from '../../types/ipc';
 import { FlipbookThumbnail } from '../common/FlipbookThumbnail';
 import { SearchInput } from '../common/SearchInput';
 import styles from './CatalogDrawer.module.css';
@@ -186,21 +196,27 @@ const CatalogAliasGroup: React.FC<{
   aliasGroup: AliasGroupNodeDto;
   category: string;
   blockDisplayName?: string;
+  parentBlockId?: string;
   onAdd: (id: string, category: string) => void;
-}> = ({ aliasGroup, category, blockDisplayName, onAdd }) => {
+  isAliasDeclaredInPack: (alias: string, category: string, parentBlockId?: string) => boolean;
+}> = ({ aliasGroup, category, blockDisplayName, parentBlockId, onAdd, isAliasDeclaredInPack }) => {
   const isEntity = (aliasGroup.category || category).toLowerCase() === 'entity';
   const slotName = aliasGroup.geometryId || aliasGroup.alias;
   const isAttachable = isEntity && (aliasGroup.isAttachable || aliasGroup.leaves?.some((l) => l.isAttachable));
-  const isAdded =
-    (aliasGroup.notAddedCount ?? 0) === 0 &&
-    (aliasGroup.leaves?.length ?? 0) > 0 &&
-    aliasGroup.leaves.every((l) => l.status !== 'VANILLA');
+  const hasNotAdded = aliasGroup.notAddedCount > 0 || Boolean(aliasGroup.leaves?.some((l) => l.status === 'VANILLA'));
+  const isAdded = isEntity
+    ? false
+    : !hasNotAdded && isAliasDeclaredInPack(aliasGroup.alias, aliasGroup.category || category, parentBlockId);
 
   return (
     <div className={styles.aliasGroupCard} data-testid={`alias-group-${aliasGroup.alias}`}>
       <div className={styles.aliasGroupHeader}>
         <div className={styles.aliasHeaderLeft}>
-          <Layers size={13} className={styles.aliasIcon} />
+          {isEntity ? (
+            <PawPrint size={13} className={styles.aliasIcon} />
+          ) : (
+            <Box size={13} className={styles.aliasIcon} />
+          )}
           <span className={styles.aliasNameText} title={slotName}>
             {isEntity ? `Slot: ${slotName}` : `Alias: ${aliasGroup.alias}`}
           </span>
@@ -270,27 +286,28 @@ const CatalogBlockGroup: React.FC<{
   isExpanded: boolean;
   onToggleExpand: () => void;
   onAdd: (id: string, category: string) => void;
-  isBlockInWorkspace: (blockId: string) => boolean;
+  isBlockUserDefined: (blockId: string) => boolean;
   isEntityInWorkspace: (entityId: string) => boolean;
-}> = ({ block, blockKey, isExpanded, onToggleExpand, onAdd, isBlockInWorkspace, isEntityInWorkspace }) => {
+  isAliasDeclaredInPack: (alias: string, category: string, parentBlockId?: string) => boolean;
+}> = ({
+  block,
+  blockKey,
+  isExpanded,
+  onToggleExpand,
+  onAdd,
+  isBlockUserDefined,
+  isEntityInWorkspace,
+  isAliasDeclaredInPack,
+}) => {
   const cat = (block.category || 'block').toLowerCase();
   const isItem = cat === 'item';
   const isEntity = cat === 'entity';
 
-  const allAliasesAdded =
-    (block.aliasGroups?.length ?? 0) > 0 &&
-    block.aliasGroups.every(
-      (ag) =>
-        (ag.notAddedCount ?? 0) === 0 &&
-        (ag.leaves?.length ?? 0) > 0 &&
-        ag.leaves.every((l) => l.status !== 'VANILLA')
-    );
-
   const isAdded = isEntity
     ? isEntityInWorkspace(block.blockId)
     : isItem
-    ? allAliasesAdded
-    : (isBlockInWorkspace(block.blockId) && allAliasesAdded);
+    ? isAliasDeclaredInPack(block.blockId, 'item')
+    : isBlockUserDefined(block.blockId);
 
   return (
     <div className={styles.blockGroupCard} data-testid={`block-group-${block.blockId}`}>
@@ -344,7 +361,7 @@ const CatalogBlockGroup: React.FC<{
             title={block.category}
           >
             {isEntity ? (
-              <Ghost size={11} className={styles.badgeIcon} />
+              <PawPrint size={11} className={styles.badgeIcon} />
             ) : isItem ? (
               <Sword size={11} className={styles.badgeIcon} />
             ) : (
@@ -395,6 +412,7 @@ const CatalogBlockGroup: React.FC<{
               aliasGroup={aliasGroup}
               category={block.category}
               blockDisplayName={block.displayName}
+              parentBlockId={block.blockId}
               onAdd={(id, cat) => {
                 if (isEntity) {
                   onAdd(block.blockId, 'entity');
@@ -402,6 +420,7 @@ const CatalogBlockGroup: React.FC<{
                   onAdd(id, cat);
                 }
               }}
+              isAliasDeclaredInPack={isAliasDeclaredInPack}
             />
           ))}
         </div>
@@ -419,35 +438,105 @@ export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose })
   const entityWorkspaceTree = usePackStore((s) => s.entityWorkspaceTree);
   const referencePacks = usePackStore((s) => s.referencePacks);
   const activeReferenceId = usePackStore((s) => s.activeReferenceId);
-  const { postCommand, loadCatalog } = useIpc();
+  const aliases = usePackStore((s) => s.aliases);
+  const packFolders = usePackStore((s) => s.packFolders);
+  const { postCommand, loadCatalog, subscribe } = useIpc();
 
-  const [searchText, setSearchText] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState<'all' | 'block' | 'item' | 'entity'>('all');
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
-  const [isMounted, setIsMounted] = useState(isOpen);
-  const overlayRef = useRef<HTMLDivElement | null>(null);
-  const drawerRef = useRef<HTMLElement | null>(null);
-  const animationRef = useRef<gsap.core.Timeline | null>(null);
+  const hasTerrainTextureJson = useMemo(() => {
+    function check(items: any[]): boolean {
+      if (!items) return false;
+      for (const item of items) {
+        const p = (item.relativePath || item.name || '').replace(/\\/g, '/').toLowerCase();
+        if (
+          (p === 'textures/terrain_texture.json' ||
+           p.endsWith('/terrain_texture.json') ||
+           p === 'terrain_texture.json') &&
+          !item.isMissing
+        ) {
+          return true;
+        }
+        if (item.subFolders && item.subFolders.length > 0) {
+          if (check(item.subFolders)) return true;
+        }
+      }
+      return false;
+    }
+    return check(packFolders || []);
+  }, [packFolders]);
 
-  const activeReference = useMemo(() => {
-    return referencePacks?.find((p) => p.id === activeReferenceId) || referencePacks?.[0] || {
-      id: 'vanilla',
-      name: 'Vanilla Bedrock',
-      version: '1.21.x',
-      description: 'Mojang bedrock-samples official reference database',
-      iconUrl: 'https://vanilla.local/pack_icon.png',
-      isVanilla: true,
-    };
-  }, [referencePacks, activeReferenceId]);
+  const hasItemTextureJson = useMemo(() => {
+    function check(items: any[]): boolean {
+      if (!items) return false;
+      for (const item of items) {
+        const p = (item.relativePath || item.name || '').replace(/\\/g, '/').toLowerCase();
+        if (
+          (p === 'textures/item_texture.json' ||
+           p.endsWith('/item_texture.json') ||
+           p === 'item_texture.json') &&
+          !item.isMissing
+        ) {
+          return true;
+        }
+        if (item.subFolders && item.subFolders.length > 0) {
+          if (check(item.subFolders)) return true;
+        }
+      }
+      return false;
+    }
+    return check(packFolders || []);
+  }, [packFolders]);
 
-  const isBlockInWorkspace = useCallback(
+  const hasBlocksJson = useMemo(() => {
+    function check(items: any[]): boolean {
+      if (!items) return false;
+      for (const item of items) {
+        const p = (item.relativePath || item.name || '').replace(/\\/g, '/').toLowerCase();
+        if ((p === 'blocks.json' || p.endsWith('/blocks.json')) && !item.isMissing) {
+          return true;
+        }
+        if (item.subFolders && item.subFolders.length > 0) {
+          if (check(item.subFolders)) return true;
+        }
+      }
+      return false;
+    }
+    return check(packFolders || []);
+  }, [packFolders]);
+
+  const isBlockUserDefined = useCallback(
     (blockId: string): boolean => {
-      if (!blockWorkspaceTree || !Array.isArray(blockWorkspaceTree)) return false;
+      if (!hasBlocksJson || !blockWorkspaceTree || !Array.isArray(blockWorkspaceTree)) return false;
       return blockWorkspaceTree.some(
-        (b) => b.blockId.toLowerCase() === blockId.toLowerCase()
+        (b) => b.blockId.toLowerCase() === blockId.toLowerCase() && b.isUserDefined !== false
       );
     },
-    [blockWorkspaceTree]
+    [hasBlocksJson, blockWorkspaceTree]
+  );
+
+  const isAliasDeclaredInPack = useCallback(
+    (alias: string, category: string, parentBlockId?: string): boolean => {
+      const cat = category.toLowerCase();
+      if (cat === 'block') {
+        if (!hasTerrainTextureJson || !blockWorkspaceTree || !Array.isArray(blockWorkspaceTree)) return false;
+        return blockWorkspaceTree.some(
+          (b) =>
+            b.isUserDefined !== false &&
+            (parentBlockId ? b.blockId.toLowerCase() === parentBlockId.toLowerCase() : true) &&
+            b.aliasGroups?.some((ag) => ag.alias.toLowerCase() === alias.toLowerCase())
+        );
+      }
+      if (cat === 'item') {
+        if (!hasItemTextureJson) return false;
+        return aliases.some(
+          (a) =>
+            a.alias.toLowerCase() === alias.toLowerCase() &&
+            a.category.toLowerCase() === 'item' &&
+            a.status !== 'ORPHAN'
+        );
+      }
+      return false;
+    },
+    [blockWorkspaceTree, hasTerrainTextureJson, hasItemTextureJson, aliases]
   );
 
   const isEntityInWorkspace = useCallback(
@@ -459,6 +548,53 @@ export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose })
     },
     [entityWorkspaceTree]
   );
+
+  const [searchText, setSearchText] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState<'all' | 'block' | 'item' | 'entity'>('all');
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const [isMounted, setIsMounted] = useState(isOpen);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState<DownloadProgressPayload | null>(null);
+  const [has3DInstalled, setHas3DInstalled] = useState<boolean | null>(null);
+  const overlayRef = useRef<HTMLDivElement | null>(null);
+  const drawerRef = useRef<HTMLElement | null>(null);
+  const animationRef = useRef<gsap.core.Timeline | null>(null);
+
+  // Check 3D status on mount / open & listen to download progress
+  useEffect(() => {
+    if (!isOpen) return;
+
+    postCommand(IpcMessageTypes.VanillaGet3DStatus, {});
+
+    const unsubStatus = subscribe(IpcMessageTypes.Vanilla3DStatus, (payload: Vanilla3DStatusPayload) => {
+      setHas3DInstalled(payload.has3DModels);
+    });
+
+    const unsubProgress = subscribe(IpcMessageTypes.DownloadProgress, (payload: DownloadProgressPayload) => {
+      setDownloadProgress(payload);
+      if (payload.progress >= 1) {
+        setIsDownloading(false);
+        setHas3DInstalled(true);
+        postCommand(IpcMessageTypes.VanillaGet3DStatus, {});
+      }
+    });
+
+    return () => {
+      unsubStatus();
+      unsubProgress();
+    };
+  }, [isOpen, subscribe, postCommand]);
+
+  const activeReference = useMemo(() => {
+    return referencePacks?.find((p) => p.id === activeReferenceId) || referencePacks?.[0] || {
+      id: 'vanilla',
+      name: 'Vanilla Bedrock',
+      version: '1.21.x',
+      description: 'Mojang bedrock-samples official reference database',
+      iconUrl: 'https://vanilla.local/pack_icon.png',
+      isVanilla: true,
+    };
+  }, [referencePacks, activeReferenceId]);
 
   // Ask the parent to close; unmount happens after the GSAP exit animation finishes.
   const handleClose = useCallback(() => {
@@ -636,6 +772,13 @@ export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose })
     }
   }, [loadCatalog, postCommand]);
 
+  const handleDownloadReferenceAssets = useCallback(() => {
+    if (isDownloading) return;
+    setIsDownloading(true);
+    setDownloadProgress({ task: 'download_3d_assets', progress: 0.05, message: 'Connecting to Mojang bedrock-samples...' });
+    postCommand(IpcMessageTypes.VanillaDownload3DAssets, {});
+  }, [isDownloading, postCommand]);
+
   if (!isMounted) return null;
 
   const totalCatalogCount = catalogTree?.length || 0;
@@ -715,7 +858,7 @@ export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose })
             }}
           >
             <span className={styles.floatingBtnIcon}>
-              <Ghost size={16} />
+              <PawPrint size={16} />
             </span>
             <span className={styles.floatingBtnTooltip}>Filter Entities</span>
           </button>
@@ -745,12 +888,43 @@ export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose })
                 <span className={styles.versionBadge}>{activeReference.version}</span>
               </div>
               <span className={styles.headerSubtitle}>
-                {activeReference.description || (activeReference.isVanilla ? 'Mojang bedrock-samples offline reference database' : 'Custom local resource pack reference')}
+                {activeReference.description || (activeReference.isVanilla ? 'Mojang bedrock-samples official reference database' : 'Custom local resource pack reference')}
               </span>
             </div>
           </div>
 
           <div className={styles.headerRightActions}>
+            <button
+              type="button"
+              className={`${styles.syncReferenceBtn} ${isDownloading ? styles.syncReferenceBtnLoading : ''} ${has3DInstalled ? styles.syncReferenceBtnInstalled : ''}`}
+              onClick={handleDownloadReferenceAssets}
+              disabled={isDownloading}
+              title={
+                isDownloading
+                  ? downloadProgress?.message || 'Downloading Bedrock Reference Assets...'
+                  : has3DInstalled
+                  ? '3D models & reference assets installed. Click to re-sync latest Bedrock assets'
+                  : 'Download official Vanilla Bedrock 3D models & textures'
+              }
+            >
+              {isDownloading ? (
+                <>
+                  <Loader2 size={13} className={styles.spinnerIcon} />
+                  <span>{Math.round((downloadProgress?.progress ?? 0.05) * 100)}%</span>
+                </>
+              ) : has3DInstalled ? (
+                <>
+                  <CheckCircle2 size={13} className={styles.installedIcon} />
+                  <span>Assets Synced</span>
+                </>
+              ) : (
+                <>
+                  <Download size={13} />
+                  <span>Sync 3D Assets</span>
+                </>
+              )}
+            </button>
+
             <span className={styles.resultCountBadge} data-testid="result-count-badge">
               {isSearching
                 ? `${visibleBlocks.length} / ${filteredBlocks.length}`
@@ -800,8 +974,9 @@ export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose })
                     isExpanded={isBlockExpanded(blockKey)}
                     onToggleExpand={() => toggleExpand(blockKey)}
                     onAdd={handleAdd}
-                    isBlockInWorkspace={isBlockInWorkspace}
+                    isBlockUserDefined={isBlockUserDefined}
                     isEntityInWorkspace={isEntityInWorkspace}
+                    isAliasDeclaredInPack={isAliasDeclaredInPack}
                   />
                 );
               })}

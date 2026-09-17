@@ -13,8 +13,12 @@ import {
   FileX,
   ChevronRight,
   AppWindow,
+  Plus,
+  Star,
+  X,
 } from 'lucide-react';
 import { usePackStore } from '../../store/packStore';
+import { useIpc } from '../../hooks/useIpc';
 import { OpenWithAppDto } from '../../types/ipc';
 import styles from './TextureContextMenu.module.css';
 
@@ -92,8 +96,11 @@ export const TextureContextMenu: React.FC<TextureContextMenuProps> = ({
   onEditMers,
 }) => {
   const openWithApps = usePackStore((s) => s.openWithApps);
+  const { addCustomEditor, removeCustomEditor, setDefaultEditor } = useIpc();
   const [isSubmenuOpen, setIsSubmenuOpen] = useState(false);
   const [copiedKey, setCopiedKey] = useState<'full' | 'rel' | null>(null);
+
+  const defaultApp = openWithApps?.find((a) => a.isDefault);
 
   const initialPos = useRef<{ top: number; left: number } | null>(null);
   if (!initialPos.current) {
@@ -107,7 +114,7 @@ export const TextureContextMenu: React.FC<TextureContextMenuProps> = ({
   const isOrphan = item.status === 'ORPHAN';
 
   const winWidth = typeof window !== 'undefined' ? window.innerWidth : 1200;
-  const flipLeft = menuPos.left + 190 + 180 > winWidth;
+  const flipLeft = menuPos.left + 190 + 200 > winWidth;
 
   const clearCloseTimer = useCallback(() => {
     if (closeTimerRef.current) {
@@ -157,6 +164,15 @@ export const TextureContextMenu: React.FC<TextureContextMenuProps> = ({
     [item.fullPath, item.relativePath]
   );
 
+  const rawFileName = item.relativePath
+    ? (item.relativePath.split(/[/\\]/).pop() ?? item.alias)
+    : item.alias;
+  const dotIdx = rawFileName.lastIndexOf('.');
+  const cleanExt = dotIdx > 0 ? (rawFileName.substring(dotIdx).split('?')[0] ?? '').split('#')[0] ?? '' : '';
+  const fileExt = cleanExt && cleanExt.length <= 5 ? cleanExt : (item.relativePath?.endsWith('.png') ? '.png' : '');
+  const fileBase = dotIdx > 0 ? rawFileName.substring(0, dotIdx) : rawFileName;
+  const fullDisplayName = fileExt ? `${fileBase}${fileExt}` : fileBase;
+
   return createPortal(
     <div className={styles.dropdownPortalBackdrop} onMouseDown={onClose}>
       <div
@@ -164,29 +180,63 @@ export const TextureContextMenu: React.FC<TextureContextMenuProps> = ({
         style={{ top: `${menuPos.top}px`, left: `${menuPos.left}px` }}
         onMouseDown={(e) => e.stopPropagation()}
       >
-        {/* 1. Default Edit Texture */}
+        {/* Header Displaying Texture Name */}
+        <div className={styles.menuHeader} title={item.relativePath || fullDisplayName}>
+          <div className={styles.headerTitleRow}>
+            <span className={styles.headerFileName}>{fileBase}</span>
+            {fileExt && <span className={styles.headerFileExt}>{fileExt}</span>}
+          </div>
+          {item.relativePath ? (
+            <div className={styles.headerSubPath} title={item.relativePath}>
+              {item.relativePath}
+            </div>
+          ) : (
+            item.alias && (
+              <div className={styles.headerSubPath} title={`Alias: ${item.alias}`}>
+                alias: {item.alias}
+              </div>
+            )
+          )}
+        </div>
+
+        <div className={styles.menuDivider} />
+
+        {/* 1. Default Edit Texture (Uses default app icon/name if configured) */}
         <button
           type="button"
           className={styles.menuItem}
+          disabled={isGhost}
           onClick={() => {
             onClose();
-            onEdit();
+            onEdit(defaultApp);
           }}
+          title={isGhost ? 'Texture file does not exist on disk' : defaultApp ? `Edit with ${defaultApp.name} (${defaultApp.exePath})` : 'Edit with default image editor'}
         >
-          <Edit3 size={13} className={styles.menuIcon} />
-          <span className={styles.menuLabel}>Edit Texture</span>
+          {defaultApp?.iconDataUrl ? (
+            <img src={defaultApp.iconDataUrl} alt={defaultApp.name} className={styles.appIconImg} />
+          ) : defaultApp ? (
+            <AppWindow size={13} className={styles.menuIcon} />
+          ) : (
+            <Edit3 size={13} className={styles.menuIcon} />
+          )}
+          <span className={styles.menuLabel}>
+            {defaultApp ? `Edit with ${defaultApp.name}` : 'Edit Texture'}
+          </span>
         </button>
 
         {/* 2. Open With Submenu Trigger & Flyout */}
         <div
           className={styles.hasSubmenu}
-          onMouseEnter={handleSubmenuEnter}
-          onMouseLeave={handleSubmenuLeave}
+          onMouseEnter={!isGhost ? handleSubmenuEnter : undefined}
+          onMouseLeave={!isGhost ? handleSubmenuLeave : undefined}
         >
           <button
             type="button"
             className={styles.menuItem}
+            disabled={isGhost}
+            title={isGhost ? 'Texture file does not exist on disk' : undefined}
             onClick={(e) => {
+              if (isGhost) return;
               e.stopPropagation();
               clearCloseTimer();
               setIsSubmenuOpen((prev) => !prev);
@@ -206,10 +256,9 @@ export const TextureContextMenu: React.FC<TextureContextMenuProps> = ({
             >
               {openWithApps && openWithApps.length > 0 ? (
                 openWithApps.map((app) => (
-                  <button
+                  <div
                     key={app.id}
-                    type="button"
-                    className={styles.menuItem}
+                    className={styles.appRow}
                     onClick={() => {
                       clearCloseTimer();
                       onClose();
@@ -223,24 +272,49 @@ export const TextureContextMenu: React.FC<TextureContextMenuProps> = ({
                       <AppWindow size={13} className={styles.menuIcon} />
                     )}
                     <span className={styles.menuLabel}>{app.name}</span>
-                  </button>
+                    <div
+                      className={`${styles.appRowActions} ${app.isDefault ? styles.appRowActionsVisible : ''}`}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <button
+                        type="button"
+                        className={`${styles.actionIconBtn} ${app.isDefault ? styles.actionIconBtnActive : ''}`}
+                        title={app.isDefault ? 'Default editor' : 'Set as default editor'}
+                        onClick={() => setDefaultEditor(app.isDefault ? null : app.id)}
+                      >
+                        <Star size={11} fill={app.isDefault ? '#fbbf24' : 'none'} />
+                      </button>
+                      <button
+                        type="button"
+                        className={`${styles.actionIconBtn} ${styles.actionIconBtnDanger}`}
+                        title="Remove editor from list"
+                        onClick={() => removeCustomEditor(app.id)}
+                      >
+                        <X size={11} />
+                      </button>
+                    </div>
+                  </div>
                 ))
               ) : (
-                <button
-                  type="button"
-                  className={styles.menuItem}
-                  onClick={() => {
-                    clearCloseTimer();
-                    onClose();
-                    onEdit();
-                  }}
-                >
-                  <AppWindow size={13} className={styles.menuIcon} />
-                  <span className={styles.menuLabel}>Default Application</span>
-                </button>
+                <div className={styles.emptyEditorsNotice}>
+                  No custom editors added yet
+                </div>
               )}
 
               <div className={styles.menuDivider} />
+
+              <button
+                type="button"
+                className={styles.menuItem}
+                onClick={() => {
+                  clearCloseTimer();
+                  onClose();
+                  addCustomEditor(null);
+                }}
+              >
+                <Plus size={13} className={styles.menuIcon} />
+                <span className={styles.menuLabel}>Add Editor / App...</span>
+              </button>
 
               <button
                 type="button"
@@ -252,7 +326,7 @@ export const TextureContextMenu: React.FC<TextureContextMenuProps> = ({
                 }}
               >
                 <ExternalLink size={13} className={styles.menuIcon} />
-                <span className={styles.menuLabel}>Choose another app...</span>
+                <span className={styles.menuLabel}>Windows Open with...</span>
               </button>
             </div>
           )}

@@ -1,12 +1,14 @@
 // frontend/src/components/workspace/EntityWorkspace.tsx
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
-import { Box, Layers, Shield } from 'lucide-react';
+import { PawPrint, Shield, Trash2 } from 'lucide-react';
 import { usePackStore } from '../../store/packStore';
 import { useIpc } from '../../hooks/useIpc';
-import { BlockGroupNodeDto, CatalogLeafDto, TextureAliasDto } from '../../types/ipc';
+import { BlockGroupNodeDto, CatalogLeafDto, TextureAliasDto, OpenWithAppDto } from '../../types/ipc';
 import { Entity3DViewer, EntitySlotOption, EntitySlotVariationOption } from './Entity3DViewer';
+import { EntityEntryTree } from './EntityEntryTree';
 import { WorkspaceTileCard, VariantTileGroup } from './WorkspaceTileCard';
 import { TileHoverMorphPortal, TileHoverMorphTarget } from '../grid/TileHoverMorphPortal';
+import { TextureContextMenu } from '../common/TextureContextMenu';
 import styles from './BlockWorkspace.module.css';
 
 function leafToAliasDto(leaf: CatalogLeafDto): TextureAliasDto {
@@ -88,6 +90,11 @@ export const EntityWorkspace: React.FC = () => {
   const [activeLeafKey, setActiveLeafKey] = useState<string | null>(null);
   const [activeMenuKey, setActiveMenuKey] = useState<string | null>(null);
   const [hoverMorphTarget, setHoverMorphTarget] = useState<TileHoverMorphTarget | null>(null);
+  const [contextMenuTarget, setContextMenuTarget] = useState<{
+    alias: TextureAliasDto;
+    key: string;
+    anchor?: { top?: number; bottom?: number; left?: number; right?: number; x?: number; y?: number };
+  } | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -346,6 +353,14 @@ export const EntityWorkspace: React.FC = () => {
     deleteTextureEntries(alias, 'entity', relativePath ?? undefined);
   }, [deleteTextureEntries]);
 
+  const handleDeleteEntity = useCallback(() => {
+    if (!selectedEntity) return;
+    const name = selectedEntity.displayName || selectedEntity.blockId;
+    if (window.confirm(`Are you sure you want to delete entity "${name}" and its definition JSON from the pack?`)) {
+      deleteTextureEntries(selectedEntity.blockId, 'entity');
+    }
+  }, [selectedEntity, deleteTextureEntries]);
+
   const selectedEntityDisplayName = selectedEntity?.displayName || selectedEntity?.blockId || '';
 
   if (!entityWorkspaceTree || entityWorkspaceTree.length === 0) {
@@ -385,7 +400,7 @@ export const EntityWorkspace: React.FC = () => {
                   {isAttachable ? (
                     <Shield size={14} className={!isCustom ? styles.blockIconMuted : undefined} />
                   ) : (
-                    <Box size={14} className={!isCustom ? styles.blockIconMuted : undefined} />
+                    <PawPrint size={14} className={!isCustom ? styles.blockIconMuted : undefined} />
                   )}
                   <span className={styles.blockItemName}>{entity.displayName || entity.blockId}</span>
                 </div>
@@ -394,7 +409,7 @@ export const EntityWorkspace: React.FC = () => {
                     <span className={styles.attachableTag}>attachable</span>
                   )}
                   {!isCustom && (
-                    <span className={styles.vanillaTag} title="Vanilla Bedrock Reference">vanilla</span>
+                    <span className={styles.vanillaTag} title="Inferred from vanilla entity definition">fallback</span>
                   )}
                   {entity.ghostCount > 0 && (
                     <span className={styles.ghostBadge}>{entity.ghostCount}</span>
@@ -427,8 +442,8 @@ export const EntityWorkspace: React.FC = () => {
                   </span>
                 )}
                 {selectedEntity.isUserDefined === false && (
-                  <span className={styles.vanillaHeaderBadge} title="Using vanilla entity reference definition">
-                    Vanilla Reference
+                  <span className={styles.vanillaHeaderBadge} title="Using vanilla entity definition">
+                    Vanilla Fallback
                   </span>
                 )}
               </div>
@@ -436,11 +451,24 @@ export const EntityWorkspace: React.FC = () => {
                 {selectedEntity.blockId}
               </span>
             </div>
-            {selectedEntity.ghostCount > 0 && (
-              <span className={styles.ghostBadge}>
-                {selectedEntity.ghostCount} {selectedEntity.ghostCount === 1 ? 'ghost' : 'ghosts'}
-              </span>
-            )}
+            <div className={styles.detailHeaderActions}>
+              {selectedEntity.isUserDefined !== false && (
+                <button
+                  type="button"
+                  className={styles.deleteEntityBtn}
+                  onClick={handleDeleteEntity}
+                  title="Delete this entity definition JSON from the pack"
+                >
+                  <Trash2 size={13} />
+                  <span>Delete Entity</span>
+                </button>
+              )}
+              {selectedEntity.ghostCount > 0 && (
+                <span className={styles.ghostBadge}>
+                  {selectedEntity.ghostCount} {selectedEntity.ghostCount === 1 ? 'ghost' : 'ghosts'}
+                </span>
+              )}
+            </div>
           </div>
 
           {/* 3D Entity Model Viewer */}
@@ -462,13 +490,23 @@ export const EntityWorkspace: React.FC = () => {
             />
           </div>
 
+          <EntityEntryTree
+            entity={selectedEntity}
+            onTileClick={handleTileClick}
+          />
+
           {/* Slots & Texture Variations Hierarchy */}
           <div className={styles.hierarchySection} ref={menuRef}>
             {selectedEntity.aliasGroups?.map((ag, agIndex) => (
               <div key={`${selectedEntity.blockId}-${ag.alias}-${agIndex}`} className={styles.aliasGroupCard}>
                 <div className={styles.aliasHeader}>
-                  <Layers size={14} />
-                  <span>Slot: {ag.geometryId || ag.alias}</span>
+                  <PawPrint size={14} />
+                  <span>Slot: {ag.alias}{ag.geometryId ? ` | ${ag.geometryId}` : ''}</span>
+                  {selectedEntity.isUserDefined === false && (
+                    <span className={styles.vanillaHeaderBadge} title="Using vanilla entity definition">
+                      Vanilla Fallback
+                    </span>
+                  )}
                 </div>
 
                 <div className={styles.variantStrip}>
@@ -502,16 +540,53 @@ export const EntityWorkspace: React.FC = () => {
       {hoverMorphTarget && (
         <TileHoverMorphPortal
           target={hoverMorphTarget}
+          isMenuOpen={Boolean(contextMenuTarget)}
           onClose={() => setHoverMorphTarget(null)}
           onEdit={(alias) => {
             setHoverMorphTarget(null);
             editTexture(alias.alias, alias.fullPath, alias.status === 'GHOST');
           }}
-          onOpenContextMenu={() => {
-            setHoverMorphTarget(null);
+          onOpenContextMenu={(alias, anchor) => {
+            setContextMenuTarget({
+              alias,
+              key: hoverMorphTarget.key,
+              anchor,
+            });
           }}
-          onRevealInExplorer={(fullPath) => {
-            openInExplorer(fullPath, true);
+        />
+      )}
+
+      {/* Standalone Context Menu triggered from morph or tiles */}
+      {contextMenuTarget && (
+        <TextureContextMenu
+          item={contextMenuTarget.alias}
+          anchor={contextMenuTarget.anchor}
+          onClose={() => setContextMenuTarget(null)}
+          onEdit={(app?: OpenWithAppDto) => {
+            setHoverMorphTarget(null);
+            editTexture(contextMenuTarget.alias.alias, contextMenuTarget.alias.fullPath, contextMenuTarget.alias.status === 'GHOST', app?.exePath, false);
+          }}
+          onOpenWithDialog={() => {
+            setHoverMorphTarget(null);
+            editTexture(contextMenuTarget.alias.alias, contextMenuTarget.alias.fullPath, contextMenuTarget.alias.status === 'GHOST', null, true);
+          }}
+          onRevealInExplorer={() => {
+            if (contextMenuTarget.alias.fullPath) {
+              openInExplorer(contextMenuTarget.alias.fullPath, true);
+            }
+          }}
+          onDeleteTexture={() => {
+            if (contextMenuTarget.alias.fullPath) {
+              deleteTextureFile(contextMenuTarget.alias.fullPath);
+            }
+          }}
+          onDeleteEntries={() => {
+            deleteTextureEntries(contextMenuTarget.alias.alias, contextMenuTarget.alias.category || 'entity');
+          }}
+          onEditMers={() => {
+            if (contextMenuTarget.alias.mersFullPath) {
+              editTexture(contextMenuTarget.alias.alias, contextMenuTarget.alias.mersFullPath, false);
+            }
           }}
         />
       )}

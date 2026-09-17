@@ -398,7 +398,19 @@ public sealed class IpcBridgeService : IIpcBridgeService
                         $"Content-Type: {mime}\r\nAccess-Control-Allow-Origin: *\r\nCache-Control: no-store, no-cache, must-revalidate\r\n"
                     );
                     e.Response = response;
+                    return;
                 }
+            }
+
+            // Return clean 404 for any unmapped or missing virtual host resource so WebView2 doesn't leak DNS queries
+            if (uri.Host.EndsWith(".local", StringComparison.OrdinalIgnoreCase))
+            {
+                e.Response = _coreWebView2?.Environment?.CreateWebResourceResponse(
+                    new MemoryStream(),
+                    404,
+                    "Not Found",
+                    "Content-Type: text/plain\r\nAccess-Control-Allow-Origin: *\r\n"
+                );
             }
         }
         catch (Exception ex)

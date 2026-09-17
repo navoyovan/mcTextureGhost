@@ -387,7 +387,8 @@ public static class PackScanner
                         FullPath = file,
                         Status = TextureStatus.Ok,
                         VariantKind = VariantKind.None,
-                        BlockFaces = new List<BlockFaceUsage>()
+                        BlockFaces = new List<BlockFaceUsage>(),
+                        IsUserDefined = false
                     });
                 }
                 else
@@ -928,6 +929,25 @@ public static class PackScanner
                     yield return (s, isCarried ? "carried" : "all");
                 break;
 
+            case JsonValueKind.Array:
+                foreach (var item in texturesProp.EnumerateArray())
+                {
+                    if (item.ValueKind == JsonValueKind.String)
+                    {
+                        var arrAlias = item.GetString();
+                        if (!string.IsNullOrEmpty(arrAlias))
+                            yield return (arrAlias, isCarried ? "carried" : "all");
+                    }
+                    else if (item.ValueKind == JsonValueKind.Object || item.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var innerFace in ExtractAliasFaces(item, isCarried))
+                        {
+                            yield return innerFace;
+                        }
+                    }
+                }
+                break;
+
             case JsonValueKind.Object:
                 foreach (var face in texturesProp.EnumerateObject())
                 {
@@ -938,6 +958,36 @@ public static class PackScanner
                         {
                             var faceName = isCarried ? $"carried_{face.Name}" : face.Name;
                             yield return (alias, faceName);
+                        }
+                    }
+                    else if (face.Value.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var item in face.Value.EnumerateArray())
+                        {
+                            if (item.ValueKind == JsonValueKind.String)
+                            {
+                                var arrAlias = item.GetString();
+                                if (!string.IsNullOrEmpty(arrAlias))
+                                {
+                                    var faceName = isCarried ? $"carried_{face.Name}" : face.Name;
+                                    yield return (arrAlias, faceName);
+                                }
+                            }
+                            else if (item.ValueKind == JsonValueKind.Object || item.ValueKind == JsonValueKind.Array)
+                            {
+                                foreach (var inner in ExtractAliasFaces(item, isCarried))
+                                {
+                                    yield return (inner.alias, isCarried ? $"carried_{face.Name}" : face.Name);
+                                }
+                            }
+                        }
+                    }
+                    else if (face.Value.ValueKind == JsonValueKind.Object)
+                    {
+                        foreach (var innerFace in ExtractAliasFaces(face.Value, isCarried))
+                        {
+                            var faceName = isCarried ? $"carried_{face.Name}" : face.Name;
+                            yield return (innerFace.alias, faceName);
                         }
                     }
                 }
@@ -2248,12 +2298,21 @@ public static class PackScanner
             var isAttachable = group.Any(t => t.IsAttachable);
             var displayName = vanilla?.GetEntityDisplayName(entityId) ?? cleanId;
 
+            var isCustomEntity = group.Any(t => t.IsUserDefined);
+            var hasPackJson = packRoot != null && (
+                File.Exists(Path.Combine(packRoot, "entity", $"{cleanId}.entity.json")) ||
+                File.Exists(Path.Combine(packRoot, "entity", $"{cleanId}.json")) ||
+                File.Exists(Path.Combine(packRoot, "attachables", $"{cleanId}.json")) ||
+                group.Any(t => t.IsAttachable && File.Exists(Path.Combine(packRoot, "attachables", $"{t.Alias}.json")))
+            );
+            var isUserDefined = isCustomEntity || hasPackJson;
+
             var entityNode = new BlockGroupNode
             {
                 BlockId = entityId,
                 DisplayName = displayName,
                 Category = TextureCategory.Entity,
-                IsUserDefined = true
+                IsUserDefined = isUserDefined
             };
 
             // Group tiles by their distinct geometry so adult, baby, and variant geometries are separated cleanly

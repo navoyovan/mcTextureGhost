@@ -13,16 +13,20 @@ Consult these project specification files **only when relevant** to the task at 
    - **When to read:** Only when handling file locks, DWM window hooks, or raw Bedrock polymorphic JSON.
 5. **`.agents/rules/entity-workspace.md`** (Entity & 3D Geometry Invariants)
    - **When to read:** Only when modifying Bedrock `.geo.json` parsers, bone hierarchies, Three.js box UVs, or EntityWorkspace.
-6. **`AGENTS.md`** (System Instructions & Workflow - THIS FILE)
+6. **`.agents/rules/wpf-ui.md`** (WPF-UI & Native UI Invariants)
+   - **When to read:** Only when modifying WPF controls, caption buttons, native UI, or inspecting WPF-UI APIs.
+7. **`.agents/rules/graphify.md`** (Optional Codebase Navigation)
+   - **When to read:** For unfamiliar cross-file dependencies or architecture questions when a generated Graphify graph is available. Known-file edits should go directly to source.
+8. **`AGENTS.md`** (System Instructions & Workflow - THIS FILE)
    - **Scope:** Execution rules, code style, build safety invariants.
 
 ---
 
 ## Execution Rules for Antigravity Agents
 - **Strict Anti-Looping & Action Invariant:**
-  - **NEVER** loop across files, re-read documentation files, or repeatedly call `view_file` on the same file/lines in an execution turn.
-  - **Single Read Hard Limit:** Inspect any file or snippet at most ONCE. If you already have the lines in context or just viewed them, immediately apply edits via `replace_file_content` instead of calling `view_file` again.
-  - Read **only** the single most relevant file (or section) needed for the current prompt.
+  - Read the smallest relevant sections; do not loop through documentation or reread unchanged content already available in context.
+  - Start with the most relevant file. Inspect related files when needed for cross-file contracts, verification, or changed source context.
+  - Use content already in context for targeted edits; reread only when that context is missing, stale, or insufficient to verify the change.
   - When the user asks for a UI tweak, bug fix, or feature, immediately inspect the target code and apply the fix. Do not circle across unrequested documents.
   - Do NOT pause or generate formal planning artifacts (`implementation_plan.md`) unless the user explicitly asks for a plan or proposal first.
 - **Context Efficiency:** Never read `ARCHITECTURE.md` when `ARCHITECTURE_ESSENTIALS.md` has the answer.

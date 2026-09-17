@@ -37,11 +37,12 @@
   background: transparent;
   border: none;
   border-bottom: 1px solid rgba(255, 255, 255, 0.03);
-  color: #d4d4d8;
+  border-left: 3px solid transparent;
+  color: #f4f4f5;
   font-size: 12px;
   cursor: pointer;
   text-align: left;
-  transition: background 0.15s, color 0.15s;
+  transition: background 0.15s, color 0.15s, opacity 0.15s;
 }
 
 .blockItem:hover {
@@ -50,25 +51,27 @@
 }
 
 .blockItemActive {
-  background: rgba(139, 92, 246, 0.15);
-  color: #c4b5fd;
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
   font-weight: 600;
+  border-left-color: #8b5cf6;
 }
 
 .blockItemVanilla {
   color: #71717a;
-  opacity: 0.7;
+  opacity: 0.55;
 }
 
 .blockItemVanilla:hover {
   color: #a1a1aa;
-  opacity: 0.9;
+  opacity: 0.85;
 }
 
 .blockItemVanilla.blockItemActive {
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.06);
   color: #d4d4d8;
-  border-left: 2px solid #71717a;
+  opacity: 1;
+  border-left-color: #71717a;
 }
 
 .blockIconMuted {
@@ -82,26 +85,30 @@
 }
 
 .vanillaTag {
-  font-family: var(--font-pixel);
-  font-size: 7px;
+  font-family: var(--font-brand, 'Syne', sans-serif);
+  font-size: 9px;
+  font-weight: 700;
   line-height: 1;
-  letter-spacing: 0.02em;
-  padding: 2px 4px;
-  border-radius: 3px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  padding: 2.5px 5px;
+  border-radius: var(--radius-sm, 4px);
   background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: #a1a1aa;
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  color: #38bdf8;
 }
 
 .attachableTag {
-  font-family: var(--font-pixel);
-  font-size: 7px;
+  font-family: var(--font-brand, 'Syne', sans-serif);
+  font-size: 9px;
+  font-weight: 700;
   line-height: 1;
-  letter-spacing: 0.02em;
-  padding: 2px 4px;
-  border-radius: 3px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  padding: 2.5px 5px;
+  border-radius: var(--radius-sm, 4px);
   background: rgba(168, 85, 247, 0.12);
-  border: 1px solid rgba(168, 85, 247, 0.25);
+  border: 1px solid rgba(168, 85, 247, 0.3);
   color: #c084fc;
 }
 
@@ -112,14 +119,17 @@
 }
 
 .vanillaHeaderBadge {
-  font-family: var(--font-pixel);
-  font-size: 8px;
+  font-family: var(--font-brand, 'Syne', sans-serif);
+  font-size: 9.5px;
+  font-weight: 700;
   line-height: 1;
-  padding: 2px 6px;
-  border-radius: 4px;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  color: #a1a1aa;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: var(--radius-sm, 4px);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  color: #38bdf8;
 }
 
 .blockItemLeft {
@@ -166,6 +176,34 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+}
+
+.detailHeaderActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.deleteEntityBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  border-radius: 4px;
+  color: #f87171;
+  font-family: var(--font-brand, 'Syne', sans-serif);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.deleteEntityBtn:hover {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: rgba(239, 68, 68, 0.45);
+  color: #fca5a5;
 }
 
 .blockTitleGroup {
