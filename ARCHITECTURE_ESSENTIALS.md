@@ -9,6 +9,7 @@ Fast reference for day-to-day tasks. Start with the relevant code below; load sp
 - **Styling:** CSS Modules (`*.module.css`) + CSS Custom Properties. **No Tailwind CSS**.
 - **Fonts:** Preserve design tokens in `frontend/src/styles/` (`Syne`, `Press Start 2P`, and system code/UI fonts).
 - **Category Icons:** Standardized Lucide icons across UI: Blocks (`<Box />`), Items (`<Sword />`), Entities (`<PawPrint />`, attachable: `<Shield />`), All (`<LayoutGrid />`). `<Ghost />` is strictly reserved for ghost texture status.
+- **Status & Badge Colors:** Standardized status tokens across UI: `OK`, `ADDED`, `DONE`, and `FALLBACK` are strictly **Soft Blue** (`#38bdf8`, `background: rgba(56, 189, 248, 0.15)`). `GHOST` is strictly reserved for missing files using **Green** (`#8CEB1F`) on purple (`rgba(68, 38, 56, 0.75)`). Never use green for `OK` or `ADDED`.
 
 ## 2. Task-to-Code Lookup
 
@@ -21,12 +22,12 @@ Paths are repository-relative. Read the entry point relevant to the task, not ev
 | IPC message names and payloads | `Services/IpcContracts.cs` and `frontend/src/types/ipc.ts` |
 | IPC transport, dispatch, subscriptions, correlated requests | `Services/IpcBridgeService.cs` and `frontend/src/hooks/useIpc.ts` |
 | Frontend state and view navigation | `frontend/src/store/packStore.ts` and `frontend/src/App.tsx` |
-| Texture models, variants, face bindings | `Models/TextureAlias.cs` |
-| Pack scanning and JSON scaffolding | `Services/PackScanner.cs` and `Services/JsonWriterService.cs` |
+| Texture models, variants, face bindings, user-defined flags | `Models/TextureAlias.cs` (`IsUserDefined`) |
+| Pack scanning, tree building, and fallback inference | `Services/PackScanner.cs` (`BuildEntityWorkspaceTree`, `BuildBlockWorkspaceTree`) and `Services/JsonWriterService.cs` |
 | Vanilla data and custom catalog references | `Services/VanillaDataService.cs`, `Services/CatalogReferenceService.cs`, `frontend/src/components/catalog/CatalogDrawer.tsx` |
 | Block workspace, hierarchy tree, and 3D preview | `frontend/src/components/workspace/BlockWorkspace.tsx`, `BlockEntryTree.tsx`, `Block3DViewer.tsx` in the same directory |
 | Block shape and geometry investigation | `frontend/src/config/blockShapes.ts` and `frontend/src/components/workspace/blockGeometryBuilder.ts` |
-| Entity/attachable workspace and 3D preview | `frontend/src/components/workspace/EntityWorkspace.tsx`, `Entity3DViewer.tsx`, `entityGeometryBuilder.ts` in the same directory; consult `.agents/rules/entity-workspace.md` |
+| Entity/attachable workspace, hierarchy tree, and 3D preview | `frontend/src/components/workspace/EntityWorkspace.tsx`, `EntityEntryTree.tsx`, `Entity3DViewer.tsx`, `entityGeometryBuilder.ts` in the same directory; consult `.agents/rules/entity-workspace.md` |
 | JSON reader and manifest editor | `frontend/src/components/json/JsonReader.tsx` and `ManifestForm.tsx` in the same directory |
 | Texture grid and shared morph preview | `frontend/src/components/grid/PackGrid.tsx` and `TileHoverMorphPortal.tsx` |
 | Texture animation thumbnails | `frontend/src/components/common/FlipbookThumbnail.tsx` |

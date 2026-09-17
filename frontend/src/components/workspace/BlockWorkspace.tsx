@@ -84,7 +84,48 @@ export const BlockWorkspace: React.FC = () => {
   const searchQuery = usePackStore((s) => s.searchQuery);
   const statusFilter = usePackStore((s) => s.statusFilter);
   const activeFilters = usePackStore((s) => s.activeFilters);
+  const packFolders = usePackStore((s) => s.packFolders);
+  const packAliases = usePackStore((s) => s.aliases ?? []);
   const { editTexture, deleteTextureFile, deleteTextureEntries, openInExplorer } = useIpc();
+
+  const hasTerrainTextureJson = useMemo(() => {
+    function check(items: any[]): boolean {
+      if (!items) return false;
+      for (const item of items) {
+        const p = (item.relativePath || item.name || '').replace(/\\/g, '/').toLowerCase();
+        if (
+          (p === 'textures/terrain_texture.json' ||
+           p.endsWith('/terrain_texture.json') ||
+           p === 'terrain_texture.json') &&
+          !item.isMissing
+        ) {
+          return true;
+        }
+        if (item.subFolders && item.subFolders.length > 0) {
+          if (check(item.subFolders)) return true;
+        }
+      }
+      return false;
+    }
+    return check(packFolders || []);
+  }, [packFolders]);
+
+  const hasBlocksJson = useMemo(() => {
+    function check(items: any[]): boolean {
+      if (!items) return false;
+      for (const item of items) {
+        const p = (item.relativePath || item.name || '').replace(/\\/g, '/').toLowerCase();
+        if ((p === 'blocks.json' || p.endsWith('/blocks.json')) && !item.isMissing) {
+          return true;
+        }
+        if (item.subFolders && item.subFolders.length > 0) {
+          if (check(item.subFolders)) return true;
+        }
+      }
+      return false;
+    }
+    return check(packFolders || []);
+  }, [packFolders]);
 
   const [activeMenuKey, setActiveMenuKey] = useState<string | null>(null);
   const [contextMenuTarget, setContextMenuTarget] = useState<{
@@ -460,7 +501,7 @@ export const BlockWorkspace: React.FC = () => {
                 </div>
                 <div className={styles.blockItemBadges}>
                   {!isCustom && block.blockId !== 'uncategorized' && (
-                    <span className={styles.vanillaTag} title="Inferred from vanilla blocks.json">vanilla</span>
+                    <span className={styles.vanillaTag} title="Inferred from vanilla blocks.json">fallback</span>
                   )}
                   {block.ghostCount > 0 && (
                     <span className={styles.ghostBadge}>{block.ghostCount}</span>
@@ -524,12 +565,29 @@ export const BlockWorkspace: React.FC = () => {
           />
 
           <div className={styles.hierarchySection}>
-            {selectedBlock.aliasGroups?.map((ag) => (
-              <div key={ag.alias} className={styles.aliasGroupCard}>
-                <div className={styles.aliasHeader}>
-                  <Layers size={14} />
-                  <span>Alias: {ag.alias}</span>
-                </div>
+            {selectedBlock.aliasGroups?.map((ag) => {
+              const isBlockUserDefined = hasBlocksJson && selectedBlock.isUserDefined !== false;
+              const isDeclaredInTerrainTexture =
+                isBlockUserDefined &&
+                hasTerrainTextureJson &&
+                packAliases.some(
+                  (a: TextureAliasDto) =>
+                    a.alias.toLowerCase() === ag.alias.toLowerCase() &&
+                    a.category === 'block' &&
+                    a.status !== 'ORPHAN'
+                );
+
+              return (
+                <div key={ag.alias} className={styles.aliasGroupCard}>
+                  <div className={styles.aliasHeader}>
+                    <Layers size={14} />
+                    <span>Alias: {ag.alias}</span>
+                    {!isDeclaredInTerrainTexture && (
+                      <span className={styles.vanillaHeaderBadge} title="Using vanilla terrain_texture.json definition">
+                        Vanilla Fallback
+                      </span>
+                    )}
+                  </div>
 
                 <div className={styles.faceNodeGroup}>
                   {ag.faceNodes && ag.faceNodes.length > 0 ? (
@@ -586,7 +644,8 @@ export const BlockWorkspace: React.FC = () => {
                   )}
                 </div>
               </div>
-            ))}
+            );
+          })}
           </div>
         </section>
       ) : (

@@ -93,8 +93,8 @@
   text-transform: uppercase;
   padding: 2.5px 5px;
   border-radius: var(--radius-sm, 4px);
-  background: rgba(56, 189, 248, 0.12);
-  border: 1px solid rgba(56, 189, 248, 0.3);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(56, 189, 248, 0.25);
   color: #38bdf8;
 }
 
@@ -127,8 +127,8 @@
   text-transform: uppercase;
   padding: 3px 8px;
   border-radius: var(--radius-sm, 4px);
-  background: rgba(56, 189, 248, 0.12);
-  border: 1px solid rgba(56, 189, 248, 0.3);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(56, 189, 248, 0.25);
   color: #38bdf8;
 }
 

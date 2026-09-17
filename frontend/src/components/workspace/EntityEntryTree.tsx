@@ -8,12 +8,12 @@ import { usePackStore } from '../../store/packStore';
 import { BlockGroupNodeDto, CatalogLeafDto } from '../../types/ipc';
 import styles from './BlockEntryTree.module.css';
 
-export interface BlockEntryTreeProps {
-  block: BlockGroupNodeDto;
+export interface EntityEntryTreeProps {
+  entity: BlockGroupNodeDto;
   onTileClick?: (domEl: HTMLElement, leaf: CatalogLeafDto, key: string) => void;
 }
 
-export const BlockEntryTree: React.FC<BlockEntryTreeProps> = ({ block, onTileClick }) => {
+export const EntityEntryTree: React.FC<EntityEntryTreeProps> = ({ entity, onTileClick }) => {
   const [collapsedNodes, setCollapsedNodes] = useState<Record<string, boolean>>({});
   const [isMinimized, setIsMinimized] = useState<boolean>(false);
 
@@ -22,18 +22,24 @@ export const BlockEntryTree: React.FC<BlockEntryTreeProps> = ({ block, onTileCli
     setIsMinimized((prev) => !prev);
   };
 
-  const packAliases = usePackStore((s) => s.aliases);
   const packFolders = usePackStore((s) => s.packFolders);
 
-  const hasTerrainTextureJson = useMemo(() => {
+  const cleanId = useMemo(() => {
+    return entity.blockId.startsWith('minecraft:')
+      ? entity.blockId.substring(10)
+      : entity.blockId;
+  }, [entity.blockId]);
+
+  const hasEntityJson = useMemo(() => {
     function check(items: any[]): boolean {
       if (!items) return false;
       for (const item of items) {
         const p = (item.relativePath || item.name || '').replace(/\\/g, '/').toLowerCase();
         if (
-          (p === 'textures/terrain_texture.json' ||
-           p.endsWith('/terrain_texture.json') ||
-           p === 'terrain_texture.json') &&
+          (p === `entity/${cleanId}.entity.json` ||
+           p.endsWith(`/${cleanId}.entity.json`) ||
+           p === `attachables/${cleanId}.json` ||
+           p.endsWith(`/${cleanId}.json`)) &&
           !item.isMissing
         ) {
           return true;
@@ -45,24 +51,9 @@ export const BlockEntryTree: React.FC<BlockEntryTreeProps> = ({ block, onTileCli
       return false;
     }
     return check(packFolders || []);
-  }, [packFolders]);
+  }, [packFolders, cleanId]);
 
-  const hasBlocksJson = useMemo(() => {
-    function check(items: any[]): boolean {
-      if (!items) return false;
-      for (const item of items) {
-        const p = (item.relativePath || item.name || '').replace(/\\/g, '/').toLowerCase();
-        if ((p === 'blocks.json' || p.endsWith('/blocks.json')) && !item.isMissing) {
-          return true;
-        }
-        if (item.subFolders && item.subFolders.length > 0) {
-          if (check(item.subFolders)) return true;
-        }
-      }
-      return false;
-    }
-    return check(packFolders || []);
-  }, [packFolders]);
+  const isEntityUserDefined = (hasEntityJson || entity.isUserDefined !== false) && entity.isUserDefined === true;
 
   const toggleNode = (nodeId: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
@@ -72,12 +63,14 @@ export const BlockEntryTree: React.FC<BlockEntryTreeProps> = ({ block, onTileCli
     }));
   };
 
-  const isBlockUserDefined = hasBlocksJson && block.isUserDefined !== false;
-
-  // Flatten and group alias mappings
   const aliases = useMemo(() => {
-    return block.aliasGroups || [];
-  }, [block]);
+    return entity.aliasGroups || [];
+  }, [entity]);
+
+  const fileLabel = useMemo(() => {
+    const isAttachable = aliases.some((ag) => ag.isAttachable);
+    return isAttachable ? `attachables/${cleanId}.json` : `entity/${cleanId}.entity.json`;
+  }, [aliases, cleanId]);
 
   return (
     <div className={`${styles.treeContainer} ${isMinimized ? styles.treeContainerCollapsed : ''}`}>
@@ -104,55 +97,46 @@ export const BlockEntryTree: React.FC<BlockEntryTreeProps> = ({ block, onTileCli
 
       {!isMinimized && (
         <div className={styles.treeContent}>
-        {/* Level 1: blocks.json Entry */}
+        {/* Level 1: Entity JSON Entry */}
         <div className={styles.treeNode}>
           <div
-            className={`${styles.treeRow} ${isBlockUserDefined ? styles.normalWeight : styles.dimmedWeight}`}
-            onClick={() => toggleNode('root_blocks_json')}
+            className={`${styles.treeRow} ${isEntityUserDefined ? styles.normalWeight : styles.dimmedWeight}`}
+            onClick={() => toggleNode('root_entity_json')}
           >
             <button
               type="button"
               className={styles.chevronBtn}
-              onClick={(e) => toggleNode('root_blocks_json', e)}
+              onClick={(e) => toggleNode('root_entity_json', e)}
             >
-              {collapsedNodes['root_blocks_json'] ? (
+              {collapsedNodes['root_entity_json'] ? (
                 <ChevronRight size={13} />
               ) : (
                 <ChevronDown size={13} />
               )}
             </button>
-            <span className={styles.nodeKey}>blocks.json</span>
-            <span className={styles.nodeValue}>➔ &quot;{block.blockId}&quot;</span>
-            <span className={styles.nodeSub}>({block.displayName})</span>
+            <span className={styles.nodeKey}>{fileLabel}</span>
+            <span className={styles.nodeValue}>➔ &quot;{entity.blockId}&quot;</span>
+            <span className={styles.nodeSub}>({entity.displayName})</span>
 
-            {isBlockUserDefined ? (
-              <span className={`${styles.badge} ${styles.addedBadge}`} title="Defined in pack blocks.json">
+            {isEntityUserDefined ? (
+              <span className={`${styles.badge} ${styles.addedBadge}`} title="Defined in pack entity definition">
                 added
               </span>
             ) : (
-              <span className={`${styles.badge} ${styles.vanillaBadge}`} title="Inferred from vanilla blocks.json">
+              <span className={`${styles.badge} ${styles.vanillaBadge}`} title="Inferred from vanilla entity definition">
                 vanilla fallback
               </span>
             )}
           </div>
 
-          {!collapsedNodes['root_blocks_json'] && (
+          {!collapsedNodes['root_entity_json'] && (
             <div className={styles.treeChildren}>
-              {/* Level 2: terrain_texture.json entries per alias */}
+              {/* Level 2: Slots per alias group */}
               {aliases.map((ag) => {
-                const aliasKey = `alias_${ag.alias}`;
+                const aliasKey = `slot_${ag.alias}`;
                 const isAliasCollapsed = Boolean(collapsedNodes[aliasKey]);
-                const isDeclaredInTerrainTexture =
-                  isBlockUserDefined &&
-                  hasTerrainTextureJson &&
-                  packAliases.some(
-                    (a) =>
-                      a.alias.toLowerCase() === ag.alias.toLowerCase() &&
-                      a.category === 'block' &&
-                      a.status !== 'ORPHAN'
-                  );
 
-                // Deduplicate unique texture leaves for this alias
+                // Deduplicate unique texture leaves for this slot
                 const seenLeaves = new Set<string>();
                 const uniqueLeaves: CatalogLeafDto[] = [];
                 const rawLeaves = [
@@ -170,7 +154,7 @@ export const BlockEntryTree: React.FC<BlockEntryTreeProps> = ({ block, onTileCli
                 return (
                   <div key={ag.alias} className={styles.treeNode}>
                     <div
-                      className={`${styles.treeRow} ${isDeclaredInTerrainTexture ? styles.normalWeight : styles.dimmedWeight}`}
+                      className={`${styles.treeRow} ${isEntityUserDefined ? styles.normalWeight : styles.dimmedWeight}`}
                       onClick={() => toggleNode(aliasKey)}
                     >
                       <button
@@ -184,18 +168,18 @@ export const BlockEntryTree: React.FC<BlockEntryTreeProps> = ({ block, onTileCli
                           <ChevronDown size={13} />
                         )}
                       </button>
-                      <span className={styles.nodeKey}>terrain_texture.json</span>
+                      <span className={styles.nodeKey}>slot</span>
                       <span className={styles.nodeValue}>➔ &quot;{ag.alias}&quot;</span>
-                      {ag.faceSummary && (
-                        <span className={styles.nodeSub}>[face: {ag.faceSummary}]</span>
+                      {ag.geometryId && (
+                        <span className={styles.nodeSub}>[{ag.geometryId}]</span>
                       )}
 
-                      {isDeclaredInTerrainTexture ? (
-                        <span className={`${styles.badge} ${styles.addedBadge}`} title="Texture alias declared in user terrain_texture.json">
+                      {isEntityUserDefined ? (
+                        <span className={`${styles.badge} ${styles.addedBadge}`} title="Slot declared in user entity definition">
                           added
                         </span>
                       ) : (
-                        <span className={`${styles.badge} ${styles.vanillaBadge}`} title="Inferred from vanilla terrain_texture.json">
+                        <span className={`${styles.badge} ${styles.vanillaBadge}`} title="Inferred from vanilla entity definition">
                           vanilla fallback
                         </span>
                       )}
@@ -204,7 +188,7 @@ export const BlockEntryTree: React.FC<BlockEntryTreeProps> = ({ block, onTileCli
                     {!isAliasCollapsed && (
                       <div className={styles.treeChildren}>
                         {uniqueLeaves.map((leaf, lIdx) => (
-                          <TextureLeafRow
+                          <EntityTextureLeafRow
                             key={`${leaf.relativePath || leaf.alias}-${lIdx}`}
                             leaf={leaf}
                             onTileClick={onTileClick}
@@ -224,12 +208,12 @@ export const BlockEntryTree: React.FC<BlockEntryTreeProps> = ({ block, onTileCli
   );
 };
 
-interface TextureLeafRowProps {
+interface EntityTextureLeafRowProps {
   leaf: CatalogLeafDto;
   onTileClick?: (domEl: HTMLElement, leaf: CatalogLeafDto, key: string) => void;
 }
 
-const TextureLeafRow: React.FC<TextureLeafRowProps> = ({ leaf, onTileClick }) => {
+const EntityTextureLeafRow: React.FC<EntityTextureLeafRowProps> = ({ leaf, onTileClick }) => {
   const isVanilla = leaf.status === 'VANILLA';
   const isGhost = leaf.status === 'GHOST';
   const isOk = leaf.status === 'OK' || leaf.status === 'OVERRIDE';

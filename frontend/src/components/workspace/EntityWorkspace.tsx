@@ -5,6 +5,7 @@ import { usePackStore } from '../../store/packStore';
 import { useIpc } from '../../hooks/useIpc';
 import { BlockGroupNodeDto, CatalogLeafDto, TextureAliasDto, OpenWithAppDto } from '../../types/ipc';
 import { Entity3DViewer, EntitySlotOption, EntitySlotVariationOption } from './Entity3DViewer';
+import { EntityEntryTree } from './EntityEntryTree';
 import { WorkspaceTileCard, VariantTileGroup } from './WorkspaceTileCard';
 import { TileHoverMorphPortal, TileHoverMorphTarget } from '../grid/TileHoverMorphPortal';
 import { TextureContextMenu } from '../common/TextureContextMenu';
@@ -408,7 +409,7 @@ export const EntityWorkspace: React.FC = () => {
                     <span className={styles.attachableTag}>attachable</span>
                   )}
                   {!isCustom && (
-                    <span className={styles.vanillaTag} title="Vanilla Bedrock Reference">vanilla</span>
+                    <span className={styles.vanillaTag} title="Inferred from vanilla entity definition">fallback</span>
                   )}
                   {entity.ghostCount > 0 && (
                     <span className={styles.ghostBadge}>{entity.ghostCount}</span>
@@ -441,8 +442,8 @@ export const EntityWorkspace: React.FC = () => {
                   </span>
                 )}
                 {selectedEntity.isUserDefined === false && (
-                  <span className={styles.vanillaHeaderBadge} title="Using vanilla entity reference definition">
-                    Vanilla Reference
+                  <span className={styles.vanillaHeaderBadge} title="Using vanilla entity definition">
+                    Vanilla Fallback
                   </span>
                 )}
               </div>
@@ -489,6 +490,11 @@ export const EntityWorkspace: React.FC = () => {
             />
           </div>
 
+          <EntityEntryTree
+            entity={selectedEntity}
+            onTileClick={handleTileClick}
+          />
+
           {/* Slots & Texture Variations Hierarchy */}
           <div className={styles.hierarchySection} ref={menuRef}>
             {selectedEntity.aliasGroups?.map((ag, agIndex) => (
@@ -496,6 +502,11 @@ export const EntityWorkspace: React.FC = () => {
                 <div className={styles.aliasHeader}>
                   <PawPrint size={14} />
                   <span>Slot: {ag.alias}{ag.geometryId ? ` | ${ag.geometryId}` : ''}</span>
+                  {selectedEntity.isUserDefined === false && (
+                    <span className={styles.vanillaHeaderBadge} title="Using vanilla entity definition">
+                      Vanilla Fallback
+                    </span>
+                  )}
                 </div>
 
                 <div className={styles.variantStrip}>

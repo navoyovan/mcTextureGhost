@@ -104,6 +104,9 @@ public class TextureAlias : INotifyPropertyChanged
     /// <summary>True if this entity texture comes from an attachables/*.json definition.</summary>
     public bool IsAttachable { get; init; }
 
+    /// <summary>True if this alias is defined in a pack JSON file. False if inferred via vanilla fallback.</summary>
+    public bool IsUserDefined { get; init; } = true;
+
     /// <summary>The key in texture_data or entity slot name, e.g. "stone", "demo_stone".</summary>
     public required string Alias { get; init; }
 

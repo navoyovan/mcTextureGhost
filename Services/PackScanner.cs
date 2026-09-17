@@ -387,7 +387,8 @@ public static class PackScanner
                         FullPath = file,
                         Status = TextureStatus.Ok,
                         VariantKind = VariantKind.None,
-                        BlockFaces = new List<BlockFaceUsage>()
+                        BlockFaces = new List<BlockFaceUsage>(),
+                        IsUserDefined = false
                     });
                 }
                 else
@@ -2297,12 +2298,21 @@ public static class PackScanner
             var isAttachable = group.Any(t => t.IsAttachable);
             var displayName = vanilla?.GetEntityDisplayName(entityId) ?? cleanId;
 
+            var isCustomEntity = group.Any(t => t.IsUserDefined);
+            var hasPackJson = packRoot != null && (
+                File.Exists(Path.Combine(packRoot, "entity", $"{cleanId}.entity.json")) ||
+                File.Exists(Path.Combine(packRoot, "entity", $"{cleanId}.json")) ||
+                File.Exists(Path.Combine(packRoot, "attachables", $"{cleanId}.json")) ||
+                group.Any(t => t.IsAttachable && File.Exists(Path.Combine(packRoot, "attachables", $"{t.Alias}.json")))
+            );
+            var isUserDefined = isCustomEntity || hasPackJson;
+
             var entityNode = new BlockGroupNode
             {
                 BlockId = entityId,
                 DisplayName = displayName,
                 Category = TextureCategory.Entity,
-                IsUserDefined = true
+                IsUserDefined = isUserDefined
             };
 
             // Group tiles by their distinct geometry so adult, baby, and variant geometries are separated cleanly
