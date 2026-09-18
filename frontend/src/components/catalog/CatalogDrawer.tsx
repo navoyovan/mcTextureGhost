@@ -10,6 +10,7 @@ import {
   ChevronRight,
   Zap,
   RotateCw,
+  Settings,
   Layers,
   PawPrint,
   ArrowRight,
@@ -28,6 +29,7 @@ import {
 } from '../../types/ipc';
 import { FlipbookThumbnail } from '../common/FlipbookThumbnail';
 import { SearchInput } from '../common/SearchInput';
+import { ReferencePackManagerModal } from './ReferencePackManagerModal';
 import styles from './CatalogDrawer.module.css';
 
 export interface CatalogDrawerProps {
@@ -434,6 +436,8 @@ export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose })
   const activeReferenceId = usePackStore((s) => s.activeReferenceId);
   const aliases = usePackStore((s) => s.aliases);
   const packFolders = usePackStore((s) => s.packFolders);
+  const hasVanillaAssets = usePackStore((s) => s.hasVanillaAssets);
+  const simulateNoAssets = usePackStore((s) => s.simulateNoAssets);
   const { postCommand, loadCatalog } = useIpc();
 
   const hasTerrainTextureJson = useMemo(() => {
@@ -547,6 +551,8 @@ export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose })
   const [categoryFilter, setCategoryFilter] = useState<'all' | 'block' | 'item' | 'entity'>('all');
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [isMounted, setIsMounted] = useState(isOpen);
+  const [isReferenceManagerOpen, setIsReferenceManagerOpen] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const overlayRef = useRef<HTMLDivElement | null>(null);
   const drawerRef = useRef<HTMLElement | null>(null);
   const animationRef = useRef<gsap.core.Timeline | null>(null);
@@ -731,11 +737,13 @@ export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose })
   );
 
   const handleManualSync = useCallback(() => {
+    setIsRefreshing(true);
     if (loadCatalog) {
       loadCatalog();
     } else {
       postCommand('VANILLA:LOAD_CATALOG', {});
     }
+    setTimeout(() => setIsRefreshing(false), 600);
   }, [loadCatalog, postCommand]);
 
   if (!isMounted) return null;
@@ -858,6 +866,27 @@ export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose })
                 ? `${visibleBlocks.length} / ${filteredBlocks.length}`
                 : `${visibleBlocks.length} / ${totalCatalogCount}`}
             </span>
+            {(!simulateNoAssets && (activeReference.isVanilla ? hasVanillaAssets : Boolean(activeReference.packPath))) ? (
+              <button
+                type="button"
+                className={styles.headerIconBtn}
+                onClick={() => setIsReferenceManagerOpen(true)}
+                title="Catalog Manager & Settings"
+                aria-label="Catalog Manager & Settings"
+              >
+                <Settings size={14} />
+              </button>
+            ) : (
+              <button
+                type="button"
+                className={styles.headerIconBtn}
+                onClick={handleManualSync}
+                title="Refresh Vanilla Cache"
+                aria-label="Refresh Vanilla Cache"
+              >
+                <RotateCw size={14} className={isRefreshing ? styles.spinIcon : ''} />
+              </button>
+            )}
             <button
               type="button"
               className={styles.closeButton}
@@ -908,13 +937,15 @@ export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose })
                   />
                 );
               })}
-              {displayLimit < filteredBlocks.length && (
-                <div className={styles.loadMoreTrigger}>
+              {visibleBlocks.length < filteredBlocks.length && (
+                <div className={styles.loadMoreRow}>
                   <button
                     type="button"
                     className={styles.loadMoreBtn}
                     onClick={() =>
-                      setDisplayLimit((prev) => Math.min(prev + 100, filteredBlocks.length))
+                      setDisplayLimit((prev) =>
+                        Math.min(prev + 100, filteredBlocks.length)
+                      )
                     }
                   >
                     Load More ({filteredBlocks.length - displayLimit} remaining)
@@ -954,6 +985,12 @@ export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose })
           )}
         </div>
       </aside>
+
+      {/* Reference Pack / Catalog Manager Modal */}
+      <ReferencePackManagerModal
+        isOpen={isReferenceManagerOpen}
+        onClose={() => setIsReferenceManagerOpen(false)}
+      />
     </div>,
     document.body
   );

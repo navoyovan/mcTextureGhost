@@ -7,19 +7,17 @@ import {
   FileText,
   ExternalLink,
   XCircle,
-  LayoutGrid,
-  RefreshCw,
   Terminal,
   Radio,
   ChevronDown,
-  Database,
   Square,
   CheckSquare,
+  Info,
 } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { usePackStore, rawPackStore } from '../../store/packStore';
 import { useIpc } from '../../hooks/useIpc';
-import { ReferencePackManagerModal } from '../catalog/ReferencePackManagerModal';
+import { AboutModal } from '../common/AboutModal';
 import styles from './MenuBar.module.css';
 
 interface MenuItemDef {
@@ -45,15 +43,13 @@ interface OpenMenuState {
 
 export const MenuBar: React.FC = () => {
   const [openMenu, setOpenMenu] = useState<OpenMenuState | null>(null);
-  const [isReferenceManagerOpen, setIsReferenceManagerOpen] = useState(false);
+  const [isAboutOpen, setIsAboutOpen] = useState(false);
   const barRef = useRef<HTMLDivElement>(null);
 
   const { postCommand, openPackFolder, reloadPack, createPack, openInExplorer, closePack } = useIpc();
   const packRoot = usePackStore((s) => s.packRoot);
   const resetPackState = usePackStore((s) => s.resetPackState);
-  const isCatalogOpen = usePackStore((s) => s.isCatalogOpen);
   const setSelectedFolderPath = usePackStore((s) => s.setSelectedFolderPath);
-  const toggleCatalog = usePackStore((s) => s.toggleCatalog);
   const activeTab = usePackStore((s) => s.activeTab);
   const setActiveTab = usePackStore((s) => s.setActiveTab);
   const stats = usePackStore((s) => s.stats);
@@ -165,16 +161,6 @@ export const MenuBar: React.FC = () => {
       label: 'Dev',
       items: [
         {
-          label: isCatalogOpen ? 'Close Vanilla Catalog' : 'Open Vanilla Catalog',
-          icon: <LayoutGrid size={13} />,
-          action: () => toggleCatalog(),
-        },
-        {
-          label: 'Catalog Manager\u2026',
-          icon: <Database size={13} />,
-          action: () => setIsReferenceManagerOpen(true),
-        },
-        {
           label: 'Simulate no download',
           icon: simulateNoAssets ? (
             <CheckSquare size={13} style={{ color: 'var(--accent-primary, #8CEB1F)' }} />
@@ -183,11 +169,6 @@ export const MenuBar: React.FC = () => {
           ),
           action: () => setSimulateNoAssets(!simulateNoAssets),
           hasDivider: true,
-        },
-        {
-          label: 'Refresh Vanilla Cache',
-          icon: <RefreshCw size={13} />,
-          action: () => postCommand('VANILLA:LOAD_CATALOG', {}),
         },
         {
           label: 'Open DevTools',
@@ -208,11 +189,22 @@ export const MenuBar: React.FC = () => {
         },
       ],
     },
+    {
+      label: 'Help',
+      items: [
+        {
+          label: 'About McTextureGhost',
+          icon: <Info size={13} />,
+          action: () => setIsAboutOpen(true),
+        },
+      ],
+    },
   ];
 
   return (
     <nav className={styles.menuBar} ref={barRef} aria-label="Application menus">
-      {menus.map((menu) => {
+      {/* File & Dev menus */}
+      {menus.filter((m) => m.label !== 'Help').map((menu) => {
         const isOpen = openMenu?.label === menu.label;
         return (
           <div key={menu.label} className={styles.menuRoot}>
@@ -232,6 +224,8 @@ export const MenuBar: React.FC = () => {
           </div>
         );
       })}
+
+      {/* BETA button */}
       <div className={styles.menuRoot}>
         <button
           type="button"
@@ -242,6 +236,23 @@ export const MenuBar: React.FC = () => {
         >
           BETA
           <ChevronDown size={10} className={styles.menuChevron} />
+        </button>
+      </div>
+
+      {/* Help menu placed after BETA */}
+      <div className={styles.menuRoot}>
+        <button
+          type="button"
+          className={`${styles.menuTrigger} ${openMenu?.label === 'Help' ? styles.menuTriggerOpen : ''}`}
+          onClick={(e) => handleTriggerClick('Help', e)}
+          aria-haspopup="menu"
+          aria-expanded={openMenu?.label === 'Help'}
+        >
+          Help
+          <ChevronDown
+            size={10}
+            className={`${styles.menuChevron} ${openMenu?.label === 'Help' ? styles.menuChevronOpen : ''}`}
+          />
         </button>
       </div>
 
@@ -337,10 +348,10 @@ export const MenuBar: React.FC = () => {
           document.body
         )}
 
-      {/* Vanilla Reference & Catalog Manager Modal */}
-      <ReferencePackManagerModal
-        isOpen={isReferenceManagerOpen}
-        onClose={() => setIsReferenceManagerOpen(false)}
+      {/* About & Licenses Modal */}
+      <AboutModal
+        isOpen={isAboutOpen}
+        onClose={() => setIsAboutOpen(false)}
       />
     </nav>
   );

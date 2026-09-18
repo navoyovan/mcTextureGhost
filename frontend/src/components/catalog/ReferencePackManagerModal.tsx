@@ -46,7 +46,6 @@ export const ReferencePackManagerModal: React.FC<ReferencePackManagerModalProps>
   const [isPurgingData, setIsPurgingData] = useState(false);
 
   const simulateNoAssets = usePackStore((s) => s.simulateNoAssets);
-  const setSimulateNoAssets = usePackStore((s) => s.setSimulateNoAssets);
 
   // Load detailed status on open & subscribe to updates
   useEffect(() => {
@@ -165,20 +164,6 @@ export const ReferencePackManagerModal: React.FC<ReferencePackManagerModalProps>
 
         {/* Body Content */}
         <div className={styles.modalBody}>
-          {/* Minimal Test Checkbox */}
-          <button
-            type="button"
-            className={styles.minimalCheckboxBtn}
-            onClick={() => setSimulateNoAssets(!simulateNoAssets)}
-            aria-checked={simulateNoAssets}
-            role="checkbox"
-          >
-            <span className={`${styles.customCheckbox} ${simulateNoAssets ? styles.customCheckboxChecked : ''}`}>
-              {simulateNoAssets && <Check size={11} strokeWidth={3} />}
-            </span>
-            <span className={styles.minimalCheckboxLabel}>Simulate no download</span>
-          </button>
-
           {/* Reference Pack Overview & Path */}
           <section className={styles.sectionCard}>
             <div className={styles.sectionHeader}>
