@@ -83,10 +83,12 @@ export interface OpenWithAppDto {
   exePath: string;
   iconDataUrl?: string | null;
   isDefault?: boolean;
+  category?: 'image' | 'json' | string;
 }
 
 export interface OpenWithAppsListPayload {
   apps: OpenWithAppDto[];
+  category?: 'image' | 'json' | string;
 }
 
 export interface TextureEditPayload {
@@ -420,6 +422,7 @@ export interface AppConfigPayload {
   debugMode: boolean;
   windowTitle: string;
   openWithApps?: OpenWithAppDto[] | null;
+  jsonOpenWithApps?: OpenWithAppDto[] | null;
 }
 
 export interface ErrorPayload {

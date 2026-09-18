@@ -13,6 +13,8 @@ import {
   Pencil,
 } from 'lucide-react';
 import { PackFolderItemDto } from '../../types/ipc';
+import { usePackStore } from '../../store/packStore';
+import { JsonFileContextMenu } from '../common/JsonFileContextMenu';
 import styles from './DirectoryTree.module.css';
 
 function renderNodeIcon(node: PackFolderItemDto, isSelected: boolean) {
@@ -72,8 +74,10 @@ export const DirectoryTreeNode: React.FC<DirectoryTreeNodeProps> = ({
   onSelect,
   onOpenManifest,
 }) => {
+  const packRoot = usePackStore((s) => s.packRoot);
   const hasChildren = Boolean(node.subFolders && node.subFolders.length > 0);
   const [isExpanded, setIsExpanded] = useState<boolean>(false);
+  const [contextMenuPos, setContextMenuPos] = useState<{ x: number; y: number } | null>(null);
 
   const nodePath = (node.relativePath || node.name).replace(/\\/g, '/');
   const isSelected = Boolean(
@@ -81,6 +85,9 @@ export const DirectoryTreeNode: React.FC<DirectoryTreeNodeProps> = ({
     selectedPath.replace(/\\/g, '/').toLowerCase() === nodePath.toLowerCase()
   );
   const isManifest = (node.name?.toLowerCase() === 'manifest.json' || node.relativePath?.toLowerCase() === 'manifest.json');
+  const isFileNode = !node.isDirectory || /\.(json|lang|txt|material|png|tga|jpg|jpeg|js|ts)$/i.test(node.name || '');
+
+  const resolvedFullPath = node.fullPath || (packRoot ? `${packRoot}\\${nodePath.replace(/\//g, '\\')}` : nodePath);
 
   const handleRowClick = () => {
     if (isManifest) {
@@ -89,6 +96,14 @@ export const DirectoryTreeNode: React.FC<DirectoryTreeNodeProps> = ({
     }
     // Clicking the already selected path clears the filter, otherwise select this node
     onSelect(isSelected ? null : nodePath);
+  };
+
+  const handleContextMenu = (e: React.MouseEvent) => {
+    if (isFileNode) {
+      e.preventDefault();
+      e.stopPropagation();
+      setContextMenuPos({ x: e.clientX, y: e.clientY });
+    }
   };
 
   const handleEditManifest = (e: React.MouseEvent) => {
@@ -109,6 +124,7 @@ export const DirectoryTreeNode: React.FC<DirectoryTreeNodeProps> = ({
         className={`${styles.treeRow} ${isSelected ? styles.treeRowSelected : ''} ${node.isMissing ? styles.treeRowMissing : ''}`}
         data-depth={depthClamped}
         onClick={handleRowClick}
+        onContextMenu={handleContextMenu}
         title={node.fullPath || node.relativePath || node.name}
         role="treeitem"
         aria-selected={isSelected}
@@ -166,6 +182,23 @@ export const DirectoryTreeNode: React.FC<DirectoryTreeNodeProps> = ({
           )}
         </div>
       </div>
+
+      {contextMenuPos && (
+        <JsonFileContextMenu
+          fileName={node.name}
+          relativePath={node.relativePath || node.name}
+          fullPath={resolvedFullPath}
+          anchor={contextMenuPos}
+          onClose={() => setContextMenuPos(null)}
+          onOpenInternal={
+            isManifest && onOpenManifest
+              ? onOpenManifest
+              : /\.(json|material)$/i.test(node.name || '')
+              ? () => onSelect(nodePath)
+              : undefined
+          }
+        />
+      )}
 
       {hasChildren && isExpanded && (
         <div className={styles.treeChildren} role="group">

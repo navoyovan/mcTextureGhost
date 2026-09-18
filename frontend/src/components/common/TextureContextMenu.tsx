@@ -180,23 +180,12 @@ export const TextureContextMenu: React.FC<TextureContextMenuProps> = ({
         style={{ top: `${menuPos.top}px`, left: `${menuPos.left}px` }}
         onMouseDown={(e) => e.stopPropagation()}
       >
-        {/* Header Displaying Texture Name */}
+        {/* Header Displaying Texture Name (Single Line) */}
         <div className={styles.menuHeader} title={item.relativePath || fullDisplayName}>
           <div className={styles.headerTitleRow}>
             <span className={styles.headerFileName}>{fileBase}</span>
             {fileExt && <span className={styles.headerFileExt}>{fileExt}</span>}
           </div>
-          {item.relativePath ? (
-            <div className={styles.headerSubPath} title={item.relativePath}>
-              {item.relativePath}
-            </div>
-          ) : (
-            item.alias && (
-              <div className={styles.headerSubPath} title={`Alias: ${item.alias}`}>
-                alias: {item.alias}
-              </div>
-            )
-          )}
         </div>
 
         <div className={styles.menuDivider} />

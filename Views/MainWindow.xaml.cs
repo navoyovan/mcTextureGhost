@@ -1113,10 +1113,21 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         });
 
         // 16b. OPEN_WITH:GET_APPS
-        _ipcBridge.RegisterHandler(IpcMessageTypes.OpenWithGetApps, (payload, corrId) =>
+        _ipcBridge.RegisterHandler<OpenWithGetAppsPayload>(IpcMessageTypes.OpenWithGetApps, (payload, corrId) =>
         {
-            var apps = OpenWithService.GetOpenWithApps(forceRefresh: true);
-            _ipcBridge.PostMessage(IpcMessageTypes.OpenWithAppsList, new OpenWithAppsListPayload(apps));
+            var category = payload?.Category;
+            if (string.IsNullOrWhiteSpace(category))
+            {
+                var imageApps = OpenWithService.GetOpenWithApps("image", forceRefresh: true);
+                var jsonApps = OpenWithService.GetOpenWithApps("json", forceRefresh: true);
+                _ipcBridge.PostMessage(IpcMessageTypes.OpenWithAppsList, new OpenWithAppsListPayload(imageApps, "image"));
+                _ipcBridge.PostMessage(IpcMessageTypes.OpenWithAppsList, new OpenWithAppsListPayload(jsonApps, "json"));
+            }
+            else
+            {
+                var apps = OpenWithService.GetOpenWithApps(category, forceRefresh: true);
+                _ipcBridge.PostMessage(IpcMessageTypes.OpenWithAppsList, new OpenWithAppsListPayload(apps, category));
+            }
             return Task.CompletedTask;
         });
 
@@ -1125,12 +1136,14 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         {
             Dispatcher.Invoke(() =>
             {
+                string category = payload?.Category ?? "image";
+                bool isJson = string.Equals(category, "json", StringComparison.OrdinalIgnoreCase);
                 string? selectedPath = payload?.ExePath;
                 if (string.IsNullOrWhiteSpace(selectedPath))
                 {
                     var dlg = new Microsoft.Win32.OpenFileDialog
                     {
-                        Title = "Select Image Editor Executable",
+                        Title = isJson ? "Select Code / Text Editor Executable" : "Select Image Editor Executable",
                         Filter = "Executable files (*.exe)|*.exe|All files (*.*)|*.*",
                         CheckFileExists = true
                     };
@@ -1142,9 +1155,9 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
 
                 if (!string.IsNullOrWhiteSpace(selectedPath))
                 {
-                    OpenWithService.AddApp(selectedPath);
-                    var apps = OpenWithService.GetOpenWithApps(forceRefresh: true);
-                    _ipcBridge.PostMessage(IpcMessageTypes.OpenWithAppsList, new OpenWithAppsListPayload(apps));
+                    OpenWithService.AddApp(selectedPath, category: category);
+                    var apps = OpenWithService.GetOpenWithApps(category, forceRefresh: true);
+                    _ipcBridge.PostMessage(IpcMessageTypes.OpenWithAppsList, new OpenWithAppsListPayload(apps, category));
                 }
             });
             return Task.CompletedTask;
@@ -1157,9 +1170,10 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
             {
                 if (payload != null && !string.IsNullOrWhiteSpace(payload.Id))
                 {
-                    OpenWithService.RemoveApp(payload.Id);
-                    var apps = OpenWithService.GetOpenWithApps(forceRefresh: true);
-                    _ipcBridge.PostMessage(IpcMessageTypes.OpenWithAppsList, new OpenWithAppsListPayload(apps));
+                    string category = payload.Category ?? "image";
+                    OpenWithService.RemoveApp(payload.Id, category);
+                    var apps = OpenWithService.GetOpenWithApps(category, forceRefresh: true);
+                    _ipcBridge.PostMessage(IpcMessageTypes.OpenWithAppsList, new OpenWithAppsListPayload(apps, category));
                 }
             });
             return Task.CompletedTask;
@@ -1170,9 +1184,10 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         {
             Dispatcher.Invoke(() =>
             {
-                OpenWithService.SetDefaultApp(payload?.Id);
-                var apps = OpenWithService.GetOpenWithApps(forceRefresh: true);
-                _ipcBridge.PostMessage(IpcMessageTypes.OpenWithAppsList, new OpenWithAppsListPayload(apps));
+                string category = payload?.Category ?? "image";
+                OpenWithService.SetDefaultApp(payload?.Id, category);
+                var apps = OpenWithService.GetOpenWithApps(category, forceRefresh: true);
+                _ipcBridge.PostMessage(IpcMessageTypes.OpenWithAppsList, new OpenWithAppsListPayload(apps, category));
             });
             return Task.CompletedTask;
         });

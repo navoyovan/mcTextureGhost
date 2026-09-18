@@ -29,10 +29,9 @@
 }
 
 .menuHeader {
-  padding: 6px 8px 4px;
+  padding: 6px 8px;
   display: flex;
-  flex-direction: column;
-  gap: 1px;
+  align-items: center;
   border-radius: 4px;
   background: rgba(255, 255, 255, 0.03);
   max-width: 220px;
@@ -45,6 +44,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  width: 100%;
 }
 
 .headerFileName {

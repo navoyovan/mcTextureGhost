@@ -62,6 +62,7 @@ export interface PackStoreState {
   debugMode: boolean;
   windowTitle: string;
   openWithApps: OpenWithAppDto[];
+  jsonOpenWithApps: OpenWithAppDto[];
 }
 
 export interface PackStoreActions {
@@ -91,6 +92,7 @@ export interface PackStoreActions {
   setJsonViewerInfo: (info: { lineCount: number; sizeLabel: string; matchCount: number | null } | null) => void;
   setAppConfig: (config: Partial<AppConfigPayload>) => void;
   setOpenWithApps: (apps: OpenWithAppDto[]) => void;
+  setJsonOpenWithApps: (apps: OpenWithAppDto[]) => void;
 }
 
 export type PackStore = PackStoreState & PackStoreActions;
@@ -161,6 +163,7 @@ const initialState: PackStoreState = {
   debugMode: false,
   windowTitle: 'mcTextureGhost',
   openWithApps: [],
+  jsonOpenWithApps: [],
 };
 
 function computeStats(aliases: TextureAliasDto[]): PackStatsDto {
@@ -410,6 +413,7 @@ export const packStoreActions: PackStoreActions = {
       debugMode: config.debugMode ?? currentState.debugMode,
       windowTitle: config.windowTitle ?? currentState.windowTitle,
       openWithApps: config.openWithApps ?? currentState.openWithApps,
+      jsonOpenWithApps: config.jsonOpenWithApps ?? currentState.jsonOpenWithApps,
     };
     cachedSnapshot = null;
     notify();
@@ -417,6 +421,12 @@ export const packStoreActions: PackStoreActions = {
 
   setOpenWithApps(apps: OpenWithAppDto[]): void {
     currentState = { ...currentState, openWithApps: apps };
+    cachedSnapshot = null;
+    notify();
+  },
+
+  setJsonOpenWithApps(apps: OpenWithAppDto[]): void {
+    currentState = { ...currentState, jsonOpenWithApps: apps };
     cachedSnapshot = null;
     notify();
   },

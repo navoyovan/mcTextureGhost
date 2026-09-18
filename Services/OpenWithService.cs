@@ -16,7 +16,8 @@ public record OpenWithAppDto(
     [property: JsonPropertyName("name")] string Name,
     [property: JsonPropertyName("exePath")] string ExePath,
     [property: JsonPropertyName("iconDataUrl")] string? IconDataUrl = null,
-    [property: JsonPropertyName("isDefault")] bool IsDefault = false
+    [property: JsonPropertyName("isDefault")] bool IsDefault = false,
+    [property: JsonPropertyName("category")] string Category = "image"
 );
 
 public static class OpenWithService
@@ -28,7 +29,8 @@ public static class OpenWithService
     );
 
     private static readonly List<OpenWithAppDto> _customApps = new();
-    private static string? _defaultAppId;
+    private static string? _defaultImageAppId;
+    private static string? _defaultJsonAppId;
     private static bool _loaded = false;
     private static readonly object _lock = new();
 
@@ -66,7 +68,15 @@ public static class OpenWithService
 
                     if (root.TryGetProperty("defaultAppId", out var defProp) && defProp.ValueKind == JsonValueKind.String)
                     {
-                        _defaultAppId = defProp.GetString();
+                        _defaultImageAppId = defProp.GetString();
+                    }
+                    if (root.TryGetProperty("defaultImageAppId", out var defImgProp) && defImgProp.ValueKind == JsonValueKind.String)
+                    {
+                        _defaultImageAppId = defImgProp.GetString();
+                    }
+                    if (root.TryGetProperty("defaultJsonAppId", out var defJsonProp) && defJsonProp.ValueKind == JsonValueKind.String)
+                    {
+                        _defaultJsonAppId = defJsonProp.GetString();
                     }
 
                     if (root.TryGetProperty("editors", out var editorsProp) && editorsProp.ValueKind == JsonValueKind.Array)
@@ -76,17 +86,21 @@ public static class OpenWithService
                             var id = item.TryGetProperty("id", out var idProp) ? idProp.GetString() : null;
                             var name = item.TryGetProperty("name", out var nProp) ? nProp.GetString() : null;
                             var exePath = item.TryGetProperty("exePath", out var pProp) ? pProp.GetString() : null;
+                            var category = item.TryGetProperty("category", out var cProp) ? cProp.GetString() : "image";
+                            if (string.IsNullOrWhiteSpace(category)) category = "image";
 
                             if (!string.IsNullOrWhiteSpace(id) && !string.IsNullOrWhiteSpace(exePath))
                             {
                                 string? iconUrl = GetAppIconDataUrl(exePath);
-                                bool isDef = string.Equals(id, _defaultAppId, StringComparison.OrdinalIgnoreCase);
+                                string? activeDefaultId = category == "json" ? _defaultJsonAppId : _defaultImageAppId;
+                                bool isDef = string.Equals(id, activeDefaultId, StringComparison.OrdinalIgnoreCase);
                                 _customApps.Add(new OpenWithAppDto(
                                     Id: id,
                                     Name: name ?? Path.GetFileNameWithoutExtension(exePath),
                                     ExePath: exePath,
                                     IconDataUrl: iconUrl,
-                                    IsDefault: isDef
+                                    IsDefault: isDef,
+                                    Category: category
                                 ));
                             }
                         }
@@ -114,12 +128,14 @@ public static class OpenWithService
 
                 var data = new
                 {
-                    defaultAppId = _defaultAppId,
+                    defaultImageAppId = _defaultImageAppId,
+                    defaultJsonAppId = _defaultJsonAppId,
                     editors = _customApps.Select(a => new
                     {
                         id = a.Id,
                         name = a.Name,
-                        exePath = a.ExePath
+                        exePath = a.ExePath,
+                        category = a.Category
                     }).ToList()
                 };
 
@@ -134,33 +150,49 @@ public static class OpenWithService
     }
 
     /// <summary>
-    /// Returns the list of user-configured Open With editors. Default is empty until user adds them.
+    /// Returns the list of user-configured Open With editors, optionally filtered by category ("image" or "json").
     /// </summary>
-    public static List<OpenWithAppDto> GetOpenWithApps(bool forceRefresh = false)
+    public static List<OpenWithAppDto> GetOpenWithApps(string? category = null, bool forceRefresh = false)
     {
         lock (_lock)
         {
             EnsureLoaded();
 
-            return _customApps
-                .Select(a => a with { IsDefault = string.Equals(a.Id, _defaultAppId, StringComparison.OrdinalIgnoreCase) })
+            var query = _customApps.AsEnumerable();
+            if (!string.IsNullOrWhiteSpace(category))
+            {
+                query = query.Where(a => string.Equals(a.Category, category, StringComparison.OrdinalIgnoreCase));
+            }
+
+            return query
+                .Select(a =>
+                {
+                    string? activeDefaultId = string.Equals(a.Category, "json", StringComparison.OrdinalIgnoreCase)
+                        ? _defaultJsonAppId
+                        : _defaultImageAppId;
+                    return a with { IsDefault = string.Equals(a.Id, activeDefaultId, StringComparison.OrdinalIgnoreCase) };
+                })
                 .OrderByDescending(a => a.IsDefault)
                 .ThenBy(a => a.Name)
                 .ToList();
         }
     }
 
-    public static OpenWithAppDto? GetDefaultApp()
+    public static OpenWithAppDto? GetDefaultApp(string category = "image")
     {
         lock (_lock)
         {
             EnsureLoaded();
-            if (string.IsNullOrEmpty(_defaultAppId)) return null;
-            return _customApps.FirstOrDefault(a => string.Equals(a.Id, _defaultAppId, StringComparison.OrdinalIgnoreCase));
+            string? activeDefaultId = string.Equals(category, "json", StringComparison.OrdinalIgnoreCase)
+                ? _defaultJsonAppId
+                : _defaultImageAppId;
+
+            if (string.IsNullOrEmpty(activeDefaultId)) return null;
+            return _customApps.FirstOrDefault(a => string.Equals(a.Id, activeDefaultId, StringComparison.OrdinalIgnoreCase));
         }
     }
 
-    public static OpenWithAppDto? AddApp(string exePath, string? customName = null)
+    public static OpenWithAppDto? AddApp(string exePath, string? customName = null, string category = "image")
     {
         if (string.IsNullOrWhiteSpace(exePath)) return null;
 
@@ -169,9 +201,13 @@ public static class OpenWithService
             EnsureLoaded();
 
             var cleanPath = Path.GetFullPath(exePath);
-            var id = "app_" + Math.Abs(cleanPath.ToLowerInvariant().GetHashCode()).ToString("X8");
+            var cleanCategory = string.Equals(category, "json", StringComparison.OrdinalIgnoreCase) ? "json" : "image";
+            var id = "app_" + Math.Abs($"{cleanCategory}:{cleanPath.ToLowerInvariant()}".GetHashCode()).ToString("X8");
 
-            var existing = _customApps.FirstOrDefault(a => string.Equals(a.ExePath, cleanPath, StringComparison.OrdinalIgnoreCase));
+            var existing = _customApps.FirstOrDefault(a =>
+                string.Equals(a.ExePath, cleanPath, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(a.Category, cleanCategory, StringComparison.OrdinalIgnoreCase));
+
             if (existing != null)
             {
                 return existing;
@@ -183,17 +219,22 @@ public static class OpenWithService
 
             var iconUrl = GetAppIconDataUrl(cleanPath);
 
+            var existingInCategory = _customApps.Count(a => string.Equals(a.Category, cleanCategory, StringComparison.OrdinalIgnoreCase));
+            bool isFirstInCategory = existingInCategory == 0;
+
             var app = new OpenWithAppDto(
                 Id: id,
                 Name: displayName,
                 ExePath: cleanPath,
                 IconDataUrl: iconUrl,
-                IsDefault: _customApps.Count == 0 // Make default if first editor added
+                IsDefault: isFirstInCategory,
+                Category: cleanCategory
             );
 
             if (app.IsDefault)
             {
-                _defaultAppId = id;
+                if (cleanCategory == "json") _defaultJsonAppId = id;
+                else _defaultImageAppId = id;
             }
 
             _customApps.Add(app);
@@ -202,7 +243,7 @@ public static class OpenWithService
         }
     }
 
-    public static bool RemoveApp(string id)
+    public static bool RemoveApp(string id, string? category = null)
     {
         lock (_lock)
         {
@@ -211,9 +252,13 @@ public static class OpenWithService
             if (item != null)
             {
                 _customApps.Remove(item);
-                if (string.Equals(_defaultAppId, id, StringComparison.OrdinalIgnoreCase))
+                if (string.Equals(_defaultImageAppId, id, StringComparison.OrdinalIgnoreCase))
                 {
-                    _defaultAppId = _customApps.FirstOrDefault()?.Id;
+                    _defaultImageAppId = _customApps.FirstOrDefault(a => string.Equals(a.Category, "image", StringComparison.OrdinalIgnoreCase))?.Id;
+                }
+                if (string.Equals(_defaultJsonAppId, id, StringComparison.OrdinalIgnoreCase))
+                {
+                    _defaultJsonJsonIdOrDefault(item.Category);
                 }
                 SaveSettings();
                 return true;
@@ -222,14 +267,22 @@ public static class OpenWithService
         }
     }
 
-    public static bool SetDefaultApp(string? id)
+    private static void _defaultJsonJsonIdOrDefault(string category)
+    {
+        _defaultJsonAppId = _customApps.FirstOrDefault(a => string.Equals(a.Category, "json", StringComparison.OrdinalIgnoreCase))?.Id;
+    }
+
+    public static bool SetDefaultApp(string? id, string category = "image")
     {
         lock (_lock)
         {
             EnsureLoaded();
+            bool isJson = string.Equals(category, "json", StringComparison.OrdinalIgnoreCase);
+
             if (string.IsNullOrEmpty(id))
             {
-                _defaultAppId = null;
+                if (isJson) _defaultJsonAppId = null;
+                else _defaultImageAppId = null;
                 SaveSettings();
                 return true;
             }
@@ -237,7 +290,14 @@ public static class OpenWithService
             var match = _customApps.FirstOrDefault(a => string.Equals(a.Id, id, StringComparison.OrdinalIgnoreCase));
             if (match != null)
             {
-                _defaultAppId = match.Id;
+                if (isJson || string.Equals(match.Category, "json", StringComparison.OrdinalIgnoreCase))
+                {
+                    _defaultJsonAppId = match.Id;
+                }
+                else
+                {
+                    _defaultImageAppId = match.Id;
+                }
                 SaveSettings();
                 return true;
             }
@@ -265,6 +325,8 @@ public static class OpenWithService
         if (baseName.Equals("firefox", StringComparison.OrdinalIgnoreCase)) return "Firefox";
         if (baseName.Equals("chrome", StringComparison.OrdinalIgnoreCase)) return "Google Chrome";
         if (baseName.Equals("Code", StringComparison.OrdinalIgnoreCase)) return "Visual Studio Code";
+        if (baseName.Equals("notepad", StringComparison.OrdinalIgnoreCase)) return "Notepad";
+        if (baseName.Equals("notepad++", StringComparison.OrdinalIgnoreCase)) return "Notepad++";
         return baseName;
     }
 
@@ -315,10 +377,14 @@ public static class OpenWithService
             return;
         }
 
-        // If no explicit exePath passed, check configured default app
+        var ext = Path.GetExtension(fullPath).ToLowerInvariant();
+        bool isJsonOrText = ext is ".json" or ".material" or ".lang" or ".txt";
+        string category = isJsonOrText ? "json" : "image";
+
+        // If no explicit exePath passed, check configured default app for this category
         if (string.IsNullOrWhiteSpace(exePath))
         {
-            var defApp = GetDefaultApp();
+            var defApp = GetDefaultApp(category);
             if (defApp != null && !string.IsNullOrWhiteSpace(defApp.ExePath))
             {
                 exePath = defApp.ExePath;
@@ -356,6 +422,14 @@ public static class OpenWithService
             {
                 Debug.WriteLine($"[OpenWithService] Custom exe launch failed: {ex.Message}");
             }
+        }
+
+        // If NO default app is configured and it is a JSON/text file,
+        // trigger native Windows Open With dialog so it never silently fails or opens in wrong tool
+        if (isJsonOrText)
+        {
+            OpenWithLauncher.Show(fullPath);
+            return;
         }
 
         // Default shell launch

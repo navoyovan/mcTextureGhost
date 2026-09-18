@@ -209,20 +209,20 @@ export function useIpc() {
     });
   }, []);
 
-  const getOpenWithApps = useCallback(() => {
-    return postCommand(IpcMessageTypes.OpenWithGetApps, {});
+  const getOpenWithApps = useCallback((category?: 'image' | 'json' | string) => {
+    return postCommand(IpcMessageTypes.OpenWithGetApps, { category });
   }, []);
 
-  const addCustomEditor = useCallback((exePath?: string | null) => {
-    return postCommand(IpcMessageTypes.OpenWithAddCustomApp, { exePath });
+  const addCustomEditor = useCallback((exePath?: string | null, category: 'image' | 'json' | string = 'image') => {
+    return postCommand(IpcMessageTypes.OpenWithAddCustomApp, { exePath, category });
   }, []);
 
-  const removeCustomEditor = useCallback((id: string) => {
-    return postCommand(IpcMessageTypes.OpenWithRemoveApp, { id });
+  const removeCustomEditor = useCallback((id: string, category: 'image' | 'json' | string = 'image') => {
+    return postCommand(IpcMessageTypes.OpenWithRemoveApp, { id, category });
   }, []);
 
-  const setDefaultEditor = useCallback((id: string | null) => {
-    return postCommand(IpcMessageTypes.OpenWithSetDefault, { id });
+  const setDefaultEditor = useCallback((id: string | null, category: 'image' | 'json' | string = 'image') => {
+    return postCommand(IpcMessageTypes.OpenWithSetDefault, { id, category });
   }, []);
 
   const deleteTextureFile = useCallback((fullPath: string, aliasKey?: string) => {

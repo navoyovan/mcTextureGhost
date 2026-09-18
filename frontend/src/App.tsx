@@ -114,6 +114,9 @@ export const App: React.FC = () => {
       if (payload.openWithApps) {
         usePackStore.getState().setOpenWithApps(payload.openWithApps);
       }
+      if (payload.jsonOpenWithApps) {
+        usePackStore.getState().setJsonOpenWithApps(payload.jsonOpenWithApps);
+      }
     });
 
     // 5. ERROR:NOTIFY
@@ -126,7 +129,11 @@ export const App: React.FC = () => {
     // 6. OPEN_WITH:APPS_LIST
     const unsubOpenWith = subscribe(IpcMessageTypes.OpenWithAppsList, (payload: any) => {
       if (payload?.apps) {
-        usePackStore.getState().setOpenWithApps(payload.apps);
+        if (payload?.category === 'json') {
+          usePackStore.getState().setJsonOpenWithApps(payload.apps);
+        } else {
+          usePackStore.getState().setOpenWithApps(payload.apps);
+        }
       }
     });
 

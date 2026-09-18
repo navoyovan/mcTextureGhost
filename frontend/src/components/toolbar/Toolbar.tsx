@@ -57,6 +57,7 @@ export const Toolbar: React.FC = () => {
   const selectedFolderPath = usePackStore((s) => s.selectedFolderPath);
   const packRoot = usePackStore((s) => s.packRoot);
   const jsonViewerInfo = usePackStore((s) => s.jsonViewerInfo);
+  const jsonOpenWithApps = usePackStore((s) => s.jsonOpenWithApps);
   const { postCommand } = useIpc();
 
   const isJsonFileSelected = Boolean(
@@ -70,12 +71,16 @@ export const Toolbar: React.FC = () => {
     ? `${packRoot}\\${selectedFolderPath!.replace(/\\/g, '/').replace(/^\/+/, '').replace(/\//g, '\\')}`
     : null;
 
+  const defaultJsonApp = jsonOpenWithApps?.find((a) => a.isDefault);
+
   const handleOpenJsonInEditor = () => {
     if (!jsonFullPath || !jsonFileName) return;
     postCommand(IpcMessageTypes.TextureEdit, {
       aliasKey: jsonFileName,
       fullPath: jsonFullPath,
       isGhost: false,
+      exePath: defaultJsonApp?.exePath || null,
+      chooseDialog: !defaultJsonApp,
     });
   };
 

@@ -297,24 +297,34 @@ public record CatalogRemoveReferencePayload(
 );
 
 /// <summary>
+/// Payload for "OPEN_WITH:GET_APPS".
+/// </summary>
+public record OpenWithGetAppsPayload(
+    [property: JsonPropertyName("category")] string? Category = null
+);
+
+/// <summary>
 /// Payload for "OPEN_WITH:ADD_CUSTOM_APP". Optional exePath or null to open file picker dialog.
 /// </summary>
 public record OpenWithAddCustomAppPayload(
-    [property: JsonPropertyName("exePath")] string? ExePath = null
+    [property: JsonPropertyName("exePath")] string? ExePath = null,
+    [property: JsonPropertyName("category")] string Category = "image"
 );
 
 /// <summary>
 /// Payload for "OPEN_WITH:REMOVE_APP".
 /// </summary>
 public record OpenWithRemoveAppPayload(
-    [property: JsonPropertyName("id")] string Id
+    [property: JsonPropertyName("id")] string Id,
+    [property: JsonPropertyName("category")] string? Category = null
 );
 
 /// <summary>
 /// Payload for "OPEN_WITH:SET_DEFAULT".
 /// </summary>
 public record OpenWithSetDefaultPayload(
-    [property: JsonPropertyName("id")] string? Id = null
+    [property: JsonPropertyName("id")] string? Id = null,
+    [property: JsonPropertyName("category")] string Category = "image"
 );
 
 /// <summary>
@@ -407,11 +417,13 @@ public record AppConfigPayload(
     [property: JsonPropertyName("tintHex")] string TintHex,
     [property: JsonPropertyName("debugMode")] bool DebugMode,
     [property: JsonPropertyName("windowTitle")] string WindowTitle = "McTextureGhost",
-    [property: JsonPropertyName("openWithApps")] List<OpenWithAppDto>? OpenWithApps = null
+    [property: JsonPropertyName("openWithApps")] List<OpenWithAppDto>? OpenWithApps = null,
+    [property: JsonPropertyName("jsonOpenWithApps")] List<OpenWithAppDto>? JsonOpenWithApps = null
 );
 
 public record OpenWithAppsListPayload(
-    [property: JsonPropertyName("apps")] List<OpenWithAppDto> Apps
+    [property: JsonPropertyName("apps")] List<OpenWithAppDto> Apps,
+    [property: JsonPropertyName("category")] string Category = "image"
 );
 
 /// <summary>
