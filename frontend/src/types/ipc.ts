@@ -34,6 +34,7 @@ export const IpcMessageTypes = {
   AddVanillaEntry: 'ADD_VANILLA_ENTRY',
   TextureDeleteFile: 'TEXTURE:DELETE_FILE',
   TextureDeleteEntries: 'TEXTURE:DELETE_ENTRIES',
+  TextureDropImport: 'TEXTURE:DROP_IMPORT',
   GeometryGet: 'GEOMETRY:GET',
   VanillaDownload3DAssets: 'VANILLA:DOWNLOAD_3D_ASSETS',
   VanillaGet3DStatus: 'VANILLA:GET_3D_STATUS',
@@ -105,6 +106,15 @@ export interface TextureDeleteEntriesPayload {
   aliasKey: string;
   category: string;
   relativePath?: string;
+}
+
+export interface TextureDropImportPayload {
+  aliasKey: string;
+  fullPath: string;
+  base64Data: string;
+  relativePath?: string;
+  category?: string;
+  fileName?: string;
 }
 
 export interface ScaffoldPlainPayload {

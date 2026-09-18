@@ -236,60 +236,73 @@ public static class VanillaDataService
     {
         foreach (var seedDir in KnownSeedDirectories)
         {
-            if (!Directory.Exists(seedDir)) continue;
-
-            try
-            {
-                Directory.CreateDirectory(cacheDir);
-                var seedName = Path.GetFileName(seedDir);
-                onProgress?.Invoke($"Seeding reference catalog from {seedName}...");
-
-                // Master JSON files
-                CopyFileIfExists(Path.Combine(seedDir, "blocks.json"), Path.Combine(cacheDir, "blocks.json"));
-                CopyFileIfExists(Path.Combine(seedDir, "textures", "terrain_texture.json"), Path.Combine(cacheDir, "terrain_texture.json"));
-                CopyFileIfExists(Path.Combine(seedDir, "textures", "item_texture.json"), Path.Combine(cacheDir, "item_texture.json"));
-                CopyFileIfExists(Path.Combine(seedDir, "textures", "flipbook_textures.json"), Path.Combine(cacheDir, "flipbook_textures.json"));
-                CopyFileIfExists(Path.Combine(seedDir, "texts", "en_US.lang"), Path.Combine(cacheDir, "en_US.lang"));
-                CopyFileIfExists(Path.Combine(seedDir, "pack_icon.png"), Path.Combine(cacheDir, "pack_icon.png"));
-
-                // Entity definitions
-                var seedEntityDir = Path.Combine(seedDir, "entity");
-                if (Directory.Exists(seedEntityDir))
-                {
-                    var targetEntityDir = Path.Combine(cacheDir, "entity");
-                    Directory.CreateDirectory(targetEntityDir);
-                    CopyDirectoryContents(seedEntityDir, targetEntityDir, "*.json");
-                }
-
-                // Attachables definitions
-                var seedAttachablesDir = Path.Combine(seedDir, "attachables");
-                if (Directory.Exists(seedAttachablesDir))
-                {
-                    var targetAttachablesDir = Path.Combine(cacheDir, "attachables");
-                    Directory.CreateDirectory(targetAttachablesDir);
-                    CopyDirectoryContents(seedAttachablesDir, targetAttachablesDir, "*.json");
-                }
-
-                // Models & Geometry
-                var seedModelsEntityDir = Path.Combine(seedDir, "models", "entity");
-                if (Directory.Exists(seedModelsEntityDir))
-                {
-                    var targetModelsEntityDir = Path.Combine(cacheDir, "models", "entity");
-                    Directory.CreateDirectory(targetModelsEntityDir);
-                    CopyDirectoryContents(seedModelsEntityDir, targetModelsEntityDir, "*.json");
-                }
-
-                var meta = $"Seeded from {seedDir} on {DateTime.UtcNow:O}";
-                File.WriteAllText(Path.Combine(cacheDir, "version.txt"), meta);
+            if (SeedCacheFromDirectory(seedDir, cacheDir, onProgress))
                 return true;
-            }
-            catch
-            {
-                // Continue to next seed candidate
-            }
         }
         return false;
     }
+
+    /// <summary>
+    /// Copies vanilla reference files from <paramref name="seedDir"/> into <paramref name="cacheDir"/>.
+    /// The source must follow Bedrock resource-pack layout (blocks.json at root,
+    /// terrain_texture.json under textures/, entity defs under entity/, etc.).
+    /// Used after a full-pack download to sync reference_packs/vanilla → vanilla_cache.
+    /// </summary>
+    public static bool SeedCacheFromDirectory(string seedDir, string cacheDir, Action<string>? onProgress = null)
+    {
+        if (!Directory.Exists(seedDir)) return false;
+
+        try
+        {
+            Directory.CreateDirectory(cacheDir);
+            var seedName = Path.GetFileName(seedDir.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+            onProgress?.Invoke($"Seeding reference catalog from {seedName}...");
+
+            // Master JSON files
+            CopyFileIfExists(Path.Combine(seedDir, "blocks.json"), Path.Combine(cacheDir, "blocks.json"));
+            CopyFileIfExists(Path.Combine(seedDir, "textures", "terrain_texture.json"), Path.Combine(cacheDir, "terrain_texture.json"));
+            CopyFileIfExists(Path.Combine(seedDir, "textures", "item_texture.json"), Path.Combine(cacheDir, "item_texture.json"));
+            CopyFileIfExists(Path.Combine(seedDir, "textures", "flipbook_textures.json"), Path.Combine(cacheDir, "flipbook_textures.json"));
+            CopyFileIfExists(Path.Combine(seedDir, "texts", "en_US.lang"), Path.Combine(cacheDir, "en_US.lang"));
+            CopyFileIfExists(Path.Combine(seedDir, "pack_icon.png"), Path.Combine(cacheDir, "pack_icon.png"));
+
+            // Entity definitions
+            var seedEntityDir = Path.Combine(seedDir, "entity");
+            if (Directory.Exists(seedEntityDir))
+            {
+                var targetEntityDir = Path.Combine(cacheDir, "entity");
+                Directory.CreateDirectory(targetEntityDir);
+                CopyDirectoryContents(seedEntityDir, targetEntityDir, "*.json");
+            }
+
+            // Attachables definitions
+            var seedAttachablesDir = Path.Combine(seedDir, "attachables");
+            if (Directory.Exists(seedAttachablesDir))
+            {
+                var targetAttachablesDir = Path.Combine(cacheDir, "attachables");
+                Directory.CreateDirectory(targetAttachablesDir);
+                CopyDirectoryContents(seedAttachablesDir, targetAttachablesDir, "*.json");
+            }
+
+            // Models & Geometry
+            var seedModelsEntityDir = Path.Combine(seedDir, "models", "entity");
+            if (Directory.Exists(seedModelsEntityDir))
+            {
+                var targetModelsEntityDir = Path.Combine(cacheDir, "models", "entity");
+                Directory.CreateDirectory(targetModelsEntityDir);
+                CopyDirectoryContents(seedModelsEntityDir, targetModelsEntityDir, "*.json");
+            }
+
+            var meta = $"Seeded from {seedDir} on {DateTime.UtcNow:O}";
+            File.WriteAllText(Path.Combine(cacheDir, "version.txt"), meta);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
 
     private static void CopyFileIfExists(string source, string destination)
     {
@@ -373,6 +386,13 @@ public static class VanillaDataService
             return false;
         }
     }
+
+    /// <summary>
+    /// Loads and returns <see cref="VanillaData"/> directly from the local cache directory,
+    /// bypassing all download and seed logic. Call only after the cache has been populated
+    /// (e.g. via <see cref="SeedCacheFromDirectory"/>).
+    /// </summary>
+    public static VanillaData LoadCachedData() => LoadFromDisk(CacheDirectory);
 
     private static VanillaData LoadFromDisk(string cacheDir)
     {

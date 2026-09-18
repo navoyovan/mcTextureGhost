@@ -69,6 +69,7 @@ public static class IpcMessageTypes
     public const string AddVanillaEntry  = "ADD_VANILLA_ENTRY";
     public const string TextureDeleteFile = "TEXTURE:DELETE_FILE";
     public const string TextureDeleteEntries = "TEXTURE:DELETE_ENTRIES";
+    public const string TextureDropImport = "TEXTURE:DROP_IMPORT";
     public const string GeometryGet      = "GEOMETRY:GET";
     public const string VanillaDownload3DAssets = "VANILLA:DOWNLOAD_3D_ASSETS";
     public const string VanillaGet3DStatus      = "VANILLA:GET_3D_STATUS";
@@ -136,6 +137,18 @@ public record TextureEditPayload(
 public record TextureDeleteFilePayload(
     [property: JsonPropertyName("fullPath")] string FullPath,
     [property: JsonPropertyName("aliasKey")] string? AliasKey = null
+);
+
+/// <summary>
+/// Payload for "TEXTURE:DROP_IMPORT". Imports or overwrites a texture file from base64 data dropped in frontend.
+/// </summary>
+public record TextureDropImportPayload(
+    [property: JsonPropertyName("aliasKey")] string AliasKey,
+    [property: JsonPropertyName("fullPath")] string FullPath,
+    [property: JsonPropertyName("base64Data")] string Base64Data,
+    [property: JsonPropertyName("relativePath")] string? RelativePath = null,
+    [property: JsonPropertyName("category")] string? Category = null,
+    [property: JsonPropertyName("fileName")] string? FileName = null
 );
 
 /// <summary>

@@ -134,12 +134,6 @@ export const Toolbar: React.FC = () => {
         {/* JSON viewer stats + external editor shortcut (replaces the reader's own header bar) */}
         {isJsonFileSelected && (
           <>
-            {jsonViewerInfo && (
-              <span className={styles.jsonInfoBadge} role="status">
-                {jsonViewerInfo.matchCount !== null && `${jsonViewerInfo.matchCount} matches • `}
-                {jsonViewerInfo.lineCount} lines • {jsonViewerInfo.sizeLabel}
-              </span>
-            )}
             <button
               type="button"
               className={styles.openEditorBtn}
@@ -150,6 +144,12 @@ export const Toolbar: React.FC = () => {
               <ExternalLink size={13} />
               <span>Open in Editor</span>
             </button>
+            {jsonViewerInfo && (
+              <span className={styles.jsonInfoBadge} role="status">
+                {jsonViewerInfo.matchCount !== null && `${jsonViewerInfo.matchCount} matches • `}
+                {jsonViewerInfo.lineCount} lines • {jsonViewerInfo.sizeLabel}
+              </span>
+            )}
           </>
         )}
 
@@ -278,8 +278,8 @@ export const Toolbar: React.FC = () => {
 
       {/* Right Controls: Zoom + View Mode */}
       <div className={styles.rightControls}>
-        <div className={styles.viewModeGroup}>
-          {isJsonFileSelected && (
+        {isJsonFileSelected && (
+          <div className={styles.viewModeGroup}>
             <button
               type="button"
               className={`${styles.viewModeButton} ${styles.viewModeButtonActive}`}
@@ -289,7 +289,9 @@ export const Toolbar: React.FC = () => {
               <FileCode2 size={13} />
               <span>JSON Viewer</span>
             </button>
-          )}
+          </div>
+        )}
+        <div className={styles.viewModeGroup}>
           <button
             type="button"
             className={`${styles.viewModeButton} ${!isJsonFileSelected && activeView === 'grid' ? styles.viewModeButtonActive : ''}`}

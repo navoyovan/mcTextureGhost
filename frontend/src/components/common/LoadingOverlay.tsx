@@ -1,6 +1,6 @@
-// frontend/src/components/common/LoadingOverlay.tsx
 import React from 'react';
 import { usePackStore } from '../../store/packStore';
+import { SquareWaveLoader } from './SquareWaveLoader';
 import styles from './LoadingOverlay.module.css';
 
 interface LoadingOverlayProps {
@@ -45,14 +45,15 @@ export const LoadingOverlay: React.FC<LoadingOverlayProps> = ({ message, compact
       aria-label="Loading Resource Pack"
     >
       <div className={styles.loadingCard}>
-        {/* Animated Ghost / Spinner Visual */}
-        <div className={styles.spinnerContainer}>
-          <div className={styles.pulseRing} />
-          <div className={styles.spinnerCore}>
-            <span className={styles.ghostIcon} role="img" aria-label="Ghost">
-              👻
-            </span>
-          </div>
+        {/* Animated Square Wave Loader */}
+        <div className={styles.loaderContainer}>
+          <SquareWaveLoader
+            count={5}
+            color="var(--accent-primary, #8CEB1F)"
+            size={10}
+            gap={6}
+            duration={2100}
+          />
         </div>
 
         {/* Title and Pack Name */}

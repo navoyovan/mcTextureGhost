@@ -1,10 +1,11 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useRef, useEffect, useCallback } from 'react';
 import { usePackStore, pathMatchesFolder } from '../../store/packStore';
 import { useIpc } from '../../hooks/useIpc';
 import { TextureAliasDto, OpenWithAppDto } from '../../types/ipc';
 import { FlipbookThumbnail } from '../common/FlipbookThumbnail';
 import { TextureContextMenu } from '../common/TextureContextMenu';
 import { TileHoverMorphPortal, TileHoverMorphTarget } from './TileHoverMorphPortal';
+import { TextureDropConfirm } from './TextureDropConfirm';
 import styles from './PackGrid.module.css';
 
 interface PackGridTileProps {
@@ -36,6 +37,13 @@ const PackGridTile = React.memo<PackGridTileProps>(({
   onContextMenu,
 }) => {
   const isGhost = alias.status === 'GHOST';
+  const packRoot = usePackStore((s) => s.packRoot);
+  const { dropImportTexture } = useIpc();
+
+  // Local drag & drop state
+  const [isDragOver, setIsDragOver] = useState(false);
+  const [pendingDrop, setPendingDrop] = useState<{ file: File; objectUrl: string } | null>(null);
+  const dragCounterRef = useRef(0);
 
   // Show file name including extension with matching font size and muted weight
   const rawFileName = alias.relativePath
@@ -49,13 +57,137 @@ const PackGridTile = React.memo<PackGridTileProps>(({
   const fileBase = rawDotIdx > 0 ? rawFileName.substring(0, rawDotIdx) : rawFileName;
   const fullFileName = `${fileBase}${fileExt}`;
 
+  // Process dropped file to base64 and dispatch IPC
+  const processImport = useCallback(
+    (file: File) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const base64Data = reader.result as string;
+        if (!base64Data) return;
+
+        const targetFullPath =
+          alias.fullPath ||
+          (packRoot && alias.relativePath
+            ? `${packRoot.replace(/[/\\]+$/, '')}\\textures\\${alias.relativePath.replace(/^[/\\]+/, '')}`
+            : '');
+
+        if (!targetFullPath) return;
+
+        dropImportTexture({
+          aliasKey: alias.alias,
+          fullPath: targetFullPath,
+          base64Data,
+          relativePath: alias.relativePath,
+          category: alias.category,
+          fileName: file.name,
+        });
+      };
+      reader.readAsDataURL(file);
+    },
+    [alias, packRoot, dropImportTexture]
+  );
+
+  // Drag event handlers
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current++;
+    if (e.dataTransfer?.items?.length) {
+      setIsDragOver(true);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = 'copy';
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current--;
+    if (dragCounterRef.current <= 0) {
+      setIsDragOver(false);
+      dragCounterRef.current = 0;
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+    dragCounterRef.current = 0;
+
+    const files = e.dataTransfer?.files;
+    if (!files || files.length === 0) return;
+
+    const file = files[0];
+    if (!file) return;
+
+    const validExtensions = ['.png', '.tga', '.jpg', '.jpeg', '.webp'];
+    const lowerName = file.name.toLowerCase();
+    const isValid = validExtensions.some((ext) => lowerName.endsWith(ext));
+
+    if (!isValid) {
+      return;
+    }
+
+    if (isGhost) {
+      // Immediate write for ghost tiles
+      processImport(file);
+    } else {
+      // Show confirmation modal for existing textures
+      const objectUrl = URL.createObjectURL(file);
+      setPendingDrop({ file, objectUrl });
+    }
+  };
+
+  const handleConfirmOverwrite = useCallback(() => {
+    if (!pendingDrop) return;
+    const { file, objectUrl } = pendingDrop;
+    processImport(file);
+    URL.revokeObjectURL(objectUrl);
+    setPendingDrop(null);
+  }, [pendingDrop, processImport]);
+
+  const handleCancelOverwrite = useCallback(() => {
+    if (pendingDrop) {
+      URL.revokeObjectURL(pendingDrop.objectUrl);
+      setPendingDrop(null);
+    }
+  }, [pendingDrop]);
+
+  // Clean up objectUrl if component unmounts while modal is active
+  useEffect(() => {
+    return () => {
+      if (pendingDrop) {
+        URL.revokeObjectURL(pendingDrop.objectUrl);
+      }
+    };
+  }, [pendingDrop]);
+
   return (
     <div
-      className={styles.tileCard}
+      className={`${styles.tileCard} ${isDragOver ? styles.tileCardDragOver : ''}`}
       onClick={(e) => onTileClick(e.currentTarget, alias, uniqueKey)}
       onContextMenu={(e) => onContextMenu(e, alias, uniqueKey)}
+      onDragEnter={handleDragEnter}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
       title={`${fullFileName}\nAlias: ${alias.alias}\nStatus: ${alias.status}\nPath: ${alias.relativePath}`}
     >
+      {/* Drag & Drop Visual Overlay */}
+      {isDragOver && (
+        <div className={styles.dropOverlay}>
+          <span className={styles.dropOverlayIcon}>{isGhost ? '✨' : '📥'}</span>
+          <span className={styles.dropOverlayBadge}>
+            {isGhost ? 'Drop to Create' : 'Drop to Replace'}
+          </span>
+        </div>
+      )}
+
       {/* Thumbnail Container - 100% clean texture display without overlays */}
       <div
         className={`${styles.tileThumbnailWrapper} ${!isGhost ? styles.tileThumbnailAdded : ''}`}
@@ -99,6 +231,17 @@ const PackGridTile = React.memo<PackGridTileProps>(({
           </span>
         </div>
       </div>
+
+      {/* Overwrite Confirmation Modal (mounted via Portal) */}
+      {pendingDrop && (
+        <TextureDropConfirm
+          alias={alias}
+          incomingObjectUrl={pendingDrop.objectUrl}
+          incomingFileName={pendingDrop.file.name}
+          onConfirm={handleConfirmOverwrite}
+          onCancel={handleCancelOverwrite}
+        />
+      )}
     </div>
   );
 });

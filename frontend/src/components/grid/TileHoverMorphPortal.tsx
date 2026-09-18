@@ -6,7 +6,14 @@ import { usePackStore } from '../../store/packStore';
 import { useIpc } from '../../hooks/useIpc';
 import { FlipbookThumbnail } from '../common/FlipbookThumbnail';
 import { ContextMenuAnchor } from '../common/TextureContextMenu';
+import { TextureDropConfirm } from './TextureDropConfirm';
 import styles from './TileHoverMorphPortal.module.css';
+
+const GHOST_ROLLING_TIPS = [
+  'Add stub for placeholder',
+  'Add vanilla for reference',
+  'Drop file to add or replace texture',
+];
 
 export interface TileHoverMorphTarget {
   alias: TextureAliasDto;
@@ -155,13 +162,133 @@ const TileHoverMorphCard: React.FC<TileHoverMorphPortalProps> = ({
   const [localAdded, setLocalAdded] = useState(false);
   const alias = storeAlias ? { ...target.alias, ...storeAlias } : target.alias;
   const isGhost = localAdded ? false : alias.status === 'GHOST';
-  const { postCommand } = useIpc();
+  const { postCommand, dropImportTexture } = useIpc();
+  const packRoot = usePackStore((s) => s.packRoot);
   const hasVanillaAssets = usePackStore((s) => s.hasVanillaAssets);
   const activeReferenceId = usePackStore((s) => s.activeReferenceId);
   const referencePacks = usePackStore((s) => s.referencePacks);
   const isInstalled = activeReferenceId === 'vanilla'
     ? hasVanillaAssets
     : Boolean(referencePacks?.find((p) => p.id === activeReferenceId)?.packPath);
+
+  // Rolling tips state for ghost morph preview
+  const [tipIndex, setTipIndex] = useState(0);
+  useEffect(() => {
+    if (!isGhost || !isMorphed) return;
+    const interval = setInterval(() => {
+      setTipIndex((prev) => (prev + 1) % GHOST_ROLLING_TIPS.length);
+    }, 2800);
+    return () => clearInterval(interval);
+  }, [isGhost, isMorphed]);
+
+  // Drag & drop state for morph card
+  const [isDragOver, setIsDragOver] = useState(false);
+  const [pendingDrop, setPendingDrop] = useState<{ file: File; objectUrl: string } | null>(null);
+  const dragCounterRef = useRef(0);
+
+  const processImport = useCallback(
+    (file: File) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const base64Data = reader.result as string;
+        if (!base64Data) return;
+
+        const targetFullPath =
+          alias.fullPath ||
+          (packRoot && alias.relativePath
+            ? `${packRoot.replace(/[/\\]+$/, '')}\\textures\\${alias.relativePath.replace(/^[/\\]+/, '')}`
+            : '');
+
+        if (!targetFullPath) return;
+
+        setLocalAdded(true);
+        dropImportTexture({
+          aliasKey: alias.alias,
+          fullPath: targetFullPath,
+          base64Data,
+          relativePath: alias.relativePath,
+          category: alias.category,
+          fileName: file.name,
+        });
+      };
+      reader.readAsDataURL(file);
+    },
+    [alias, packRoot, dropImportTexture]
+  );
+
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current++;
+    if (e.dataTransfer?.items?.length) {
+      setIsDragOver(true);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = 'copy';
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current--;
+    if (dragCounterRef.current <= 0) {
+      setIsDragOver(false);
+      dragCounterRef.current = 0;
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+    dragCounterRef.current = 0;
+
+    const files = e.dataTransfer?.files;
+    if (!files || files.length === 0) return;
+
+    const file = files[0];
+    if (!file) return;
+
+    const validExtensions = ['.png', '.tga', '.jpg', '.jpeg', '.webp'];
+    const lowerName = file.name.toLowerCase();
+    const isValid = validExtensions.some((ext) => lowerName.endsWith(ext));
+
+    if (!isValid) return;
+
+    if (isGhost) {
+      processImport(file);
+    } else {
+      const objectUrl = URL.createObjectURL(file);
+      setPendingDrop({ file, objectUrl });
+    }
+  };
+
+  const handleConfirmOverwrite = useCallback(() => {
+    if (!pendingDrop) return;
+    const { file, objectUrl } = pendingDrop;
+    processImport(file);
+    URL.revokeObjectURL(objectUrl);
+    setPendingDrop(null);
+  }, [pendingDrop, processImport]);
+
+  const handleCancelOverwrite = useCallback(() => {
+    if (pendingDrop) {
+      URL.revokeObjectURL(pendingDrop.objectUrl);
+      setPendingDrop(null);
+    }
+  }, [pendingDrop]);
+
+  useEffect(() => {
+    return () => {
+      if (pendingDrop) {
+        URL.revokeObjectURL(pendingDrop.objectUrl);
+      }
+    };
+  }, [pendingDrop]);
 
   const isImageTarget = target.targetType === 'image' || Boolean(
     target.domElement && (
@@ -506,7 +633,7 @@ const TileHoverMorphCard: React.FC<TileHoverMorphPortalProps> = ({
     <div className={styles.portalOverlay}>
       <div
         ref={cardRef}
-        className={`${styles.morphCard} ${isImageTarget ? styles.morphCardImageTarget : ''} ${!isGhost ? styles.morphCardImageAdded : ''} ${isMorphed ? styles.morphed : ''}`}
+        className={`${styles.morphCard} ${isImageTarget ? styles.morphCardImageTarget : ''} ${!isGhost ? styles.morphCardImageAdded : ''} ${isGhost ? styles.morphCardGhost : ''} ${isMorphed ? styles.morphed : ''} ${isClosing ? styles.closing : ''} ${isDragOver ? styles.morphCardDragOver : ''}`}
         style={{
           left: `${currentLeft}px`,
           top: `${currentTop}px`,
@@ -520,6 +647,10 @@ const TileHoverMorphCard: React.FC<TileHoverMorphPortalProps> = ({
             scheduleSnapBack();
           }
         }}
+        onDragEnter={handleDragEnter}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
         onPointerDown={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
       >
@@ -553,7 +684,18 @@ const TileHoverMorphCard: React.FC<TileHoverMorphPortalProps> = ({
                 flipbook={!isPeekingMers ? alias.flipbook : null}
               />
             ) : (
-              <span className={styles.ghostPlaceholder}>?</span>
+              <div className={styles.ghostWrapper}>
+                <span className={styles.ghostPlaceholder}>?</span>
+                {isMorphed && (() => {
+                  const tip = GHOST_ROLLING_TIPS[tipIndex % GHOST_ROLLING_TIPS.length];
+                  if (!tip) return null;
+                  return (
+                    <span key={tipIndex} className={styles.ghostTipText}>
+                      {tip}
+                    </span>
+                  );
+                })()}
+              </div>
             )}
           </div>
         </div>
@@ -676,6 +818,17 @@ const TileHoverMorphCard: React.FC<TileHoverMorphPortalProps> = ({
           !isImageTarget && <div className={styles.bottomSectionUnmorphed} />
         )}
       </div>
+
+      {/* Overwrite Confirmation Modal */}
+      {pendingDrop && (
+        <TextureDropConfirm
+          alias={alias}
+          incomingObjectUrl={pendingDrop.objectUrl}
+          incomingFileName={pendingDrop.file.name}
+          onConfirm={handleConfirmOverwrite}
+          onCancel={handleCancelOverwrite}
+        />
+      )}
     </div>,
     document.body
   );

@@ -317,3 +317,54 @@
   opacity: 0.85;
 }
 
+/* Drag & Drop Overlay on Tile */
+.tileCardDragOver {
+  border-color: var(--accent-primary, #8CEB1F) !important;
+  border-style: dashed !important;
+  background: rgba(140, 235, 31, 0.08) !important;
+  box-shadow: 0 0 16px rgba(140, 235, 31, 0.35) !important;
+  transform: scale(1.02) translateY(-2px);
+}
+
+.dropOverlay {
+  position: absolute;
+  inset: 0;
+  border-radius: 7px;
+  background: rgba(12, 14, 18, 0.88);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px;
+  pointer-events: none;
+  z-index: 10;
+  animation: dropOverlayFade 0.12s ease forwards;
+}
+
+@keyframes dropOverlayFade {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.dropOverlayIcon {
+  font-size: 22px;
+  line-height: 1;
+  color: var(--accent-primary, #8CEB1F);
+}
+
+.dropOverlayBadge {
+  font-family: var(--font-brand, 'Syne', sans-serif);
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #ffffff;
+  text-align: center;
+  letter-spacing: 0.02em;
+  background: rgba(0, 0, 0, 0.6);
+  padding: 3px 8px;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+

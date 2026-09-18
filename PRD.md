@@ -13,6 +13,7 @@ McTextureGhost (`mc-ghost-resource-manager`) is a desktop companion tool for Min
 - Scan resource packs for missing texture declarations in `terrain_texture.json` and `item_texture.json`.
 - Identify "Ghost" tiles (textures defined in schemas but missing PNG assets on disk).
 - One-click placeholder stub PNG generation (16x16 checkerboard) and instant launch with Windows native "Open With" editor dialog.
+- Drag-and-drop texture import directly onto grid tiles and morph portal cards: ghost tiles create the file immediately; existing tiles show an overwrite confirmation modal before writing.
 
 ### F2. Live Texture Reloading & Hot Sync
 - Seamless live reload on external editor file save (<kbd>Ctrl</kbd> + <kbd>S</kbd>) via debounced file watcher.

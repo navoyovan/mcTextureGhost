@@ -1,0 +1,23 @@
+.container {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.square {
+  border-radius: 0;
+  transform-origin: bottom center;
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .square {
+    animation: swl-pulse 2s ease-in-out infinite !important;
+    transform: none !important;
+  }
+}
+
+@keyframes swl-pulse {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 1; }
+}

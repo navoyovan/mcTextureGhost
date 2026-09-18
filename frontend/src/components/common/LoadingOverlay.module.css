@@ -44,11 +44,11 @@
 .loadingCard {
   width: 100%;
   max-width: 440px;
-  background: rgba(22, 22, 28, 0.95);
+  background: rgba(18, 18, 23, 0.96);
   border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 16px;
-  padding: 32px 28px;
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.65), 0 0 30px -5px rgba(140, 235, 31, 0.2);
+  border-radius: 12px;
+  padding: 28px 24px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.05);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -68,66 +68,13 @@
   }
 }
 
-/* Spinner Visual */
-.spinnerContainer {
-  position: relative;
-  width: 72px;
-  height: 72px;
+/* Loader Container */
+.loaderContainer {
   display: flex;
   align-items: center;
   justify-content: center;
-}
-
-.pulseRing {
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  border: 2px solid var(--accent-primary, #8ceb1f);
-  opacity: 0.3;
-  animation: pulseRingAnim 2s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
-}
-
-@keyframes pulseRingAnim {
-  0% {
-    transform: scale(0.85);
-    opacity: 0.8;
-  }
-  50% {
-    transform: scale(1.18);
-    opacity: 0.15;
-  }
-  100% {
-    transform: scale(0.85);
-    opacity: 0.8;
-  }
-}
-
-.spinnerCore {
-  width: 56px;
-  height: 56px;
-  border-radius: 50%;
-  background: rgba(140, 235, 31, 0.1);
-  border: 2px solid rgba(140, 235, 31, 0.4);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 0 16px rgba(140, 235, 31, 0.25);
-  animation: floatGhost 2.4s ease-in-out infinite alternate;
-}
-
-@keyframes floatGhost {
-  from {
-    transform: translateY(-2px);
-  }
-  to {
-    transform: translateY(3px);
-  }
-}
-
-.ghostIcon {
-  font-size: 26px;
-  line-height: 1;
-  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.5));
+  height: 74px;
+  width: 74px;
 }
 
 /* Text Group */
@@ -161,19 +108,19 @@
 /* Progress Bar */
 .progressBarTrack {
   width: 100%;
-  height: 6px;
+  height: 4px;
   background: rgba(255, 255, 255, 0.08);
-  border-radius: 9999px;
+  border-radius: 2px;
   overflow: hidden;
   position: relative;
 }
 
 .progressBarFill {
   height: 100%;
-  background: linear-gradient(90deg, #8ceb1f 0%, #a3e635 100%);
-  border-radius: 9999px;
+  background: var(--accent-primary, #8ceb1f);
+  border-radius: 2px;
   transition: width 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-  box-shadow: 0 0 12px rgba(140, 235, 31, 0.6);
+  box-shadow: 0 0 8px rgba(140, 235, 31, 0.4);
 }
 
 /* Status Row */
@@ -201,7 +148,7 @@
   color: var(--accent-primary, #8ceb1f);
   font-family: var(--font-mono, Consolas, monospace);
   background: rgba(140, 235, 31, 0.1);
-  padding: 2px 8px;
-  border-radius: 9999px;
+  padding: 2px 6px;
+  border-radius: 4px;
   flex-shrink: 0;
 }

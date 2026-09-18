@@ -566,6 +566,62 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
             });
         });
 
+        // 4d. TEXTURE:DROP_IMPORT
+        _ipcBridge.RegisterHandler<TextureDropImportPayload>(IpcMessageTypes.TextureDropImport, async (payload, corrId) =>
+        {
+            await Dispatcher.InvokeAsync(async () =>
+            {
+                if (payload == null || string.IsNullOrWhiteSpace(payload.FullPath) || string.IsNullOrWhiteSpace(payload.Base64Data))
+                {
+                    _ipcBridge.PushError("Import Failed", "Invalid drop payload or missing file data.", "error");
+                    return;
+                }
+
+                try
+                {
+                    var targetPath = payload.FullPath;
+                    var dir = Path.GetDirectoryName(targetPath);
+                    if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+                    {
+                        Directory.CreateDirectory(dir);
+                    }
+
+                    var base64 = payload.Base64Data;
+                    var commaIdx = base64.IndexOf(',');
+                    if (commaIdx >= 0 && base64.Substring(0, commaIdx).Contains("base64"))
+                    {
+                        base64 = base64.Substring(commaIdx + 1);
+                    }
+                    var bytes = Convert.FromBase64String(base64);
+
+                    await File.WriteAllBytesAsync(targetPath, bytes);
+
+                    ImagePathConverter.ClearCache();
+
+                    var alias = ViewModel.Aliases.FirstOrDefault(a => a.Alias.Equals(payload.AliasKey, StringComparison.OrdinalIgnoreCase) ||
+                        (!string.IsNullOrEmpty(a.FullPath) && a.FullPath.Equals(targetPath, StringComparison.OrdinalIgnoreCase)));
+
+                    if (alias != null)
+                    {
+                        alias.Status = TextureStatus.Ok;
+                        alias.FullPath = targetPath;
+                    }
+
+                    var virtualUrl = IpcContractMapper.BuildVirtualTextureUrl(alias?.RelativePath ?? Path.GetFileName(targetPath), targetPath, ViewModel.PackRootPath);
+                    _ipcBridge.PushTextureUpdated(
+                        payload.AliasKey,
+                        "OK",
+                        targetPath,
+                        $"{virtualUrl}?t={DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}"
+                    );
+                }
+                catch (Exception ex)
+                {
+                    _ipcBridge.PushError("Texture Drop Failed", ex.Message, "error");
+                }
+            });
+        });
+
         // 5. SCAFFOLD:PLAIN
         _ipcBridge.RegisterHandler<ScaffoldPlainPayload>(IpcMessageTypes.ScaffoldPlain, async (payload, corrId) =>
         {
@@ -786,8 +842,11 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
                 {
                     if (success)
                     {
-                        await ViewModel.RescanAsync();
+                        // Reload VanillaData from the newly extracted files before rescanning
+                        // so the catalog reflects the downloaded pack content (e.g. poplar blocks).
+                        await ViewModel.RefreshVanillaAndRescanAsync();
                     }
+
                     bool has3D = CatalogReferenceService.Has3DModelsInstalled();
                     _ipcBridge.PostMessage(IpcMessageTypes.Vanilla3DStatus, new Vanilla3DStatusPayload(has3D, CatalogReferenceService.VanillaReferencePackDirectory));
                     _ipcBridge.PostMessage(IpcMessageTypes.CatalogDetailedStatus, CatalogReferenceService.GetDetailedStatus());
@@ -1019,7 +1078,11 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
             var activeData = CatalogReferenceService.GetActiveData(ViewModel.VanillaData);
             if (activeData != null)
             {
-                var cat = await Task.Run(() => PackScanner.BuildCatalogTree(ViewModel.Aliases.ToList(), activeData, ViewModel.PackRootPath));
+                // Snapshot Aliases on the UI thread before handing off to Task.Run.
+                // ViewModel.Aliases is an ObservableCollection owned by the UI thread;
+                // calling .ToList() on it from a background thread throws a cross-thread exception.
+                var aliasSnapshot = await Dispatcher.InvokeAsync(() => ViewModel.Aliases.ToList());
+                var cat = await Task.Run(() => PackScanner.BuildCatalogTree(aliasSnapshot, activeData, ViewModel.PackRootPath));
                 Dispatcher.Invoke(() =>
                 {
                     ViewModel.CatalogTree.Clear();
@@ -1034,6 +1097,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
                 _ipcBridge.PushPackState(CreatePackStatePayload());
             });
         });
+
 
         // 18. CATALOG:PICK_REFERENCE
         _ipcBridge.RegisterHandler<CatalogPickReferencePayload>(IpcMessageTypes.CatalogPickReference, async (payload, corrId) =>

@@ -61,11 +61,15 @@ Sidebar tree of your pack's directory structure with live texture and ghost coun
 - [X] Block Workspace — 4-tier relational hierarchy view
 - [X] Entity Workspace — 3D model visualizer and texture slot mapping
 - [X] Context menu: block state formatting and deletion
+- [X] Drag-and-drop texture import with overwrite confirmation
 - [ ] Curating each 3D preview for blocks and entities to accurately reflect their original in-game shapes
 - [ ] UI and particle texture support
 - [X] `.tga` format decoding and preview
 - [X] Per-texture vanilla reference preview alongside stubs
 - [ ] Target Bedrock engine version selector
+- [X] Pack merging / merge-compile (`_mers`)
+- [ ] Item texture atlas compiling (`_item`)
+- [ ] Terrain/block atlas compiling (`_atlas`)
 
 ---
 

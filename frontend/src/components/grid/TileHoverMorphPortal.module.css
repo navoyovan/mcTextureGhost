@@ -43,6 +43,11 @@
   overflow: visible;
 }
 
+.closing {
+  border-color: rgba(255, 255, 255, 0.08) !important;
+  box-shadow: none !important;
+}
+
 .morphCardImageTarget:not(.morphed) {
   padding: 0;
   border-radius: 0;
@@ -56,13 +61,21 @@
   border-color: transparent;
 }
 
+/* Ghost ONLY — preserve dark rectangle during snap back to match idle tile */
+.morphCardGhost:not(.morphed) .thumbArea,
+.morphCardGhost.closing .thumbArea {
+  background: #101014 !important;
+  border: 1px solid rgba(255, 255, 255, 0.04) !important;
+  border-radius: 0 !important;
+}
+
 /* ── Thumbnail Container & Animated Checkerboard ──────────────────────────── */
 
 .thumbArea {
   position: relative;
   width: 100%;
   background: transparent;
-  border-bottom: 1px solid transparent;
+  border: 1px solid transparent;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -76,6 +89,7 @@
 
 .morphed .thumbArea {
   background: #101014;
+  border: 1px solid transparent;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 0;
 }
@@ -127,6 +141,16 @@
   filter: none;
 }
 
+.ghostWrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  gap: 12px;
+}
+
 .ghostPlaceholder {
   font-family: 'Press Start 2P', monospace;
   font-size: 24px;
@@ -136,8 +160,39 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 100%;
-  height: 100%;
+  line-height: 1;
+}
+
+.ghostTipText {
+  font-family: var(--font-sans, 'Segoe UI Variable', sans-serif);
+  font-size: 11px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.55);
+  letter-spacing: 0.01em;
+  text-align: center;
+  max-width: 90%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+  animation: rollTipFade 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes rollTipFade {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.morphCardDragOver {
+  border-color: var(--accent-primary, #8CEB1F) !important;
+  border-style: dashed !important;
+  box-shadow: 0 0 24px rgba(140, 235, 31, 0.35), 0 16px 40px rgba(0, 0, 0, 0.85) !important;
 }
 
 /* ── Outside Floating Badges & Inner Chip ─────────────────────────────────── */

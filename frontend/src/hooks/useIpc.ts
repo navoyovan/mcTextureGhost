@@ -5,6 +5,7 @@ import {
   PackOpenFolderPayload,
   PackCreatePayload,
   TextureEditPayload,
+  TextureDropImportPayload,
   WindowActionPayload,
   TintSetPayload,
   ManifestModelDto,
@@ -225,6 +226,10 @@ export function useIpc() {
     return postCommand(IpcMessageTypes.TextureDeleteEntries, { aliasKey, category, relativePath });
   }, []);
 
+  const dropImportTexture = useCallback((payload: TextureDropImportPayload) => {
+    return postCommand<TextureDropImportPayload>(IpcMessageTypes.TextureDropImport, payload);
+  }, []);
+
   const windowAction = useCallback((action: 'minimize' | 'maximize' | 'close' | 'drag') => {
     return postCommand<WindowActionPayload>(IpcMessageTypes.WindowAction, { action });
   }, []);
@@ -274,6 +279,7 @@ export function useIpc() {
     reloadPack,
     createPack,
     editTexture,
+    dropImportTexture,
     getOpenWithApps,
     addCustomEditor,
     removeCustomEditor,

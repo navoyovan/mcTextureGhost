@@ -2155,6 +2155,45 @@ public class MainViewModel : INotifyPropertyChanged
         }
     }
 
+    /// <summary>
+    /// Syncs the freshly-downloaded reference_packs/vanilla/ into vanilla_cache/,
+    /// reloads VanillaData from the updated cache, then triggers a full rescan so
+    /// the catalog reflects the newly downloaded pack (e.g. poplar blocks).
+    /// Called by MainWindow after a successful DownloadVanillaSamplePackAsync.
+    /// </summary>
+    public async Task RefreshVanillaAndRescanAsync()
+    {
+        try
+        {
+            var refPackDir = CatalogReferenceService.VanillaReferencePackDirectory;
+            if (Directory.Exists(refPackDir))
+            {
+                // Sync reference_packs/vanilla/ → vanilla_cache/ so the catalog data
+                // (blocks.json, terrain_texture, entity defs, geometry, etc.) is up to date.
+                // VanillaDataService reads from vanilla_cache/ — the two directories are
+                // separate; this step bridges them after a full-pack download.
+                await Task.Run(() => VanillaDataService.SeedCacheFromDirectory(
+                    refPackDir, VanillaDataService.CacheDirectory));
+            }
+
+            // Load from the now-fresh cache (skips GitHub download).
+            var data = await Task.Run(() => VanillaDataService.LoadCachedData());
+            if (data != null)
+            {
+                _vanillaData = data;
+                OnPropertyChanged(nameof(IsVanillaDataLoaded));
+                OnPropertyChanged(nameof(VanillaData));
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[MainViewModel] RefreshVanillaAndRescanAsync: reload failed: {ex.Message}");
+        }
+
+        await RescanAsync();
+    }
+
+
     private void AddVanillaEntry(object? param)
     {
         if (_packRoot == null || _vanillaData == null) return;

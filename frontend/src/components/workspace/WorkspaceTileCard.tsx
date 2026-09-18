@@ -1,8 +1,10 @@
-import React, { useMemo } from 'react';
-import { CatalogLeafDto, OpenWithAppDto } from '../../types/ipc';
+import React, { useMemo, useState, useRef, useEffect, useCallback } from 'react';
+import { CatalogLeafDto, OpenWithAppDto, TextureAliasDto } from '../../types/ipc';
+import { usePackStore } from '../../store/packStore';
 import { useIpc } from '../../hooks/useIpc';
 import { FlipbookThumbnail } from '../common/FlipbookThumbnail';
 import { TextureContextMenu } from '../common/TextureContextMenu';
+import { TextureDropConfirm } from '../grid/TextureDropConfirm';
 import styles from './BlockWorkspace.module.css';
 
 export interface VariantTileGroup {
@@ -21,6 +23,38 @@ interface WorkspaceTileCardProps {
   onTileClick: (domEl: HTMLElement, leaf: CatalogLeafDto, key: string, targetType?: 'card' | 'image') => void;
   onDeleteTextureFile: (path: string, alias: string) => void;
   onDeleteTextureEntries: (alias: string, relativePath?: string | null) => void;
+}
+
+function leafToAliasDto(leaf: CatalogLeafDto): TextureAliasDto {
+  return {
+    alias: leaf.alias,
+    displayName: leaf.displayName,
+    relativePath: leaf.relativePath,
+    fullPath: leaf.fullPath,
+    category: (leaf.category as any) || 'block',
+    entityId: leaf.entityId,
+    textureKey: leaf.textureKey,
+    geometryId: leaf.geometryId,
+    isAttachable: leaf.isAttachable,
+    status: (leaf.status === 'VANILLA' ? 'OK' : leaf.status) as any,
+    exists: leaf.status !== 'GHOST',
+    imageUrl: leaf.imageUrl,
+    blockFaces: [],
+    usedByBlocks: [],
+    variantKind: leaf.variantKind || 'None',
+    blockVariantIndex: leaf.blockVariantIndex,
+    totalBlockVariants: leaf.totalBlockVariants,
+    textureVariantIndex: leaf.textureVariantIndex,
+    totalTextureVariants: leaf.totalTextureVariants,
+    weight: leaf.weight,
+    isFlipbook: leaf.isFlipbook,
+    flipbook: leaf.flipbook,
+    primaryFaceBadgeText: leaf.primaryFaceBadgeText || '',
+    subtitleCaption: leaf.subtitleCaption || '',
+    hasMers: (leaf as any).hasMers,
+    mersFullPath: (leaf as any).mersFullPath,
+    key: leaf.alias,
+  };
 }
 
 function getStatusDotClass(status: string): string {
@@ -64,7 +98,119 @@ export const WorkspaceTileCard: React.FC<WorkspaceTileCardProps> = React.memo(({
 }) => {
   const { alias, leaves } = grp;
   const primary = leaves[0];
-  const { editTexture, openInExplorer } = useIpc();
+  const { editTexture, openInExplorer, dropImportTexture } = useIpc();
+  const packRoot = usePackStore((s) => s.packRoot);
+
+  // Drag and drop state
+  const [dragSlotIndex, setDragSlotIndex] = useState<number | null>(null);
+  const [pendingDrop, setPendingDrop] = useState<{ leaf: CatalogLeafDto; file: File; objectUrl: string } | null>(null);
+  const dragCounterMap = useRef<Map<number, number>>(new Map());
+
+  const processImport = useCallback(
+    (leaf: CatalogLeafDto, file: File) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const base64Data = reader.result as string;
+        if (!base64Data) return;
+
+        const targetFullPath =
+          leaf.fullPath ||
+          (packRoot && leaf.relativePath
+            ? `${packRoot.replace(/[/\\]+$/, '')}\\textures\\${leaf.relativePath.replace(/^[/\\]+/, '')}`
+            : '');
+
+        if (!targetFullPath) return;
+
+        dropImportTexture({
+          aliasKey: leaf.alias,
+          fullPath: targetFullPath,
+          base64Data,
+          relativePath: leaf.relativePath,
+          category: (leaf.category as string) || 'block',
+          fileName: file.name,
+        });
+      };
+      reader.readAsDataURL(file);
+    },
+    [packRoot, dropImportTexture]
+  );
+
+  const handleSlotDragEnter = (e: React.DragEvent, slotIndex: number) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const count = (dragCounterMap.current.get(slotIndex) || 0) + 1;
+    dragCounterMap.current.set(slotIndex, count);
+    if (e.dataTransfer?.items?.length) {
+      setDragSlotIndex(slotIndex);
+    }
+  };
+
+  const handleSlotDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = 'copy';
+  };
+
+  const handleSlotDragLeave = (e: React.DragEvent, slotIndex: number) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const count = (dragCounterMap.current.get(slotIndex) || 0) - 1;
+    dragCounterMap.current.set(slotIndex, Math.max(0, count));
+    if (count <= 0) {
+      setDragSlotIndex((prev) => (prev === slotIndex ? null : prev));
+      dragCounterMap.current.delete(slotIndex);
+    }
+  };
+
+  const handleSlotDrop = (e: React.DragEvent, leaf: CatalogLeafDto) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragSlotIndex(null);
+    dragCounterMap.current.clear();
+
+    const files = e.dataTransfer?.files;
+    if (!files || files.length === 0) return;
+
+    const file = files[0];
+    if (!file) return;
+
+    const validExtensions = ['.png', '.tga', '.jpg', '.jpeg', '.webp'];
+    const lowerName = file.name.toLowerCase();
+    const isValid = validExtensions.some((ext) => lowerName.endsWith(ext));
+
+    if (!isValid) return;
+
+    if (leaf.status === 'GHOST') {
+      processImport(leaf, file);
+    } else {
+      const objectUrl = URL.createObjectURL(file);
+      setPendingDrop({ leaf, file, objectUrl });
+    }
+  };
+
+  const handleConfirmOverwrite = useCallback(() => {
+    if (!pendingDrop) return;
+    const { leaf, file, objectUrl } = pendingDrop;
+    processImport(leaf, file);
+    URL.revokeObjectURL(objectUrl);
+    setPendingDrop(null);
+  }, [pendingDrop, processImport]);
+
+  const handleCancelOverwrite = useCallback(() => {
+    if (pendingDrop) {
+      URL.revokeObjectURL(pendingDrop.objectUrl);
+      setPendingDrop(null);
+    }
+  }, [pendingDrop]);
+
+  useEffect(() => {
+    return () => {
+      if (pendingDrop) {
+        URL.revokeObjectURL(pendingDrop.objectUrl);
+      }
+    };
+  }, [pendingDrop]);
+
   if (!primary) return null;
 
   const numVariations = leaves.length;
@@ -100,9 +246,11 @@ export const WorkspaceTileCard: React.FC<WorkspaceTileCardProps> = React.memo(({
   const [menuAnchor, setMenuAnchor] = React.useState<{ x?: number; y?: number; top?: number; bottom?: number; left?: number; right?: number } | null>(null);
   const primaryThumbRef = React.useRef<HTMLDivElement>(null);
 
+  const isCardDragOver = !hasTexVariants && dragSlotIndex === 0;
+
   return (
     <div
-      className={`${styles.leafCard} ${hasTexVariants ? styles.leafCardWithVariants : ''}`}
+      className={`${styles.leafCard} ${hasTexVariants ? styles.leafCardWithVariants : ''} ${isCardDragOver ? styles.leafCardDragOver : ''}`}
       style={cardStyle}
       title={tooltipTitle}
       onClick={(e) => {
@@ -117,6 +265,10 @@ export const WorkspaceTileCard: React.FC<WorkspaceTileCardProps> = React.memo(({
         setMenuAnchor({ x: e.clientX, y: e.clientY });
         onToggleMenu(cardKey);
       }}
+      onDragEnter={!hasTexVariants ? (e) => handleSlotDragEnter(e, 0) : undefined}
+      onDragOver={!hasTexVariants ? handleSlotDragOver : undefined}
+      onDragLeave={!hasTexVariants ? (e) => handleSlotDragLeave(e, 0) : undefined}
+      onDrop={!hasTexVariants ? (e) => handleSlotDrop(e, primary) : undefined}
     >
       {/* Dropdown Context Menu */}
       {isMenuOpen && (
@@ -154,21 +306,46 @@ export const WorkspaceTileCard: React.FC<WorkspaceTileCardProps> = React.memo(({
         ref={!hasTexVariants ? primaryThumbRef : undefined}
         className={`${hasTexVariants ? styles.texVariantThumbRow : styles.leafThumbWrapper} ${!isGhost ? styles.leafThumbWrapperAdded : ''}`}
       >
+        {isCardDragOver && (
+          <div className={styles.dropOverlay}>
+            <span className={styles.dropOverlayIcon}>{isGhost ? '✨' : '📥'}</span>
+            <span className={styles.dropOverlayBadge}>
+              {isGhost ? 'Drop to Create' : 'Drop to Replace'}
+            </span>
+          </div>
+        )}
+
         {leaves.map((leaf, i) => {
           const leafName = getLeafTitle(leaf, alias);
           const isLeafGhost = leaf.status === 'GHOST';
+          const isSlotDragOver = hasTexVariants && dragSlotIndex === i;
+
           return (
             <React.Fragment key={`${leaf.relativePath}-${i}`}>
               {i > 0 && <div className={styles.texVarDivider} />}
               <div
                 ref={hasTexVariants && i === 0 ? primaryThumbRef : undefined}
-                className={`${hasTexVariants ? styles.texVarThumbSlot : styles.leafThumbInner} ${!isLeafGhost ? styles.texVarThumbSlotAdded : ''}`}
+                className={`${hasTexVariants ? styles.texVarThumbSlot : styles.leafThumbInner} ${!isLeafGhost ? styles.texVarThumbSlotAdded : ''} ${isSlotDragOver ? styles.texVarSlotDragOver : ''}`}
                 onClick={(e) => {
                   e.stopPropagation();
                   onTileClick(e.currentTarget, leaf, `${cardKey}-${i}`, 'image');
                 }}
+                onDragEnter={hasTexVariants ? (e) => handleSlotDragEnter(e, i) : undefined}
+                onDragOver={hasTexVariants ? handleSlotDragOver : undefined}
+                onDragLeave={hasTexVariants ? (e) => handleSlotDragLeave(e, i) : undefined}
+                onDrop={hasTexVariants ? (e) => handleSlotDrop(e, leaf) : undefined}
                 title={leafName}
+                style={{ position: 'relative' }}
               >
+                {isSlotDragOver && (
+                  <div className={styles.dropOverlay}>
+                    <span className={styles.dropOverlayIcon}>{isLeafGhost ? '✨' : '📥'}</span>
+                    <span className={styles.dropOverlayBadge}>
+                      {isLeafGhost ? 'Create' : 'Replace'}
+                    </span>
+                  </div>
+                )}
+
                 {!isLeafGhost && leaf.imageUrl ? (
                   <FlipbookThumbnail
                     src={leaf.imageUrl}
@@ -228,6 +405,17 @@ export const WorkspaceTileCard: React.FC<WorkspaceTileCardProps> = React.memo(({
             </span>
           </div>
         </div>
+      )}
+
+      {/* Overwrite Confirmation Modal (mounted via Portal) */}
+      {pendingDrop && (
+        <TextureDropConfirm
+          alias={leafToAliasDto(pendingDrop.leaf)}
+          incomingObjectUrl={pendingDrop.objectUrl}
+          incomingFileName={pendingDrop.file.name}
+          onConfirm={handleConfirmOverwrite}
+          onCancel={handleCancelOverwrite}
+        />
       )}
     </div>
   );
