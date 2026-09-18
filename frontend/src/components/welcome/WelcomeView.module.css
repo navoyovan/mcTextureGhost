@@ -6,12 +6,11 @@
   justify-content: center;
   width: 100%;
   height: 100%;
-  padding: 48px 24px 32px 24px;
+  padding: 60px 24px 32px 24px;
   background: transparent;
   user-select: none;
   overflow-y: auto;
   position: relative;
-  box-sizing: border-box;
 }
 
 /* Center Desktop App Launcher Frame */
@@ -21,7 +20,6 @@
   display: flex;
   flex-direction: column;
   gap: 24px;
-  min-width: 0;
 }
 
 /* Header */
@@ -31,42 +29,35 @@
   align-items: flex-end;
   padding-bottom: 6px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-  min-width: 0;
-  overflow: hidden;
 }
 
 .brandGroup {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  min-width: 0;
-  max-width: 100%;
 }
 
 .brandTitleRow {
   display: flex;
   align-items: flex-end;
   gap: 4px;
-  min-width: 0;
-  max-width: 100%;
 }
 
 .brandIcon {
-  width: clamp(56px, 9vw, 96px);
-  height: clamp(56px, 9vw, 96px);
+  width: 96px;
+  height: 96px;
   object-fit: contain;
   image-rendering: pixelated;
   filter: drop-shadow(0 0 10px rgba(140, 235, 31, 0.75)) drop-shadow(0 0 24px rgba(140, 235, 31, 0.4));
   display: block;
-  transform: translateY(22px);
-  flex-shrink: 0;
+  transform: translateY(26px);
 }
 
 .brandTitle {
   display: inline-flex;
   align-items: center;
   font-family: var(--font-brand, 'Syne', sans-serif);
-  font-size: clamp(24px, 5.5vw, 46px);
+  font-size: 36px;
   font-weight: 700;
   letter-spacing: -0.02em;
   line-height: 1;
@@ -74,13 +65,11 @@
   margin: 0;
   padding-bottom: 6px;
   text-shadow: 0 2px 14px rgba(0, 0, 0, 0.6);
-  min-width: 0;
-  white-space: nowrap;
 }
 
 .brandTitlePixel {
   font-family: var(--font-pixel, 'Press Start 2P', monospace);
-  font-size: clamp(16px, 4vw, 34px);
+  font-size: 26px;
   font-weight: 400;
   letter-spacing: -0.03em;
   color: var(--accent-primary, #8ceb1f);
@@ -96,18 +85,9 @@
   gap: 14px;
 }
 
-@media (max-width: 640px) {
-  .welcomeContainer {
-    padding: 24px 16px 20px 16px;
-  }
-
+@media (max-width: 580px) {
   .actionRow {
     grid-template-columns: 1fr;
-    gap: 10px;
-  }
-
-  .brandIcon {
-    transform: translateY(14px);
   }
 }
 
