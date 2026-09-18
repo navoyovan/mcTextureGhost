@@ -54,24 +54,23 @@ export const Sidebar: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [btnRect, setBtnRect] = useState<DOMRect | null>(null);
   const [shouldPortal, setShouldPortal] = useState<boolean>(false);
+  const [isHovered, setIsHovered] = useState<boolean>(false);
+  const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     setPackIconLoadError(false);
   }, [packIconUrl, packRoot]);
 
   useEffect(() => {
-    if (isCatalogOpen) {
+    if (isHovered && !isCatalogOpen) {
       setShouldPortal(true);
     } else {
       const timer = setTimeout(() => {
         setShouldPortal(false);
-      }, 300);
+      }, 200);
       return () => clearTimeout(timer);
     }
-  }, [isCatalogOpen]);
-
-  const [isHovered, setIsHovered] = useState<boolean>(false);
-  const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  }, [isHovered, isCatalogOpen]);
 
   const handleMouseEnter = () => {
     if (hoverTimerRef.current) {
@@ -187,7 +186,7 @@ export const Sidebar: React.FC = () => {
       height: `${btnRect.height}px`,
       margin: 0,
       zIndex: 1002,
-    } : shouldPortal ? {
+    } : (shouldPortal && !isCatalogOpen) ? {
       visibility: 'hidden',
     } : {};
 
@@ -467,7 +466,7 @@ export const Sidebar: React.FC = () => {
 
       {/* 4. Catalog Button — bare, sticks to sidebar bottom */}
       {renderCatalogButton(false)}
-      {shouldPortal && btnRect && createPortal(renderCatalogButton(true), document.body)}
+      {shouldPortal && !isCatalogOpen && btnRect && createPortal(renderCatalogButton(true), document.body)}
 
       {/* Singleton Context Menu for Pack Icon */}
       {contextMenuTarget && (
