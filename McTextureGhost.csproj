@@ -35,4 +35,8 @@
     <Resource Include="Resources\Fonts\*.ttf" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="frontend\dist\**" CopyToOutputDirectory="PreserveNewest" Link="frontend\dist\%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+
 </Project>
