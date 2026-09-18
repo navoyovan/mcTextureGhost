@@ -61,23 +61,28 @@ const computeMorphCoords = (
   const effectiveTexHeight = isSpriteSheet ? baseTexWidth : rawTexHeight;
 
   // Available space inside viewport for the card
-  const metaAndActionsHeight = 115;
+  const metaAndActionsHeight = 116;
   const maxAreaW = Math.min(viewportWidth - 2 * margin - 28, 700);
   const maxAreaH = Math.min(viewportHeight - 2 * margin - metaAndActionsHeight - 24, 520);
+  const maxThumbDimension = Math.min(maxAreaW, maxAreaH);
 
   // Compute pixel scale: textures < 32px scale up to match 32x32 baseline (at least ~256px sprite)
-  const minScaleForSmall = Math.floor(256 / Math.max(baseTexWidth, effectiveTexHeight));
+  const maxTexDim = Math.max(baseTexWidth, effectiveTexHeight);
+  const minScaleForSmall = Math.floor(256 / maxTexDim);
   const maxScaleCap = Math.max(10, minScaleForSmall);
-  const maxScaleX = maxAreaW / baseTexWidth;
-  const maxScaleY = maxAreaH / effectiveTexHeight;
-  const idealScale = Math.min(maxScaleCap, maxScaleX, maxScaleY);
+  const maxScale = (maxThumbDimension - 28) / maxTexDim;
+  const idealScale = Math.min(maxScaleCap, maxScale);
   const finalScale = idealScale >= 1 ? Math.floor(idealScale) : idealScale;
 
-  const idealSpriteW = Math.round(baseTexWidth * finalScale);
-  const idealSpriteH = Math.round(effectiveTexHeight * finalScale);
+  const idealSpriteSize = Math.max(
+    Math.round(baseTexWidth * finalScale),
+    Math.round(effectiveTexHeight * finalScale)
+  );
 
-  const expandedWidth = Math.max(260, idealSpriteW + 28);
-  const thumbHeight = Math.max(160, idealSpriteH + 24);
+  // Make thumbnail container perfectly square (1:1) so it matches the tile aspect ratio
+  const thumbDimension = Math.min(maxThumbDimension, Math.max(260, idealSpriteSize + 24));
+  const expandedWidth = thumbDimension;
+  const thumbHeight = thumbDimension;
   const totalHeight = thumbHeight + metaAndActionsHeight;
 
   const originalCenterX = rect.left + rect.width / 2;
@@ -605,7 +610,6 @@ const TileHoverMorphCard: React.FC<TileHoverMorphPortalProps> = ({
   const currentLeft = isMorphed ? coords.left : coords.originalRect.left;
   const currentTop = isMorphed ? coords.top : coords.originalRect.top;
   const currentWidth = isMorphed ? coords.width : coords.originalRect.width;
-  const currentHeight = isMorphed ? coords.totalHeight : coords.originalRect.height;
   const currentThumbHeight = isMorphed
     ? coords.thumbHeight
     : (isImageTarget ? coords.originalRect.height : Math.max(0, coords.originalRect.width - 20));
@@ -638,7 +642,7 @@ const TileHoverMorphCard: React.FC<TileHoverMorphPortalProps> = ({
           left: `${currentLeft}px`,
           top: `${currentTop}px`,
           width: `${currentWidth}px`,
-          height: `${currentHeight}px`,
+          height: isMorphed ? 'max-content' : `${coords.originalRect.height}px`,
           pointerEvents: isClosing ? 'none' : 'auto',
         }}
         onMouseEnter={clearLeaveTimer}

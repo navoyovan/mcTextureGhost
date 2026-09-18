@@ -74,6 +74,7 @@
 .thumbArea {
   position: relative;
   width: 100%;
+  flex-shrink: 0;
   background: transparent;
   border: 1px solid transparent;
   display: flex;
@@ -278,12 +279,14 @@
 /* ── Metadata Area ────────────────────────────────────────────────────────── */
 
 .metaArea {
-  padding: 12px 14px 10px;
+  padding: 10px 14px 6px;
   display: flex;
   flex-direction: column;
   gap: 4px;
   background: #18181f;
   min-width: 0;
+  flex-shrink: 0;
+  box-sizing: border-box;
   animation: fadeIn 0.18s cubic-bezier(0.2, 0.8, 0.2, 1) 0.05s both;
 }
 
@@ -294,6 +297,7 @@
   font-family: 'Syne', sans-serif;
   font-weight: 700;
   font-size: 14px;
+  line-height: 16px;
   color: #ffffff;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -316,6 +320,7 @@
 .relPath {
   font-family: 'Consolas', monospace;
   font-size: 10px;
+  line-height: 12px;
   color: rgba(255, 255, 255, 0.45);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -327,11 +332,13 @@
   align-items: center;
   gap: 6px;
   margin-top: 2px;
+  height: 18px;
 }
 
 .resBadge {
   font-family: 'Consolas', monospace;
   font-size: 10px;
+  line-height: 12px;
   color: rgba(255, 255, 255, 0.75);
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.12);
@@ -349,9 +356,12 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 8px 14px 12px;
+  padding: 8px 14px 8px;
   background: #18181f;
   border-top: 1px solid rgba(255, 255, 255, 0.06);
+  flex-shrink: 0;
+  box-sizing: border-box;
+  height: 46px;
   animation: fadeIn 0.18s cubic-bezier(0.2, 0.8, 0.2, 1) 0.08s both;
 }
 
