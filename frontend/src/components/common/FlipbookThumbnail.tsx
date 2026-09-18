@@ -57,22 +57,69 @@ class FlipbookCoordinator {
 
 export const flipbookCoordinator = new FlipbookCoordinator();
 
+let globalMousePos: { x: number; y: number } | null = null;
+const mouseListeners = new Set<() => void>();
+
+if (typeof window !== 'undefined') {
+  window.addEventListener(
+    'mousemove',
+    (e) => {
+      globalMousePos = { x: e.clientX, y: e.clientY };
+      mouseListeners.forEach((cb) => {
+        try {
+          cb();
+        } catch {
+          // ignore
+        }
+      });
+    },
+    { passive: true }
+  );
+}
+
+export function detectEasterEggType(aliasKey?: string, src?: string): 'compass' | 'clock' | null {
+  const key = (aliasKey || '').toLowerCase();
+  const path = (src || '').toLowerCase();
+
+  if (
+    key.includes('compass') ||
+    path.includes('compass')
+  ) {
+    return 'compass';
+  }
+
+  if (
+    key.includes('clock') ||
+    key.includes('watch') ||
+    path.includes('clock') ||
+    path.includes('watch')
+  ) {
+    return 'clock';
+  }
+
+  return null;
+}
+
 export interface FlipbookThumbnailProps {
   src: string;
+  atlasSrc?: string | null;
   alt?: string;
   className?: string;
   isFlipbook?: boolean;
   flipbook?: FlipbookDefinitionDto | null;
+  aliasKey?: string;
   loading?: 'lazy' | 'eager';
   onError?: (e: React.SyntheticEvent<HTMLImageElement, Event>) => void;
 }
 
 const AnimatedFlipbookThumbnail: React.FC<FlipbookThumbnailProps> = ({
   src,
+  atlasSrc,
   alt = '',
   className,
   isFlipbook = false,
   flipbook,
+  aliasKey,
   loading = 'lazy',
   onError,
 }) => {
@@ -97,13 +144,16 @@ const AnimatedFlipbookThumbnail: React.FC<FlipbookThumbnailProps> = ({
     progress: number;
   }>({ frameA: -1, frameB: -1, progress: -1 });
 
-  const [resolvedSrc, setResolvedSrc] = useState<string>(src);
+  const activeSrc = atlasSrc || src;
+  const [resolvedSrc, setResolvedSrc] = useState<string>(activeSrc);
+
+  const easterEggType = detectEasterEggType(aliasKey || alt, activeSrc);
 
   // Resolve TGA if needed
   useEffect(() => {
     let active = true;
-    if (isTgaUrl(src)) {
-      loadTgaAsDataUrl(src)
+    if (isTgaUrl(activeSrc)) {
+      loadTgaAsDataUrl(activeSrc)
         .then((dataUrl) => {
           if (active) setResolvedSrc(dataUrl);
         })
@@ -111,12 +161,12 @@ const AnimatedFlipbookThumbnail: React.FC<FlipbookThumbnailProps> = ({
           if (active) setImageState((prev) => ({ ...prev, hasError: true }));
         });
     } else {
-      setResolvedSrc(src);
+      setResolvedSrc(activeSrc);
     }
     return () => {
       active = false;
     };
-  }, [src]);
+  }, [activeSrc]);
 
   // Load and inspect image dimensions
   useEffect(() => {
@@ -129,7 +179,7 @@ const AnimatedFlipbookThumbnail: React.FC<FlipbookThumbnailProps> = ({
       if (!active) return;
       const nw = img.naturalWidth || 16;
       const nh = img.naturalHeight || 16;
-      const isSprite = (isFlipbook || nh > nw) && nh >= nw * 2 && nw > 0;
+      const isSprite = (isFlipbook || Boolean(atlasSrc) || Boolean(easterEggType) || nh > nw) && nh >= nw * 2 && nw > 0;
       const count = isSprite ? Math.max(1, Math.floor(nh / nw)) : 1;
 
       setImageState({
@@ -149,7 +199,7 @@ const AnimatedFlipbookThumbnail: React.FC<FlipbookThumbnailProps> = ({
     return () => {
       active = false;
     };
-  }, [resolvedSrc, isFlipbook]);
+  }, [resolvedSrc, isFlipbook, atlasSrc, easterEggType]);
 
   // Handle animation loop subscription and frame drawing
   useEffect(() => {
@@ -168,9 +218,135 @@ const AnimatedFlipbookThumbnail: React.FC<FlipbookThumbnailProps> = ({
     canvas.height = frameWidth;
     ctx.imageSmoothingEnabled = false;
 
+    const renderTiled = (frameIndex: number) => {
+      const replicate = Math.max(1, flipbook?.replicate ?? 1);
+      if (replicate === 1) {
+        ctx.drawImage(img, 0, frameIndex * frameWidth, frameWidth, frameWidth, 0, 0, frameWidth, frameWidth);
+      } else {
+        const subSize = frameWidth / replicate;
+        for (let rx = 0; rx < replicate; rx++) {
+          for (let ry = 0; ry < replicate; ry++) {
+            ctx.drawImage(
+              img,
+              0,
+              frameIndex * frameWidth,
+              frameWidth,
+              frameWidth,
+              rx * subSize,
+              ry * subSize,
+              subSize,
+              subSize
+            );
+          }
+        }
+      }
+    };
+
+    // ─── 1. Compass Easter Egg (Follow User Mouse) ───
+    if (easterEggType === 'compass') {
+      const drawCompass = () => {
+        let frameIndex = 16; // default North
+        if (globalMousePos && canvas) {
+          const rect = canvas.getBoundingClientRect();
+          const cx = rect.left + rect.width / 2;
+          const cy = rect.top + rect.height / 2;
+          const dx = globalMousePos.x - cx;
+          const dy = globalMousePos.y - cy;
+          // In vanilla compass_atlas.png:
+          // Frame 0 is South, Frame 8 is West, Frame 16 is North, Frame 24 is East
+          const angle = Math.atan2(dy, dx);
+          let norm = (angle - Math.PI / 2) / (Math.PI * 2);
+          norm = ((norm % 1.0) + 1.0) % 1.0;
+          frameIndex = Math.round(norm * frameCount) % frameCount;
+        }
+
+        if (lastRenderedRef.current.frameA === frameIndex) return;
+        lastRenderedRef.current.frameA = frameIndex;
+
+        ctx.clearRect(0, 0, frameWidth, frameWidth);
+        renderTiled(frameIndex);
+      };
+
+      drawCompass();
+      mouseListeners.add(drawCompass);
+
+      return () => {
+        mouseListeners.delete(drawCompass);
+      };
+    }
+
+    // ─── 2. Clock Easter Egg (Follow Real-World Local Time) ───
+    if (easterEggType === 'clock') {
+      const drawClock = () => {
+        const now = new Date();
+        const totalDaySeconds =
+          now.getHours() * 3600 +
+          now.getMinutes() * 60 +
+          now.getSeconds() +
+          now.getMilliseconds() / 1000;
+        const dayProgress = totalDaySeconds / 86400; // 0.0 to 1.0 (0.0 = midnight)
+        // In vanilla watch_atlas.png:
+        // Frame 0 is 12:00 Midday, Frame 16 is 18:00 Sunset, Frame 32 is 00:00 Midnight, Frame 48 is 06:00 Sunrise
+        let clockOffset = (dayProgress - 0.50) % 1.0;
+        if (clockOffset < 0) clockOffset += 1.0;
+
+        const stepFloat = clockOffset * frameCount;
+        const frameA = Math.floor(stepFloat) % frameCount;
+        const frameB = (frameA + 1) % frameCount;
+        const progress = stepFloat - Math.floor(stepFloat);
+
+        if (
+          lastRenderedRef.current.frameA === frameA &&
+          lastRenderedRef.current.frameB === frameB &&
+          Math.abs(lastRenderedRef.current.progress - progress) < 0.01
+        ) {
+          return;
+        }
+
+        lastRenderedRef.current = { frameA, frameB, progress };
+
+        ctx.clearRect(0, 0, frameWidth, frameWidth);
+        ctx.globalAlpha = 1.0;
+        renderTiled(frameA);
+
+        if (frameA !== frameB && progress > 0.01) {
+          ctx.globalAlpha = Math.min(1.0, Math.max(0.0, progress));
+          renderTiled(frameB);
+          ctx.globalAlpha = 1.0;
+        }
+      };
+
+      drawClock();
+      let unsubscribe: (() => void) | null = null;
+
+      const observer = new IntersectionObserver(
+        (entries) => {
+          const [entry] = entries;
+          if (entry && entry.isIntersecting) {
+            if (!unsubscribe) {
+              unsubscribe = flipbookCoordinator.subscribe(drawClock);
+            }
+          } else {
+            if (unsubscribe) {
+              unsubscribe();
+              unsubscribe = null;
+            }
+          }
+        },
+        { rootMargin: '100px' }
+      );
+
+      observer.observe(canvas);
+
+      return () => {
+        observer.disconnect();
+        if (unsubscribe) unsubscribe();
+      };
+    }
+
+    // ─── 3. Standard Global Tick Flipbook Loop ───
     const ticksPerFrame = Math.max(1, flipbook?.ticksPerFrame ?? 1);
     const blendFrames = flipbook?.blendFrames !== false;
-    const replicate = Math.max(1, flipbook?.replicate ?? 1);
     const seq = flipbook?.frames && flipbook.frames.length > 0 ? flipbook.frames : null;
     const seqLen = seq ? seq.length : frameCount;
 
@@ -183,29 +359,6 @@ const AnimatedFlipbookThumbnail: React.FC<FlipbookThumbnailProps> = ({
       const rawFrameA: number = (seq ? seq[idxA] : idxA) ?? 0;
       const frameA = ((rawFrameA % frameCount) + frameCount) % frameCount;
 
-      const renderTiled = (frameIndex: number) => {
-        if (replicate === 1) {
-          ctx.drawImage(img, 0, frameIndex * frameWidth, frameWidth, frameWidth, 0, 0, frameWidth, frameWidth);
-        } else {
-          const subSize = frameWidth / replicate;
-          for (let rx = 0; rx < replicate; rx++) {
-            for (let ry = 0; ry < replicate; ry++) {
-              ctx.drawImage(
-                img,
-                0,
-                frameIndex * frameWidth,
-                frameWidth,
-                frameWidth,
-                rx * subSize,
-                ry * subSize,
-                subSize,
-                subSize
-              );
-            }
-          }
-        }
-      };
-
       if (!blendFrames) {
         if (lastRenderedRef.current.frameA === frameA) return;
         lastRenderedRef.current.frameA = frameA;
@@ -217,7 +370,6 @@ const AnimatedFlipbookThumbnail: React.FC<FlipbookThumbnailProps> = ({
         const rawFrameB: number = (seq ? seq[idxB] : idxB) ?? 0;
         const frameB = ((rawFrameB % frameCount) + frameCount) % frameCount;
 
-        // Skip redraw if identical frame with zero progress change
         if (
           lastRenderedRef.current.frameA === frameA &&
           lastRenderedRef.current.frameB === frameB &&
@@ -260,7 +412,7 @@ const AnimatedFlipbookThumbnail: React.FC<FlipbookThumbnailProps> = ({
           }
         }
       },
-      { rootMargin: '100px' } // Pre-activate 100px before scrolling into view
+      { rootMargin: '100px' }
     );
 
     observer.observe(canvas);
@@ -271,7 +423,7 @@ const AnimatedFlipbookThumbnail: React.FC<FlipbookThumbnailProps> = ({
         unsubscribe();
       }
     };
-  }, [imageState, flipbook]);
+  }, [imageState, flipbook, easterEggType]);
 
   if (imageState.hasError) {
     return (
@@ -308,9 +460,10 @@ const AnimatedFlipbookThumbnail: React.FC<FlipbookThumbnailProps> = ({
 };
 
 export const FlipbookThumbnail: React.FC<FlipbookThumbnailProps> = (props) => {
-  // FAST-PATH: If this is definitely a static texture and not a TGA file, render native <img> directly
-  // with zero JS Image() instances, zero hook state, and zero canvas overhead
-  if (!props.isFlipbook && !props.flipbook && !isTgaUrl(props.src)) {
+  const isEasterEgg = Boolean(detectEasterEggType(props.aliasKey || props.alt, props.atlasSrc || props.src));
+
+  // FAST-PATH: If this is definitely a static texture and not a TGA or easter egg, render native <img> directly
+  if (!props.isFlipbook && !props.flipbook && !props.atlasSrc && !isEasterEgg && !isTgaUrl(props.src)) {
     return (
       <img
         src={props.src}

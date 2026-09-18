@@ -34,6 +34,8 @@ Paths are repository-relative. Read the entry point relevant to the task, not ev
 | Texture animation thumbnails | `frontend/src/components/common/FlipbookThumbnail.tsx` |
 | Texture context menu and external editors | `frontend/src/components/common/TextureContextMenu.tsx`, `Services/OpenWithService.cs`, `Services/OpenWithLauncher.cs` |
 | Shared search | `frontend/src/components/common/SearchInput.tsx` |
+| Pack export (`.mcpack` archive) | `Services/PackExportService.cs`, `frontend/src/components/menus/MenuBar.tsx` (`handleExportPack`), `PACK:EXPORT` IPC |
+| Companion atlas textures (`_atlas`) & interactive animations | `Services/PackScanner.cs` (atlas linking & orphan suppression), `Views/MainWindow.xaml.cs` (`ExtractCompanionAtlasIfExists`), `frontend/src/components/common/FlipbookThumbnail.tsx` (real-time clock & mouse compass) |
 | About dialog & open-source attributions | `frontend/src/components/common/AboutModal.tsx`, `frontend/src/components/menus/MenuBar.tsx` |
 | Theme and component styling | `frontend/src/styles/tokens.css`, `themeEngine.ts` in the same directory, and the target component's `*.module.css` |
 | WPF control/caption API constraints | `.agents/rules/wpf-ui.md` |

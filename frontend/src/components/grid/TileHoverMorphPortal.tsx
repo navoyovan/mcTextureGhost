@@ -371,7 +371,26 @@ const TileHoverMorphCard: React.FC<TileHoverMorphPortalProps> = ({
     return null;
   }, [alias.mersFullPath, alias.imageUrl]);
 
-  const activePreviewSrc = (isPeekingMers && mersUrl) ? mersUrl : alias.imageUrl;
+  // Derive virtual URL for companion Item Atlas texture
+  const atlasUrl = useMemo(() => {
+    if (!alias.atlasFullPath) return null;
+    const packRoot = usePackStore.getState().packRoot;
+    if (packRoot && alias.atlasFullPath.startsWith(packRoot)) {
+      const rel = alias.atlasFullPath.slice(packRoot.length).replace(/^[/\\]+/, '').replace(/\\/g, '/');
+      return `https://pack.local/${rel}`;
+    }
+    if (alias.imageUrl) {
+      const atlasFileName = alias.atlasFullPath.split(/[/\\]/).pop();
+      if (atlasFileName) {
+        return alias.imageUrl.replace(/[^/?#]+(\?.*)?$/, `${atlasFileName}$1`);
+      }
+    }
+    return null;
+  }, [alias.atlasFullPath, alias.imageUrl]);
+
+  const activePreviewSrc = (isPeekingMers && mersUrl)
+    ? mersUrl
+    : alias.imageUrl;
 
   // Fallback dimension loader if DOM image was not yet loaded at mount
   useEffect(() => {
@@ -668,6 +687,11 @@ const TileHoverMorphCard: React.FC<TileHoverMorphPortalProps> = ({
                 {isPeekingMers ? 'MERS MAP' : 'MERS'}
               </span>
             )}
+            {(Boolean(alias.hasAtlas) || Boolean(alias.atlasFullPath)) && (
+              <span className={`${styles.badge} ${styles.badgeAtlas}`}>
+                ATLAS
+              </span>
+            )}
           </div>
         )}
 
@@ -682,9 +706,11 @@ const TileHoverMorphCard: React.FC<TileHoverMorphPortalProps> = ({
             {!isGhost && activePreviewSrc ? (
               <FlipbookThumbnail
                 src={activePreviewSrc}
+                atlasSrc={!isPeekingMers ? atlasUrl : null}
                 alt={isPeekingMers ? `${alias.alias} (MERS Map)` : alias.alias}
+                aliasKey={!isPeekingMers ? alias.alias : undefined}
                 className={styles.spriteImg}
-                isFlipbook={!isPeekingMers && Boolean(alias.isFlipbook)}
+                isFlipbook={!isPeekingMers && (Boolean(alias.isFlipbook) || Boolean(alias.hasAtlas))}
                 flipbook={!isPeekingMers ? alias.flipbook : null}
               />
             ) : (

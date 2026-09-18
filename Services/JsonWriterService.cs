@@ -248,7 +248,7 @@ public static class JsonWriterService
         }
     }
 
-    private static void AppendFlipbookIfNotExists(string packRoot, string aliasOrPath, string rawFlipbookJson)
+    public static void AppendFlipbookIfNotExists(string packRoot, string aliasOrPath, string rawFlipbookJson)
     {
         var flipbookPath = Path.Combine(packRoot, "textures", "flipbook_textures.json");
         var flipbook = LoadOrCreateJsonArray(flipbookPath);

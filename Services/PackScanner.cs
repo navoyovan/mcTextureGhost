@@ -333,6 +333,41 @@ public static class PackScanner
                 }
             }
 
+            // Filter out companion Atlas files (_atlas) if their companion item / base diffuse is matched or present
+            bool isAtlasSuffix = fileNameWithoutExt.EndsWith("_atlas", StringComparison.OrdinalIgnoreCase);
+            if (isAtlasSuffix)
+            {
+                var dir = Path.GetDirectoryName(file) ?? "";
+                string baseName = fileNameWithoutExt.Substring(0, fileNameWithoutExt.Length - 6);
+
+                var companionPng = Path.GetFullPath(Path.Combine(dir, $"{baseName}.png"));
+                var companionTga = Path.GetFullPath(Path.Combine(dir, $"{baseName}.tga"));
+                var companionItemPng = Path.GetFullPath(Path.Combine(dir, $"{baseName}_item.png"));
+                var companionItemTga = Path.GetFullPath(Path.Combine(dir, $"{baseName}_item.tga"));
+
+                // Compass / clock / watch / lodestone special pairings
+                bool isSpecialAtlas = baseName.Equals("watch", StringComparison.OrdinalIgnoreCase) ||
+                                     baseName.Equals("clock", StringComparison.OrdinalIgnoreCase) ||
+                                     baseName.Equals("compass", StringComparison.OrdinalIgnoreCase) ||
+                                     baseName.Equals("recovery_compass", StringComparison.OrdinalIgnoreCase) ||
+                                     baseName.Equals("lodestonecompass", StringComparison.OrdinalIgnoreCase) ||
+                                     baseName.Equals("lodestone_compass", StringComparison.OrdinalIgnoreCase);
+
+                if (existingFiles.Contains(companionPng) ||
+                    existingFiles.Contains(companionTga) ||
+                    existingFiles.Contains(companionItemPng) ||
+                    existingFiles.Contains(companionItemTga) ||
+                    matchedFiles.Contains(companionPng) ||
+                    matchedFiles.Contains(companionTga) ||
+                    matchedFiles.Contains(companionItemPng) ||
+                    matchedFiles.Contains(companionItemTga) ||
+                    isSpecialAtlas)
+                {
+                    // This is an item atlas companion layer, ignore as unlinked orphan
+                    continue;
+                }
+            }
+
             var relFromPack = file.StartsWith(packRoot, StringComparison.OrdinalIgnoreCase)
                 ? file.Substring(packRoot.Length).TrimStart('/', '\\').Replace('\\', '/')
                 : file.Replace('\\', '/');
@@ -593,6 +628,73 @@ public static class PackScanner
                     {
                         item.MersFullPath = fullCand;
                         break;
+                    }
+                }
+            }
+
+            // 3. Detect companion item atlas texture (_atlas.png, _atlas.tga, watch_atlas, compass_atlas, etc.)
+            if (item.Category == TextureCategory.Item)
+            {
+                // A. Check from flipbook if mapped
+                if (item.Flipbook != null && !string.IsNullOrEmpty(item.Flipbook.FlipbookTexture))
+                {
+                    var fbNorm = item.Flipbook.FlipbookTexture.Replace('\\', '/').TrimStart('/');
+                    var fbCandPng = Path.Combine(packRoot, fbNorm + ".png");
+                    var fbCandTga = Path.Combine(packRoot, fbNorm + ".tga");
+                    var fbCandExact = Path.Combine(packRoot, fbNorm);
+                    if (existingFiles.Contains(Path.GetFullPath(fbCandPng))) item.AtlasFullPath = Path.GetFullPath(fbCandPng);
+                    else if (existingFiles.Contains(Path.GetFullPath(fbCandTga))) item.AtlasFullPath = Path.GetFullPath(fbCandTga);
+                    else if (existingFiles.Contains(Path.GetFullPath(fbCandExact))) item.AtlasFullPath = Path.GetFullPath(fbCandExact);
+                }
+
+                // B. Check naming convention in same directory
+                if (string.IsNullOrEmpty(item.AtlasFullPath))
+                {
+                    string baseName = fnWithoutExt;
+                    if (baseName.EndsWith("_item", StringComparison.OrdinalIgnoreCase))
+                        baseName = baseName.Substring(0, baseName.Length - 5);
+
+                    var atlasCandidates = new List<string>
+                    {
+                        Path.Combine(dir, $"{baseName}_atlas.png"),
+                        Path.Combine(dir, $"{baseName}_atlas.tga"),
+                        Path.Combine(dir, $"{fnWithoutExt}_atlas.png"),
+                        Path.Combine(dir, $"{fnWithoutExt}_atlas.tga")
+                    };
+
+                    if (baseName.Equals("clock", StringComparison.OrdinalIgnoreCase) || baseName.Equals("watch", StringComparison.OrdinalIgnoreCase))
+                    {
+                        atlasCandidates.Add(Path.Combine(dir, "watch_atlas.png"));
+                        atlasCandidates.Add(Path.Combine(dir, "watch_atlas.tga"));
+                        atlasCandidates.Add(Path.Combine(dir, "clock_atlas.png"));
+                        atlasCandidates.Add(Path.Combine(dir, "clock_atlas.tga"));
+                    }
+                    else if (baseName.Equals("compass", StringComparison.OrdinalIgnoreCase))
+                    {
+                        atlasCandidates.Add(Path.Combine(dir, "compass_atlas.png"));
+                        atlasCandidates.Add(Path.Combine(dir, "compass_atlas.tga"));
+                    }
+                    else if (baseName.Equals("recovery_compass", StringComparison.OrdinalIgnoreCase))
+                    {
+                        atlasCandidates.Add(Path.Combine(dir, "recovery_compass_atlas.png"));
+                        atlasCandidates.Add(Path.Combine(dir, "recovery_compass_atlas.tga"));
+                    }
+                    else if (baseName.Equals("lodestonecompass", StringComparison.OrdinalIgnoreCase) || baseName.Equals("lodestone_compass", StringComparison.OrdinalIgnoreCase))
+                    {
+                        atlasCandidates.Add(Path.Combine(dir, "lodestonecompass_atlas.png"));
+                        atlasCandidates.Add(Path.Combine(dir, "lodestonecompass_atlas.tga"));
+                        atlasCandidates.Add(Path.Combine(dir, "lodestone_compass_atlas.png"));
+                        atlasCandidates.Add(Path.Combine(dir, "lodestone_compass_atlas.tga"));
+                    }
+
+                    foreach (var cand in atlasCandidates)
+                    {
+                        var fullCand = Path.GetFullPath(cand);
+                        if (existingFiles.Contains(fullCand))
+                        {
+                            item.AtlasFullPath = fullCand;
+                            break;
+                        }
                     }
                 }
             }

@@ -177,6 +177,12 @@ public class TextureAlias : INotifyPropertyChanged
     /// <summary>True if a companion MERS/MER texture exists on disk for this texture.</summary>
     public bool HasMers => !string.IsNullOrEmpty(MersFullPath);
 
+    /// <summary>Physical path to companion atlas animation texture file (e.g. compass_atlas.png, watch_atlas.png), if present on disk.</summary>
+    public string? AtlasFullPath { get; set; }
+
+    /// <summary>True if a companion atlas texture exists on disk for this texture.</summary>
+    public bool HasAtlas => !string.IsNullOrEmpty(AtlasFullPath);
+
     /// <summary>Tooltip details for flipbook animated sprite sheets.</summary>
     public string? FlipbookTooltip
     {

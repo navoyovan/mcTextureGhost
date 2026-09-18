@@ -276,6 +276,12 @@
   box-shadow: 0 0 12px rgba(244, 114, 182, 0.75) !important;
 }
 
+.badgeAtlas {
+  background: rgba(8, 28, 44, 0.92);
+  border: 1px solid rgba(56, 189, 248, 0.75);
+  color: #38bdf8;
+}
+
 /* ── Metadata Area ────────────────────────────────────────────────────────── */
 
 .metaArea {

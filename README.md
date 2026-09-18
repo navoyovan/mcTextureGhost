@@ -71,7 +71,7 @@ Sidebar tree of your pack's directory structure with live texture and ghost coun
 - [ ] Customize texture entries and variation paths (e.g. detach shared textures like `acacia_fence` using `acacia_planks` into dedicated `acacia_fence` definitions with auto variation entry indexing)
 - [ ] Target Bedrock engine version selector
 - [X] Compile  (`_mers`)
-- [ ] Compile (`_atlas`) against (`_item`)
+- [X] Compile (`_atlas`) against (`_item`)
 
 ---
 

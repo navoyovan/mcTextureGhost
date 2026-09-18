@@ -16,6 +16,7 @@ import {
   Sword,
   FileCode2,
   ExternalLink,
+  Compass,
 } from 'lucide-react';
 import { usePackStore, TextureFilterKey } from '../../store/packStore';
 import { useIpc } from '../../hooks/useIpc';
@@ -37,6 +38,7 @@ const FILTER_OPTIONS: FilterOption[] = [
   { key: 'added', label: 'Added Only', category: 'status', icon: <Check size={12} /> },
   // Feature group
   { key: 'mers', label: 'MERS (PBR / RTX)', category: 'feature', icon: <Sparkles size={12} /> },
+  { key: 'atlas', label: 'Atlas (Item)', category: 'feature', icon: <Compass size={12} /> },
   { key: 'flipbook', label: 'Flipbook (Anim)', category: 'feature', icon: <Film size={12} /> },
   { key: 'variations', label: 'Texture Variations', category: 'feature', icon: <Shuffle size={12} /> },
   { key: 'blockstates', label: 'Blockstates', category: 'feature', icon: <Boxes size={12} /> },

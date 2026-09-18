@@ -454,9 +454,17 @@ export const WorkspaceTileCard: React.FC<WorkspaceTileCardProps> = React.memo(({
                 {!isLeafGhost && leaf.imageUrl ? (
                   <FlipbookThumbnail
                     src={leaf.imageUrl}
+                    atlasSrc={
+                      leaf.atlasFullPath
+                        ? packRoot && leaf.atlasFullPath.startsWith(packRoot)
+                          ? `https://pack.local/${leaf.atlasFullPath.slice(packRoot.length).replace(/^[/\\]+/, '').replace(/\\/g, '/')}`
+                          : leaf.imageUrl.replace(/[^/?#]+(\?.*)?$/, `${leaf.atlasFullPath.split(/[/\\]/).pop()}$1`)
+                        : null
+                    }
                     alt={leafName}
+                    aliasKey={leaf.alias}
                     className={styles.leafThumb}
-                    isFlipbook={leaf.isFlipbook}
+                    isFlipbook={leaf.isFlipbook || Boolean(leaf.hasAtlas)}
                     flipbook={leaf.flipbook}
                     loading="lazy"
                   />

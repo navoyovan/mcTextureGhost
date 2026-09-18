@@ -14,7 +14,7 @@ import {
   OpenWithAppDto,
 } from '../types/ipc';
 
-export type TextureFilterKey = 'ghosts' | 'orphans' | 'added' | 'mers' | 'flipbook' | 'variations' | 'blockstates' | 'variation';
+export type TextureFilterKey = 'ghosts' | 'orphans' | 'added' | 'mers' | 'atlas' | 'flipbook' | 'variations' | 'blockstates' | 'variation';
 
 export interface PackStoreState {
   // Domain Pack State
@@ -38,7 +38,7 @@ export interface PackStoreState {
   // UI & Filter State
   activeTab: 'all' | 'blocks' | 'items' | 'entities';
   searchQuery: string;
-  statusFilter: 'all' | 'ghosts' | 'added' | 'orphans' | 'mers' | 'flipbook' | 'variations' | 'blockstates' | 'variation';
+  statusFilter: 'all' | 'ghosts' | 'added' | 'orphans' | 'mers' | 'atlas' | 'flipbook' | 'variations' | 'blockstates' | 'variation';
   activeFilters: TextureFilterKey[];
   activeView: 'grid' | 'workspace' | 'entity';
   selectedBlockId: string | null;
@@ -73,7 +73,7 @@ export interface PackStoreActions {
   setIsScanning: (scanning: boolean) => void;
   setActiveTab: (tab: 'all' | 'blocks' | 'items' | 'entities') => void;
   setSearchQuery: (query: string) => void;
-  setStatusFilter: (filter: 'all' | 'ghosts' | 'added' | 'orphans' | 'mers' | 'flipbook' | 'variations' | 'blockstates' | 'variation') => void;
+  setStatusFilter: (filter: 'all' | 'ghosts' | 'added' | 'orphans' | 'mers' | 'atlas' | 'flipbook' | 'variations' | 'blockstates' | 'variation') => void;
   setActiveFilters: (filters: TextureFilterKey[]) => void;
   toggleFilter: (filter: TextureFilterKey) => void;
   clearFilters: () => void;
@@ -304,7 +304,7 @@ export const packStoreActions: PackStoreActions = {
     notify();
   },
 
-  setStatusFilter(filter: 'all' | 'ghosts' | 'added' | 'orphans' | 'mers' | 'flipbook' | 'variations' | 'blockstates' | 'variation'): void {
+  setStatusFilter(filter: 'all' | 'ghosts' | 'added' | 'orphans' | 'mers' | 'atlas' | 'flipbook' | 'variations' | 'blockstates' | 'variation'): void {
     const activeFilters: TextureFilterKey[] = filter === 'all' ? [] : [filter as TextureFilterKey];
     currentState = { ...currentState, statusFilter: filter, activeFilters };
     notify();

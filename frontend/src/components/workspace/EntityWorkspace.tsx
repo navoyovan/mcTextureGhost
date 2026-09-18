@@ -127,7 +127,7 @@ export const EntityWorkspace: React.FC = () => {
       if (effectiveFilters.length > 0) {
         const hasStatusFilter = effectiveFilters.some((f) => f === 'ghosts' || f === 'added' || f === 'orphans');
         const hasFeatureFilter = effectiveFilters.some(
-          (f) => f === 'mers' || f === 'flipbook' || f === 'variations' || f === 'blockstates' || f === 'variation'
+          (f) => f === 'mers' || f === 'atlas' || f === 'flipbook' || f === 'variations' || f === 'blockstates' || f === 'variation'
         );
 
         if (hasStatusFilter) {
@@ -140,6 +140,7 @@ export const EntityWorkspace: React.FC = () => {
 
         if (hasFeatureFilter) {
           const hasMers = allLeaves.some((l) => (l as any).hasMers || (l as any).mersFullPath);
+          const hasAtlas = allLeaves.some((l) => (l as any).hasAtlas || (l as any).atlasFullPath);
           const hasFlipbook = allLeaves.some((l) => l.isFlipbook || Boolean(l.flipbook));
           const hasTextureVariation = allLeaves.some(
             (l) =>
@@ -161,6 +162,7 @@ export const EntityWorkspace: React.FC = () => {
 
           const featureMatch =
             (effectiveFilters.includes('mers') && hasMers) ||
+            (effectiveFilters.includes('atlas') && hasAtlas) ||
             (effectiveFilters.includes('flipbook') && hasFlipbook) ||
             (effectiveFilters.includes('variations') && hasTextureVariation) ||
             (effectiveFilters.includes('blockstates') && hasBlockstate) ||

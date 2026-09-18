@@ -16,6 +16,7 @@ import {
   Plus,
   Star,
   X,
+  Compass,
 } from 'lucide-react';
 import { usePackStore } from '../../store/packStore';
 import { useIpc } from '../../hooks/useIpc';
@@ -30,6 +31,8 @@ export interface TextureContextItemData {
   category?: string;
   hasMers?: boolean;
   mersFullPath?: string | null;
+  hasAtlas?: boolean;
+  atlasFullPath?: string | null;
 }
 
 export interface ContextMenuAnchor {
@@ -51,6 +54,7 @@ interface TextureContextMenuProps {
   onDeleteTexture: () => void;
   onDeleteEntries: () => void;
   onEditMers?: () => void;
+  onEditAtlas?: () => void;
 }
 
 function computeMenuPosition(anchor?: ContextMenuAnchor | null): { top: number; left: number } {
@@ -94,6 +98,7 @@ export const TextureContextMenu: React.FC<TextureContextMenuProps> = ({
   onDeleteTexture,
   onDeleteEntries,
   onEditMers,
+  onEditAtlas,
 }) => {
   const openWithApps = usePackStore((s) => s.openWithApps);
   const { addCustomEditor, removeCustomEditor, setDefaultEditor } = useIpc();
@@ -385,6 +390,25 @@ export const TextureContextMenu: React.FC<TextureContextMenuProps> = ({
             >
               <Sparkles size={13} className={styles.menuIcon} />
               <span className={styles.menuLabel}>Edit MERS</span>
+            </button>
+          </>
+        )}
+
+        {/* 6b. Edit Atlas (if available) */}
+        {item.hasAtlas && item.atlasFullPath && (
+          <>
+            <div className={styles.menuDivider} />
+            <button
+              type="button"
+              className={styles.menuItem}
+              onClick={() => {
+                onClose();
+                if (onEditAtlas) onEditAtlas();
+              }}
+              title={`Edit item atlas texture: ${item.atlasFullPath}`}
+            >
+              <Compass size={13} className={styles.menuIcon} />
+              <span className={styles.menuLabel}>Edit Atlas</span>
             </button>
           </>
         )}

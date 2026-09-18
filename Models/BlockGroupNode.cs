@@ -100,6 +100,12 @@ public class CatalogLeaf : INotifyPropertyChanged
     public bool IsFlipbook => Flipbook != null;
     public string? FlipbookTooltip => TextureAlias?.FlipbookTooltip;
 
+    public string? MersFullPath { get; set; }
+    public bool HasMers => !string.IsNullOrEmpty(MersFullPath) || (TextureAlias?.HasMers ?? false);
+
+    public string? AtlasFullPath { get; set; }
+    public bool HasAtlas => !string.IsNullOrEmpty(AtlasFullPath) || (TextureAlias?.HasAtlas ?? false);
+
     public bool CanAdd => Status == CatalogEntryStatus.NotAdded;
 
     public bool ShowsImageThumbnail => Status == CatalogEntryStatus.Ok ||

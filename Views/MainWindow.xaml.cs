@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Text.Json;
 using System.Windows;
 using System.Windows.Interop;
 using McTextureGhost.Models;
@@ -889,6 +890,10 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
                         }
 
                         File.Copy(srcPath, payload.FullPath, overwrite: true);
+
+                        // If there is an associated atlas / flipbook texture companion in reference pack, extract it too
+                        ExtractCompanionAtlasIfExists(refDir, srcPath, payload.FullPath, payload.AliasKey, ViewModel.PackRootPath, ViewModel.VanillaData);
+
                         ImagePathConverter.ClearCache();
 
                         var matchedAlias = ViewModel.Aliases.FirstOrDefault(a => a.Alias.Equals(payload.AliasKey, StringComparison.OrdinalIgnoreCase));
@@ -1801,6 +1806,147 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         }
 
         return null;
+    }
+
+    private static void ExtractCompanionAtlasIfExists(string refDir, string srcPath, string targetFullPath, string? aliasKey, string packRootPath, VanillaData? vanilla)
+    {
+        try
+        {
+            var searchDirs = new List<string>();
+            if (!string.IsNullOrEmpty(refDir) && Directory.Exists(refDir))
+                searchDirs.Add(refDir);
+            var vanillaDir = CatalogReferenceService.VanillaReferencePackDirectory;
+            if (!string.IsNullOrEmpty(vanillaDir) && Directory.Exists(vanillaDir) && !searchDirs.Contains(vanillaDir, StringComparer.OrdinalIgnoreCase))
+                searchDirs.Add(vanillaDir);
+
+            // 1. Flipbook-based discovery & registration
+            if (!string.IsNullOrEmpty(aliasKey) && vanilla != null)
+            {
+                if (vanilla.RawFlipbookJson.TryGetValue(aliasKey, out var rawFbJson))
+                {
+                    // Ensure flipbook entry is recorded in pack's flipbook_textures.json
+                    JsonWriterService.AppendFlipbookIfNotExists(packRootPath, aliasKey, rawFbJson);
+
+                    try
+                    {
+                        using var doc = JsonDocument.Parse(rawFbJson);
+                        if (doc.RootElement.TryGetProperty("flipbook_texture", out var fbProp))
+                        {
+                            var fbTex = fbProp.GetString()?.Replace('\\', '/').TrimStart('/');
+                            if (!string.IsNullOrEmpty(fbTex))
+                            {
+                                foreach (var sDir in searchDirs)
+                                {
+                                    var fbSrcPng = Path.Combine(sDir, fbTex + ".png");
+                                    var fbSrcTga = Path.Combine(sDir, fbTex + ".tga");
+                                    var fbSrcExact = Path.Combine(sDir, fbTex);
+
+                                    string? chosenSrc = null;
+                                    string ext = ".png";
+                                    if (File.Exists(fbSrcPng)) { chosenSrc = fbSrcPng; ext = ".png"; }
+                                    else if (File.Exists(fbSrcTga)) { chosenSrc = fbSrcTga; ext = ".tga"; }
+                                    else if (File.Exists(fbSrcExact)) { chosenSrc = fbSrcExact; ext = Path.GetExtension(fbSrcExact); }
+
+                                    if (chosenSrc != null)
+                                    {
+                                        var targetAtlasPath = Path.Combine(packRootPath, fbTex + ext);
+                                        var targetDir = Path.GetDirectoryName(targetAtlasPath);
+                                        if (!string.IsNullOrEmpty(targetDir) && !Directory.Exists(targetDir))
+                                            Directory.CreateDirectory(targetDir);
+
+                                        File.Copy(chosenSrc, targetAtlasPath, overwrite: true);
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    catch { }
+                }
+            }
+
+            // 2. Naming-convention companion discovery (e.g. compass_atlas.png, watch_atlas.png, clock_atlas.png, etc.)
+            var fnWithoutExt = Path.GetFileNameWithoutExtension(srcPath);
+            var baseName = fnWithoutExt;
+            if (baseName.EndsWith("_item", StringComparison.OrdinalIgnoreCase))
+                baseName = baseName.Substring(0, baseName.Length - 5);
+
+            var atlasCandidates = new List<string>
+            {
+                $"{baseName}_atlas.png",
+                $"{baseName}_atlas.tga",
+                $"{fnWithoutExt}_atlas.png",
+                $"{fnWithoutExt}_atlas.tga"
+            };
+
+            if (baseName.Equals("clock", StringComparison.OrdinalIgnoreCase) || baseName.Equals("watch", StringComparison.OrdinalIgnoreCase))
+            {
+                atlasCandidates.Add("watch_atlas.png");
+                atlasCandidates.Add("watch_atlas.tga");
+                atlasCandidates.Add("clock_atlas.png");
+                atlasCandidates.Add("clock_atlas.tga");
+            }
+            else if (baseName.Equals("compass", StringComparison.OrdinalIgnoreCase))
+            {
+                atlasCandidates.Add("compass_atlas.png");
+                atlasCandidates.Add("compass_atlas.tga");
+            }
+            else if (baseName.Equals("recovery_compass", StringComparison.OrdinalIgnoreCase))
+            {
+                atlasCandidates.Add("recovery_compass_atlas.png");
+                atlasCandidates.Add("recovery_compass_atlas.tga");
+            }
+            else if (baseName.Equals("lodestonecompass", StringComparison.OrdinalIgnoreCase) || baseName.Equals("lodestone_compass", StringComparison.OrdinalIgnoreCase))
+            {
+                atlasCandidates.Add("lodestonecompass_atlas.png");
+                atlasCandidates.Add("lodestonecompass_atlas.tga");
+                atlasCandidates.Add("lodestone_compass_atlas.png");
+                atlasCandidates.Add("lodestone_compass_atlas.tga");
+            }
+
+            var srcDir = Path.GetDirectoryName(srcPath);
+            var destDir = Path.GetDirectoryName(targetFullPath);
+
+            foreach (var candName in atlasCandidates.Distinct(StringComparer.OrdinalIgnoreCase))
+            {
+                string? srcAtlasFound = null;
+
+                // Check in same source directory first
+                if (!string.IsNullOrEmpty(srcDir))
+                {
+                    var candPath = Path.Combine(srcDir, candName);
+                    if (File.Exists(candPath))
+                    {
+                        srcAtlasFound = candPath;
+                    }
+                }
+
+                // Check in searchDirs/textures/items
+                if (srcAtlasFound == null)
+                {
+                    foreach (var sDir in searchDirs)
+                    {
+                        var candPath = Path.Combine(sDir, "textures", "items", candName);
+                        if (File.Exists(candPath))
+                        {
+                            srcAtlasFound = candPath;
+                            break;
+                        }
+                    }
+                }
+
+                if (srcAtlasFound != null)
+                {
+                    if (!string.IsNullOrEmpty(destDir))
+                    {
+                        if (!Directory.Exists(destDir)) Directory.CreateDirectory(destDir);
+                        var destAtlasPath = Path.Combine(destDir, candName);
+                        File.Copy(srcAtlasFound, destAtlasPath, overwrite: true);
+                    }
+                }
+            }
+        }
+        catch { }
     }
 
     protected override void OnClosed(EventArgs e)

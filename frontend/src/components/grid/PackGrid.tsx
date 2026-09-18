@@ -323,9 +323,17 @@ const PackGridTile = React.memo<PackGridTileProps>(({
         {!isGhost && alias.imageUrl ? (
           <FlipbookThumbnail
             src={alias.imageUrl}
+            atlasSrc={
+              alias.atlasFullPath
+                ? packRoot && alias.atlasFullPath.startsWith(packRoot)
+                  ? `https://pack.local/${alias.atlasFullPath.slice(packRoot.length).replace(/^[/\\]+/, '').replace(/\\/g, '/')}`
+                  : alias.imageUrl.replace(/[^/?#]+(\?.*)?$/, `${alias.atlasFullPath.split(/[/\\]/).pop()}$1`)
+                : null
+            }
             alt={alias.alias}
+            aliasKey={alias.alias}
             className={styles.tileThumbnail}
-            isFlipbook={alias.isFlipbook}
+            isFlipbook={alias.isFlipbook || Boolean(alias.hasAtlas)}
             flipbook={alias.flipbook}
             loading="lazy"
           />
@@ -344,6 +352,11 @@ const PackGridTile = React.memo<PackGridTileProps>(({
           {alias.hasMers && (
             <span className={styles.mersBadge} title={`PBR MERS layer exists: ${alias.mersFullPath}`}>
               MERS
+            </span>
+          )}
+          {alias.hasAtlas && (
+            <span className={styles.atlasBadge} title={`Item Atlas companion exists: ${alias.atlasFullPath || 'Linked Atlas'}`}>
+              ATLAS
             </span>
           )}
           {alias.isFlipbook && (
@@ -413,7 +426,7 @@ export const PackGrid: React.FC = () => {
       if (effectiveFilters.length > 0) {
         const hasStatusFilter = effectiveFilters.some((f) => f === 'ghosts' || f === 'added' || f === 'orphans');
         const hasFeatureFilter = effectiveFilters.some(
-          (f) => f === 'mers' || f === 'flipbook' || f === 'variations' || f === 'blockstates' || f === 'variation'
+          (f) => f === 'mers' || f === 'atlas' || f === 'flipbook' || f === 'variations' || f === 'blockstates' || f === 'variation'
         );
 
         if (hasStatusFilter) {
@@ -426,6 +439,7 @@ export const PackGrid: React.FC = () => {
 
         if (hasFeatureFilter) {
           const isMers = Boolean(alias.hasMers || alias.mersFullPath);
+          const isAtlas = Boolean(alias.hasAtlas || alias.atlasFullPath);
           const isFlipbook = Boolean(alias.isFlipbook || alias.flipbook);
           const isTextureVariation = Boolean(
             (alias.totalTextureVariants && alias.totalTextureVariants > 1) ||
@@ -443,6 +457,7 @@ export const PackGrid: React.FC = () => {
 
           const featureMatch =
             (effectiveFilters.includes('mers') && isMers) ||
+            (effectiveFilters.includes('atlas') && isAtlas) ||
             (effectiveFilters.includes('flipbook') && isFlipbook) ||
             (effectiveFilters.includes('variations') && isTextureVariation) ||
             (effectiveFilters.includes('blockstates') && isBlockstate) ||
@@ -565,6 +580,12 @@ export const PackGrid: React.FC = () => {
             setHoverMorphTarget(null);
             if (contextMenuTarget.alias.mersFullPath) {
               editTexture(contextMenuTarget.alias.alias + '_mers', contextMenuTarget.alias.mersFullPath, false);
+            }
+          }}
+          onEditAtlas={() => {
+            setHoverMorphTarget(null);
+            if (contextMenuTarget.alias.atlasFullPath) {
+              editTexture(contextMenuTarget.alias.alias + '_atlas', contextMenuTarget.alias.atlasFullPath, false);
             }
           }}
         />

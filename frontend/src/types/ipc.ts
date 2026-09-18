@@ -276,6 +276,8 @@ export interface TextureAliasDto {
   subtitleCaption: string;
   hasMers?: boolean;
   mersFullPath?: string | null;
+  hasAtlas?: boolean;
+  atlasFullPath?: string | null;
   key?: string | null;
 }
 
@@ -301,6 +303,10 @@ export interface CatalogLeafDto {
   textureVariantIndex?: number | null;
   totalTextureVariants?: number | null;
   weight?: number | null;
+  hasMers?: boolean;
+  mersFullPath?: string | null;
+  hasAtlas?: boolean;
+  atlasFullPath?: string | null;
 }
 
 export interface FaceNodeDto {
