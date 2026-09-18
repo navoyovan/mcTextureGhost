@@ -332,6 +332,28 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         settings.IsStatusBarEnabled = false;
         settings.IsZoomControlEnabled = false;
         WebView.CoreWebView2.Profile.PreferredColorScheme = CoreWebView2PreferredColorScheme.Dark;
+
+        // Open external web links in the user's default browser instead of navigating the WebView
+        WebView.CoreWebView2.NewWindowRequested += (sender, e) =>
+        {
+            e.Handled = true;
+            if (Uri.TryCreate(e.Uri, UriKind.Absolute, out var targetUri) &&
+                (targetUri.Scheme == Uri.UriSchemeHttp || targetUri.Scheme == Uri.UriSchemeHttps))
+            {
+                try
+                {
+                    Process.Start(new ProcessStartInfo
+                    {
+                        FileName = e.Uri,
+                        UseShellExecute = true
+                    });
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"[WebView2] Failed to open external URL '{e.Uri}': {ex.Message}");
+                }
+            }
+        };
     }
 
     private void RegisterVirtualHosts()
@@ -926,6 +948,15 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
                         else if (Directory.Exists(target))
                         {
                             Process.Start(new ProcessStartInfo { FileName = target, UseShellExecute = true });
+                        }
+                        else if (Uri.TryCreate(target, UriKind.Absolute, out var webUri) &&
+                                 (webUri.Scheme == Uri.UriSchemeHttp || webUri.Scheme == Uri.UriSchemeHttps))
+                        {
+                            Process.Start(new ProcessStartInfo
+                            {
+                                FileName = target,
+                                UseShellExecute = true
+                            });
                         }
                         else
                         {
