@@ -10,6 +10,7 @@ import {
   WindowActionPayload,
   TintSetPayload,
   ManifestModelDto,
+  PackExportMcpackPayload,
 } from '../types/ipc';
 
 type IpcHandler<T = any> = (payload: T, envelope: IpcEnvelope<T>) => void;
@@ -281,6 +282,10 @@ export function useIpc() {
     return postCommand(IpcMessageTypes.CatalogPurgeExtractedData, {});
   }, []);
 
+  const exportMcpack = useCallback((destinationPath?: string | null) => {
+    return postCommand<PackExportMcpackPayload>(IpcMessageTypes.PackExportMcpack, { destinationPath });
+  }, []);
+
   return {
     isAvailable,
     postCommand,
@@ -289,6 +294,7 @@ export function useIpc() {
     openPackFolder,
     reloadPack,
     createPack,
+    exportMcpack,
     editTexture,
     dropImportTexture,
     copyTextureFile,

@@ -81,6 +81,7 @@ public static class IpcMessageTypes
     public const string CatalogGetDetailedStatus = "CATALOG:GET_DETAILED_STATUS";
     public const string CatalogPurgeTempArchive  = "CATALOG:PURGE_TEMP_ARCHIVE";
     public const string CatalogPurgeExtractedData = "CATALOG:PURGE_EXTRACTED_DATA";
+    public const string PackExportMcpack         = "PACK:EXPORT_MCPACK";
 
     // Outgoing from C# to Web
     public const string PackStateChanged = "PACK:STATE_CHANGED";
@@ -94,6 +95,7 @@ public static class IpcMessageTypes
     public const string DownloadProgress = "DOWNLOAD:PROGRESS";
     public const string OpenWithAppsList = "OPEN_WITH:APPS_LIST";
     public const string CatalogDetailedStatus = "CATALOG:DETAILED_STATUS";
+    public const string PackExportMcpackResult = "PACK:EXPORT_MCPACK_RESULT";
 }
 
 #endregion
@@ -335,9 +337,22 @@ public record GeometryGetPayload(
     [property: JsonPropertyName("entityId")] string? EntityId = null
 );
 
+/// <summary>
+/// Payload for "PACK:EXPORT_MCPACK". Optional destination path; if null opens SaveFileDialog.
+/// </summary>
+public record PackExportMcpackPayload(
+    [property: JsonPropertyName("destinationPath")] string? DestinationPath = null
+);
+
 #endregion
 
 #region Outgoing Event Payloads (C# -> Web)
+
+public record PackExportMcpackResultPayload(
+    [property: JsonPropertyName("success")] bool Success,
+    [property: JsonPropertyName("message")] string Message,
+    [property: JsonPropertyName("outputPath")] string? OutputPath = null
+);
 
 public record GeometryDataPayload(
     [property: JsonPropertyName("geometryId")] string GeometryId,

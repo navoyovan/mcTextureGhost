@@ -58,6 +58,7 @@ Sidebar tree of your pack's directory structure with live texture and ghost coun
 - [X] Vanilla Bedrock reference catalog with offline cache
 - [X] JSON scaffolding (blocks, aliases, items, flipbooks)
 - [X] Pack creation wizard and manifest editor
+- [X] Export resource pack to `.mcpack` archive
 - [X] Block Workspace
 - [X] Entity Workspace
 - [X] Context menu: block state formatting and deletion
@@ -67,6 +68,7 @@ Sidebar tree of your pack's directory structure with live texture and ghost coun
 - [ ] UI and particle texture support
 - [X] `.tga` format decoding and preview
 - [X] Per-texture vanilla reference preview alongside stubs
+- [ ] Customize texture entries and variation paths (e.g. detach shared textures like `acacia_fence` using `acacia_planks` into dedicated `acacia_fence` definitions with auto variation entry indexing)
 - [ ] Target Bedrock engine version selector
 - [X] Compile  (`_mers`)
 - [ ] Compile (`_atlas`) against (`_item`)

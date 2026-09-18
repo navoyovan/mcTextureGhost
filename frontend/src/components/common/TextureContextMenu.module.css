@@ -160,13 +160,14 @@
 }
 
 /* ─── Submenu Flyout ─── */
-.hasSubmenu {
+.hasSubmenu,
+.submenuWrapper {
   position: relative;
 }
 
 .submenu {
   position: absolute;
-  top: -4px;
+  top: -2px;
   left: calc(100% + 2px);
   min-width: 175px;
   max-height: 320px;

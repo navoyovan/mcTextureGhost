@@ -6,6 +6,7 @@ import {
   PlusSquare,
   FileText,
   ExternalLink,
+  Package,
   XCircle,
   ChevronDown,
   Square,
@@ -44,7 +45,7 @@ export const MenuBar: React.FC = () => {
   const [isAboutOpen, setIsAboutOpen] = useState(false);
   const barRef = useRef<HTMLDivElement>(null);
 
-  const { openPackFolder, reloadPack, createPack, openInExplorer, closePack } = useIpc();
+  const { openPackFolder, reloadPack, createPack, exportMcpack, openInExplorer, closePack } = useIpc();
   const packRoot = usePackStore((s) => s.packRoot);
   const resetPackState = usePackStore((s) => s.resetPackState);
   const setSelectedFolderPath = usePackStore((s) => s.setSelectedFolderPath);
@@ -131,6 +132,12 @@ export const MenuBar: React.FC = () => {
           label: 'Edit Manifest\u2026',
           icon: <FileText size={13} />,
           action: () => setSelectedFolderPath('manifest.json'),
+          disabled: !isPackLoaded,
+        },
+        {
+          label: 'Export as .mcpack\u2026',
+          icon: <Package size={13} />,
+          action: () => exportMcpack(),
           disabled: !isPackLoaded,
         },
         {

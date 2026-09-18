@@ -346,6 +346,8 @@ public static class PackScanner
                             relFromPack.StartsWith("entity/", StringComparison.OrdinalIgnoreCase);
             bool isItem = !isEntity && (relFromPack.StartsWith("textures/items/", StringComparison.OrdinalIgnoreCase) ||
                           relFromPack.StartsWith("items/", StringComparison.OrdinalIgnoreCase));
+            bool isBlock = !isEntity && !isItem && (relFromPack.StartsWith("textures/blocks/", StringComparison.OrdinalIgnoreCase) ||
+                          relFromPack.StartsWith("blocks/", StringComparison.OrdinalIgnoreCase));
 
             if (isEntity)
             {
@@ -479,7 +481,8 @@ public static class PackScanner
                 List<BlockFaceUsage>? vanillaBlockFaces = null;
                 PackScanner.TextureSlotEntry? matchedVanillaEntry = null;
 
-                if (vanilla != null && vanilla.DeclaredBlockPaths.Contains(relNoExt))
+                // Only match against vanilla declared block paths if the file is actually located in blocks directory or declared in vanilla
+                if (isBlock && vanilla != null && vanilla.DeclaredBlockPaths.Contains(relNoExt))
                 {
                     foreach (var (vAlias, vData) in vanilla.TerrainTextures)
                     {
@@ -527,7 +530,7 @@ public static class PackScanner
                 {
                     results.Add(new TextureAlias
                     {
-                        Category = TextureCategory.Block,
+                        Category = isBlock ? TextureCategory.Block : TextureCategory.Item,
                         Alias = fileNameWithoutExt,
                         DisplayName = fileNameWithoutExt,
                         RelativePath = relNoExt,
@@ -1843,7 +1846,7 @@ public static class PackScanner
     {
         // ── Index user aliases ─────────────────────────────────────────────────
         var userBlockAliases = userAliases
-            .Where(a => a.Category == TextureCategory.Block && a.Status != TextureStatus.NoEntry)
+            .Where(a => a.Category == TextureCategory.Block && a.Status != TextureStatus.NoEntry && a.Status != TextureStatus.Orphan)
             .GroupBy(a => a.Alias, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(g => g.Key, g => g.ToList(), StringComparer.OrdinalIgnoreCase);
 
@@ -2277,7 +2280,7 @@ public static class PackScanner
         var result = new List<BlockGroupNode>();
 
         var entityAliases = userAliases
-            .Where(a => a.Category == TextureCategory.Entity && a.Status != TextureStatus.NoEntry)
+            .Where(a => a.Category == TextureCategory.Entity && a.Status != TextureStatus.NoEntry && a.Status != TextureStatus.Orphan)
             .ToList();
 
         if (entityAliases.Count == 0)

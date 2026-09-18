@@ -190,13 +190,6 @@ export const DirectoryTreeNode: React.FC<DirectoryTreeNodeProps> = ({
           fullPath={resolvedFullPath}
           anchor={contextMenuPos}
           onClose={() => setContextMenuPos(null)}
-          onOpenInternal={
-            isManifest && onOpenManifest
-              ? onOpenManifest
-              : /\.(json|material)$/i.test(node.name || '')
-              ? () => onSelect(nodePath)
-              : undefined
-          }
         />
       )}
 

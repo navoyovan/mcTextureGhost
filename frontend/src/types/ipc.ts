@@ -46,6 +46,7 @@ export const IpcMessageTypes = {
   CatalogGetDetailedStatus: 'CATALOG:GET_DETAILED_STATUS',
   CatalogPurgeTempArchive: 'CATALOG:PURGE_TEMP_ARCHIVE',
   CatalogPurgeExtractedData: 'CATALOG:PURGE_EXTRACTED_DATA',
+  PackExportMcpack: 'PACK:EXPORT_MCPACK',
 
   // Outgoing from C# to Web
   PackStateChanged: 'PACK:STATE_CHANGED',
@@ -59,6 +60,7 @@ export const IpcMessageTypes = {
   DownloadProgress: 'DOWNLOAD:PROGRESS',
   OpenWithAppsList: 'OPEN_WITH:APPS_LIST',
   CatalogDetailedStatus: 'CATALOG:DETAILED_STATUS',
+  PackExportMcpackResult: 'PACK:EXPORT_MCPACK_RESULT',
 } as const;
 
 export type IpcMessageType = (typeof IpcMessageTypes)[keyof typeof IpcMessageTypes];
@@ -75,6 +77,16 @@ export interface PackReloadPayload {
 export interface PackCreatePayload {
   packName: string;
   targetDirectory?: string | null;
+}
+
+export interface PackExportMcpackPayload {
+  destinationPath?: string | null;
+}
+
+export interface PackExportMcpackResultPayload {
+  success: boolean;
+  message: string;
+  outputPath?: string | null;
 }
 
 export interface OpenWithAppDto {
@@ -460,3 +472,16 @@ export interface ReferencePackDetailedStatusPayload {
   versionTag: string;
   lastModifiedUtc: string | null;
 }
+
+export interface PackExportMcpackPayload {
+  destinationPath?: string | null;
+}
+
+export interface PackExportMcpackResultPayload {
+  success: boolean;
+  outputPath?: string | null;
+  totalFiles: number;
+  totalSizeBytes: number;
+  error?: string | null;
+}
+

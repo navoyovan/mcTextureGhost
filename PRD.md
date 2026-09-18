@@ -42,6 +42,14 @@ McTextureGhost (`mc-ghost-resource-manager`) is a desktop companion tool for Min
 - Real-time **Three.js 3D Bedrock Viewer** parsing `.geo.json` bone hierarchies (format 1.8.0 & 1.12.0+) with box UV mapping, orbit controls, wireframe mode, and auto-rotation.
 - Pre-seeded local cache of vanilla entity schemas, models, and master JSONs from local resource pack seeds to bypass GitHub API rate limits.
 
+### F7. Pack Exporting (.mcpack)
+- One-click native packaging of resource pack directory into a distributable `.mcpack` zip archive.
+- Automatic filtering of developer artifacts, version control directories (`.git`), editor configs, and OS metadata files.
+
+### F8. Custom Texture Aliasing & Shared Binding Detachment (Roadmap)
+- Detach shared texture bindings in `blocks.json` / `terrain_texture.json` into dedicated standalone texture definitions (e.g., separating `acacia_fence` from default `acacia_planks` binding).
+- Automated texture variation indexing and block state registration (`textures: []` vs `variations: []`).
+
 ## 4. UI/UX Invariants & Standards
 - Windows 11 Fluent dark mode theme with Mica/Acrylic material.
 - Authentic typography: `Press Start 2P` (badges/retro stats), `Syne` (branding/headers), `Consolas` (paths/UUIDs/code).

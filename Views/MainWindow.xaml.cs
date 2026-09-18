@@ -1385,6 +1385,57 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
                 ), corrId);
             });
         });
+
+        // 21. PACK:EXPORT_MCPACK
+        _ipcBridge.RegisterHandler<PackExportMcpackPayload>(IpcMessageTypes.PackExportMcpack, async (payload, corrId) =>
+        {
+            await Dispatcher.InvokeAsync(async () =>
+            {
+                var packRoot = ViewModel.PackRootPath;
+                if (string.IsNullOrWhiteSpace(packRoot) || !Directory.Exists(packRoot))
+                {
+                    _ipcBridge.PushError("Export Failed", "No active resource pack loaded.", "warning");
+                    _ipcBridge.PostMessage(IpcMessageTypes.PackExportMcpackResult, new PackExportMcpackResultPayload(false, "No active pack loaded."), corrId);
+                    return;
+                }
+
+                string? destinationPath = payload?.DestinationPath;
+                if (string.IsNullOrWhiteSpace(destinationPath))
+                {
+                    var defaultName = ViewModel.PackName ?? Path.GetFileName(packRoot.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)) ?? "ResourcePack";
+                    foreach (var c in Path.GetInvalidFileNameChars()) defaultName = defaultName.Replace(c, '_');
+
+                    var dlg = new Microsoft.Win32.SaveFileDialog
+                    {
+                        Title = "Export Resource Pack as .mcpack",
+                        Filter = "Minecraft Bedrock Resource Pack (*.mcpack)|*.mcpack|Zip Archive (*.zip)|*.zip|All Files (*.*)|*.*",
+                        DefaultExt = ".mcpack",
+                        FileName = $"{defaultName}.mcpack"
+                    };
+
+                    if (dlg.ShowDialog(this) == true)
+                    {
+                        destinationPath = dlg.FileName;
+                    }
+                    else
+                    {
+                        return;
+                    }
+                }
+
+                var (success, message, outputPath) = await Task.Run(() => PackExportService.ExportAsMcpack(packRoot, destinationPath));
+                if (success && outputPath != null)
+                {
+                    _ipcBridge.PushError("Pack Exported", $"Saved as {Path.GetFileName(outputPath)}", "info");
+                }
+                else
+                {
+                    _ipcBridge.PushError("Export Failed", message, "error");
+                }
+
+                _ipcBridge.PostMessage(IpcMessageTypes.PackExportMcpackResult, new PackExportMcpackResultPayload(success, message, outputPath), corrId);
+            });
+        });
     }
 
 

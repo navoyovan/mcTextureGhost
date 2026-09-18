@@ -11,7 +11,7 @@ import {
   Star,
   X,
   AppWindow,
-  FileCode,
+  Edit3,
 } from 'lucide-react';
 import { usePackStore } from '../../store/packStore';
 import { useIpc } from '../../hooks/useIpc';
@@ -24,7 +24,6 @@ export interface JsonFileContextMenuProps {
   fullPath: string;
   anchor: { x: number; y: number } | { top: number; left: number; bottom?: number; right?: number };
   onClose: () => void;
-  onOpenInternal?: () => void;
 }
 
 function computeMenuPosition(
@@ -57,12 +56,13 @@ export const JsonFileContextMenu: React.FC<JsonFileContextMenuProps> = ({
   fullPath,
   anchor,
   onClose,
-  onOpenInternal,
 }) => {
   const jsonOpenWithApps = usePackStore((s) => s.jsonOpenWithApps);
   const { addCustomEditor, removeCustomEditor, setDefaultEditor, postCommand } = useIpc();
   const [isSubmenuOpen, setIsSubmenuOpen] = useState(false);
   const [copiedKey, setCopiedKey] = useState<'full' | 'rel' | null>(null);
+
+  const defaultApp = jsonOpenWithApps?.find((a) => a.isDefault);
 
   const initialPos = useRef<{ top: number; left: number } | null>(null);
   if (!initialPos.current) {
@@ -158,19 +158,30 @@ export const JsonFileContextMenu: React.FC<JsonFileContextMenuProps> = ({
 
         <div className={styles.menuDivider} />
 
-        {onOpenInternal && (
-          <button
-            type="button"
-            className={styles.menuItem}
-            onClick={() => {
-              onClose();
-              onOpenInternal();
-            }}
-          >
-            <FileCode size={13} className={styles.menuIcon} />
-            <span className={styles.menuLabel}>Open in App Viewer</span>
-          </button>
-        )}
+        <button
+          type="button"
+          className={styles.menuItem}
+          onClick={() => {
+            onClose();
+            if (defaultApp) {
+              handleLaunchApp(defaultApp);
+            } else {
+              handleWindowsOpenWith();
+            }
+          }}
+          title={defaultApp ? `Edit with ${defaultApp.name} (${defaultApp.exePath})` : 'Open with external code editor'}
+        >
+          {defaultApp?.iconDataUrl ? (
+            <img src={defaultApp.iconDataUrl} alt={defaultApp.name} className={styles.appIconImg} />
+          ) : defaultApp ? (
+            <AppWindow size={13} className={styles.menuIcon} />
+          ) : (
+            <Edit3 size={13} className={styles.menuIcon} />
+          )}
+          <span className={styles.menuLabel}>
+            {defaultApp ? `Edit with ${defaultApp.name}` : 'Open with editor'}
+          </span>
+        </button>
 
         <div
           className={styles.submenuWrapper}
