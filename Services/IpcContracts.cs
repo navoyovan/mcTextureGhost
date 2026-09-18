@@ -70,6 +70,7 @@ public static class IpcMessageTypes
     public const string TextureDeleteFile = "TEXTURE:DELETE_FILE";
     public const string TextureDeleteEntries = "TEXTURE:DELETE_ENTRIES";
     public const string TextureDropImport = "TEXTURE:DROP_IMPORT";
+    public const string TextureCopyFile  = "TEXTURE:COPY_FILE";
     public const string GeometryGet      = "GEOMETRY:GET";
     public const string VanillaDownload3DAssets = "VANILLA:DOWNLOAD_3D_ASSETS";
     public const string VanillaGet3DStatus      = "VANILLA:GET_3D_STATUS";
@@ -149,6 +150,16 @@ public record TextureDropImportPayload(
     [property: JsonPropertyName("relativePath")] string? RelativePath = null,
     [property: JsonPropertyName("category")] string? Category = null,
     [property: JsonPropertyName("fileName")] string? FileName = null
+);
+
+/// <summary>
+/// Payload for "TEXTURE:COPY_FILE". Copies an existing texture file to a target alias path natively.
+/// </summary>
+public record TextureCopyFilePayload(
+    [property: JsonPropertyName("sourceFullPath")] string SourceFullPath,
+    [property: JsonPropertyName("targetFullPath")] string TargetFullPath,
+    [property: JsonPropertyName("targetAliasKey")] string TargetAliasKey,
+    [property: JsonPropertyName("targetRelativePath")] string? TargetRelativePath = null
 );
 
 /// <summary>
@@ -363,7 +374,8 @@ public record PackStatePayload(
     [property: JsonPropertyName("catalogTree")] List<BlockGroupNodeDto>? CatalogTree = null,
     [property: JsonPropertyName("referencePacks")] List<ReferencePackProfileDto>? ReferencePacks = null,
     [property: JsonPropertyName("activeReferenceId")] string? ActiveReferenceId = null,
-    [property: JsonPropertyName("entityWorkspaceTree")] List<BlockGroupNodeDto>? EntityWorkspaceTree = null
+    [property: JsonPropertyName("entityWorkspaceTree")] List<BlockGroupNodeDto>? EntityWorkspaceTree = null,
+    [property: JsonPropertyName("hasVanillaAssets")] bool HasVanillaAssets = false
 );
 
 /// <summary>

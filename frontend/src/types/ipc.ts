@@ -35,6 +35,7 @@ export const IpcMessageTypes = {
   TextureDeleteFile: 'TEXTURE:DELETE_FILE',
   TextureDeleteEntries: 'TEXTURE:DELETE_ENTRIES',
   TextureDropImport: 'TEXTURE:DROP_IMPORT',
+  TextureCopyFile: 'TEXTURE:COPY_FILE',
   GeometryGet: 'GEOMETRY:GET',
   VanillaDownload3DAssets: 'VANILLA:DOWNLOAD_3D_ASSETS',
   VanillaGet3DStatus: 'VANILLA:GET_3D_STATUS',
@@ -169,6 +170,24 @@ export interface TextureExtractReferencePayload {
   fullPath: string;
   relativePath?: string;
   category?: string;
+}
+
+export interface TextureCopyFilePayload {
+  sourceFullPath: string;
+  targetFullPath: string;
+  targetAliasKey: string;
+  targetRelativePath?: string | null;
+}
+
+export interface TileDragData {
+  aliasKey: string;
+  fullPath?: string | null;
+  relativePath?: string | null;
+  imageUrl?: string | null;
+  displayName?: string | null;
+  category?: string | null;
+  isGhost?: boolean;
+  sourceType?: 'grid' | 'workspace' | 'catalog';
 }
 
 export interface GeometryGetPayload {
@@ -377,6 +396,7 @@ export interface PackStatePayload {
   referencePacks?: ReferencePackProfile[] | null;
   activeReferenceId?: string | null;
   entityWorkspaceTree?: BlockGroupNodeDto[] | null;
+  hasVanillaAssets?: boolean;
 }
 
 export interface ScanProgressPayload {

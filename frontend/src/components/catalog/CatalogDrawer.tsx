@@ -26,6 +26,7 @@ import {
   BlockGroupNodeDto,
   AliasGroupNodeDto,
   CatalogLeafDto,
+  TileDragData,
 } from '../../types/ipc';
 import { FlipbookThumbnail } from '../common/FlipbookThumbnail';
 import { SearchInput } from '../common/SearchInput';
@@ -133,11 +134,35 @@ const CatalogLeafRow: React.FC<{
     leaf.subtitleCaption ? `info: ${leaf.subtitleCaption}` : '',
   ].filter(Boolean).join('\n');
 
+  const handleDragStart = (e: React.DragEvent) => {
+    if (!leaf.imageUrl && !leaf.fullPath) return;
+    const dragData: TileDragData = {
+      aliasKey: leaf.alias,
+      fullPath: leaf.fullPath,
+      relativePath: leaf.relativePath,
+      imageUrl: leaf.imageUrl,
+      displayName: blockDisplayName || leaf.displayName || leaf.alias,
+      category: (leaf.category as string) || 'block',
+      isGhost: false,
+      sourceType: 'catalog',
+    };
+    e.dataTransfer.setData('application/x-mctg-tile', JSON.stringify(dragData));
+    if (leaf.fullPath) {
+      e.dataTransfer.setData('text/plain', leaf.fullPath);
+    }
+    e.dataTransfer.effectAllowed = 'copy';
+  };
+
+  const isDraggable = Boolean(leaf.imageUrl || leaf.fullPath);
+
   return (
     <div
       className={styles.leafRow}
       data-testid={`leaf-row-${leaf.alias}`}
       title={tooltipText}
+      draggable={isDraggable}
+      onDragStart={handleDragStart}
+      style={{ cursor: isDraggable ? 'grab' : undefined }}
     >
       <div className={styles.leafLeft}>
         <LeafThumbnail leaf={leaf} />

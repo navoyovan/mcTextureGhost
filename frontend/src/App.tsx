@@ -92,16 +92,10 @@ export const App: React.FC = () => {
   useEffect(() => {
     applyTintTokens(DEFAULT_TINT);
 
-    // Notify host that frontend is mounted and ready to receive state
-    postCommand('APP:READY', {});
-    postCommand(IpcMessageTypes.OpenWithGetApps, {});
-    postCommand(IpcMessageTypes.VanillaGet3DStatus, {});
-
     // 1. PACK:STATE_CHANGED
     const unsubPackState = subscribe(IpcMessageTypes.PackStateChanged, (payload) => {
       setPackState(payload);
     });
-
 
     // 2. SCAN:PROGRESS
     const unsubScanProgress = subscribe(IpcMessageTypes.ScanProgress, (payload) => {
@@ -143,12 +137,25 @@ export const App: React.FC = () => {
       }
     });
 
-    // 8. DOWNLOAD:PROGRESS
+    // 8. CATALOG:DETAILED_STATUS
+    const unsubCatalogDetailed = subscribe(IpcMessageTypes.CatalogDetailedStatus, (payload: any) => {
+      if (payload?.hasExtractedModels !== undefined) {
+        usePackStore.getState().setHasVanillaAssets(Boolean(payload.hasExtractedModels));
+      }
+    });
+
+    // 9. DOWNLOAD:PROGRESS
     const unsubDownloadProgress = subscribe(IpcMessageTypes.DownloadProgress, (payload: any) => {
       if (payload?.progress !== undefined && payload.progress >= 1) {
         usePackStore.getState().setHasVanillaAssets(true);
       }
     });
+
+    // Notify host that frontend is mounted and ready to receive state
+    postCommand('APP:READY', {});
+    postCommand(IpcMessageTypes.OpenWithGetApps, {});
+    postCommand(IpcMessageTypes.VanillaGet3DStatus, {});
+    postCommand(IpcMessageTypes.CatalogGetDetailedStatus, {});
 
     return () => {
       unsubPackState();
@@ -158,9 +165,10 @@ export const App: React.FC = () => {
       unsubError();
       unsubOpenWith();
       unsubVanillaStatus();
+      unsubCatalogDetailed();
       unsubDownloadProgress();
     };
-  }, [subscribe, setPackState, updateTexture, setScanProgress, setAppConfig]);
+  }, [subscribe, postCommand, setPackState, updateTexture, setScanProgress, setAppConfig]);
 
   return (
     <div className={styles.appContainer} data-testid="app-shell">

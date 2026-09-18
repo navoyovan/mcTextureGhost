@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useRef, useEffect, useCallback } from 'react';
-import { CatalogLeafDto, OpenWithAppDto, TextureAliasDto } from '../../types/ipc';
+import { CatalogLeafDto, OpenWithAppDto, TextureAliasDto, TileDragData } from '../../types/ipc';
 import { usePackStore } from '../../store/packStore';
 import { useIpc } from '../../hooks/useIpc';
 import { FlipbookThumbnail } from '../common/FlipbookThumbnail';
@@ -98,12 +98,16 @@ export const WorkspaceTileCard: React.FC<WorkspaceTileCardProps> = React.memo(({
 }) => {
   const { alias, leaves } = grp;
   const primary = leaves[0];
-  const { editTexture, openInExplorer, dropImportTexture } = useIpc();
+  const { editTexture, openInExplorer, dropImportTexture, copyTextureFile } = useIpc();
   const packRoot = usePackStore((s) => s.packRoot);
 
   // Drag and drop state
   const [dragSlotIndex, setDragSlotIndex] = useState<number | null>(null);
-  const [pendingDrop, setPendingDrop] = useState<{ leaf: CatalogLeafDto; file: File; objectUrl: string } | null>(null);
+  const [pendingDrop, setPendingDrop] = useState<
+    | { leaf: CatalogLeafDto; type: 'file'; file: File; objectUrl: string }
+    | { leaf: CatalogLeafDto; type: 'tile'; source: TileDragData }
+    | null
+  >(null);
   const dragCounterMap = useRef<Map<number, number>>(new Map());
 
   const processImport = useCallback(
@@ -135,12 +139,69 @@ export const WorkspaceTileCard: React.FC<WorkspaceTileCardProps> = React.memo(({
     [packRoot, dropImportTexture]
   );
 
+  const executeTileCopy = useCallback(
+    (leaf: CatalogLeafDto, sourceData: TileDragData, targetFullPath: string) => {
+      if (sourceData.fullPath) {
+        copyTextureFile({
+          sourceFullPath: sourceData.fullPath,
+          targetFullPath,
+          targetAliasKey: leaf.alias,
+          targetRelativePath: leaf.relativePath,
+        });
+      } else if (sourceData.imageUrl) {
+        fetch(sourceData.imageUrl)
+          .then((res) => res.blob())
+          .then((blob) => {
+            const reader = new FileReader();
+            reader.onload = () => {
+              const base64Data = reader.result as string;
+              if (base64Data) {
+                dropImportTexture({
+                  aliasKey: leaf.alias,
+                  fullPath: targetFullPath,
+                  base64Data,
+                  relativePath: leaf.relativePath,
+                  category: (leaf.category as string) || 'block',
+                  fileName: `${sourceData.aliasKey}.png`,
+                });
+              }
+            };
+            reader.readAsDataURL(blob);
+          })
+          .catch((err) => console.error('[WorkspaceTileCard] Failed to fetch source texture blob:', err));
+      }
+    },
+    [copyTextureFile, dropImportTexture]
+  );
+
+  const handleSlotDragStart = (e: React.DragEvent, leaf: CatalogLeafDto) => {
+    if (leaf.status === 'GHOST') {
+      e.preventDefault();
+      return;
+    }
+    const dragData: TileDragData = {
+      aliasKey: leaf.alias,
+      fullPath: leaf.fullPath,
+      relativePath: leaf.relativePath,
+      imageUrl: leaf.imageUrl,
+      displayName: getLeafTitle(leaf, alias),
+      category: (leaf.category as string) || 'block',
+      isGhost: false,
+      sourceType: 'workspace',
+    };
+    e.dataTransfer.setData('application/x-mctg-tile', JSON.stringify(dragData));
+    if (leaf.fullPath) {
+      e.dataTransfer.setData('text/plain', leaf.fullPath);
+    }
+    e.dataTransfer.effectAllowed = 'copy';
+  };
+
   const handleSlotDragEnter = (e: React.DragEvent, slotIndex: number) => {
     e.preventDefault();
     e.stopPropagation();
     const count = (dragCounterMap.current.get(slotIndex) || 0) + 1;
     dragCounterMap.current.set(slotIndex, count);
-    if (e.dataTransfer?.items?.length) {
+    if (e.dataTransfer?.items?.length || e.dataTransfer?.types?.length) {
       setDragSlotIndex(slotIndex);
     }
   };
@@ -168,6 +229,35 @@ export const WorkspaceTileCard: React.FC<WorkspaceTileCardProps> = React.memo(({
     setDragSlotIndex(null);
     dragCounterMap.current.clear();
 
+    const targetFullPath =
+      leaf.fullPath ||
+      (packRoot && leaf.relativePath
+        ? `${packRoot.replace(/[/\\]+$/, '')}\\textures\\${leaf.relativePath.replace(/^[/\\]+/, '')}`
+        : '');
+
+    if (!targetFullPath) return;
+
+    // 1. Check internal tile drag
+    const tileJson = e.dataTransfer?.getData('application/x-mctg-tile');
+    if (tileJson) {
+      try {
+        const sourceData: TileDragData = JSON.parse(tileJson);
+        if (sourceData.aliasKey === leaf.alias && sourceData.fullPath === leaf.fullPath) {
+          return;
+        }
+
+        if (leaf.status === 'GHOST') {
+          executeTileCopy(leaf, sourceData, targetFullPath);
+        } else {
+          setPendingDrop({ leaf, type: 'tile', source: sourceData });
+        }
+        return;
+      } catch (err) {
+        console.error('[WorkspaceTileCard] Error parsing tile drag data:', err);
+      }
+    }
+
+    // 2. Check OS file drop
     const files = e.dataTransfer?.files;
     if (!files || files.length === 0) return;
 
@@ -184,28 +274,41 @@ export const WorkspaceTileCard: React.FC<WorkspaceTileCardProps> = React.memo(({
       processImport(leaf, file);
     } else {
       const objectUrl = URL.createObjectURL(file);
-      setPendingDrop({ leaf, file, objectUrl });
+      setPendingDrop({ leaf, type: 'file', file, objectUrl });
     }
   };
 
   const handleConfirmOverwrite = useCallback(() => {
     if (!pendingDrop) return;
-    const { leaf, file, objectUrl } = pendingDrop;
-    processImport(leaf, file);
-    URL.revokeObjectURL(objectUrl);
+    if (pendingDrop.type === 'file') {
+      const { leaf, file, objectUrl } = pendingDrop;
+      processImport(leaf, file);
+      URL.revokeObjectURL(objectUrl);
+    } else if (pendingDrop.type === 'tile') {
+      const targetFullPath =
+        pendingDrop.leaf.fullPath ||
+        (packRoot && pendingDrop.leaf.relativePath
+          ? `${packRoot.replace(/[/\\]+$/, '')}\\textures\\${pendingDrop.leaf.relativePath.replace(/^[/\\]+/, '')}`
+          : '');
+      if (targetFullPath) {
+        executeTileCopy(pendingDrop.leaf, pendingDrop.source, targetFullPath);
+      }
+    }
     setPendingDrop(null);
-  }, [pendingDrop, processImport]);
+  }, [pendingDrop, processImport, packRoot, executeTileCopy]);
 
   const handleCancelOverwrite = useCallback(() => {
     if (pendingDrop) {
-      URL.revokeObjectURL(pendingDrop.objectUrl);
+      if (pendingDrop.type === 'file') {
+        URL.revokeObjectURL(pendingDrop.objectUrl);
+      }
       setPendingDrop(null);
     }
   }, [pendingDrop]);
 
   useEffect(() => {
     return () => {
-      if (pendingDrop) {
+      if (pendingDrop && pendingDrop.type === 'file') {
         URL.revokeObjectURL(pendingDrop.objectUrl);
       }
     };
@@ -326,6 +429,8 @@ export const WorkspaceTileCard: React.FC<WorkspaceTileCardProps> = React.memo(({
               <div
                 ref={hasTexVariants && i === 0 ? primaryThumbRef : undefined}
                 className={`${hasTexVariants ? styles.texVarThumbSlot : styles.leafThumbInner} ${!isLeafGhost ? styles.texVarThumbSlotAdded : ''} ${isSlotDragOver ? styles.texVarSlotDragOver : ''}`}
+                draggable={!isLeafGhost && Boolean(leaf.imageUrl || leaf.fullPath)}
+                onDragStart={(e) => handleSlotDragStart(e, leaf)}
                 onClick={(e) => {
                   e.stopPropagation();
                   onTileClick(e.currentTarget, leaf, `${cardKey}-${i}`, 'image');
@@ -335,7 +440,7 @@ export const WorkspaceTileCard: React.FC<WorkspaceTileCardProps> = React.memo(({
                 onDragLeave={hasTexVariants ? (e) => handleSlotDragLeave(e, i) : undefined}
                 onDrop={hasTexVariants ? (e) => handleSlotDrop(e, leaf) : undefined}
                 title={leafName}
-                style={{ position: 'relative' }}
+                style={{ position: 'relative', cursor: !isLeafGhost ? 'grab' : undefined }}
               >
                 {isSlotDragOver && (
                   <div className={styles.dropOverlay}>
@@ -411,8 +516,8 @@ export const WorkspaceTileCard: React.FC<WorkspaceTileCardProps> = React.memo(({
       {pendingDrop && (
         <TextureDropConfirm
           alias={leafToAliasDto(pendingDrop.leaf)}
-          incomingObjectUrl={pendingDrop.objectUrl}
-          incomingFileName={pendingDrop.file.name}
+          incomingObjectUrl={pendingDrop.type === 'file' ? pendingDrop.objectUrl : pendingDrop.source.imageUrl}
+          incomingFileName={pendingDrop.type === 'file' ? pendingDrop.file.name : `${pendingDrop.source.displayName || pendingDrop.source.aliasKey}.png`}
           onConfirm={handleConfirmOverwrite}
           onCancel={handleCancelOverwrite}
         />

@@ -6,6 +6,7 @@ import {
   PackCreatePayload,
   TextureEditPayload,
   TextureDropImportPayload,
+  TextureCopyFilePayload,
   WindowActionPayload,
   TintSetPayload,
   ManifestModelDto,
@@ -74,10 +75,16 @@ function ensureGlobalListenerAttached(): void {
   isMessageListenerAttached = true;
 }
 
+if (typeof window !== 'undefined') {
+  ensureGlobalListenerAttached();
+}
+
 /**
  * Dispatches an IPC command envelope to the C# backend.
  */
 export function postCommand<T = any>(type: string, payload: T, correlationId?: string): IpcEnvelope<T> {
+  ensureGlobalListenerAttached();
+
   const envelope: IpcEnvelope<T> = {
     type,
     payload,
@@ -230,6 +237,10 @@ export function useIpc() {
     return postCommand<TextureDropImportPayload>(IpcMessageTypes.TextureDropImport, payload);
   }, []);
 
+  const copyTextureFile = useCallback((payload: TextureCopyFilePayload) => {
+    return postCommand<TextureCopyFilePayload>(IpcMessageTypes.TextureCopyFile, payload);
+  }, []);
+
   const windowAction = useCallback((action: 'minimize' | 'maximize' | 'close' | 'drag') => {
     return postCommand<WindowActionPayload>(IpcMessageTypes.WindowAction, { action });
   }, []);
@@ -280,6 +291,7 @@ export function useIpc() {
     createPack,
     editTexture,
     dropImportTexture,
+    copyTextureFile,
     getOpenWithApps,
     addCustomEditor,
     removeCustomEditor,

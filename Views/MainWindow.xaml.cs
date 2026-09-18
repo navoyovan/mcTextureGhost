@@ -366,6 +366,26 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
     {
         if (_ipcBridge == null) return;
 
+        // 0. APP:READY (Frontend mounted & ready to receive initial state)
+        _ipcBridge.RegisterHandler("APP:READY", (payload, corrId) =>
+        {
+            Dispatcher.Invoke(() =>
+            {
+                _ipcBridge.PushPackState(CreatePackStatePayload());
+                _ipcBridge.PushAppConfig(
+                    ViewModel.TintOpacityPercent,
+                    ViewModel.TintBrightness,
+                    ViewModel.TintHexCode,
+                    IsDebugMode,
+                    ViewModel.WindowTitle);
+
+                bool has3D = CatalogReferenceService.Has3DModelsInstalled();
+                _ipcBridge.PostMessage(IpcMessageTypes.Vanilla3DStatus, new Vanilla3DStatusPayload(has3D, CatalogReferenceService.VanillaReferencePackDirectory));
+                _ipcBridge.PostMessage(IpcMessageTypes.CatalogDetailedStatus, CatalogReferenceService.GetDetailedStatus());
+            });
+            return Task.CompletedTask;
+        });
+
         // 1. PACK:OPEN_FOLDER
         _ipcBridge.RegisterHandler<PackOpenFolderPayload>(IpcMessageTypes.PackOpenFolder, (payload, corrId) =>
         {
@@ -640,6 +660,60 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
                 catch (Exception ex)
                 {
                     _ipcBridge.PushError("Texture Drop Failed", ex.Message, "error");
+                }
+            });
+        });
+
+        // 4e. TEXTURE:COPY_FILE
+        _ipcBridge.RegisterHandler<TextureCopyFilePayload>(IpcMessageTypes.TextureCopyFile, async (payload, corrId) =>
+        {
+            await Dispatcher.InvokeAsync(async () =>
+            {
+                if (payload == null || string.IsNullOrWhiteSpace(payload.SourceFullPath) || string.IsNullOrWhiteSpace(payload.TargetFullPath))
+                {
+                    _ipcBridge.PushError("Copy Failed", "Invalid copy payload or missing file path.", "error");
+                    return;
+                }
+
+                if (!File.Exists(payload.SourceFullPath))
+                {
+                    _ipcBridge.PushError("Copy Failed", $"Source file '{payload.SourceFullPath}' does not exist.", "error");
+                    return;
+                }
+
+                try
+                {
+                    var targetPath = payload.TargetFullPath;
+                    var dir = Path.GetDirectoryName(targetPath);
+                    if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+                    {
+                        Directory.CreateDirectory(dir);
+                    }
+
+                    await Task.Run(() => File.Copy(payload.SourceFullPath, targetPath, overwrite: true));
+
+                    ImagePathConverter.ClearCache();
+
+                    var alias = ViewModel.Aliases.FirstOrDefault(a => a.Alias.Equals(payload.TargetAliasKey, StringComparison.OrdinalIgnoreCase) ||
+                        (!string.IsNullOrEmpty(a.FullPath) && a.FullPath.Equals(targetPath, StringComparison.OrdinalIgnoreCase)));
+
+                    if (alias != null)
+                    {
+                        alias.Status = TextureStatus.Ok;
+                        alias.FullPath = targetPath;
+                    }
+
+                    var virtualUrl = IpcContractMapper.BuildVirtualTextureUrl(alias?.RelativePath ?? Path.GetFileName(targetPath), targetPath, ViewModel.PackRootPath);
+                    _ipcBridge.PushTextureUpdated(
+                        payload.TargetAliasKey,
+                        "OK",
+                        targetPath,
+                        $"{virtualUrl}?t={DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}"
+                    );
+                }
+                catch (Exception ex)
+                {
+                    _ipcBridge.PushError("Texture Copy Failed", ex.Message, "error");
                 }
             });
         });
@@ -1367,7 +1441,8 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
             CatalogTree: ViewModel.CatalogTree.Select(c => c.ToDto(ViewModel.PackRootPath)).ToList(),
             ReferencePacks: refProfiles,
             ActiveReferenceId: CatalogReferenceService.ActiveReferenceId,
-            EntityWorkspaceTree: ViewModel.EntityWorkspaceTree.Select(e => e.ToDto(ViewModel.PackRootPath)).ToList()
+            EntityWorkspaceTree: ViewModel.EntityWorkspaceTree.Select(e => e.ToDto(ViewModel.PackRootPath)).ToList(),
+            HasVanillaAssets: CatalogReferenceService.Has3DModelsInstalled()
         );
     }
 
@@ -1404,6 +1479,10 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
                         ViewModel.TintHexCode,
                         IsDebugMode,
                         ViewModel.WindowTitle);
+
+                    bool has3D = CatalogReferenceService.Has3DModelsInstalled();
+                    _ipcBridge.PostMessage(IpcMessageTypes.Vanilla3DStatus, new Vanilla3DStatusPayload(has3D, CatalogReferenceService.VanillaReferencePackDirectory));
+                    _ipcBridge.PostMessage(IpcMessageTypes.CatalogDetailedStatus, CatalogReferenceService.GetDetailedStatus());
                 }
             };
             WebView.CoreWebView2.Navigate("http://localhost:5188/");
@@ -1528,6 +1607,10 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
                         ViewModel.TintHexCode,
                         IsDebugMode,
                         ViewModel.WindowTitle);
+
+                    bool has3D = CatalogReferenceService.Has3DModelsInstalled();
+                    _ipcBridge.PostMessage(IpcMessageTypes.Vanilla3DStatus, new Vanilla3DStatusPayload(has3D, CatalogReferenceService.VanillaReferencePackDirectory));
+                    _ipcBridge.PostMessage(IpcMessageTypes.CatalogDetailedStatus, CatalogReferenceService.GetDetailedStatus());
                 }
             };
             WebView.CoreWebView2.Navigate("https://app.local/index.html");

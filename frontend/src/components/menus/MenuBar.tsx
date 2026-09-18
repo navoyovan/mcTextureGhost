@@ -7,15 +7,13 @@ import {
   FileText,
   ExternalLink,
   XCircle,
-  Terminal,
-  Radio,
   ChevronDown,
   Square,
   CheckSquare,
   Info,
 } from 'lucide-react';
 import { createPortal } from 'react-dom';
-import { usePackStore, rawPackStore } from '../../store/packStore';
+import { usePackStore } from '../../store/packStore';
 import { useIpc } from '../../hooks/useIpc';
 import { AboutModal } from '../common/AboutModal';
 import styles from './MenuBar.module.css';
@@ -46,13 +44,10 @@ export const MenuBar: React.FC = () => {
   const [isAboutOpen, setIsAboutOpen] = useState(false);
   const barRef = useRef<HTMLDivElement>(null);
 
-  const { postCommand, openPackFolder, reloadPack, createPack, openInExplorer, closePack } = useIpc();
+  const { openPackFolder, reloadPack, createPack, openInExplorer, closePack } = useIpc();
   const packRoot = usePackStore((s) => s.packRoot);
   const resetPackState = usePackStore((s) => s.resetPackState);
   const setSelectedFolderPath = usePackStore((s) => s.setSelectedFolderPath);
-  const activeTab = usePackStore((s) => s.activeTab);
-  const setActiveTab = usePackStore((s) => s.setActiveTab);
-  const stats = usePackStore((s) => s.stats);
   const tileZoom = usePackStore((s) => s.tileZoom);
   const setTileZoom = usePackStore((s) => s.setTileZoom);
   const simulateNoAssets = usePackStore((s) => s.simulateNoAssets);
@@ -158,6 +153,16 @@ export const MenuBar: React.FC = () => {
       ],
     },
     {
+      label: 'Help',
+      items: [
+        {
+          label: 'About McTextureGhost',
+          icon: <Info size={13} />,
+          action: () => setIsAboutOpen(true),
+        },
+      ],
+    },
+    {
       label: 'Dev',
       items: [
         {
@@ -168,34 +173,6 @@ export const MenuBar: React.FC = () => {
             <Square size={13} />
           ),
           action: () => setSimulateNoAssets(!simulateNoAssets),
-          hasDivider: true,
-        },
-        {
-          label: 'Open DevTools',
-          icon: <Terminal size={13} />,
-          action: () => postCommand('DEVTOOLS:OPEN', {}),
-        },
-        {
-          label: 'Inspect IPC State',
-          icon: <Radio size={13} />,
-          action: () => {
-            // eslint-disable-next-line no-console
-            console.group('[McTextureGhost] IPC State Snapshot');
-            // eslint-disable-next-line no-console
-            console.log(rawPackStore.getState());
-            // eslint-disable-next-line no-console
-            console.groupEnd();
-          },
-        },
-      ],
-    },
-    {
-      label: 'Help',
-      items: [
-        {
-          label: 'About McTextureGhost',
-          icon: <Info size={13} />,
-          action: () => setIsAboutOpen(true),
         },
       ],
     },
@@ -203,8 +180,8 @@ export const MenuBar: React.FC = () => {
 
   return (
     <nav className={styles.menuBar} ref={barRef} aria-label="Application menus">
-      {/* File & Dev menus */}
-      {menus.filter((m) => m.label !== 'Help').map((menu) => {
+      {/* File, Help, Dev menus */}
+      {menus.map((menu) => {
         const isOpen = openMenu?.label === menu.label;
         return (
           <div key={menu.label} className={styles.menuRoot}>
@@ -239,23 +216,6 @@ export const MenuBar: React.FC = () => {
         </button>
       </div>
 
-      {/* Help menu placed after BETA */}
-      <div className={styles.menuRoot}>
-        <button
-          type="button"
-          className={`${styles.menuTrigger} ${openMenu?.label === 'Help' ? styles.menuTriggerOpen : ''}`}
-          onClick={(e) => handleTriggerClick('Help', e)}
-          aria-haspopup="menu"
-          aria-expanded={openMenu?.label === 'Help'}
-        >
-          Help
-          <ChevronDown
-            size={10}
-            className={`${styles.menuChevron} ${openMenu?.label === 'Help' ? styles.menuChevronOpen : ''}`}
-          />
-        </button>
-      </div>
-
       {/* Portal-rendered dropdown to escape overflow:hidden parents */}
       {openMenu &&
         createPortal(
@@ -272,31 +232,6 @@ export const MenuBar: React.FC = () => {
             >
               {openMenu.label === 'Beta' ? (
                 <div className={styles.betaPanel}>
-                  <div className={styles.betaSection}>
-                    <span className={styles.betaSectionLabel}>Textures</span>
-                    <div className={styles.betaCategoryGroup} role="group" aria-label="Texture category">
-                      {(
-                        [
-                          { id: 'all', label: 'All', ghostCount: 0 },
-                          { id: 'blocks', label: 'Blocks', ghostCount: stats.blocksGhostCount },
-                          { id: 'items', label: 'Items', ghostCount: stats.itemsGhostCount },
-                          { id: 'entities', label: 'Entities', ghostCount: stats.entitiesGhostCount },
-                        ] as const
-                      ).map((item) => (
-                        <button
-                          key={item.id}
-                          type="button"
-                          className={`${styles.betaButton} ${activeTab === item.id ? styles.betaButtonActive : ''}`}
-                          onClick={() => runItem(() => setActiveTab(item.id))}
-                        >
-                          <span>{item.label}</span>
-                          {item.ghostCount > 0 && (
-                            <span className={styles.betaGhostBadge}>{item.ghostCount}</span>
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
                   <div className={styles.betaSection}>
                     <div className={styles.betaSectionHeader}>
                       <span className={styles.betaSectionLabel}>Zoom level</span>

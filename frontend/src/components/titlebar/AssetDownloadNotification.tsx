@@ -13,9 +13,9 @@ import styles from './AssetDownloadNotification.module.css';
 export const AssetDownloadNotification: React.FC = () => {
   const { postCommand, subscribe } = useIpc();
   const hasVanillaAssets = usePackStore((s) => s.hasVanillaAssets);
+  const simulateNoAssets = usePackStore((s) => s.simulateNoAssets);
   const setHasVanillaAssets = usePackStore((s) => s.setHasVanillaAssets);
 
-  const [hasCheckedStatus, setHasCheckedStatus] = useState<boolean>(false);
   const [isDownloading, setIsDownloading] = useState<boolean>(false);
   const [downloadProgress, setDownloadProgress] = useState<DownloadProgressPayload | null>(null);
   const [showSuccess, setShowSuccess] = useState<boolean>(false);
@@ -41,21 +41,11 @@ export const AssetDownloadNotification: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    // 1. Check initial status across both vanilla 3D and catalog diagnostic endpoints
-    postCommand(IpcMessageTypes.VanillaGet3DStatus, {});
-    postCommand(IpcMessageTypes.CatalogGetDetailedStatus, {});
-
-    // Fallback timer so title bar notification appears even if events delay
-    const fallbackTimer = setTimeout(() => {
-      setHasCheckedStatus(true);
-    }, 250);
-
     const unsubVanillaStatus = subscribe(
       IpcMessageTypes.Vanilla3DStatus,
       (payload: Vanilla3DStatusPayload) => {
         if (payload?.has3DModels !== undefined) {
           setHasVanillaAssets(Boolean(payload.has3DModels));
-          setHasCheckedStatus(true);
         }
       }
     );
@@ -65,7 +55,6 @@ export const AssetDownloadNotification: React.FC = () => {
       (payload: ReferencePackDetailedStatusPayload) => {
         if (payload?.hasExtractedModels !== undefined) {
           setHasVanillaAssets(Boolean(payload.hasExtractedModels));
-          setHasCheckedStatus(true);
         }
       }
     );
@@ -96,8 +85,11 @@ export const AssetDownloadNotification: React.FC = () => {
       }
     );
 
+    // Initial check across both vanilla 3D and catalog diagnostic endpoints
+    postCommand(IpcMessageTypes.VanillaGet3DStatus, {});
+    postCommand(IpcMessageTypes.CatalogGetDetailedStatus, {});
+
     return () => {
-      clearTimeout(fallbackTimer);
       if (successTimerRef.current) clearTimeout(successTimerRef.current);
       unsubVanillaStatus();
       unsubDetailed();
@@ -151,9 +143,10 @@ export const AssetDownloadNotification: React.FC = () => {
     );
   };
 
-  // If status has not yet arrived or assets are already installed and idle, show nothing
-  if (!hasCheckedStatus) return null;
-  if (hasVanillaAssets && !isDownloading && !showSuccess) return null;
+  const effectiveHasAssets = !simulateNoAssets && hasVanillaAssets;
+
+  // If assets are already installed and not downloading or showing success, show nothing
+  if (effectiveHasAssets && !isDownloading && !showSuccess) return null;
 
   if (showSuccess) {
     return (

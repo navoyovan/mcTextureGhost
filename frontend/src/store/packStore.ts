@@ -224,6 +224,7 @@ export const packStoreActions: PackStoreActions = {
       catalogTree: dto.catalogTree !== undefined ? dto.catalogTree : currentState.catalogTree,
       referencePacks: Array.isArray(dto.referencePacks) && dto.referencePacks.length > 0 ? dto.referencePacks : currentState.referencePacks,
       activeReferenceId: dto.activeReferenceId ?? currentState.activeReferenceId,
+      hasVanillaAssets: dto.hasVanillaAssets !== undefined ? dto.hasVanillaAssets : currentState.hasVanillaAssets,
       selectedFolderPath: dto.packRoot !== undefined && dto.packRoot !== currentState.packRoot ? null : currentState.selectedFolderPath,
       stats,
       isScanning: false,

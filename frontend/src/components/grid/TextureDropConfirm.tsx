@@ -6,7 +6,7 @@ import styles from './TextureDropConfirm.module.css';
 
 export interface TextureDropConfirmProps {
   alias: TextureAliasDto;
-  incomingObjectUrl: string;
+  incomingObjectUrl?: string | null;
   incomingFileName: string;
   onConfirm: () => void;
   onCancel: () => void;
@@ -112,11 +112,15 @@ export const TextureDropConfirm: React.FC<TextureDropConfirmProps> = ({
             <div className={styles.textureColumn}>
               <span className={styles.columnLabel}>Incoming</span>
               <div className={styles.thumbnailBox}>
-                <img
-                  src={incomingObjectUrl}
-                  alt={incomingFileName}
-                  className={styles.thumbnailImg}
-                />
+                {incomingObjectUrl ? (
+                  <img
+                    src={incomingObjectUrl}
+                    alt={incomingFileName}
+                    className={styles.thumbnailImg}
+                  />
+                ) : (
+                  <span className={styles.thumbnailPlaceholder}>?</span>
+                )}
               </div>
               <span className={styles.fileName} title={incomingFileName}>
                 {incomingFileName}

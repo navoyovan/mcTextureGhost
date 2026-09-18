@@ -44,11 +44,7 @@ public static class CatalogReferenceService
     public static bool Has3DModelsInstalled()
     {
         var modelsDir = Path.Combine(VanillaReferencePackDirectory, "models", "entity");
-        if (Directory.Exists(modelsDir) && Directory.EnumerateFiles(modelsDir, "*.json", SearchOption.AllDirectories).Any())
-            return true;
-
-        var cacheModelsDir = Path.Combine(VanillaDataService.CacheDirectory, "models", "entity");
-        return Directory.Exists(cacheModelsDir) && Directory.EnumerateFiles(cacheModelsDir, "*.json", SearchOption.AllDirectories).Any();
+        return Directory.Exists(modelsDir) && Directory.EnumerateFiles(modelsDir, "*.json", SearchOption.AllDirectories).Any();
     }
 
     public static async Task<bool> DownloadVanillaSamplePackAsync(Action<double, string>? onProgress = null)
