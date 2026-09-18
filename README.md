@@ -22,7 +22,7 @@ Every texture alias declared in your ex: `terrain_texture.json` or `item_texture
 
 ### Live Reload
 
-Save in Aseprite, Photoshop, or Paint and the tile updates instantly — no app restart, no manual refresh. The watcher debounces properly so it doesn't fire mid-save.
+Save in Aseprite, Photoshop, or Paint and the tile updates instantly; no app restart, no manual refresh.
 
 ### Block Workspace
 
@@ -34,7 +34,7 @@ A relational 4-tier view of your pack's block texture hierarchy: Block → Alias
 
 ### Vanilla Reference Catalog
 
-Browse the full official Bedrock texture catalog (`Mojang/bedrock-samples`) without leaving the app. Find any block or item, see its in-game name, face assignments, and variants — then add it to your pack's JSON with one click. The catalog caches locally so it works offline.
+Browse the full official Bedrock texture catalog (`Mojang/bedrock-samples`) without leaving the app. Find any block or item, see its readable name, face assignments, and variants; then add it to your pack's JSON with one click. The catalog caches locally so it works offline.
 
 ### Flipbook Animation Previews
 
@@ -54,22 +54,22 @@ Sidebar tree of your pack's directory structure with live texture and ghost coun
 
 - [X] Block and item texture scanning with ghost detection
 - [X] Live reload on external editor save
-- [X] Flipbook animation playback (20Hz, GPU blending)
+- [X] Flipbook animation (20 tick and blending)
 - [X] Vanilla Bedrock reference catalog with offline cache
 - [X] JSON scaffolding (blocks, aliases, items, flipbooks)
 - [X] Pack creation wizard and manifest editor
-- [X] Block Workspace — 4-tier relational hierarchy view
-- [X] Entity Workspace — 3D model visualizer and texture slot mapping
+- [X] Block Workspace
+- [X] Entity Workspace
 - [X] Context menu: block state formatting and deletion
 - [X] Drag-and-drop texture import with overwrite confirmation
 - [ ] Curating each 3D preview for blocks and entities to accurately reflect their original in-game shapes
+- [ ] Curating each texture flipbook rendering to accurately reflect their original render
 - [ ] UI and particle texture support
 - [X] `.tga` format decoding and preview
 - [X] Per-texture vanilla reference preview alongside stubs
 - [ ] Target Bedrock engine version selector
-- [X] Pack merging / merge-compile (`_mers`)
-- [ ] Item texture atlas compiling (`_item`)
-- [ ] Terrain/block atlas compiling (`_atlas`)
+- [X] Compile  (`_mers`)
+- [ ] Compile (`_atlas`) against (`_item`)
 
 ---
 
