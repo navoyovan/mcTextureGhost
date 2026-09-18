@@ -146,7 +146,7 @@ export const AboutModal: React.FC<AboutModalProps> = ({ isOpen, onClose }) => {
         <div className={styles.scrollContent}>
           {/* Section 1: App Info Hero */}
           <div className={styles.appHero}>
-            <img src="/icon.png" alt="McTextureGhost logo" className={styles.appLogoImg} />
+            <img src="/icon.png" alt="mcTextureGhost logo" className={styles.appLogoImg} />
 
             <div className={styles.appNameRow}>
               <h2 id="about-title" className={styles.appName}>

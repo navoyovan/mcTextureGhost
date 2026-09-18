@@ -3,7 +3,6 @@ import React from 'react';
 import {
   FolderOpen,
   Plus,
-  BookOpen,
   Clock,
   Package,
 } from 'lucide-react';
@@ -20,8 +19,8 @@ export const WelcomeView: React.FC<WelcomeViewProps> = ({ onOpenNewPackDialog })
   const { openPackFolder, createPack } = useIpc();
   const recentPacks = usePackStore((s) => s.recentPacks);
 
-  // Show up to 5 recent workspaces
-  const visibleRecentPacks = (recentPacks || []).slice(0, 5);
+  // Show up to 20 recent workspaces
+  const visibleRecentPacks = (recentPacks || []).slice(0, 20);
 
   const handleOpenExisting = () => {
     openPackFolder(null);
@@ -45,13 +44,6 @@ export const WelcomeView: React.FC<WelcomeViewProps> = ({ onOpenNewPackDialog })
       });
       openPackFolder(pack.folderPath);
     }
-  };
-
-  const handleOpenTutorial = () => {
-    window.open(
-      'https://learn.microsoft.com/en-us/minecraft/creator/documents/resourcepack',
-      '_blank'
-    );
   };
 
   const formatPath = (fullPath: string): string => {
@@ -180,16 +172,6 @@ export const WelcomeView: React.FC<WelcomeViewProps> = ({ onOpenNewPackDialog })
           )}
         </section>
       </div>
-
-      <button
-        type="button"
-        className={styles.docsLinkBottomRight}
-        onClick={handleOpenTutorial}
-        title="Open Minecraft Creator documentation"
-      >
-        <BookOpen className={styles.docsIcon} />
-        <span>Docs & Guides</span>
-      </button>
     </div>
   );
 };

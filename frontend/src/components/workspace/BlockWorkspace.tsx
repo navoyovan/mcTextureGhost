@@ -527,11 +527,6 @@ export const BlockWorkspace: React.FC = () => {
             <div className={styles.blockTitleGroup}>
               <div className={styles.blockHeaderTitleRow}>
                 <h2 className={styles.blockDisplayName}>{selectedBlock.displayName}</h2>
-                {selectedBlock.isUserDefined === false && selectedBlock.blockId !== 'uncategorized' && (
-                  <span className={styles.vanillaHeaderBadge} title="Using vanilla blocks.json definition">
-                    Vanilla Fallback
-                  </span>
-                )}
               </div>
               <span className={styles.blockIdSub}>
                 {selectedBlock.blockId === 'uncategorized' || selectedBlock.blockId.includes(':')
@@ -539,9 +534,16 @@ export const BlockWorkspace: React.FC = () => {
                   : `minecraft:${selectedBlock.blockId}`}
               </span>
             </div>
-            {selectedBlock.ghostCount > 0 && (
-              <span className={styles.ghostBadge}>{selectedBlock.ghostCount} ghosts</span>
-            )}
+            <div className={styles.detailHeaderActions}>
+              {selectedBlock.isUserDefined === false && selectedBlock.blockId !== 'uncategorized' && (
+                <span className={styles.vanillaHeaderBadge} title="Using vanilla blocks.json definition">
+                  Vanilla Fallback
+                </span>
+              )}
+              {selectedBlock.ghostCount > 0 && (
+                <span className={styles.ghostBadge}>{selectedBlock.ghostCount} ghosts</span>
+              )}
+            </div>
           </div>
 
           {selectedBlock.blockId !== 'uncategorized' && (

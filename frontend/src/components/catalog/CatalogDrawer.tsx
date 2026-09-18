@@ -566,7 +566,7 @@ export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose })
     (entityId: string): boolean => {
       if (!entityWorkspaceTree || !Array.isArray(entityWorkspaceTree)) return false;
       return entityWorkspaceTree.some(
-        (e) => e.blockId.toLowerCase() === entityId.toLowerCase()
+        (e) => e.blockId.toLowerCase() === entityId.toLowerCase() && e.isUserDefined !== false
       );
     },
     [entityWorkspaceTree]

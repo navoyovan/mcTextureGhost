@@ -1,4 +1,4 @@
-﻿// frontend/src/components/common/ComponentLibrary.tsx
+// frontend/src/components/common/ComponentLibrary.tsx
 import React, { useState } from 'react';
 import {
   X,

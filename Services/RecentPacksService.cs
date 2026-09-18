@@ -9,6 +9,8 @@ namespace McTextureGhost.Services;
 
 public class RecentPacksService
 {
+    public const int MaxRecentPacks = 20;
+
     private static readonly string SettingsDirectory = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "McTextureGhost");
@@ -60,7 +62,7 @@ public class RecentPacksService
                 verified.Add(item);
             }
 
-            var ordered = verified.OrderByDescending(p => p.LastOpened).Take(3).ToList();
+            var ordered = verified.OrderByDescending(p => p.LastOpened).Take(MaxRecentPacks).ToList();
 
             if (needsResave || ordered.Count != list.Count)
             {
@@ -148,7 +150,7 @@ public class RecentPacksService
                 });
             }
 
-            var ordered = current.OrderByDescending(p => p.LastOpened).Take(3).ToList();
+            var ordered = current.OrderByDescending(p => p.LastOpened).Take(MaxRecentPacks).ToList();
             SaveList(ordered);
         }
         catch

@@ -54,7 +54,7 @@ Paths are repository-relative. Read the entry point relevant to the task, not ev
 ## 4. View Navigation
 - **Routed views (`activeView`):** `'grid'` | `'workspace'` | `'entity'`; navigate through `setActiveView(view)`.
 - **JSON and manifest files:** Open through `setSelectedFolderPath(filePath)` (for example, `'manifest.json'`). `JsonReader` mounts as a focused overlay without an extra routed view.
-- **Manifest UI:** `ManifestForm.tsx` supplies the form alongside the JSON reader.
+- **Manifest UI:** `ManifestForm.tsx` supplies the form with a slide-in raw JSON sidebar drawer.
 
 ## 5. Build & Verification
 Follow `AGENTS.md` §1–2 for scope-specific verification, direct frontend binary commands, and process-preservation rules.

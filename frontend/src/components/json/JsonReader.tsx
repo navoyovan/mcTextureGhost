@@ -1,9 +1,8 @@
-// frontend/src/components/json/JsonReader.tsx
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { RotateCw } from 'lucide-react';
+import { RotateCw, FileCode2, ExternalLink, X, PanelRight } from 'lucide-react';
 import { usePackStore } from '../../store/packStore';
 import { useIpc } from '../../hooks/useIpc';
-import { ManifestModelDto } from '../../types/ipc';
+import { ManifestModelDto, IpcMessageTypes } from '../../types/ipc';
 import { ManifestForm } from './ManifestForm';
 import styles from './JsonReader.module.css';
 
@@ -86,7 +85,7 @@ function generateUuid(): string {
 function createDefaultManifest(packName: string | null, packRoot: string | null): ManifestModelDto {
   return {
     headerName: packName || 'Bedrock Resource Pack',
-    headerDescription: 'Bedrock resource pack created with McTextureGhost',
+    headerDescription: 'Bedrock resource pack created with mcTextureGhost',
     headerUuid: generateUuid(),
     versionMajor: 1,
     versionMinor: 0,
@@ -117,7 +116,8 @@ export const JsonReader: React.FC<JsonReaderProps> = ({ filePath }) => {
   const hasManifest = usePackStore((s) => s.hasManifest);
   const searchQuery = usePackStore((s) => s.searchQuery);
   const setJsonViewerInfo = usePackStore((s) => s.setJsonViewerInfo);
-  const { saveManifest } = useIpc();
+  const jsonOpenWithApps = usePackStore((s) => s.jsonOpenWithApps);
+  const { saveManifest, postCommand } = useIpc();
 
   const cleanPath = useMemo(() => {
     return filePath.replace(/\\/g, '/').replace(/^\/+/, '');
@@ -130,6 +130,25 @@ export const JsonReader: React.FC<JsonReaderProps> = ({ filePath }) => {
   const isManifest = useMemo(() => {
     return fileName.toLowerCase() === 'manifest.json' || cleanPath.toLowerCase() === 'manifest.json';
   }, [fileName, cleanPath]);
+
+  const jsonFullPath = useMemo(() => {
+    return packRoot ? `${packRoot}\\${cleanPath.replace(/\//g, '\\')}` : null;
+  }, [packRoot, cleanPath]);
+
+  const defaultJsonApp = useMemo(() => {
+    return jsonOpenWithApps?.find((a) => a.isDefault);
+  }, [jsonOpenWithApps]);
+
+  const handleOpenInEditor = useCallback(() => {
+    if (!jsonFullPath || !fileName) return;
+    postCommand(IpcMessageTypes.TextureEdit, {
+      aliasKey: fileName,
+      fullPath: jsonFullPath,
+      isGhost: false,
+      exePath: defaultJsonApp?.exePath || null,
+      chooseDialog: !defaultJsonApp,
+    });
+  }, [jsonFullPath, fileName, defaultJsonApp, postCommand]);
 
   // Standard JSON file loading state
   const [rawText, setRawText] = useState<string>('');
@@ -144,6 +163,9 @@ export const JsonReader: React.FC<JsonReaderProps> = ({ filePath }) => {
   });
   const [isManifestDirty, setIsManifestDirty] = useState<boolean>(false);
   const [isSavedRecently, setIsSavedRecently] = useState<boolean>(false);
+
+  const isManifestJsonDrawerOpen = usePackStore((s) => s.isManifestJsonDrawerOpen);
+  const setIsManifestJsonDrawerOpen = usePackStore((s) => s.setIsManifestJsonDrawerOpen);
 
   useEffect(() => {
     if (rawManifest && !isManifestDirty) {
@@ -240,7 +262,6 @@ export const JsonReader: React.FC<JsonReaderProps> = ({ filePath }) => {
     return `${(byteSize / 1024).toFixed(1)} KB`;
   }, [byteSize]);
 
-
   const handleSaveManifest = useCallback(() => {
     const payload: ManifestModelDto = {
       ...currentForm,
@@ -281,7 +302,7 @@ export const JsonReader: React.FC<JsonReaderProps> = ({ filePath }) => {
 
   return (
     <div className={styles.container} data-testid="json-reader">
-      {/* Body: Either Split Manifest Editor or Standard JSON Code Viewport */}
+      {/* Body: Either Manifest Form + Slide-out JSON Drawer, or Standard Code Viewport */}
       {isManifest ? (
         <div className={styles.splitContentArea}>
           <ManifestForm
@@ -291,7 +312,51 @@ export const JsonReader: React.FC<JsonReaderProps> = ({ filePath }) => {
             isDirty={isManifestDirty}
             isSavedRecently={isSavedRecently}
           />
-          <div className={styles.previewColumn}>
+
+          {/* Drawer backdrop when open */}
+          {isManifestJsonDrawerOpen && (
+            <div
+              className={styles.drawerBackdrop}
+              onClick={() => setIsManifestJsonDrawerOpen(false)}
+              aria-hidden="true"
+            />
+          )}
+
+          {/* Slide-in JSON Sidebar Drawer */}
+          <aside
+            className={`${styles.jsonSidebarDrawer} ${isManifestJsonDrawerOpen ? styles.jsonSidebarDrawerOpen : ''}`}
+            aria-label="Manifest Raw JSON Preview"
+          >
+            <div className={styles.drawerHeader}>
+              <div className={styles.drawerTitle}>
+                <FileCode2 size={14} className={styles.drawerTitleIcon} />
+                <span>manifest.json</span>
+                <span className={styles.drawerMetaText}>
+                  {lineCount} lines • {formattedSize}
+                </span>
+              </div>
+              <div className={styles.drawerHeaderActions}>
+                <button
+                  type="button"
+                  className={styles.drawerActionBtn}
+                  onClick={handleOpenInEditor}
+                  title="Open manifest.json in external system editor"
+                  disabled={!jsonFullPath}
+                >
+                  <ExternalLink size={12} />
+                  <span>Open in Editor</span>
+                </button>
+                <button
+                  type="button"
+                  className={styles.drawerCloseBtn}
+                  onClick={() => setIsManifestJsonDrawerOpen(false)}
+                  title="Close Drawer"
+                  aria-label="Close JSON Drawer"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            </div>
             <div className={styles.codeViewport}>
               <div className={styles.gutter}>
                 {lines.map((_, i) => (
@@ -308,10 +373,48 @@ export const JsonReader: React.FC<JsonReaderProps> = ({ filePath }) => {
                 ))}
               </div>
             </div>
-          </div>
+          </aside>
+
+          {/* Right edge pull-tab when drawer is closed */}
+          {!isManifestJsonDrawerOpen && (
+            <button
+              type="button"
+              className={styles.collapsedPreviewRail}
+              onClick={() => setIsManifestJsonDrawerOpen(true)}
+              title="Open Raw JSON Sidebar Drawer"
+            >
+              <PanelRight size={14} />
+              <span className={styles.verticalRailText}>JSON</span>
+            </button>
+          )}
         </div>
       ) : (
         <>
+          {/* Top file header bar */}
+          <div className={styles.drawerHeader}>
+            <div className={styles.drawerTitle}>
+              <FileCode2 size={14} className={styles.drawerTitleIcon} />
+              <span>{fileName}</span>
+              {!isLoading && !loadError && (
+                <span className={styles.drawerMetaText}>
+                  {lineCount} lines • {formattedSize}
+                </span>
+              )}
+            </div>
+            <div className={styles.drawerHeaderActions}>
+              <button
+                type="button"
+                className={styles.drawerActionBtn}
+                onClick={handleOpenInEditor}
+                title={`Open ${fileName} in external system editor`}
+                disabled={!jsonFullPath || isLoading}
+              >
+                <ExternalLink size={12} />
+                <span>Open in Editor</span>
+              </button>
+            </div>
+          </div>
+
           {/* Code Viewport */}
           {isLoading ? (
             <div className={styles.loadingContainer}>

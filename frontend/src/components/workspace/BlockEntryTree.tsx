@@ -110,20 +110,22 @@ export const BlockEntryTree: React.FC<BlockEntryTreeProps> = ({ block, onTileCli
             className={`${styles.treeRow} ${isBlockUserDefined ? styles.normalWeight : styles.dimmedWeight}`}
             onClick={() => toggleNode('root_blocks_json')}
           >
-            <button
-              type="button"
-              className={styles.chevronBtn}
-              onClick={(e) => toggleNode('root_blocks_json', e)}
-            >
-              {collapsedNodes['root_blocks_json'] ? (
-                <ChevronRight size={13} />
-              ) : (
-                <ChevronDown size={13} />
-              )}
-            </button>
-            <span className={styles.nodeKey}>blocks.json</span>
-            <span className={styles.nodeValue}>➔ &quot;{block.blockId}&quot;</span>
-            <span className={styles.nodeSub}>({block.displayName})</span>
+            <div className={styles.treeRowMain}>
+              <button
+                type="button"
+                className={styles.chevronBtn}
+                onClick={(e) => toggleNode('root_blocks_json', e)}
+              >
+                {collapsedNodes['root_blocks_json'] ? (
+                  <ChevronRight size={13} />
+                ) : (
+                  <ChevronDown size={13} />
+                )}
+              </button>
+              <span className={styles.nodeKey}>blocks.json</span>
+              <span className={styles.nodeValue}>➔ &quot;{block.blockId}&quot;</span>
+              <span className={styles.nodeSub}>({block.displayName})</span>
+            </div>
 
             {isBlockUserDefined ? (
               <span className={`${styles.badge} ${styles.addedBadge}`} title="Defined in pack blocks.json">
@@ -173,22 +175,24 @@ export const BlockEntryTree: React.FC<BlockEntryTreeProps> = ({ block, onTileCli
                       className={`${styles.treeRow} ${isDeclaredInTerrainTexture ? styles.normalWeight : styles.dimmedWeight}`}
                       onClick={() => toggleNode(aliasKey)}
                     >
-                      <button
-                        type="button"
-                        className={styles.chevronBtn}
-                        onClick={(e) => toggleNode(aliasKey, e)}
-                      >
-                        {isAliasCollapsed ? (
-                          <ChevronRight size={13} />
-                        ) : (
-                          <ChevronDown size={13} />
+                      <div className={styles.treeRowMain}>
+                        <button
+                          type="button"
+                          className={styles.chevronBtn}
+                          onClick={(e) => toggleNode(aliasKey, e)}
+                        >
+                          {isAliasCollapsed ? (
+                            <ChevronRight size={13} />
+                          ) : (
+                            <ChevronDown size={13} />
+                          )}
+                        </button>
+                        <span className={styles.nodeKey}>terrain_texture.json</span>
+                        <span className={styles.nodeValue}>➔ &quot;{ag.alias}&quot;</span>
+                        {ag.faceSummary && (
+                          <span className={styles.nodeSub}>[face: {ag.faceSummary}]</span>
                         )}
-                      </button>
-                      <span className={styles.nodeKey}>terrain_texture.json</span>
-                      <span className={styles.nodeValue}>➔ &quot;{ag.alias}&quot;</span>
-                      {ag.faceSummary && (
-                        <span className={styles.nodeSub}>[face: {ag.faceSummary}]</span>
-                      )}
+                      </div>
 
                       {isDeclaredInTerrainTexture ? (
                         <span className={`${styles.badge} ${styles.addedBadge}`} title="Texture alias declared in user terrain_texture.json">
@@ -256,15 +260,17 @@ const TextureLeafRow: React.FC<TextureLeafRowProps> = ({ leaf, onTileClick }) =>
       onClick={handleClick}
       title={isVanilla ? 'Vanilla fallback texture' : isGhost ? 'Missing texture file (Ghost)' : 'Existing texture file'}
     >
-      <div className={styles.chevronPlaceholder} />
+      <div className={styles.treeRowMain}>
+        <div className={styles.chevronPlaceholder} />
 
-      <span className={styles.nodeLabel}>
-        {leaf.relativePath ? `${leaf.relativePath}.png` : leaf.displayName || leaf.alias}
-      </span>
+        <span className={styles.nodeLabel}>
+          {leaf.relativePath ? `${leaf.relativePath}.png` : leaf.displayName || leaf.alias}
+        </span>
 
-      {leaf.variantKind && leaf.variantKind !== 'None' && (
-        <span className={styles.nodeSub}>({leaf.variantKind})</span>
-      )}
+        {leaf.variantKind && leaf.variantKind !== 'None' && (
+          <span className={styles.nodeSub}>({leaf.variantKind})</span>
+        )}
+      </div>
 
       {getStatusBadge()}
     </div>

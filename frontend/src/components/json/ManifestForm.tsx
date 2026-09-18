@@ -167,17 +167,19 @@ export const ManifestForm: React.FC<ManifestFormProps> = ({
                 <span className={styles.metaPill}>{form.moduleType || 'resources'}</span>
                 <span className={styles.metaPillHighlight}>v{form.versionMajor}.{form.versionMinor}.{form.versionPatch}</span>
               </div>
-              {onSave && (
-                <button
-                  type="button"
-                  className={`${styles.actionBtn} ${isDirty ? styles.primaryBtn : styles.secondaryBtn}`}
-                  onClick={onSave}
-                  title="Save manifest.json to pack"
-                >
-                  {isSavedRecently ? <Check size={13} /> : <Save size={13} />}
-                  <span>{isSavedRecently ? 'Saved to Disk!' : 'Save Manifest'}</span>
-                </button>
-              )}
+              <div className={styles.packMetaActionsRight}>
+                {onSave && (
+                  <button
+                    type="button"
+                    className={`${styles.actionBtn} ${isDirty ? styles.primaryBtn : styles.secondaryBtn}`}
+                    onClick={onSave}
+                    title="Save manifest.json to pack"
+                  >
+                    {isSavedRecently ? <Check size={13} /> : <Save size={13} />}
+                    <span>{isSavedRecently ? 'Saved to Disk!' : 'Save Manifest'}</span>
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>

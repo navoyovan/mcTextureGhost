@@ -12,6 +12,7 @@ import {
   Square,
   CheckSquare,
   Info,
+  BookOpen,
 } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { usePackStore } from '../../store/packStore';
@@ -163,7 +164,17 @@ export const MenuBar: React.FC = () => {
       label: 'Help',
       items: [
         {
-          label: 'About McTextureGhost',
+          label: 'Docs & Guides',
+          icon: <BookOpen size={13} />,
+          action: () => {
+            window.open(
+              'https://learn.microsoft.com/en-us/minecraft/creator/documents/resourcepack',
+              '_blank'
+            );
+          },
+        },
+        {
+          label: 'About mcTextureGhost',
           icon: <Info size={13} />,
           action: () => setIsAboutOpen(true),
         },

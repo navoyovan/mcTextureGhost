@@ -1,5 +1,5 @@
 // frontend/src/components/common/TextureContextMenu.tsx
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Edit3,
@@ -58,10 +58,11 @@ interface TextureContextMenuProps {
   onEditAtlas?: () => void;
 }
 
-function computeMenuPosition(anchor?: ContextMenuAnchor | null): { top: number; left: number } {
+function computeMenuPosition(anchor?: ContextMenuAnchor | null, measuredWidth = 240, measuredHeight = 260): { top: number; left: number } {
   if (!anchor) return { top: 100, left: 100 };
-  const menuWidth = 190;
-  const menuHeight = 250;
+  const menuWidth = measuredWidth;
+  const menuHeight = measuredHeight;
+  const padding = 10;
 
   let targetX = 100;
   let targetY = 100;
@@ -72,19 +73,23 @@ function computeMenuPosition(anchor?: ContextMenuAnchor | null): { top: number; 
   } else if (anchor.x !== undefined && anchor.y !== undefined) {
     targetX = anchor.x;
     targetY = anchor.y;
+  } else if (anchor.left !== undefined && anchor.top !== undefined) {
+    targetX = anchor.left;
+    targetY = anchor.top;
   }
 
   const winWidth = typeof window !== 'undefined' ? window.innerWidth : 1200;
   const winHeight = typeof window !== 'undefined' ? window.innerHeight : 800;
 
-  if (targetX + menuWidth > winWidth - 10) {
-    targetX = winWidth - menuWidth - 10;
+  if (targetX + menuWidth > winWidth - padding) {
+    targetX = Math.max(padding, winWidth - menuWidth - padding);
   }
-  if (targetX < 10) targetX = 10;
-  if (targetY + menuHeight > winHeight - 10) {
-    targetY = Math.max(10, (anchor.top ?? targetY) - menuHeight - 4);
+  if (targetX < padding) targetX = padding;
+  if (targetY + menuHeight > winHeight - padding) {
+    const fallbackTop = anchor.top ?? anchor.y ?? targetY;
+    targetY = Math.max(padding, fallbackTop - menuHeight - 4);
   }
-  if (targetY < 10) targetY = 10;
+  if (targetY < padding) targetY = padding;
 
   return { top: targetY, left: targetX };
 }
@@ -108,11 +113,40 @@ export const TextureContextMenu: React.FC<TextureContextMenuProps> = ({
 
   const defaultApp = openWithApps?.find((a) => a.isDefault);
 
-  const initialPos = useRef<{ top: number; left: number } | null>(null);
-  if (!initialPos.current) {
-    initialPos.current = computeMenuPosition(anchor);
-  }
-  const [menuPos] = useState<{ top: number; left: number }>(initialPos.current);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number }>(() =>
+    computeMenuPosition(anchor)
+  );
+
+  useLayoutEffect(() => {
+    if (!menuRef.current) return;
+    const rect = menuRef.current.getBoundingClientRect();
+    const winWidth = window.innerWidth;
+    const winHeight = window.innerHeight;
+    const padding = 10;
+
+    let adjustedLeft = menuPos.left;
+    let adjustedTop = menuPos.top;
+
+    if (rect.right > winWidth - padding) {
+      adjustedLeft = Math.max(padding, winWidth - rect.width - padding);
+    }
+    if (adjustedLeft < padding) {
+      adjustedLeft = padding;
+    }
+
+    if (rect.bottom > winHeight - padding) {
+      const fallbackTop = anchor?.top ?? anchor?.y ?? menuPos.top;
+      adjustedTop = Math.max(padding, fallbackTop - rect.height - 4);
+    }
+    if (adjustedTop < padding) {
+      adjustedTop = padding;
+    }
+
+    if (adjustedLeft !== menuPos.left || adjustedTop !== menuPos.top) {
+      setMenuPos({ top: adjustedTop, left: adjustedLeft });
+    }
+  }, [anchor]);
 
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -120,7 +154,8 @@ export const TextureContextMenu: React.FC<TextureContextMenuProps> = ({
   const isOrphan = item.status === 'ORPHAN';
 
   const winWidth = typeof window !== 'undefined' ? window.innerWidth : 1200;
-  const flipLeft = menuPos.left + 190 + 200 > winWidth;
+  const currentMenuWidth = menuRef.current?.offsetWidth || 240;
+  const flipLeft = menuPos.left + currentMenuWidth + 200 > winWidth;
 
   const clearCloseTimer = useCallback(() => {
     if (closeTimerRef.current) {
@@ -184,6 +219,7 @@ export const TextureContextMenu: React.FC<TextureContextMenuProps> = ({
   return createPortal(
     <div className={styles.dropdownPortalBackdrop} onMouseDown={onClose}>
       <div
+        ref={menuRef}
         className={styles.contextMenuPortal}
         style={{ top: `${menuPos.top}px`, left: `${menuPos.left}px` }}
         onMouseDown={(e) => e.stopPropagation()}
@@ -198,7 +234,7 @@ export const TextureContextMenu: React.FC<TextureContextMenuProps> = ({
 
         <div className={styles.menuDivider} />
 
-        {/* 1. Default Edit Texture (Uses default app icon/name if configured) */}
+        {/* 1. Default Edit/Open Texture (Uses default app icon/name if configured) */}
         <button
           type="button"
           className={styles.menuItem}
@@ -207,7 +243,7 @@ export const TextureContextMenu: React.FC<TextureContextMenuProps> = ({
             onClose();
             onEdit(defaultApp);
           }}
-          title={isGhost ? 'Texture file does not exist on disk' : defaultApp ? `Edit with ${defaultApp.name} (${defaultApp.exePath})` : 'Edit with default image editor'}
+          title={isGhost ? 'Texture file does not exist on disk' : defaultApp ? `Edit with ${defaultApp.name} (${defaultApp.exePath})` : 'Open in default editor'}
         >
           {defaultApp?.iconDataUrl ? (
             <img src={defaultApp.iconDataUrl} alt={defaultApp.name} className={styles.appIconImg} />
@@ -217,7 +253,7 @@ export const TextureContextMenu: React.FC<TextureContextMenuProps> = ({
             <Edit3 size={13} className={styles.menuIcon} />
           )}
           <span className={styles.menuLabel}>
-            {defaultApp ? `Edit with ${defaultApp.name}` : 'Edit Texture'}
+            {defaultApp ? `Edit with ${defaultApp.name}` : 'Open'}
           </span>
         </button>
 

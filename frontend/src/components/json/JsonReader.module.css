@@ -40,12 +40,14 @@
 /* ─── 3. Code Viewport ─── */
 .codeViewport {
   flex: 1;
+  min-height: 0;
   overflow: auto;
   background: #0d0e12;
   display: flex;
+  align-items: stretch;
   font-family: 'Consolas', 'JetBrains Mono', 'Fira Code', monospace;
   font-size: 12px;
-  line-height: 1.6;
+  line-height: 19.2px;
 }
 
 .codeViewport::-webkit-scrollbar {
@@ -73,12 +75,23 @@
   user-select: none;
   flex-shrink: 0;
   text-align: right;
+  height: max-content;
+  min-height: 100%;
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  box-sizing: border-box;
 }
 
 .gutterLine {
   padding: 0 12px 0 16px;
   color: #4b5563;
-  font-size: 11px;
+  font-family: 'Consolas', 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 12px;
+  line-height: 19.2px;
+  height: 19.2px;
+  min-height: 19.2px;
+  box-sizing: border-box;
 }
 
 .codeContent {
@@ -87,10 +100,18 @@
   white-space: pre;
   color: #e2e8f0;
   min-width: fit-content;
+  height: max-content;
+  min-height: 100%;
+  box-sizing: border-box;
 }
 
 .codeLine {
+  font-family: 'Consolas', 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 12px;
+  line-height: 19.2px;
+  height: 19.2px;
   min-height: 19.2px;
+  box-sizing: border-box;
 }
 
 .codeLineHighlight {
@@ -163,16 +184,19 @@
 /* ─── 5. Split View & Manifest Form ─── */
 /* ─── 5. Split View & Manifest Inspector (Unboxed & Flat) ─── */
 .splitContentArea {
+  position: relative;
   display: flex;
   flex: 1;
   overflow: hidden;
+  width: 100%;
+  height: 100%;
 }
 
 .formColumn {
   flex: 1;
   min-width: 0;
   overflow-y: auto;
-  padding: 24px 28px;
+  padding: 24px 56px 32px 28px;
   display: flex;
   flex-direction: column;
   gap: 18px;
@@ -291,6 +315,24 @@
   justify-content: space-between;
   gap: 12px;
   width: 100%;
+}
+
+.packMetaActionsRight {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.activeToggleBtn {
+  background: rgba(140, 235, 31, 0.12);
+  border-color: rgba(140, 235, 31, 0.3);
+  color: var(--accent-primary, #8CEB1F);
+}
+
+.activeToggleBtn:hover {
+  background: rgba(140, 235, 31, 0.2);
+  border-color: rgba(140, 235, 31, 0.5);
+  color: #ffffff;
 }
 
 .packMetaTags {
@@ -615,12 +657,159 @@
   color: #f59e0b;
 }
 
-.previewColumn {
-  flex: 1;
-  min-width: 0;
-  border-left: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+/* ─── 6. Slide-in JSON Sidebar Drawer (Hamburger / Panel Drawer Pattern) ─── */
+.drawerBackdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(2px);
+  z-index: 90;
+  transition: opacity 0.2s ease;
+  cursor: pointer;
+}
+
+.jsonSidebarDrawer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 480px;
+  max-width: min(85vw, 560px);
   background: #0d0e12;
+  border-left: 1px solid var(--border-default, rgba(255, 255, 255, 0.12));
+  box-shadow: -8px 0 32px rgba(0, 0, 0, 0.7);
+  z-index: 100;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  transform: translateX(100%);
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  pointer-events: none;
+}
+
+.jsonSidebarDrawerOpen {
+  transform: translateX(0);
+  pointer-events: auto;
+}
+
+.drawerHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 38px;
+  padding: 0 12px 0 14px;
+  background: #090a0d;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  flex-shrink: 0;
+}
+
+.drawerTitle {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--font-brand, sans-serif);
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #e4e4e7;
+  letter-spacing: 0.02em;
+}
+
+.drawerTitleIcon {
+  color: var(--accent-primary, #8CEB1F);
+}
+
+.drawerMetaText {
+  font-family: var(--font-mono, monospace);
+  font-size: 10.5px;
+  font-weight: 500;
+  color: var(--text-muted, #71717a);
+  margin-left: 6px;
+  white-space: nowrap;
+}
+
+.drawerHeaderActions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.drawerActionBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  height: 24px;
+  border-radius: var(--radius-sm, 4px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+  color: #a1a1aa;
+  font-family: var(--font-brand, sans-serif);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.drawerActionBtn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+
+.drawerCloseBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius-sm, 4px);
+  border: none;
+  background: transparent;
+  color: #71717a;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.drawerCloseBtn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.collapsedPreviewRail {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  padding: 16px 4px;
+  width: 28px;
+  background: #090a0d;
+  border-left: 1px solid rgba(255, 255, 255, 0.06);
+  border-top: none;
+  border-bottom: none;
+  border-right: none;
+  color: #71717a;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  z-index: 50;
+}
+
+.collapsedPreviewRail:hover {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--accent-primary, #8CEB1F);
+  border-left-color: rgba(140, 235, 31, 0.3);
+}
+
+.verticalRailText {
+  font-family: var(--font-mono, monospace);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  transform: rotate(180deg);
+  white-space: nowrap;
 }

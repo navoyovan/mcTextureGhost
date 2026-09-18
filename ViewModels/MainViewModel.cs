@@ -137,12 +137,12 @@ public class MainViewModel : INotifyPropertyChanged
     {
         get
         {
-            if (_packRoot == null) return "McTextureGhost";
+            if (_packRoot == null) return "mcTextureGhost";
             var packName = PackName ?? "Pack";
             var ghostCount = AllGhostCount;
             return ghostCount > 0
-                ? $"McTextureGhost — {packName} ({ghostCount} ghosts)"
-                : $"McTextureGhost — {packName} (all OK)";
+                ? $"mcTextureGhost — {packName} ({ghostCount} ghosts)"
+                : $"mcTextureGhost — {packName} (all OK)";
         }
     }
 

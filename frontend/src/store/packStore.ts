@@ -54,6 +54,8 @@ export interface PackStoreState {
   tileZoom: number;
   /** Live stats for the shared-toolbar JSON viewer (matches, line count, formatted size) */
   jsonViewerInfo: { lineCount: number; sizeLabel: string; matchCount: number | null } | null;
+  /** Whether the Manifest raw JSON sidebar/drawer is open */
+  isManifestJsonDrawerOpen: boolean;
 
   // App & Theme Config
   tintOpacity: number;
@@ -90,6 +92,8 @@ export interface PackStoreActions {
   setSimulateNoAssets: (simulate: boolean) => void;
   setTileZoom: (zoom: number) => void;
   setJsonViewerInfo: (info: { lineCount: number; sizeLabel: string; matchCount: number | null } | null) => void;
+  setIsManifestJsonDrawerOpen: (open: boolean) => void;
+  toggleManifestJsonDrawer: () => void;
   setAppConfig: (config: Partial<AppConfigPayload>) => void;
   setOpenWithApps: (apps: OpenWithAppDto[]) => void;
   setJsonOpenWithApps: (apps: OpenWithAppDto[]) => void;
@@ -156,6 +160,7 @@ const initialState: PackStoreState = {
   simulateNoAssets: typeof window !== 'undefined' && localStorage.getItem('mctg_simulate_no_assets') === 'true',
   tileZoom: 120,
   jsonViewerInfo: null,
+  isManifestJsonDrawerOpen: false,
 
   tintOpacity: 85,
   tintBrightness: 30,
@@ -400,6 +405,18 @@ export const packStoreActions: PackStoreActions = {
 
   setJsonViewerInfo(info: { lineCount: number; sizeLabel: string; matchCount: number | null } | null): void {
     currentState = { ...currentState, jsonViewerInfo: info };
+    cachedSnapshot = null;
+    notify();
+  },
+
+  setIsManifestJsonDrawerOpen(open: boolean): void {
+    currentState = { ...currentState, isManifestJsonDrawerOpen: open };
+    cachedSnapshot = null;
+    notify();
+  },
+
+  toggleManifestJsonDrawer(): void {
+    currentState = { ...currentState, isManifestJsonDrawerOpen: !currentState.isManifestJsonDrawerOpen };
     cachedSnapshot = null;
     notify();
   },

@@ -15,12 +15,9 @@ import {
   AlertCircle,
   Sword,
   FileCode2,
-  ExternalLink,
   Compass,
 } from 'lucide-react';
 import { usePackStore, TextureFilterKey } from '../../store/packStore';
-import { useIpc } from '../../hooks/useIpc';
-import { IpcMessageTypes } from '../../types/ipc';
 import { SearchInput } from '../common/SearchInput';
 import styles from './Toolbar.module.css';
 
@@ -57,10 +54,6 @@ export const Toolbar: React.FC = () => {
   const setActiveView = usePackStore((s) => s.setActiveView);
   const setSelectedFolderPath = usePackStore((s) => s.setSelectedFolderPath);
   const selectedFolderPath = usePackStore((s) => s.selectedFolderPath);
-  const packRoot = usePackStore((s) => s.packRoot);
-  const jsonViewerInfo = usePackStore((s) => s.jsonViewerInfo);
-  const jsonOpenWithApps = usePackStore((s) => s.jsonOpenWithApps);
-  const { postCommand } = useIpc();
 
   const isJsonFileSelected = Boolean(
     selectedFolderPath && /\.(json|material)$/i.test(selectedFolderPath)
@@ -69,22 +62,6 @@ export const Toolbar: React.FC = () => {
   const jsonFileName = isJsonFileSelected
     ? (selectedFolderPath!.replace(/\\/g, '/').split('/').pop() || selectedFolderPath!)
     : null;
-  const jsonFullPath = isJsonFileSelected && packRoot
-    ? `${packRoot}\\${selectedFolderPath!.replace(/\\/g, '/').replace(/^\/+/, '').replace(/\//g, '\\')}`
-    : null;
-
-  const defaultJsonApp = jsonOpenWithApps?.find((a) => a.isDefault);
-
-  const handleOpenJsonInEditor = () => {
-    if (!jsonFullPath || !jsonFileName) return;
-    postCommand(IpcMessageTypes.TextureEdit, {
-      aliasKey: jsonFileName,
-      fullPath: jsonFullPath,
-      isGhost: false,
-      exePath: defaultJsonApp?.exePath || null,
-      chooseDialog: !defaultJsonApp,
-    });
-  };
 
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const filterDropdownRef = useRef<HTMLDivElement | null>(null);
@@ -122,6 +99,13 @@ export const Toolbar: React.FC = () => {
     setActiveView(view);
   };
 
+  const isManifestJsonDrawerOpen = usePackStore((s) => s.isManifestJsonDrawerOpen);
+  const toggleManifestJsonDrawer = usePackStore((s) => s.toggleManifestJsonDrawer);
+
+  const isManifest = Boolean(
+    isJsonFileSelected && jsonFileName?.toLowerCase() === 'manifest.json'
+  );
+
   const isFilterActive = activeFilters.length > 0 || activeTab !== 'all';
   const totalFilterCount = activeFilters.length + (activeTab !== 'all' ? 1 : 0);
 
@@ -137,28 +121,6 @@ export const Toolbar: React.FC = () => {
           enableSlashShortcut={true}
           wrapperClassName={styles.toolbarSearch}
         />
-
-        {/* JSON viewer stats + external editor shortcut (replaces the reader's own header bar) */}
-        {isJsonFileSelected && (
-          <>
-            <button
-              type="button"
-              className={styles.openEditorBtn}
-              onClick={handleOpenJsonInEditor}
-              title="Open in external system editor"
-              disabled={!jsonFullPath}
-            >
-              <ExternalLink size={13} />
-              <span>Open in Editor</span>
-            </button>
-            {jsonViewerInfo && (
-              <span className={styles.jsonInfoBadge} role="status">
-                {jsonViewerInfo.matchCount !== null && `${jsonViewerInfo.matchCount} matches • `}
-                {jsonViewerInfo.lineCount} lines • {jsonViewerInfo.sizeLabel}
-              </span>
-            )}
-          </>
-        )}
 
         {/* Modernized Filter Checklist Dropdown */}
         {!isJsonFileSelected && <div className={styles.filterDropdownWrapper} ref={filterDropdownRef}>
@@ -289,12 +251,17 @@ export const Toolbar: React.FC = () => {
           <div className={styles.viewModeGroup}>
             <button
               type="button"
-              className={`${styles.viewModeButton} ${styles.viewModeButtonActive}`}
-              title="JSON Viewer (open file from the sidebar)"
-              aria-pressed={true}
+              className={`${styles.viewModeButton} ${!isManifest || isManifestJsonDrawerOpen ? styles.viewModeButtonActive : ''}`}
+              onClick={() => {
+                if (isManifest) {
+                  toggleManifestJsonDrawer();
+                }
+              }}
+              title={isManifest ? (isManifestJsonDrawerOpen ? 'Close JSON Drawer' : 'Open JSON Drawer') : 'JSON'}
+              aria-pressed={!isManifest || isManifestJsonDrawerOpen}
             >
               <FileCode2 size={13} />
-              <span>JSON Viewer</span>
+              <span>JSON</span>
             </button>
           </div>
         )}

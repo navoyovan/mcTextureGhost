@@ -1,5 +1,5 @@
 // frontend/src/components/common/JsonFileContextMenu.tsx
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import {
   ExternalLink,
@@ -27,11 +27,13 @@ export interface JsonFileContextMenuProps {
 }
 
 function computeMenuPosition(
-  anchor: { x: number; y: number } | { top: number; left: number; bottom?: number; right?: number }
+  anchor: { x: number; y: number } | { top: number; left: number; bottom?: number; right?: number },
+  measuredWidth = 240,
+  measuredHeight = 240
 ): { top: number; left: number } {
-  const menuWidth = 195;
-  const menuHeight = 220;
-  const padding = 8;
+  const menuWidth = measuredWidth;
+  const menuHeight = measuredHeight;
+  const padding = 10;
 
   const winWidth = typeof window !== 'undefined' ? window.innerWidth : 1200;
   const winHeight = typeof window !== 'undefined' ? window.innerHeight : 800;
@@ -42,6 +44,7 @@ function computeMenuPosition(
   if (targetX + menuWidth > winWidth - padding) {
     targetX = Math.max(padding, winWidth - menuWidth - padding);
   }
+  if (targetX < padding) targetX = padding;
   if (targetY + menuHeight > winHeight - padding) {
     targetY = Math.max(padding, ('top' in anchor ? anchor.top : targetY) - menuHeight - 4);
   }
@@ -64,16 +67,46 @@ export const JsonFileContextMenu: React.FC<JsonFileContextMenuProps> = ({
 
   const defaultApp = jsonOpenWithApps?.find((a) => a.isDefault);
 
-  const initialPos = useRef<{ top: number; left: number } | null>(null);
-  if (!initialPos.current) {
-    initialPos.current = computeMenuPosition(anchor);
-  }
-  const [menuPos] = useState<{ top: number; left: number }>(initialPos.current);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number }>(() =>
+    computeMenuPosition(anchor)
+  );
+
+  useLayoutEffect(() => {
+    if (!menuRef.current) return;
+    const rect = menuRef.current.getBoundingClientRect();
+    const winWidth = window.innerWidth;
+    const winHeight = window.innerHeight;
+    const padding = 10;
+
+    let adjustedLeft = menuPos.left;
+    let adjustedTop = menuPos.top;
+
+    if (rect.right > winWidth - padding) {
+      adjustedLeft = Math.max(padding, winWidth - rect.width - padding);
+    }
+    if (adjustedLeft < padding) {
+      adjustedLeft = padding;
+    }
+
+    if (rect.bottom > winHeight - padding) {
+      const fallbackTop = 'top' in anchor ? anchor.top : ('y' in anchor ? anchor.y : menuPos.top);
+      adjustedTop = Math.max(padding, fallbackTop - rect.height - 4);
+    }
+    if (adjustedTop < padding) {
+      adjustedTop = padding;
+    }
+
+    if (adjustedLeft !== menuPos.left || adjustedTop !== menuPos.top) {
+      setMenuPos({ top: adjustedTop, left: adjustedLeft });
+    }
+  }, [anchor]);
 
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const winWidth = typeof window !== 'undefined' ? window.innerWidth : 1200;
-  const flipLeft = menuPos.left + 195 + 200 > winWidth;
+  const currentMenuWidth = menuRef.current?.offsetWidth || 240;
+  const flipLeft = menuPos.left + currentMenuWidth + 200 > winWidth;
 
   const clearCloseTimer = useCallback(() => {
     if (closeTimerRef.current) {
@@ -142,6 +175,7 @@ export const JsonFileContextMenu: React.FC<JsonFileContextMenuProps> = ({
     <>
       <div className={styles.dropdownPortalBackdrop} onClick={onClose} onContextMenu={(e) => { e.preventDefault(); onClose(); }} />
       <div
+        ref={menuRef}
         className={styles.contextMenuPortal}
         style={{ top: menuPos.top, left: menuPos.left }}
         onClick={(e) => e.stopPropagation()}
@@ -163,13 +197,9 @@ export const JsonFileContextMenu: React.FC<JsonFileContextMenuProps> = ({
           className={styles.menuItem}
           onClick={() => {
             onClose();
-            if (defaultApp) {
-              handleLaunchApp(defaultApp);
-            } else {
-              handleWindowsOpenWith();
-            }
+            handleLaunchApp(defaultApp);
           }}
-          title={defaultApp ? `Edit with ${defaultApp.name} (${defaultApp.exePath})` : 'Open with external code editor'}
+          title={defaultApp ? `Edit with ${defaultApp.name} (${defaultApp.exePath})` : 'Open in default editor'}
         >
           {defaultApp?.iconDataUrl ? (
             <img src={defaultApp.iconDataUrl} alt={defaultApp.name} className={styles.appIconImg} />
@@ -179,7 +209,7 @@ export const JsonFileContextMenu: React.FC<JsonFileContextMenuProps> = ({
             <Edit3 size={13} className={styles.menuIcon} />
           )}
           <span className={styles.menuLabel}>
-            {defaultApp ? `Edit with ${defaultApp.name}` : 'Open with editor'}
+            {defaultApp ? `Edit with ${defaultApp.name}` : 'Open'}
           </span>
         </button>
 

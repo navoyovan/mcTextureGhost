@@ -1,6 +1,6 @@
 // frontend/src/components/workspace/EntityWorkspace.tsx
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
-import { PawPrint, Shield, Trash2 } from 'lucide-react';
+import { PawPrint, ArrowRight, Shield } from 'lucide-react';
 import { usePackStore } from '../../store/packStore';
 import { useIpc } from '../../hooks/useIpc';
 import { BlockGroupNodeDto, CatalogLeafDto, TextureAliasDto, OpenWithAppDto } from '../../types/ipc';
@@ -356,14 +356,6 @@ export const EntityWorkspace: React.FC = () => {
     deleteTextureEntries(alias, 'entity', relativePath ?? undefined);
   }, [deleteTextureEntries]);
 
-  const handleDeleteEntity = useCallback(() => {
-    if (!selectedEntity) return;
-    const name = selectedEntity.displayName || selectedEntity.blockId;
-    if (window.confirm(`Are you sure you want to delete entity "${name}" and its definition JSON from the pack?`)) {
-      deleteTextureEntries(selectedEntity.blockId, 'entity');
-    }
-  }, [selectedEntity, deleteTextureEntries]);
-
   const selectedEntityDisplayName = selectedEntity?.displayName || selectedEntity?.blockId || '';
 
   if (!entityWorkspaceTree || entityWorkspaceTree.length === 0) {
@@ -444,27 +436,16 @@ export const EntityWorkspace: React.FC = () => {
                     Attachable / Armor
                   </span>
                 )}
-                {selectedEntity.isUserDefined === false && (
-                  <span className={styles.vanillaHeaderBadge} title="Using vanilla entity definition">
-                    Vanilla Fallback
-                  </span>
-                )}
               </div>
               <span className={styles.blockIdSub}>
                 {selectedEntity.blockId}
               </span>
             </div>
             <div className={styles.detailHeaderActions}>
-              {selectedEntity.isUserDefined !== false && (
-                <button
-                  type="button"
-                  className={styles.deleteEntityBtn}
-                  onClick={handleDeleteEntity}
-                  title="Delete this entity definition JSON from the pack"
-                >
-                  <Trash2 size={13} />
-                  <span>Delete Entity</span>
-                </button>
+              {selectedEntity.isUserDefined === false && (
+                <span className={styles.vanillaHeaderBadge} title="Using vanilla entity definition">
+                  Vanilla Fallback
+                </span>
               )}
               {selectedEntity.ghostCount > 0 && (
                 <span className={styles.ghostBadge}>
@@ -504,7 +485,7 @@ export const EntityWorkspace: React.FC = () => {
               <div key={`${selectedEntity.blockId}-${ag.alias}-${agIndex}`} className={styles.aliasGroupCard}>
                 <div className={styles.aliasHeader}>
                   <PawPrint size={14} />
-                  <span>Slot: {ag.alias}{ag.geometryId ? ` | ${ag.geometryId}` : ''}</span>
+                  <span>Slot: {ag.alias}</span>
                   {selectedEntity.isUserDefined === false && (
                     <span className={styles.vanillaHeaderBadge} title="Using vanilla entity definition">
                       Vanilla Fallback
@@ -512,24 +493,33 @@ export const EntityWorkspace: React.FC = () => {
                   )}
                 </div>
 
-                <div className={styles.variantStrip}>
-                  {groupLeavesByVariantSlot(ag.leaves ?? []).map((grp, grpIndex) => {
-                    const cardKey = `${selectedEntity.blockId}-${ag.alias}-${grp.key}-${grpIndex}`;
-                    return (
-                      <WorkspaceTileCard
-                        key={cardKey}
-                        grp={grp}
-                        cardKey={cardKey}
-                        tileZoom={tileZoom}
-                        selectedBlockName={selectedEntityDisplayName}
-                        isMenuOpen={activeMenuKey === cardKey}
-                        onToggleMenu={handleToggleMenu}
-                        onTileClick={handleTileClick}
-                        onDeleteTextureFile={handleDeleteTextureFile}
-                        onDeleteTextureEntries={handleDeleteTextureEntries}
-                      />
-                    );
-                  })}
+                <div className={styles.faceRow}>
+                  {ag.geometryId && (
+                    <div className={styles.faceLabelBadge}>
+                      <ArrowRight size={10} />
+                      <span>Geo: {ag.geometryId}</span>
+                    </div>
+                  )}
+
+                  <div className={styles.variantStrip}>
+                    {groupLeavesByVariantSlot(ag.leaves ?? []).map((grp, grpIndex) => {
+                      const cardKey = `${selectedEntity.blockId}-${ag.alias}-${grp.key}-${grpIndex}`;
+                      return (
+                        <WorkspaceTileCard
+                          key={cardKey}
+                          grp={grp}
+                          cardKey={cardKey}
+                          tileZoom={tileZoom}
+                          selectedBlockName={selectedEntityDisplayName}
+                          isMenuOpen={activeMenuKey === cardKey}
+                          onToggleMenu={handleToggleMenu}
+                          onTileClick={handleTileClick}
+                          onDeleteTextureFile={handleDeleteTextureFile}
+                          onDeleteTextureEntries={handleDeleteTextureEntries}
+                        />
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
             ))}

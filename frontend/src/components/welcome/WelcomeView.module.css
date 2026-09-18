@@ -78,39 +78,6 @@
   text-shadow: 0 0 14px rgba(140, 235, 31, 0.45);
 }
 
-.docsLinkBottomRight {
-  position: fixed;
-  bottom: 20px;
-  right: 24px;
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  padding: 6px 13px;
-  background: rgba(24, 24, 27, 0.75);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 8px;
-  color: #a1a1aa;
-  font-size: 12px;
-  font-weight: 500;
-  cursor: pointer;
-  z-index: 50;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
-  transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
-}
-
-.docsLinkBottomRight:hover {
-  color: var(--accent-primary, #8CEB1F);
-  background: rgba(30, 30, 36, 0.95);
-  border-color: rgba(140, 235, 31, 0.3);
-  transform: translateY(-1px);
-}
-
-.docsIcon {
-  width: 13px;
-  height: 13px;
-}
-
 /* Action Bar: Primary & Secondary */
 .actionRow {
   display: grid;

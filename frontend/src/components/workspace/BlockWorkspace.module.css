@@ -256,6 +256,10 @@
   color: #e4e4e7;
 }
 
+.aliasHeader .vanillaHeaderBadge {
+  margin-left: auto;
+}
+
 .faceNodeGroup {
   display: flex;
   flex-direction: column;
