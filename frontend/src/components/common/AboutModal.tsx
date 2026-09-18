@@ -154,7 +154,7 @@ export const AboutModal: React.FC<AboutModalProps> = ({ isOpen, onClose }) => {
                 <span className={styles.appNamePixel}>Texture</span>
                 <span>Ghost</span>
               </h2>
-              <span className={styles.appVersionBadge}>v0.1.0</span>
+              <span className={styles.appVersionBadge}>v1.0.0</span>
             </div>
 
             <p className={styles.appCopyright}>© 2026 navoyovan</p>

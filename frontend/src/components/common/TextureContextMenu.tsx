@@ -25,6 +25,7 @@ import styles from './TextureContextMenu.module.css';
 
 export interface TextureContextItemData {
   alias: string;
+  displayName?: string;
   fullPath?: string;
   relativePath?: string;
   status: string;
@@ -170,13 +171,15 @@ export const TextureContextMenu: React.FC<TextureContextMenuProps> = ({
   );
 
   const rawFileName = item.relativePath
-    ? (item.relativePath.split(/[/\\]/).pop() ?? item.alias)
-    : item.alias;
-  const dotIdx = rawFileName.lastIndexOf('.');
-  const cleanExt = dotIdx > 0 ? (rawFileName.substring(dotIdx).split('?')[0] ?? '').split('#')[0] ?? '' : '';
-  const fileExt = cleanExt && cleanExt.length <= 5 ? cleanExt : (item.relativePath?.endsWith('.png') ? '.png' : '');
-  const fileBase = dotIdx > 0 ? rawFileName.substring(0, dotIdx) : rawFileName;
-  const fullDisplayName = fileExt ? `${fileBase}${fileExt}` : fileBase;
+    ? (item.relativePath.split(/[/\\]/).pop() ?? item.displayName ?? item.alias)
+    : (item.displayName ?? item.alias);
+  const sourceForExt = item.fullPath || item.relativePath || item.alias || rawFileName;
+  const dotIdx = sourceForExt.lastIndexOf('.');
+  const cleanExt = dotIdx > 0 ? (sourceForExt.substring(dotIdx).split('?')[0] ?? '').split('#')[0] ?? '' : '';
+  const fileExt = cleanExt && cleanExt.length <= 5 ? cleanExt : '.png';
+  const rawDotIdx = rawFileName.lastIndexOf('.');
+  const fileBase = rawDotIdx > 0 && cleanExt ? rawFileName.substring(0, rawDotIdx) : rawFileName;
+  const fullDisplayName = `${fileBase}${fileExt}`;
 
   return createPortal(
     <div className={styles.dropdownPortalBackdrop} onMouseDown={onClose}>

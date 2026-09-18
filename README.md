@@ -89,7 +89,7 @@ dotnet run --project McTextureGhost.csproj
 
 ### App Release
 
-No releases yet :(
+Download the latest standalone release binary from [GitHub Releases](https://github.com/navoyovan/mcTextureGhost/releases/tag/v1.0.0).
 
 ---
 
