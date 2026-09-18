@@ -1075,6 +1075,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         // 17. VANILLA:LOAD_CATALOG
         _ipcBridge.RegisterHandler(IpcMessageTypes.VanillaLoadCatalog, async (payload, corrId) =>
         {
+            CatalogReferenceService.ClearCache();
             var activeData = CatalogReferenceService.GetActiveData(ViewModel.VanillaData);
             if (activeData != null)
             {

@@ -1,0 +1,322 @@
+/* frontend/src/components/common/AboutModal.module.css */
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(6px);
+  animation: fadeIn 0.15s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes modalEnter {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.modal {
+  width: 520px;
+  max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 48px);
+  background: #18181f;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.8),
+              0 0 0 1px rgba(255, 255, 255, 0.05);
+  overflow: hidden;
+  animation: modalEnter 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Header */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: #14141a;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  flex-shrink: 0;
+}
+
+.headerTitleWrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.headerIcon {
+  color: var(--accent-primary, #8CEB1F);
+}
+
+.headerText {
+  font-family: var(--font-brand, 'Syne', sans-serif);
+  font-size: 13px;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.closeButton {
+  all: unset;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.6);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  box-sizing: border-box;
+}
+
+.closeButton:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+}
+
+/* Scroll Container */
+.scrollContent {
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  padding: 16px 18px 20px;
+  gap: 16px;
+}
+
+/* Section 1: App Hero (Clean, unboxed) */
+.appHero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 8px;
+  padding: 4px 0 10px;
+  flex-shrink: 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.appLogoImg {
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 0 10px rgba(140, 235, 31, 0.75)) drop-shadow(0 0 20px rgba(140, 235, 31, 0.4));
+  margin-bottom: 2px;
+}
+
+.appNameRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.appName {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--font-brand, 'Syne', sans-serif);
+  font-size: 20px;
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: -0.02em;
+}
+
+.appNamePixel {
+  font-family: var(--font-pixel, 'Press Start 2P', monospace);
+  font-size: 15px;
+  font-weight: 400;
+  letter-spacing: -0.03em;
+  color: var(--accent-primary, #8ceb1f);
+  margin: 0 2px;
+  text-shadow: 0 0 10px rgba(140, 235, 31, 0.45);
+}
+
+.appVersionBadge {
+  font-family: 'Consolas', monospace;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.appCopyright {
+  margin: 0;
+  font-family: var(--font-sans, 'Segoe UI Variable', sans-serif);
+  font-size: 11.5px;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.disclaimerText {
+  margin: 4px 0 4px;
+  font-family: 'Consolas', monospace;
+  font-size: 9.5px;
+  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.4);
+  letter-spacing: 0.02em;
+  max-width: 90%;
+}
+
+/* Section 2: Licenses List */
+.licensesSection {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.licensesHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 2px;
+}
+
+.licensesTitle {
+  font-family: var(--font-brand, 'Syne', sans-serif);
+  font-size: 11.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.licensesCount {
+  font-family: 'Consolas', monospace;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.licenseList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.licenseCard {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: #14141a;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 7px;
+  cursor: pointer;
+  user-select: none;
+  gap: 12px;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+
+.licenseCard:hover {
+  background: #1a1a24;
+  border-color: rgba(255, 255, 255, 0.16);
+  transform: translateY(-1px);
+}
+
+.licenseCard:focus-visible {
+  outline: 2px solid var(--accent-primary, #8ceb1f);
+  outline-offset: 1px;
+}
+
+.licenseHeaderLeft {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  flex: 1;
+}
+
+.licenseNameRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.licenseName {
+  font-family: var(--font-brand, 'Syne', sans-serif);
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.licenseTypeBadge {
+  font-family: 'Consolas', monospace;
+  font-size: 9px;
+  font-weight: 600;
+  color: #38bdf8;
+  background: rgba(56, 189, 248, 0.1);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  padding: 1px 5px;
+  border-radius: 3px;
+  line-height: 1;
+}
+
+.licenseNotice {
+  margin: 0;
+  font-family: var(--font-sans, 'Segoe UI Variable', sans-serif);
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.5);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.authorLink {
+  color: var(--accent-primary, #8ceb1f);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  font-weight: 600;
+  transition: opacity 0.15s ease;
+}
+
+.authorLink:hover {
+  opacity: 0.85;
+}
+
+.licenseHeaderRight {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.linkIconWrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  color: rgba(255, 255, 255, 0.4);
+  transition: color 0.15s ease;
+}
+
+.licenseCard:hover .linkIconWrap {
+  color: var(--accent-primary, #8ceb1f);
+}
+

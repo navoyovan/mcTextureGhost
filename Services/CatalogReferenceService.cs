@@ -110,6 +110,7 @@ public static class CatalogReferenceService
                             relPath.StartsWith("textures/", StringComparison.OrdinalIgnoreCase) ||
                             relPath.StartsWith("texts/", StringComparison.OrdinalIgnoreCase) ||
                             string.Equals(relPath, "blocks.json", StringComparison.OrdinalIgnoreCase) ||
+                            string.Equals(relPath, "manifest.json", StringComparison.OrdinalIgnoreCase) ||
                             string.Equals(relPath, "pack_icon.png", StringComparison.OrdinalIgnoreCase))
                         {
                             var destFile = Path.Combine(targetDir, relPath.Replace('/', Path.DirectorySeparatorChar));
@@ -196,19 +197,19 @@ public static class CatalogReferenceService
 
     public static List<ReferencePackProfile> GetAllProfiles()
     {
-        var list = new List<ReferencePackProfile>
-        {
-            new(
+        var vanillaDir = VanillaReferencePackDirectory;
+        var vanillaProfile = CreateProfileFromPath(vanillaDir, "vanilla", isVanilla: true)
+            ?? new ReferencePackProfile(
                 Id: "vanilla",
                 Name: "Vanilla Bedrock",
                 Version: "1.21.x",
                 Description: "Mojang bedrock-samples official reference database",
-                PackPath: VanillaReferencePackDirectory,
+                PackPath: vanillaDir,
                 IconUrl: "https://vanilla.local/pack_icon.png",
                 IsVanilla: true
-            )
-        };
+            );
 
+        var list = new List<ReferencePackProfile> { vanillaProfile };
         list.AddRange(_customProfiles);
         return list;
     }
@@ -273,15 +274,36 @@ public static class CatalogReferenceService
         return false;
     }
 
+    public static void ClearCache()
+    {
+        _dataCache.Clear();
+    }
+
     public static VanillaData? GetActiveData(VanillaData? defaultVanillaData)
     {
-        if (string.Equals(_activeReferenceId, "vanilla", StringComparison.OrdinalIgnoreCase))
+        var active = GetActiveProfile();
+        if (active == null) return defaultVanillaData;
+
+        if (string.Equals(active.Id, "vanilla", StringComparison.OrdinalIgnoreCase))
         {
+            // If downloaded vanilla pack exists with extracted blocks.json/textures, load from it directly
+            var vanillaBlocks = Path.Combine(VanillaReferencePackDirectory, "blocks.json");
+            if (File.Exists(vanillaBlocks))
+            {
+                if (_dataCache.TryGetValue("vanilla", out var cachedVanilla))
+                    return cachedVanilla;
+
+                var parsedVanilla = LoadReferencePackData(VanillaReferencePackDirectory, active.Name, defaultVanillaData);
+                if (parsedVanilla != null)
+                {
+                    _dataCache["vanilla"] = parsedVanilla;
+                    return parsedVanilla;
+                }
+            }
             return defaultVanillaData;
         }
 
-        var active = GetActiveProfile();
-        if (active == null || string.IsNullOrWhiteSpace(active.PackPath) || !Directory.Exists(active.PackPath))
+        if (string.IsNullOrWhiteSpace(active.PackPath) || !Directory.Exists(active.PackPath))
         {
             return defaultVanillaData;
         }
@@ -308,14 +330,17 @@ public static class CatalogReferenceService
         return defaultVanillaData;
     }
 
-    private static ReferencePackProfile? CreateProfileFromPath(string path, string id)
+    private static ReferencePackProfile? CreateProfileFromPath(string path, string id, bool isVanilla = false)
     {
+        if (string.IsNullOrWhiteSpace(path) || !Directory.Exists(path))
+            return null;
+
         try
         {
             var manifestPath = Path.Combine(path, "manifest.json");
-            string name = Path.GetFileName(path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
-            string version = "1.0.0";
-            string? desc = null;
+            string name = isVanilla ? "Vanilla Bedrock" : Path.GetFileName(path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+            string version = "1.21.x";
+            string? desc = isVanilla ? "Mojang bedrock-samples official reference database" : null;
 
             if (File.Exists(manifestPath))
             {
@@ -329,7 +354,7 @@ public static class CatalogReferenceService
                 catch { }
             }
 
-            string iconUrl = "https://vanilla.local/pack_icon.png";
+            string iconUrl = isVanilla ? "https://vanilla.local/pack_icon.png" : "https://reference.local/pack_icon.png";
             var iconPath = Path.Combine(path, "pack_icon.png");
             if (File.Exists(iconPath))
             {
@@ -340,7 +365,7 @@ public static class CatalogReferenceService
                 }
                 catch
                 {
-                    iconUrl = "https://reference.local/pack_icon.png";
+                    iconUrl = isVanilla ? "https://vanilla.local/pack_icon.png" : "https://reference.local/pack_icon.png";
                 }
             }
 
@@ -351,7 +376,7 @@ public static class CatalogReferenceService
                 Description: desc,
                 PackPath: path,
                 IconUrl: iconUrl,
-                IsVanilla: false
+                IsVanilla: isVanilla
             );
         }
         catch
