@@ -60,6 +60,16 @@ export const App: React.FC = () => {
       } else if (e.key === 'Escape' && isComponentLibraryOpen) {
         e.preventDefault();
         setIsComponentLibraryOpen(false);
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b') {
+        const target = e.target as HTMLElement;
+        const isInputField =
+          target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.isContentEditable;
+        if (!isInputField) {
+          e.preventDefault();
+          usePackStore.getState().toggleSidebar();
+        }
       }
     };
 
@@ -72,9 +82,18 @@ export const App: React.FC = () => {
     ?.split(/[\\/]/)
     .filter(Boolean)
     .join('/');
+  const lastFolderName = usePackStore((s) => s.selectedFolderPath)
+    ?.split(/[\\/]/)
+    .filter(Boolean)
+    .pop();
+
   const packLocationLabel = activeFolderSuffix
     ? `${packFolderName}/${activeFolderSuffix}`
-    : packFolderName;
+    : `${packFolderName}/`;
+
+  const compactPackLocationLabel = lastFolderName
+    ? `/${lastFolderName}`
+    : `${packFolderName}/`;
 
   const handleTitleBarMouseDown = (e: React.MouseEvent) => {
     if (e.button === 0 && !(e.target as HTMLElement).closest('button')) {
@@ -207,7 +226,8 @@ export const App: React.FC = () => {
               data-testid="pack-badge"
               title={packLocationLabel}
             >
-              {packLocationLabel}
+              <span className={styles.packBadgeFull}>{packLocationLabel}</span>
+              <span className={styles.packBadgeCompact}>{compactPackLocationLabel}</span>
             </span>
           )}
         </div>

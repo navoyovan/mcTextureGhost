@@ -242,6 +242,7 @@
 .packHeaderMeta {
   flex: 1;
   min-width: 0;
+  width: 100%;
   height: 168px;
   display: flex;
   flex-direction: column;
@@ -321,6 +322,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  margin-left: auto;
 }
 
 .activeToggleBtn {
@@ -774,42 +776,34 @@
   color: #fff;
 }
 
-.collapsedPreviewRail {
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 10px;
-  padding: 16px 4px;
-  width: 28px;
-  background: #090a0d;
-  border-left: 1px solid rgba(255, 255, 255, 0.06);
-  border-top: none;
-  border-bottom: none;
-  border-right: none;
-  color: #71717a;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  z-index: 50;
-}
+@media (max-width: 860px) {
+  .formColumn {
+    padding: 20px 16px;
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow-x: hidden;
+  }
 
-.collapsedPreviewRail:hover {
-  background: rgba(255, 255, 255, 0.04);
-  color: var(--accent-primary, #8CEB1F);
-  border-left-color: rgba(140, 235, 31, 0.3);
-}
+  .packHeaderRow {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    width: 100%;
+  }
 
-.verticalRailText {
-  font-family: var(--font-mono, monospace);
-  font-size: 9.5px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  writing-mode: vertical-rl;
-  text-orientation: mixed;
-  transform: rotate(180deg);
-  white-space: nowrap;
+  .packIconBox {
+    width: 120px;
+    height: 120px;
+  }
+
+  .packHeaderMeta {
+    height: auto;
+    width: 100%;
+    align-self: stretch;
+  }
+
+  .fieldRow {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
 }

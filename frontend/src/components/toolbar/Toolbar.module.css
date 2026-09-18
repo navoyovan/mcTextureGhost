@@ -15,8 +15,56 @@
 .leftControls {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
+}
+
+.searchFilterGroup {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   flex: 1;
+}
+
+.sidebarToggleBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  min-width: 30px;
+  min-height: 30px;
+  box-sizing: border-box;
+  padding: 0;
+  border-radius: 6px;
+  background: #18181c;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #71717a;
+  cursor: pointer;
+  outline: none;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.sidebarToggleBtn:hover {
+  background: #202026;
+  border-color: rgba(255, 255, 255, 0.18);
+  color: #ffffff;
+}
+
+.sidebarToggleBtn:active {
+  transform: scale(0.96);
+}
+
+.sidebarToggleBtnCollapsed {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.28);
+  color: #ffffff;
+}
+
+.sidebarToggleBtnCollapsed:hover {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.45);
+  color: #ffffff;
 }
 
 .categoryGroup {
@@ -159,6 +207,23 @@
   color: #ffffff;
 }
 
+.searchFilterGroup {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}
+
+.workspaceExpanderBtn {
+  display: none;
+}
+
+.workspaceExpanderBtnActive {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.3);
+  color: #ffffff;
+}
+
 /* ─── Modernized Filter Checklist Dropdown ─── */
 .filterDropdownWrapper {
   position: relative;
@@ -166,21 +231,23 @@
 }
 
 .filterTriggerBtn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   height: 30px;
   padding: 0 10px;
   background: #18181c;
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 6px;
   color: #d4d4d8;
-  font-size: 11.5px;
-  font-weight: 500;
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
+  font-family: inherit;
+  font-size: 12px;
   cursor: pointer;
   outline: none;
   transition: all 0.15s ease;
   user-select: none;
+  flex-shrink: 0;
 }
 
 .filterTriggerBtn:hover {
@@ -613,4 +680,98 @@
 .breadcrumbClearBtn:hover {
   background: rgba(244, 63, 94, 0.2);
   color: #f43f5e;
+}
+
+/* ─── Small / Narrow Viewports Responsive Rules ─── */
+@media (max-width: 900px) {
+  .workspaceExpanderBtn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 30px;
+    padding: 0 10px;
+    background: #18181c;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 6px;
+    color: var(--text-secondary, #d4d4d8);
+    font-family: var(--font-brand, 'Syne', sans-serif);
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+    flex-shrink: 0;
+    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  }
+
+  .workspaceExpanderBtn:hover {
+    background: #24242c;
+    border-color: rgba(255, 255, 255, 0.25);
+    color: #ffffff;
+  }
+
+  .workspaceExpanderBtnActive {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.3);
+    color: #ffffff;
+  }
+}
+
+@media (max-width: 860px) {
+  .toolbar {
+    flex-wrap: wrap;
+    padding: 10px 14px;
+    gap: 8px 12px;
+  }
+
+  .leftControls {
+    order: 1;
+    flex: 0 0 auto;
+  }
+
+  .rightControls {
+    order: 2;
+    flex: 0 0 auto;
+    margin-left: auto;
+  }
+
+  .searchFilterGroup {
+    order: 3;
+    width: 100%;
+    flex: 1 1 100%;
+    max-width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .searchFilterGroup .toolbarSearch {
+    flex: 1;
+    width: 100% !important;
+  }
+
+  .filterLabel,
+  .filterChevron {
+    display: none;
+  }
+
+  .filterTriggerBtn {
+    width: 30px;
+    min-width: 30px;
+    padding: 0;
+    justify-content: center;
+  }
+
+  .filterCountBadge {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    min-width: 15px;
+    height: 15px;
+    font-size: 9.5px;
+  }
+
+  .filterMenuPopover {
+    left: auto;
+    right: 0;
+  }
 }

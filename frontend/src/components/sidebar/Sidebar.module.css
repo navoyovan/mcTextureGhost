@@ -12,6 +12,66 @@
   user-select: none;
   overflow: hidden;
   height: 100%;
+  flex-shrink: 0;
+  transition: width 0.22s cubic-bezier(0.16, 1, 0.3, 1),
+              min-width 0.22s cubic-bezier(0.16, 1, 0.3, 1),
+              max-width 0.22s cubic-bezier(0.16, 1, 0.3, 1),
+              border-color 0.22s ease,
+              opacity 0.18s ease;
+}
+
+.sidebarCollapsed {
+  width: 0 !important;
+  min-width: 0 !important;
+  max-width: 0 !important;
+  border-right-color: transparent !important;
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
+}
+
+.sidebarBackdrop {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .sidebar {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 1000;
+    width: 320px;
+    max-width: 85vw;
+    background: rgba(18, 18, 24, 0.97);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    box-shadow: 8px 0 32px rgba(0, 0, 0, 0.7);
+    transform: translateX(0);
+    transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease, visibility 0.25s;
+  }
+
+  .sidebarCollapsed {
+    transform: translateX(-100%) !important;
+    width: 320px !important;
+    min-width: 320px !important;
+    max-width: 85vw !important;
+    opacity: 0;
+    pointer-events: none;
+    visibility: hidden;
+  }
+
+  .sidebarBackdrop {
+    display: block;
+    position: absolute;
+    inset: 0;
+    z-index: 999;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    opacity: 1;
+    transition: opacity 0.2s ease;
+  }
 }
 
 /* ─── 1. Active Pack Identity Card ─── */
@@ -301,20 +361,6 @@
   overflow: hidden;
   padding: 12px 0 0 0;
   min-height: 100px;
-}
-
-.folderSectionHeader {
-  padding: 0 14px 8px 14px;
-  font-family: var(--font-brand);
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  color: var(--text-muted, #71717a);
-  letter-spacing: 0.06em;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-shrink: 0;
 }
 
 .folderTreeContainer {

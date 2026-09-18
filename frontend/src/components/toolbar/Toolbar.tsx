@@ -1,4 +1,3 @@
-// frontend/src/components/toolbar/Toolbar.tsx
 import React, { useState, useRef, useEffect } from 'react';
 import {
   LayoutGrid,
@@ -16,6 +15,8 @@ import {
   Sword,
   FileCode2,
   Compass,
+  PanelLeft,
+  PanelLeftOpen,
 } from 'lucide-react';
 import { usePackStore, TextureFilterKey } from '../../store/packStore';
 import { SearchInput } from '../common/SearchInput';
@@ -99,8 +100,14 @@ export const Toolbar: React.FC = () => {
     setActiveView(view);
   };
 
+  const isSidebarCollapsed = usePackStore((s) => s.isSidebarCollapsed);
+  const toggleSidebar = usePackStore((s) => s.toggleSidebar);
   const isManifestJsonDrawerOpen = usePackStore((s) => s.isManifestJsonDrawerOpen);
   const toggleManifestJsonDrawer = usePackStore((s) => s.toggleManifestJsonDrawer);
+  const isWorkspaceDrawerOpen = usePackStore((s) => s.isWorkspaceDrawerOpen);
+  const toggleWorkspaceDrawer = usePackStore((s) => s.toggleWorkspaceDrawer);
+  const blockWorkspaceTree = usePackStore((s) => s.blockWorkspaceTree);
+  const entityWorkspaceTree = usePackStore((s) => s.entityWorkspaceTree);
 
   const isManifest = Boolean(
     isJsonFileSelected && jsonFileName?.toLowerCase() === 'manifest.json'
@@ -112,7 +119,48 @@ export const Toolbar: React.FC = () => {
   return (
     <div className={styles.toolbar}>
       <div className={styles.leftControls}>
-        {/* Modernized Search Primitive */}
+        {/* Sidebar Collapse / Expand Toggle Button */}
+        <button
+          type="button"
+          className={`${styles.sidebarToggleBtn} ${isSidebarCollapsed ? styles.sidebarToggleBtnCollapsed : ''}`}
+          onClick={toggleSidebar}
+          title={isSidebarCollapsed ? 'Expand Sidebar (Ctrl+B)' : 'Collapse Sidebar (Ctrl+B)'}
+          aria-label={isSidebarCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
+          aria-pressed={!isSidebarCollapsed}
+        >
+          {isSidebarCollapsed ? <PanelLeftOpen size={14} /> : <PanelLeft size={14} />}
+        </button>
+      </div>
+
+      {/* Search & Filter Controls */}
+      <div className={styles.searchFilterGroup}>
+        {/* Workspace Expanders (Blocks / Entities drawer on narrow viewports only, placed to the left of Search) */}
+        {!isJsonFileSelected && activeView === 'workspace' && (
+          <button
+            type="button"
+            className={`${styles.workspaceExpanderBtn} ${isWorkspaceDrawerOpen ? styles.workspaceExpanderBtnActive : ''}`}
+            onClick={toggleWorkspaceDrawer}
+            title="Toggle Blocks List"
+            aria-expanded={isWorkspaceDrawerOpen}
+          >
+            <Box size={13} />
+            <span>Blocks ({blockWorkspaceTree?.length ?? 0})</span>
+          </button>
+        )}
+
+        {!isJsonFileSelected && activeView === 'entity' && (
+          <button
+            type="button"
+            className={`${styles.workspaceExpanderBtn} ${isWorkspaceDrawerOpen ? styles.workspaceExpanderBtnActive : ''}`}
+            onClick={toggleWorkspaceDrawer}
+            title="Toggle Entities List"
+            aria-expanded={isWorkspaceDrawerOpen}
+          >
+            <PawPrint size={13} />
+            <span>Entities ({entityWorkspaceTree?.length ?? 0})</span>
+          </button>
+        )}
+
         <SearchInput
           value={searchQuery}
           onChange={setSearchQuery}
@@ -123,126 +171,130 @@ export const Toolbar: React.FC = () => {
         />
 
         {/* Modernized Filter Checklist Dropdown */}
-        {!isJsonFileSelected && <div className={styles.filterDropdownWrapper} ref={filterDropdownRef}>
-          <button
-            type="button"
-            className={`${styles.filterTriggerBtn} ${isFilterOpen ? styles.filterTriggerBtnOpen : ''} ${isFilterActive ? styles.filterTriggerBtnActive : ''}`}
-            onClick={() => setIsFilterOpen((prev) => !prev)}
-            aria-expanded={isFilterOpen}
-            aria-haspopup="true"
-            title="Filter textures by category, status, and features"
-          >
-            <Filter size={13} className={styles.filterIcon} />
-            <span className={styles.filterLabel}>Filter</span>
-            {totalFilterCount > 0 && (
-              <span className={styles.filterCountBadge}>{totalFilterCount}</span>
+        {!isJsonFileSelected && (
+          <div className={styles.filterDropdownWrapper} ref={filterDropdownRef}>
+            <button
+              type="button"
+              className={`${styles.filterTriggerBtn} ${isFilterOpen ? styles.filterTriggerBtnOpen : ''} ${isFilterActive ? styles.filterTriggerBtnActive : ''}`}
+              onClick={() => setIsFilterOpen((prev) => !prev)}
+              aria-expanded={isFilterOpen}
+              aria-haspopup="true"
+              title="Filter textures by category, status, and features"
+            >
+              <Filter size={13} className={styles.filterIcon} />
+              <span className={styles.filterLabel}>Filter</span>
+              {totalFilterCount > 0 && (
+                <span className={styles.filterCountBadge}>{totalFilterCount}</span>
+              )}
+              <ChevronDown size={12} className={`${styles.filterChevron} ${isFilterOpen ? styles.filterChevronOpen : ''}`} />
+            </button>
+
+            {isFilterOpen && (
+              <div className={styles.filterMenuPopover} role="menu">
+                <div className={styles.filterMenuHeader}>
+                  <span className={styles.filterMenuTitle}>Filter Textures</span>
+                  {isFilterActive && (
+                    <button
+                      type="button"
+                      className={styles.filterResetBtn}
+                      onClick={() => {
+                        clearFilters();
+                        setActiveTab('all');
+                      }}
+                      title="Reset all filters"
+                    >
+                      Clear All
+                    </button>
+                  )}
+                </div>
+
+                {/* Category Scope */}
+                <div className={styles.filterSection}>
+                  <div className={styles.filterSectionLabel}>Category</div>
+                  {[
+                    { id: 'all', label: 'All Categories', icon: <LayoutGrid size={12} /> },
+                    { id: 'blocks', label: 'Blocks', icon: <Box size={12} />, ghostCount: stats.blocksGhostCount },
+                    { id: 'items', label: 'Items', icon: <Sword size={12} />, ghostCount: stats.itemsGhostCount },
+                    { id: 'entities', label: 'Entities', icon: <PawPrint size={12} />, ghostCount: stats.entitiesGhostCount },
+                  ].map((item) => {
+                    const isChecked = activeTab === item.id;
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        className={`${styles.filterMenuItem} ${isChecked ? styles.filterMenuItemChecked : ''}`}
+                        onClick={() => setActiveTab(item.id as any)}
+                        role="menuitemradio"
+                        aria-checked={isChecked}
+                      >
+                        <div className={`${styles.filterRadio} ${isChecked ? styles.filterRadioChecked : ''}`}>
+                          {isChecked && <div className={styles.filterRadioDot} />}
+                        </div>
+                        <div className={styles.filterItemIcon}>{item.icon}</div>
+                        <span className={styles.filterItemLabel}>{item.label}</span>
+                        {item.ghostCount !== undefined && item.ghostCount > 0 && (
+                          <span className={styles.ghostCountPill}>{item.ghostCount}</span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className={styles.filterDivider} />
+
+                {/* Status */}
+                <div className={styles.filterSection}>
+                  <div className={styles.filterSectionLabel}>Status</div>
+                  {FILTER_OPTIONS.filter((opt) => opt.category === 'status').map((opt) => {
+                    const isChecked = activeFilters.includes(opt.key);
+                    return (
+                      <button
+                        key={opt.key}
+                        type="button"
+                        className={`${styles.filterMenuItem} ${isChecked ? styles.filterMenuItemChecked : ''}`}
+                        onClick={() => toggleFilter(opt.key)}
+                        role="menuitemcheckbox"
+                        aria-checked={isChecked}
+                      >
+                        <div className={`${styles.filterCheckbox} ${isChecked ? styles.filterCheckboxChecked : ''}`}>
+                          {isChecked && <Check size={10} strokeWidth={3} />}
+                        </div>
+                        <div className={styles.filterItemIcon}>{opt.icon}</div>
+                        <span className={styles.filterItemLabel}>{opt.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className={styles.filterDivider} />
+
+                {/* Features */}
+                <div className={styles.filterSection}>
+                  <div className={styles.filterSectionLabel}>Features</div>
+                  {FILTER_OPTIONS.filter((opt) => opt.category === 'feature').map((opt) => {
+                    const isChecked = activeFilters.includes(opt.key);
+                    return (
+                      <button
+                        key={opt.key}
+                        type="button"
+                        className={`${styles.filterMenuItem} ${isChecked ? styles.filterMenuItemChecked : ''}`}
+                        onClick={() => toggleFilter(opt.key)}
+                        role="menuitemcheckbox"
+                        aria-checked={isChecked}
+                      >
+                        <div className={`${styles.filterCheckbox} ${isChecked ? styles.filterCheckboxChecked : ''}`}>
+                          {isChecked && <Check size={10} strokeWidth={3} />}
+                        </div>
+                        <div className={styles.filterItemIcon}>{opt.icon}</div>
+                        <span className={styles.filterItemLabel}>{opt.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             )}
-            <ChevronDown size={12} className={`${styles.filterChevron} ${isFilterOpen ? styles.filterChevronOpen : ''}`} />
-          </button>
-
-          {isFilterOpen && (
-            <div className={styles.filterMenuPopover} role="menu">
-              <div className={styles.filterMenuHeader}>
-                <span className={styles.filterMenuTitle}>Filter Textures</span>
-                {isFilterActive && (
-                  <button
-                    type="button"
-                    className={styles.filterResetBtn}
-                    onClick={() => {
-                      clearFilters();
-                      setActiveTab('all');
-                    }}
-                    title="Reset all filters"
-                  >
-                    Clear All
-                  </button>
-                )}
-              </div>
-
-              {/* Category Scope */}
-              <div className={styles.filterSection}>
-                <div className={styles.filterSectionLabel}>Category</div>
-                {[
-                  { id: 'all', label: 'All Categories', icon: <LayoutGrid size={12} /> },
-                  { id: 'blocks', label: 'Blocks', icon: <Box size={12} />, ghostCount: stats.blocksGhostCount },
-                  { id: 'items', label: 'Items', icon: <Sword size={12} />, ghostCount: stats.itemsGhostCount },
-                  { id: 'entities', label: 'Entities', icon: <PawPrint size={12} />, ghostCount: stats.entitiesGhostCount },
-                ].map((item) => {
-                  const isChecked = activeTab === item.id;
-                  return (
-                    <button
-                      key={item.id}
-                      type="button"
-                      className={`${styles.filterMenuItem} ${isChecked ? styles.filterMenuItemChecked : ''}`}
-                      onClick={() => setActiveTab(item.id as any)}
-                      role="menuitemradio"
-                      aria-checked={isChecked}
-                    >
-                      <div className={`${styles.filterRadio} ${isChecked ? styles.filterRadioChecked : ''}`}>
-                        {isChecked && <div className={styles.filterRadioDot} />}
-                      </div>
-                      <div className={styles.filterItemIcon}>{item.icon}</div>
-                      <span className={styles.filterItemLabel}>{item.label}</span>
-                      {item.ghostCount !== undefined && item.ghostCount > 0 && (
-                        <span className={styles.ghostCountPill}>{item.ghostCount}</span>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-
-              <div className={styles.filterDivider} />
-
-              <div className={styles.filterSection}>
-                <div className={styles.filterSectionLabel}>Status</div>
-                {FILTER_OPTIONS.filter((opt) => opt.category === 'status').map((opt) => {
-                  const isChecked = activeFilters.includes(opt.key);
-                  return (
-                    <button
-                      key={opt.key}
-                      type="button"
-                      className={`${styles.filterMenuItem} ${isChecked ? styles.filterMenuItemChecked : ''}`}
-                      onClick={() => toggleFilter(opt.key)}
-                      role="menuitemcheckbox"
-                      aria-checked={isChecked}
-                    >
-                      <div className={`${styles.filterCheckbox} ${isChecked ? styles.filterCheckboxChecked : ''}`}>
-                        {isChecked && <Check size={10} strokeWidth={3} />}
-                      </div>
-                      <div className={styles.filterItemIcon}>{opt.icon}</div>
-                      <span className={styles.filterItemLabel}>{opt.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-
-              <div className={styles.filterDivider} />
-
-              <div className={styles.filterSection}>
-                <div className={styles.filterSectionLabel}>Features</div>
-                {FILTER_OPTIONS.filter((opt) => opt.category === 'feature').map((opt) => {
-                  const isChecked = activeFilters.includes(opt.key);
-                  return (
-                    <button
-                      key={opt.key}
-                      type="button"
-                      className={`${styles.filterMenuItem} ${isChecked ? styles.filterMenuItemChecked : ''}`}
-                      onClick={() => toggleFilter(opt.key)}
-                      role="menuitemcheckbox"
-                      aria-checked={isChecked}
-                    >
-                      <div className={`${styles.filterCheckbox} ${isChecked ? styles.filterCheckboxChecked : ''}`}>
-                        {isChecked && <Check size={10} strokeWidth={3} />}
-                      </div>
-                      <div className={styles.filterItemIcon}>{opt.icon}</div>
-                      <span className={styles.filterItemLabel}>{opt.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-        </div>}
+          </div>
+        )}
       </div>
 
       {/* Right Controls: Zoom + View Mode */}

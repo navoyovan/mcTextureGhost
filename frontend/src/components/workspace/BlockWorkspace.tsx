@@ -128,6 +128,8 @@ export const BlockWorkspace: React.FC = () => {
   }, [packFolders]);
 
   const [activeMenuKey, setActiveMenuKey] = useState<string | null>(null);
+  const isListDrawerOpen = usePackStore((s) => s.isWorkspaceDrawerOpen);
+  const setIsListDrawerOpen = usePackStore((s) => s.setIsWorkspaceDrawerOpen);
   const [contextMenuTarget, setContextMenuTarget] = useState<{
     alias: TextureAliasDto;
     key: string;
@@ -480,8 +482,20 @@ export const BlockWorkspace: React.FC = () => {
 
   return (
     <div className={styles.workspaceContainer}>
+      {/* Backdrop for compact viewports */}
+      {isListDrawerOpen && (
+        <div
+          className={styles.blockListBackdrop}
+          onClick={() => setIsListDrawerOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
       {/* Left List */}
-      <aside className={styles.blockListPane} aria-label="Blocks List">
+      <aside
+        className={`${styles.blockListPane} ${isListDrawerOpen ? styles.blockListPaneOpen : ''}`}
+        aria-label="Blocks List"
+      >
         <div className={styles.blockListHeader}>
           Pack Blocks ({filteredBlockWorkspaceTree.length}
           {filteredBlockWorkspaceTree.length !== blockWorkspaceTree.length ? ` / ${blockWorkspaceTree.length}` : ''})
@@ -496,7 +510,10 @@ export const BlockWorkspace: React.FC = () => {
                 data-block-id={block.blockId}
                 type="button"
                 className={`${styles.blockItem} ${isActive ? styles.blockItemActive : ''} ${!isCustom ? styles.blockItemVanilla : ''}`}
-                onClick={() => setSelectedBlockId(block.blockId)}
+                onClick={() => {
+                  setSelectedBlockId(block.blockId);
+                  setIsListDrawerOpen(false);
+                }}
               >
                 <div className={styles.blockItemLeft}>
                   <Box size={14} className={!isCustom ? styles.blockIconMuted : undefined} />

@@ -229,7 +229,7 @@
   border-radius: 4px;
   backdrop-filter: blur(8px);
   cursor: grab;
-  z-index: 100;
+  z-index: 10;
   pointer-events: auto;
   touch-action: none;
   transition: background 0.15s, border-color 0.15s;
@@ -256,4 +256,14 @@
 .dragHandle:hover .dragHandleBar,
 .dragHandle:active .dragHandleBar {
   background: rgba(255, 255, 255, 0.9);
+}
+
+@media (max-width: 860px) {
+  .hintText {
+    display: none;
+  }
+
+  .expandWrapperActive {
+    max-width: min(180px, calc(100vw - 110px));
+  }
 }

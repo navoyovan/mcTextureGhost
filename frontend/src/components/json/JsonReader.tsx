@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { RotateCw, FileCode2, ExternalLink, X, PanelRight } from 'lucide-react';
+import { RotateCw, FileCode2, ExternalLink, X } from 'lucide-react';
 import { usePackStore } from '../../store/packStore';
 import { useIpc } from '../../hooks/useIpc';
 import { ManifestModelDto, IpcMessageTypes } from '../../types/ipc';
@@ -374,19 +374,6 @@ export const JsonReader: React.FC<JsonReaderProps> = ({ filePath }) => {
               </div>
             </div>
           </aside>
-
-          {/* Right edge pull-tab when drawer is closed */}
-          {!isManifestJsonDrawerOpen && (
-            <button
-              type="button"
-              className={styles.collapsedPreviewRail}
-              onClick={() => setIsManifestJsonDrawerOpen(true)}
-              title="Open Raw JSON Sidebar Drawer"
-            >
-              <PanelRight size={14} />
-              <span className={styles.verticalRailText}>JSON</span>
-            </button>
-          )}
         </div>
       ) : (
         <>
