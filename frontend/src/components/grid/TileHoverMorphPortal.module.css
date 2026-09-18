@@ -43,6 +43,19 @@
   overflow: visible;
 }
 
+.morphCardImageTarget:not(.morphed) {
+  padding: 0;
+  border-radius: 0;
+  background: #101014;
+  border-color: rgba(255, 255, 255, 0.04);
+  box-shadow: none;
+}
+
+.morphCardImageAdded:not(.morphed) {
+  background: transparent;
+  border-color: transparent;
+}
+
 /* ── Thumbnail Container & Animated Checkerboard ──────────────────────────── */
 
 .thumbArea {

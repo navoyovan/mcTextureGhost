@@ -13,6 +13,7 @@ export interface TileHoverMorphTarget {
   key: string;
   originRect: DOMRect;
   domElement: HTMLElement;
+  targetType?: 'card' | 'image';
 }
 
 interface TileHoverMorphPortalProps {
@@ -162,10 +163,42 @@ const TileHoverMorphCard: React.FC<TileHoverMorphPortalProps> = ({
     ? hasVanillaAssets
     : Boolean(referencePacks?.find((p) => p.id === activeReferenceId)?.packPath);
 
+  const isImageTarget = target.targetType === 'image' || Boolean(
+    target.domElement && (
+      target.domElement.className.includes('leafThumb') ||
+      target.domElement.className.includes('texVarThumb')
+    )
+  );
+
+  const resolveTargetElement = useCallback((rootEl: HTMLElement | null) => {
+    if (!rootEl) return null;
+    if (!isImageTarget) return rootEl;
+    if (
+      rootEl.tagName.toLowerCase() === 'img' ||
+      rootEl.tagName.toLowerCase() === 'canvas' ||
+      rootEl.className.includes('leafThumb') ||
+      rootEl.className.includes('texVarThumb') ||
+      rootEl.className.includes('tileThumbnail')
+    ) {
+      return rootEl;
+    }
+    const innerThumb = rootEl.querySelector<HTMLElement>(
+      '[class*="leafThumb"], [class*="texVarThumbSlot"], [class*="leafThumbWrapper"], [class*="tileThumbnailWrapper"], img, canvas'
+    );
+    return innerThumb || rootEl;
+  }, [isImageTarget]);
+
   // Synchronous initial coordinate computation prevents blank mount frame
-  const [coords, setCoords] = useState<Coords>(() =>
-    computeMorphCoords(
-      target.originRect,
+  const [coords, setCoords] = useState<Coords>(() => {
+    let initialRect = target.originRect;
+    if (isImageTarget && target.domElement) {
+      const el = resolveTargetElement(target.domElement);
+      if (el) {
+        initialRect = el.getBoundingClientRect();
+      }
+    }
+    return computeMorphCoords(
+      initialRect,
       target.domElement
         ? (() => {
           const img = target.domElement.querySelector('img');
@@ -180,8 +213,8 @@ const TileHoverMorphCard: React.FC<TileHoverMorphPortalProps> = ({
         })()
         : null,
       Boolean(target.alias.isFlipbook || target.alias.flipbook)
-    )
-  );
+    );
+  });
 
   const cardRef = useRef<HTMLDivElement>(null);
   const closingTimerRef = useRef<number | null>(null);
@@ -278,7 +311,8 @@ const TileHoverMorphCard: React.FC<TileHoverMorphPortalProps> = ({
 
     // Refresh original rect from live DOM element if still attached
     if (target.domElement) {
-      const freshRect = target.domElement.getBoundingClientRect();
+      const el = resolveTargetElement(target.domElement) || target.domElement;
+      const freshRect = el.getBoundingClientRect();
       setCoords((prev) => ({
         ...prev,
         originalRect: {
@@ -297,7 +331,7 @@ const TileHoverMorphCard: React.FC<TileHoverMorphPortalProps> = ({
     closingTimerRef.current = window.setTimeout(() => {
       onClose();
     }, 220);
-  }, [isClosing, target.domElement, onClose, clearLeaveTimer]);
+  }, [isClosing, target.domElement, onClose, clearLeaveTimer, resolveTargetElement]);
 
   const scheduleSnapBack = useCallback(() => {
     if (isClosing || isMenuOpenRef.current) return;
@@ -323,7 +357,8 @@ const TileHoverMorphCard: React.FC<TileHoverMorphPortalProps> = ({
 
     const handleScroll = () => {
       if (!target.domElement) return;
-      const rect = target.domElement.getBoundingClientRect();
+      const el = resolveTargetElement(target.domElement) || target.domElement;
+      const rect = el.getBoundingClientRect();
       const viewportHeight = window.innerHeight;
 
       if (rect.bottom < 0 || rect.top > viewportHeight) {
@@ -344,7 +379,7 @@ const TileHoverMorphCard: React.FC<TileHoverMorphPortalProps> = ({
 
     window.addEventListener('scroll', handleScroll, { capture: true, passive: true });
     return () => window.removeEventListener('scroll', handleScroll, { capture: true });
-  }, [target.domElement, isClosing, triggerSnapBack]);
+  }, [target.domElement, isClosing, triggerSnapBack, resolveTargetElement]);
 
   // Global dismiss listeners for outside click, window blur, and mousemove bounding (RAF throttled)
   useEffect(() => {
@@ -444,7 +479,9 @@ const TileHoverMorphCard: React.FC<TileHoverMorphPortalProps> = ({
   const currentTop = isMorphed ? coords.top : coords.originalRect.top;
   const currentWidth = isMorphed ? coords.width : coords.originalRect.width;
   const currentHeight = isMorphed ? coords.totalHeight : coords.originalRect.height;
-  const currentThumbHeight = isMorphed ? coords.thumbHeight : Math.max(0, coords.originalRect.width - 20);
+  const currentThumbHeight = isMorphed
+    ? coords.thumbHeight
+    : (isImageTarget ? coords.originalRect.height : Math.max(0, coords.originalRect.width - 20));
   const baseTexWidth = imgDimensions?.width ?? 16;
   const rawTexHeight = imgDimensions?.height ?? 16;
   const isSpriteSheet = Boolean(alias.isFlipbook || alias.flipbook || (rawTexHeight >= baseTexWidth * 2));
@@ -469,7 +506,7 @@ const TileHoverMorphCard: React.FC<TileHoverMorphPortalProps> = ({
     <div className={styles.portalOverlay}>
       <div
         ref={cardRef}
-        className={`${styles.morphCard} ${isMorphed ? styles.morphed : ''}`}
+        className={`${styles.morphCard} ${isImageTarget ? styles.morphCardImageTarget : ''} ${!isGhost ? styles.morphCardImageAdded : ''} ${isMorphed ? styles.morphed : ''}`}
         style={{
           left: `${currentLeft}px`,
           top: `${currentTop}px`,
@@ -636,7 +673,7 @@ const TileHoverMorphCard: React.FC<TileHoverMorphPortalProps> = ({
             </div>
           </>
         ) : (
-          <div className={styles.bottomSectionUnmorphed} />
+          !isImageTarget && <div className={styles.bottomSectionUnmorphed} />
         )}
       </div>
     </div>,

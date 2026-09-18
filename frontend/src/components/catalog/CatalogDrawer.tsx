@@ -18,9 +18,6 @@ import {
   Check,
   Plus,
   Minus,
-  Download,
-  Loader2,
-  CheckCircle2,
 } from 'lucide-react';
 import { usePackStore } from '../../store/packStore';
 import { useIpc } from '../../hooks/useIpc';
@@ -28,9 +25,6 @@ import {
   BlockGroupNodeDto,
   AliasGroupNodeDto,
   CatalogLeafDto,
-  IpcMessageTypes,
-  DownloadProgressPayload,
-  Vanilla3DStatusPayload,
 } from '../../types/ipc';
 import { FlipbookThumbnail } from '../common/FlipbookThumbnail';
 import { SearchInput } from '../common/SearchInput';
@@ -440,7 +434,7 @@ export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose })
   const activeReferenceId = usePackStore((s) => s.activeReferenceId);
   const aliases = usePackStore((s) => s.aliases);
   const packFolders = usePackStore((s) => s.packFolders);
-  const { postCommand, loadCatalog, subscribe } = useIpc();
+  const { postCommand, loadCatalog } = useIpc();
 
   const hasTerrainTextureJson = useMemo(() => {
     function check(items: any[]): boolean {
@@ -553,37 +547,9 @@ export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose })
   const [categoryFilter, setCategoryFilter] = useState<'all' | 'block' | 'item' | 'entity'>('all');
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [isMounted, setIsMounted] = useState(isOpen);
-  const [isDownloading, setIsDownloading] = useState(false);
-  const [downloadProgress, setDownloadProgress] = useState<DownloadProgressPayload | null>(null);
-  const [has3DInstalled, setHas3DInstalled] = useState<boolean | null>(null);
   const overlayRef = useRef<HTMLDivElement | null>(null);
   const drawerRef = useRef<HTMLElement | null>(null);
   const animationRef = useRef<gsap.core.Timeline | null>(null);
-
-  // Check 3D status on mount / open & listen to download progress
-  useEffect(() => {
-    if (!isOpen) return;
-
-    postCommand(IpcMessageTypes.VanillaGet3DStatus, {});
-
-    const unsubStatus = subscribe(IpcMessageTypes.Vanilla3DStatus, (payload: Vanilla3DStatusPayload) => {
-      setHas3DInstalled(payload.has3DModels);
-    });
-
-    const unsubProgress = subscribe(IpcMessageTypes.DownloadProgress, (payload: DownloadProgressPayload) => {
-      setDownloadProgress(payload);
-      if (payload.progress >= 1) {
-        setIsDownloading(false);
-        setHas3DInstalled(true);
-        postCommand(IpcMessageTypes.VanillaGet3DStatus, {});
-      }
-    });
-
-    return () => {
-      unsubStatus();
-      unsubProgress();
-    };
-  }, [isOpen, subscribe, postCommand]);
 
   const activeReference = useMemo(() => {
     return referencePacks?.find((p) => p.id === activeReferenceId) || referencePacks?.[0] || {
@@ -772,13 +738,6 @@ export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose })
     }
   }, [loadCatalog, postCommand]);
 
-  const handleDownloadReferenceAssets = useCallback(() => {
-    if (isDownloading) return;
-    setIsDownloading(true);
-    setDownloadProgress({ task: 'download_3d_assets', progress: 0.05, message: 'Connecting to Mojang bedrock-samples...' });
-    postCommand(IpcMessageTypes.VanillaDownload3DAssets, {});
-  }, [isDownloading, postCommand]);
-
   if (!isMounted) return null;
 
   const totalCatalogCount = catalogTree?.length || 0;
@@ -894,37 +853,6 @@ export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose })
           </div>
 
           <div className={styles.headerRightActions}>
-            <button
-              type="button"
-              className={`${styles.syncReferenceBtn} ${isDownloading ? styles.syncReferenceBtnLoading : ''} ${has3DInstalled ? styles.syncReferenceBtnInstalled : ''}`}
-              onClick={handleDownloadReferenceAssets}
-              disabled={isDownloading}
-              title={
-                isDownloading
-                  ? downloadProgress?.message || 'Downloading Bedrock Reference Assets...'
-                  : has3DInstalled
-                  ? '3D models & reference assets installed. Click to re-sync latest Bedrock assets'
-                  : 'Download official Vanilla Bedrock 3D models & textures'
-              }
-            >
-              {isDownloading ? (
-                <>
-                  <Loader2 size={13} className={styles.spinnerIcon} />
-                  <span>{Math.round((downloadProgress?.progress ?? 0.05) * 100)}%</span>
-                </>
-              ) : has3DInstalled ? (
-                <>
-                  <CheckCircle2 size={13} className={styles.installedIcon} />
-                  <span>Assets Synced</span>
-                </>
-              ) : (
-                <>
-                  <Download size={13} />
-                  <span>Sync 3D Assets</span>
-                </>
-              )}
-            </button>
-
             <span className={styles.resultCountBadge} data-testid="result-count-badge">
               {isSearching
                 ? `${visibleBlocks.length} / ${filteredBlocks.length}`

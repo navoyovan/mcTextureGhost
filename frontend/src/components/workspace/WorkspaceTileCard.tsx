@@ -18,7 +18,7 @@ interface WorkspaceTileCardProps {
   selectedBlockName: string;
   isMenuOpen: boolean;
   onToggleMenu: (key: string) => void;
-  onTileClick: (domEl: HTMLElement, leaf: CatalogLeafDto, key: string) => void;
+  onTileClick: (domEl: HTMLElement, leaf: CatalogLeafDto, key: string, targetType?: 'card' | 'image') => void;
   onDeleteTextureFile: (path: string, alias: string) => void;
   onDeleteTextureEntries: (alias: string, relativePath?: string | null) => void;
 }
@@ -98,6 +98,7 @@ export const WorkspaceTileCard: React.FC<WorkspaceTileCardProps> = React.memo(({
   }, [selectedBlockName, primary, alias, numVariations, hasTexVariants, leaves]);
 
   const [menuAnchor, setMenuAnchor] = React.useState<{ x?: number; y?: number; top?: number; bottom?: number; left?: number; right?: number } | null>(null);
+  const primaryThumbRef = React.useRef<HTMLDivElement>(null);
 
   return (
     <div
@@ -105,7 +106,10 @@ export const WorkspaceTileCard: React.FC<WorkspaceTileCardProps> = React.memo(({
       style={cardStyle}
       title={tooltipTitle}
       onClick={(e) => {
-        onTileClick(e.currentTarget, primary, cardKey);
+        const targetEl = primaryThumbRef.current
+          || (e.currentTarget.querySelector(`.${styles.leafThumbWrapper}, .${styles.texVarThumbSlot}, .${styles.leafThumbInner}, img`) as HTMLElement | null)
+          || e.currentTarget;
+        onTileClick(targetEl, primary, cardKey, 'image');
       }}
       onContextMenu={(e) => {
         e.preventDefault();
@@ -147,6 +151,7 @@ export const WorkspaceTileCard: React.FC<WorkspaceTileCardProps> = React.memo(({
 
       {/* Thumbnail area */}
       <div
+        ref={!hasTexVariants ? primaryThumbRef : undefined}
         className={`${hasTexVariants ? styles.texVariantThumbRow : styles.leafThumbWrapper} ${!isGhost ? styles.leafThumbWrapperAdded : ''}`}
       >
         {leaves.map((leaf, i) => {
@@ -156,10 +161,11 @@ export const WorkspaceTileCard: React.FC<WorkspaceTileCardProps> = React.memo(({
             <React.Fragment key={`${leaf.relativePath}-${i}`}>
               {i > 0 && <div className={styles.texVarDivider} />}
               <div
+                ref={hasTexVariants && i === 0 ? primaryThumbRef : undefined}
                 className={`${hasTexVariants ? styles.texVarThumbSlot : styles.leafThumbInner} ${!isLeafGhost ? styles.texVarThumbSlotAdded : ''}`}
                 onClick={(e) => {
                   e.stopPropagation();
-                  onTileClick(e.currentTarget, leaf, `${cardKey}-${i}`);
+                  onTileClick(e.currentTarget, leaf, `${cardKey}-${i}`, 'image');
                 }}
                 title={leafName}
               >

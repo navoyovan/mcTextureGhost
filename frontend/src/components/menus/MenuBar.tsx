@@ -13,9 +13,11 @@ import {
   Radio,
   ChevronDown,
   Database,
+  Square,
+  CheckSquare,
 } from 'lucide-react';
 import { createPortal } from 'react-dom';
-import { usePackStore } from '../../store/packStore';
+import { usePackStore, rawPackStore } from '../../store/packStore';
 import { useIpc } from '../../hooks/useIpc';
 import { ReferencePackManagerModal } from '../catalog/ReferencePackManagerModal';
 import styles from './MenuBar.module.css';
@@ -57,6 +59,8 @@ export const MenuBar: React.FC = () => {
   const stats = usePackStore((s) => s.stats);
   const tileZoom = usePackStore((s) => s.tileZoom);
   const setTileZoom = usePackStore((s) => s.setTileZoom);
+  const simulateNoAssets = usePackStore((s) => s.simulateNoAssets);
+  const setSimulateNoAssets = usePackStore((s) => s.setSimulateNoAssets);
 
   const isPackLoaded = Boolean(packRoot);
   const zoomPresets = [
@@ -166,15 +170,24 @@ export const MenuBar: React.FC = () => {
           action: () => toggleCatalog(),
         },
         {
-          label: 'Reference Pack Manager\u2026',
+          label: 'Catalog Manager\u2026',
           icon: <Database size={13} />,
           action: () => setIsReferenceManagerOpen(true),
+        },
+        {
+          label: 'Simulate no download',
+          icon: simulateNoAssets ? (
+            <CheckSquare size={13} style={{ color: 'var(--accent-primary, #8CEB1F)' }} />
+          ) : (
+            <Square size={13} />
+          ),
+          action: () => setSimulateNoAssets(!simulateNoAssets),
+          hasDivider: true,
         },
         {
           label: 'Refresh Vanilla Cache',
           icon: <RefreshCw size={13} />,
           action: () => postCommand('VANILLA:LOAD_CATALOG', {}),
-          hasDivider: true,
         },
         {
           label: 'Open DevTools',
@@ -185,14 +198,12 @@ export const MenuBar: React.FC = () => {
           label: 'Inspect IPC State',
           icon: <Radio size={13} />,
           action: () => {
-            import('../../store/packStore').then(({ rawPackStore }) => {
-              // eslint-disable-next-line no-console
-              console.group('[McTextureGhost] IPC State Snapshot');
-              // eslint-disable-next-line no-console
-              console.log(rawPackStore.getState());
-              // eslint-disable-next-line no-console
-              console.groupEnd();
-            });
+            // eslint-disable-next-line no-console
+            console.group('[McTextureGhost] IPC State Snapshot');
+            // eslint-disable-next-line no-console
+            console.log(rawPackStore.getState());
+            // eslint-disable-next-line no-console
+            console.groupEnd();
           },
         },
       ],

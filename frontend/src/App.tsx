@@ -16,6 +16,7 @@ import { CatalogDrawer } from './components/catalog/CatalogDrawer';
 import { MenuBar } from './components/menus/MenuBar';
 import { ComponentLibrary } from './components/common/ComponentLibrary';
 import { LoadingOverlay } from './components/common/LoadingOverlay';
+import { AssetDownloadNotification } from './components/titlebar/AssetDownloadNotification';
 import { IconMinus, IconMaximize, IconX } from './components/common/TablerWindowIcons';
 import styles from './App.module.css';
 
@@ -198,6 +199,7 @@ export const App: React.FC = () => {
 
         {/* Window Chrome Caption Controls */}
         <div className={styles.titleBarControls}>
+          <AssetDownloadNotification />
           <button
             type="button"
             className={styles.captionButton}

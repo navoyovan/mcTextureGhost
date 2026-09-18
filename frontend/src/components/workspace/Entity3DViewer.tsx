@@ -692,12 +692,12 @@ export const Entity3DViewer: React.FC<Entity3DViewerProps> = React.memo(({
         <div className={styles.downloadPromptOverlay}>
           <div className={styles.downloadPromptCard}>
             <h4 className={styles.downloadPromptTitle}>
-              {isDownloading ? 'Downloading 3D Assets' : '3D Model Not Found'}
+              {isDownloading ? 'Downloading Assets' : 'Model Not Found'}
             </h4>
             <p className={styles.downloadPromptDesc}>
               {isDownloading
-                ? downloadProgress?.message || 'Extracting vanilla 3D models into local reference pack...'
-                : 'Geometry definition file (.geo.json) not found in pack or vanilla reference.'}
+                ? downloadProgress?.message || 'Extracting...'
+                : 'Geometry definition file (.geo.json) not found in pack or vanilla assets.'}
             </p>
 
             {isDownloading && (

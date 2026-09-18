@@ -7,8 +7,7 @@
   font-style: normal;
   font-weight: 100 900;
   font-display: swap;
-  src: url('/fonts/Syne.ttf') format('truetype'),
-       url('./fonts/Syne.ttf') format('truetype');
+  src: url('/fonts/Syne.ttf') format('truetype');
 }
 
 @font-face {
@@ -16,8 +15,7 @@
   font-style: normal;
   font-weight: 400;
   font-display: swap;
-  src: url('/fonts/PressStart2P.ttf') format('truetype'),
-       url('./fonts/PressStart2P.ttf') format('truetype');
+  src: url('/fonts/PressStart2P.ttf') format('truetype');
 }
 
 :root {

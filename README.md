@@ -6,13 +6,15 @@ Stop chasing "ghost". mcTextureGhost scans your pack, shows you every declared t
 
 ![mcTextureGhost Welcome Screen](frontend/public/welcome.png)
 
-This program is for you to make the process of texturing a Minecraft pack easier and faster. I wanted an app to see all my textures in one place, and to see all the textures I need to make in one place, for now this app only supports bedrock `resource-pack` format
+Built to make texturing Minecraft packs faster and less tedious. It gives you a single workspace to inspect existing textures alongside all the missing ones you still need to create. Currently designed for Bedrock `resource-pack` formats.
 
 ![mcTextureGhost Workspace](frontend/public/workspace.png)
 
 ---
 
 ## What it does
+
+<video src="frontend/public/tut.webm" controls autoplay loop muted playsinline height="360"></video>
 
 ### Ghost Detection
 

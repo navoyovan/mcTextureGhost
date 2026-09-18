@@ -49,6 +49,7 @@ export interface PackStoreState {
   referencePacks: ReferencePackProfile[];
   activeReferenceId: string;
   hasVanillaAssets: boolean;
+  simulateNoAssets: boolean;
   /** Tile thumbnail size in px: 80 | 120 | 160 | 200 */
   tileZoom: number;
   /** Live stats for the shared-toolbar JSON viewer (matches, line count, formatted size) */
@@ -85,6 +86,7 @@ export interface PackStoreActions {
   setReferencePacks: (packs: ReferencePackProfile[]) => void;
   setActiveReferenceId: (id: string) => void;
   setHasVanillaAssets: (has: boolean) => void;
+  setSimulateNoAssets: (simulate: boolean) => void;
   setTileZoom: (zoom: number) => void;
   setJsonViewerInfo: (info: { lineCount: number; sizeLabel: string; matchCount: number | null } | null) => void;
   setAppConfig: (config: Partial<AppConfigPayload>) => void;
@@ -140,7 +142,7 @@ const initialState: PackStoreState = {
   referencePacks: [
     {
       id: 'vanilla',
-      name: 'Vanilla Bedrock',
+      name: 'Bedrock Vanilla (1.21.x)',
       version: '1.21.x',
       description: 'Mojang bedrock-samples official reference database',
       iconUrl: 'https://vanilla.local/pack_icon.png',
@@ -149,6 +151,7 @@ const initialState: PackStoreState = {
   ],
   activeReferenceId: 'vanilla',
   hasVanillaAssets: false,
+  simulateNoAssets: typeof window !== 'undefined' && localStorage.getItem('mctg_simulate_no_assets') === 'true',
   tileZoom: 120,
   jsonViewerInfo: null,
 
@@ -371,17 +374,29 @@ export const packStoreActions: PackStoreActions = {
 
   setHasVanillaAssets(has: boolean): void {
     currentState = { ...currentState, hasVanillaAssets: has };
+    cachedSnapshot = null;
+    notify();
+  },
+
+  setSimulateNoAssets(simulate: boolean): void {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('mctg_simulate_no_assets', String(simulate));
+    }
+    currentState = { ...currentState, simulateNoAssets: simulate };
+    cachedSnapshot = null;
     notify();
   },
 
   setTileZoom(zoom: number): void {
     const clamped = Math.max(80, Math.min(200, zoom));
     currentState = { ...currentState, tileZoom: clamped };
+    cachedSnapshot = null;
     notify();
   },
 
   setJsonViewerInfo(info: { lineCount: number; sizeLabel: string; matchCount: number | null } | null): void {
     currentState = { ...currentState, jsonViewerInfo: info };
+    cachedSnapshot = null;
     notify();
   },
 
@@ -395,11 +410,13 @@ export const packStoreActions: PackStoreActions = {
       windowTitle: config.windowTitle ?? currentState.windowTitle,
       openWithApps: config.openWithApps ?? currentState.openWithApps,
     };
+    cachedSnapshot = null;
     notify();
   },
 
   setOpenWithApps(apps: OpenWithAppDto[]): void {
     currentState = { ...currentState, openWithApps: apps };
+    cachedSnapshot = null;
     notify();
   },
 };
@@ -439,7 +456,10 @@ export function pathMatchesFolder(itemRelPath: string | null | undefined, folder
  * Raw store accessors.
  */
 export const rawPackStore = {
-  getState: (): PackStore => ({ ...currentState, ...packStoreActions }),
+  getState: (): PackStore => {
+    const effectiveHasVanilla = currentState.simulateNoAssets ? false : currentState.hasVanillaAssets;
+    return { ...currentState, hasVanillaAssets: effectiveHasVanilla, ...packStoreActions };
+  },
   setState: (updater: (prev: PackStoreState) => Partial<PackStoreState>): void => {
     currentState = { ...currentState, ...updater(currentState) };
     cachedSnapshot = null;
@@ -462,7 +482,8 @@ export const rawPackStore = {
 export function usePackStore<T = PackStore>(selector?: (state: PackStore) => T): T {
   const getSnapshot = (): T => {
     if (!cachedSnapshot) {
-      cachedSnapshot = { ...currentState, ...packStoreActions };
+      const effectiveHasVanilla = currentState.simulateNoAssets ? false : currentState.hasVanillaAssets;
+      cachedSnapshot = { ...currentState, hasVanillaAssets: effectiveHasVanilla, ...packStoreActions };
     }
     return selector ? selector(cachedSnapshot) : (cachedSnapshot as unknown as T);
   };
@@ -476,7 +497,8 @@ export function usePackStore<T = PackStore>(selector?: (state: PackStore) => T):
 
 usePackStore.getState = (): PackStore => {
   if (!cachedSnapshot) {
-    cachedSnapshot = { ...currentState, ...packStoreActions };
+    const effectiveHasVanilla = currentState.simulateNoAssets ? false : currentState.hasVanillaAssets;
+    cachedSnapshot = { ...currentState, hasVanillaAssets: effectiveHasVanilla, ...packStoreActions };
   }
   return cachedSnapshot;
 };

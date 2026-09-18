@@ -33,6 +33,8 @@ export default defineConfig({
         manualChunks: {
           vendor: ['react', 'react-dom'],
           three: ['three'],
+          icons: ['lucide-react'],
+          gsap: ['gsap'],
         },
       },
     },

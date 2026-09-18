@@ -330,7 +330,7 @@ export const EntityWorkspace: React.FC = () => {
   const activeTextureUrl = activeVariation?.imageUrl ?? activeLeaf?.imageUrl;
   const activeIsGhost = activeVariation ? activeVariation.isGhost : (activeLeaf?.status === 'GHOST');
 
-  const handleTileClick = useCallback((domEl: HTMLElement, leaf: CatalogLeafDto, key: string) => {
+  const handleTileClick = useCallback((domEl: HTMLElement, leaf: CatalogLeafDto, key: string, targetType: 'card' | 'image' = 'image') => {
     setActiveLeafKey(`${leaf.alias}-${leaf.relativePath}`);
     const rect = domEl.getBoundingClientRect();
     setHoverMorphTarget({
@@ -338,6 +338,7 @@ export const EntityWorkspace: React.FC = () => {
       key,
       originRect: rect,
       domElement: domEl,
+      targetType,
     });
   }, []);
 

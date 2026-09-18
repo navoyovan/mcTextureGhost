@@ -4,7 +4,9 @@ import { createPortal } from 'react-dom';
 import { AlertTriangle, BookOpen, X } from 'lucide-react';
 import { usePackStore } from '../../store/packStore';
 import { useIpc } from '../../hooks/useIpc';
-import { IpcMessageTypes } from '../../types/ipc';
+import { IpcMessageTypes, TextureAliasDto, OpenWithAppDto } from '../../types/ipc';
+import { TileHoverMorphPortal, TileHoverMorphTarget } from '../grid/TileHoverMorphPortal';
+import { TextureContextMenu, ContextMenuAnchor } from '../common/TextureContextMenu';
 import { DirectoryTree } from './DirectoryTree';
 import styles from './Sidebar.module.css';
 
@@ -15,7 +17,13 @@ function formatPackPath(path: string | null): string {
 }
 
 export const Sidebar: React.FC = () => {
-  const { postCommand } = useIpc();
+  const {
+    postCommand,
+    editTexture,
+    openInExplorer,
+    deleteTextureFile,
+    deleteTextureEntries,
+  } = useIpc();
 
   const packName = usePackStore((s) => s.packName);
   const packRoot = usePackStore((s) => s.packRoot);
@@ -33,6 +41,14 @@ export const Sidebar: React.FC = () => {
   const setActiveReferenceId = usePackStore((s) => s.setActiveReferenceId);
   const [packIconLoadError, setPackIconLoadError] = useState<boolean>(false);
   const [catalogIconLoadError, setCatalogIconLoadError] = useState<boolean>(false);
+
+  // Morphing Portal & Context Menu states for Pack Icon
+  const [hoverMorphTarget, setHoverMorphTarget] = useState<TileHoverMorphTarget | null>(null);
+  const [contextMenuTarget, setContextMenuTarget] = useState<{
+    alias: TextureAliasDto;
+    anchor: ContextMenuAnchor;
+    key: string;
+  } | null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const [btnRect, setBtnRect] = useState<DOMRect | null>(null);
@@ -59,28 +75,18 @@ export const Sidebar: React.FC = () => {
   const handleMouseEnter = () => {
     if (hoverTimerRef.current) {
       clearTimeout(hoverTimerRef.current);
-      hoverTimerRef.current = null;
     }
-    setIsHovered(true);
+    hoverTimerRef.current = setTimeout(() => {
+      setIsHovered(true);
+    }, 150);
   };
 
   const handleMouseLeave = () => {
     if (hoverTimerRef.current) {
       clearTimeout(hoverTimerRef.current);
     }
-    hoverTimerRef.current = setTimeout(() => {
-      setIsHovered(false);
-      hoverTimerRef.current = null;
-    }, 800);
+    setIsHovered(false);
   };
-
-  useEffect(() => {
-    return () => {
-      if (hoverTimerRef.current) {
-        clearTimeout(hoverTimerRef.current);
-      }
-    };
-  }, []);
 
   useEffect(() => {
     const updateRect = () => {
@@ -93,17 +99,56 @@ export const Sidebar: React.FC = () => {
     return () => window.removeEventListener('resize', updateRect);
   }, [isCatalogOpen, shouldPortal]);
 
-  const handlePackIconClick = () => {
-    if (!packRoot) return;
-    const iconPath = `${packRoot}\\pack_icon.png`;
-    postCommand(IpcMessageTypes.TextureEdit, {
-      aliasKey: 'pack_icon',
+  const showPackArtworkImage = Boolean(hasPackIcon && packIconUrl && !packIconLoadError);
+
+  const packIconAlias: TextureAliasDto = useMemo(() => {
+    const iconPath = packRoot ? `${packRoot}\\pack_icon.png` : '';
+    const effectiveImageUrl = showPackArtworkImage
+      ? (packIconUrl || `https://pack.local/pack_icon.png?t=${Date.now()}`)
+      : '';
+
+    return {
+      alias: 'pack_icon',
+      displayName: 'pack_icon.png',
+      relativePath: 'pack_icon.png',
       fullPath: iconPath,
-      isGhost: !hasPackIcon,
+      category: 'item' as const,
+      status: hasPackIcon ? 'OK' : 'GHOST',
+      exists: Boolean(hasPackIcon),
+      imageUrl: effectiveImageUrl,
+      blockFaces: [],
+      usedByBlocks: [],
+      variantKind: 'None',
+      isFlipbook: false,
+      primaryFaceBadgeText: hasPackIcon ? 'OK' : 'GHOST',
+      subtitleCaption: 'pack_icon.png',
+      key: 'pack_icon',
+    };
+  }, [packRoot, hasPackIcon, showPackArtworkImage, packIconUrl]);
+
+  const handlePackIconClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+    if (!packRoot) return;
+    setContextMenuTarget(null);
+    const rect = e.currentTarget.getBoundingClientRect();
+    setHoverMorphTarget({
+      alias: packIconAlias,
+      key: 'pack_icon',
+      originRect: rect,
+      domElement: e.currentTarget,
     });
   };
 
-  const showPackArtworkImage = Boolean(hasPackIcon && packIconUrl && !packIconLoadError);
+  const handlePackIconContextMenu = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!packRoot) return;
+    setHoverMorphTarget(null);
+    setContextMenuTarget({
+      alias: packIconAlias,
+      key: 'pack_icon',
+      anchor: { x: e.clientX, y: e.clientY },
+    });
+  };
 
   const vanillaPackIconLocal = 'https://vanilla.local/pack_icon.png';
   const vanillaPackIconRemote = 'https://raw.githubusercontent.com/Mojang/bedrock-samples/main/resource_pack/pack_icon.png';
@@ -308,7 +353,8 @@ export const Sidebar: React.FC = () => {
             type="button"
             className={styles.packIconWrapper96}
             onClick={handlePackIconClick}
-            title={hasPackIcon ? 'Open pack_icon.png in external editor' : 'Generate placeholder pack_icon.png'}
+            onContextMenu={handlePackIconContextMenu}
+            title={hasPackIcon ? 'Preview pack_icon.png (Right-click for options)' : 'Preview or create pack_icon.png (Right-click for options)'}
             aria-label="Pack Icon Artwork"
           >
             {showPackArtworkImage ? (
@@ -409,6 +455,58 @@ export const Sidebar: React.FC = () => {
       {/* 4. Catalog Button — bare, sticks to sidebar bottom */}
       {renderCatalogButton(false)}
       {shouldPortal && btnRect && createPortal(renderCatalogButton(true), document.body)}
+
+      {/* Singleton Context Menu for Pack Icon */}
+      {contextMenuTarget && (
+        <TextureContextMenu
+          item={contextMenuTarget.alias}
+          anchor={contextMenuTarget.anchor}
+          onClose={() => setContextMenuTarget(null)}
+          onEdit={(app?: OpenWithAppDto) => {
+            setHoverMorphTarget(null);
+            editTexture(contextMenuTarget.alias.alias, contextMenuTarget.alias.fullPath, contextMenuTarget.alias.status === 'GHOST', app?.exePath, false);
+          }}
+          onOpenWithDialog={() => {
+            setHoverMorphTarget(null);
+            editTexture(contextMenuTarget.alias.alias, contextMenuTarget.alias.fullPath, contextMenuTarget.alias.status === 'GHOST', null, true);
+          }}
+          onRevealInExplorer={() => {
+            if (contextMenuTarget.alias.fullPath) {
+              openInExplorer(contextMenuTarget.alias.fullPath, true);
+            }
+          }}
+          onDeleteTexture={() => {
+            setHoverMorphTarget(null);
+            if (contextMenuTarget.alias.fullPath) {
+              deleteTextureFile(contextMenuTarget.alias.fullPath, contextMenuTarget.alias.alias);
+            }
+          }}
+          onDeleteEntries={() => {
+            setHoverMorphTarget(null);
+            deleteTextureEntries(contextMenuTarget.alias.alias, contextMenuTarget.alias.category, contextMenuTarget.alias.relativePath);
+          }}
+        />
+      )}
+
+      {/* Morphing Portal Preview for Pack Icon */}
+      {hoverMorphTarget && (
+        <TileHoverMorphPortal
+          target={hoverMorphTarget}
+          isMenuOpen={Boolean(contextMenuTarget)}
+          onClose={() => setHoverMorphTarget(null)}
+          onEdit={(alias) => {
+            setHoverMorphTarget(null);
+            editTexture(alias.alias, alias.fullPath, alias.status === 'GHOST');
+          }}
+          onOpenContextMenu={(alias, anchor) => {
+            setContextMenuTarget({
+              alias,
+              key: hoverMorphTarget.key,
+              anchor,
+            });
+          }}
+        />
+      )}
     </aside>
   );
 };

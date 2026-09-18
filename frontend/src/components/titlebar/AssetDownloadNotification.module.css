@@ -1,0 +1,230 @@
+/* frontend/src/components/titlebar/AssetDownloadNotification.module.css */
+/* Modern Fluent & Minecraft Bedrock themed titlebar notification */
+
+.container {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  margin-right: 6px;
+  -webkit-app-region: no-drag;
+}
+
+/* 1. Notification trigger button (Missing assets state) */
+.notificationBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 9px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  color: var(--text-secondary, #a1a1aa);
+  font-family: var(--font-brand, 'Syne', sans-serif);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  outline: none;
+  user-select: none;
+  white-space: nowrap;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  animation: notificationEnter 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.notificationBtn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.18);
+  color: var(--text-primary, #ffffff);
+}
+
+.notificationBtn:active {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.downloadIcon {
+  color: #fbbf24;
+  opacity: 0.8;
+  flex-shrink: 0;
+  transition: opacity 0.15s ease, color 0.15s ease;
+}
+
+.notificationBtn:hover .downloadIcon {
+  opacity: 1;
+  color: #ffffff;
+}
+
+/* 2. Download Progress Bar in-place container */
+.progressContainer {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 4px;
+  background: rgba(14, 14, 18, 0.85);
+  border: 1px solid rgba(140, 235, 31, 0.35);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4), 0 0 8px rgba(140, 235, 31, 0.15);
+  user-select: none;
+  white-space: nowrap;
+  animation: notificationEnter 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.spinner {
+  color: var(--accent-primary, #8CEB1F);
+  animation: spinLoader 0.9s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes spinLoader {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.progressBarTrack {
+  width: 80px;
+  height: 5px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.progressBarFill {
+  height: 100%;
+  background: var(--accent-primary, #8CEB1F);
+  border-radius: 3px;
+  transition: width 0.22s ease-out;
+  box-shadow: 0 0 6px rgba(140, 235, 31, 0.6);
+}
+
+.progressPercent {
+  font-family: var(--font-brand, 'Syne', sans-serif);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent-primary, #8CEB1F);
+  min-width: 26px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.progressStage {
+  font-family: var(--font-sans, sans-serif);
+  font-size: 11px;
+  color: var(--text-secondary, #a1a1aa);
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 3. Completed / Installed Success Transition State */
+.successPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 4px;
+  background: rgba(140, 235, 31, 0.15);
+  border: 1px solid rgba(140, 235, 31, 0.4);
+  color: var(--accent-primary, #8CEB1F);
+  font-family: var(--font-brand, 'Syne', sans-serif);
+  font-size: 11px;
+  font-weight: 600;
+  user-select: none;
+  white-space: nowrap;
+  animation: notificationEnter 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.successIcon {
+  color: var(--accent-primary, #8CEB1F);
+  flex-shrink: 0;
+}
+
+@keyframes notificationEnter {
+  0% {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* 4. Hover Video Preview Popup (Portrait 4:3 Morph Tile Container) */
+.hoverPopup {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: 240px;
+  aspect-ratio: 3 / 4;
+  background: #18181f;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 0;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.08), 0 24px 64px rgba(0, 0, 0, 0.7);
+  overflow: hidden;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: popupFadeIn 0.18s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  pointer-events: auto;
+  user-select: none;
+  cursor: default;
+}
+
+/* Hover bridge between button and popup */
+.hoverPopup::before {
+  content: '';
+  position: absolute;
+  top: -10px;
+  left: 0;
+  right: 0;
+  height: 10px;
+}
+
+@keyframes popupFadeIn {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) scale(1);
+  }
+}
+
+/* Minecraft texture checkerboard pattern identical to TileHoverMorphPortal */
+.checkerboardBg {
+  position: absolute;
+  inset: 0;
+  background-color: #101014;
+  background-image:
+    linear-gradient(45deg, rgba(255, 255, 255, 0.04) 25%, transparent 25%),
+    linear-gradient(-45deg, rgba(255, 255, 255, 0.04) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, rgba(255, 255, 255, 0.04) 75%),
+    linear-gradient(-45deg, transparent 75%, rgba(255, 255, 255, 0.04) 75%);
+  background-size: 16px 16px;
+  background-position: 0 0, 0 8px, 8px -8px, -8px 0px;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Video element or media filling the portrait card */
+.videoContent {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  z-index: 2;
+}
+
+

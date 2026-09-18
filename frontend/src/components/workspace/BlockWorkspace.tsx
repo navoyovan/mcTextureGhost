@@ -440,13 +440,14 @@ export const BlockWorkspace: React.FC = () => {
 
   const [hoverMorphTarget, setHoverMorphTarget] = useState<TileHoverMorphTarget | null>(null);
 
-  const handleTileClick = useCallback((domEl: HTMLElement, leaf: CatalogLeafDto, key: string) => {
+  const handleTileClick = useCallback((domEl: HTMLElement, leaf: CatalogLeafDto, key: string, targetType: 'card' | 'image' = 'image') => {
     const rect = domEl.getBoundingClientRect();
     setHoverMorphTarget({
       alias: leafToAliasDto(leaf),
       key,
       originRect: rect,
       domElement: domEl,
+      targetType,
     });
   }, []);
 

@@ -350,63 +350,6 @@
   color: #ffffff;
 }
 
-.syncReferenceBtn {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  height: 28px;
-  padding: 0 10px;
-  border-radius: 4px;
-  background: rgba(140, 235, 31, 0.12);
-  border: 1px solid rgba(140, 235, 31, 0.35);
-  color: var(--accent-primary, #8CEB1F);
-  font-family: var(--font-brand);
-  font-size: 11.5px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  white-space: nowrap;
-}
-
-.syncReferenceBtn:hover:not(:disabled) {
-  background: rgba(140, 235, 31, 0.22);
-  border-color: rgba(140, 235, 31, 0.6);
-  color: #ffffff;
-}
-
-.syncReferenceBtnInstalled {
-  background: rgba(255, 255, 255, 0.04);
-  border-color: rgba(255, 255, 255, 0.1);
-  color: var(--text-secondary, #a1a1aa);
-}
-
-.syncReferenceBtnInstalled:hover:not(:disabled) {
-  background: rgba(140, 235, 31, 0.15);
-  border-color: rgba(140, 235, 31, 0.4);
-  color: var(--accent-primary, #8CEB1F);
-}
-
-.syncReferenceBtnLoading {
-  background: rgba(140, 235, 31, 0.2);
-  border-color: rgba(140, 235, 31, 0.5);
-  color: var(--accent-primary, #8CEB1F);
-  cursor: default;
-}
-
-.spinnerIcon {
-  animation: spinSync 1s linear infinite;
-}
-
-@keyframes spinSync {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
-.installedIcon {
-  color: var(--accent-primary, #8CEB1F);
-}
-
 .resultCountBadge {
   font-family: var(--font-mono, monospace);
   font-size: 11px;

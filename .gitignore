@@ -44,6 +44,7 @@ ehthumbs.db
 ## Frontend dependencies and build outputs
 node_modules/
 dist/
+.vite/
 frontend/node_modules/
 frontend/dist/
 frontend/.vite/

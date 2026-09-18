@@ -19,6 +19,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { useIpc } from '../../hooks/useIpc';
+import { usePackStore } from '../../store/packStore';
 import {
   IpcMessageTypes,
   ReferencePackDetailedStatusPayload,
@@ -43,6 +44,9 @@ export const ReferencePackManagerModal: React.FC<ReferencePackManagerModalProps>
   const [copiedPath, setCopiedPath] = useState(false);
   const [isPurgingArchive, setIsPurgingArchive] = useState(false);
   const [isPurgingData, setIsPurgingData] = useState(false);
+
+  const simulateNoAssets = usePackStore((s) => s.simulateNoAssets);
+  const setSimulateNoAssets = usePackStore((s) => s.setSimulateNoAssets);
 
   // Load detailed status on open & subscribe to updates
   useEffect(() => {
@@ -92,7 +96,7 @@ export const ReferencePackManagerModal: React.FC<ReferencePackManagerModalProps>
     setDownloadProgress({
       task: 'download_3d_assets',
       progress: 0.05,
-      message: 'Connecting to Mojang bedrock-samples repository...',
+      message: 'Connecting...',
     });
     postCommand(IpcMessageTypes.VanillaDownload3DAssets, {});
   }, [isDownloading, postCommand]);
@@ -119,7 +123,7 @@ export const ReferencePackManagerModal: React.FC<ReferencePackManagerModalProps>
 
   if (!isOpen) return null;
 
-  const isReady = detailedStatus?.directoryExists && detailedStatus?.hasExtractedModels;
+  const isReady = !simulateNoAssets && Boolean(detailedStatus?.directoryExists && detailedStatus?.hasExtractedModels);
 
   return createPortal(
     <div
@@ -141,10 +145,10 @@ export const ReferencePackManagerModal: React.FC<ReferencePackManagerModalProps>
             </div>
             <div>
               <h3 id="ref-pack-manager-title" className={styles.headerTitle}>
-                Vanilla Reference & Catalog Manager
+                Vanilla Catalog Manager
               </h3>
               <p className={styles.headerSubtitle}>
-                Inspect Bedrock samples cache, 3D models, textures, and storage footprint
+                Inspect Bedrock samples cache, models, textures, and storage footprint
               </p>
             </div>
           </div>
@@ -161,6 +165,20 @@ export const ReferencePackManagerModal: React.FC<ReferencePackManagerModalProps>
 
         {/* Body Content */}
         <div className={styles.modalBody}>
+          {/* Minimal Test Checkbox */}
+          <button
+            type="button"
+            className={styles.minimalCheckboxBtn}
+            onClick={() => setSimulateNoAssets(!simulateNoAssets)}
+            aria-checked={simulateNoAssets}
+            role="checkbox"
+          >
+            <span className={`${styles.customCheckbox} ${simulateNoAssets ? styles.customCheckboxChecked : ''}`}>
+              {simulateNoAssets && <Check size={11} strokeWidth={3} />}
+            </span>
+            <span className={styles.minimalCheckboxLabel}>Simulate no download</span>
+          </button>
+
           {/* Reference Pack Overview & Path */}
           <section className={styles.sectionCard}>
             <div className={styles.sectionHeader}>
@@ -224,10 +242,10 @@ export const ReferencePackManagerModal: React.FC<ReferencePackManagerModalProps>
           <div className={styles.metricsGrid}>
             <div className={styles.metricCard}>
               <span className={styles.metricLabel} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <Box size={12} /> 3D Models
+                <Box size={12} /> Models
               </span>
               <span className={styles.metricValue}>
-                {detailedStatus?.modelFilesCount ?? 0}
+                {simulateNoAssets ? 0 : (detailedStatus?.modelFilesCount ?? 0)}
               </span>
             </div>
 
@@ -236,7 +254,7 @@ export const ReferencePackManagerModal: React.FC<ReferencePackManagerModalProps>
                 <Image size={12} /> Textures
               </span>
               <span className={styles.metricValue}>
-                {detailedStatus?.textureFilesCount ?? 0}
+                {simulateNoAssets ? 0 : (detailedStatus?.textureFilesCount ?? 0)}
               </span>
             </div>
 
@@ -245,7 +263,7 @@ export const ReferencePackManagerModal: React.FC<ReferencePackManagerModalProps>
                 <FileCode size={12} /> JSONs
               </span>
               <span className={styles.metricValue}>
-                {detailedStatus?.jsonFilesCount ?? 0}
+                {simulateNoAssets ? 0 : (detailedStatus?.jsonFilesCount ?? 0)}
               </span>
             </div>
 
@@ -254,7 +272,7 @@ export const ReferencePackManagerModal: React.FC<ReferencePackManagerModalProps>
                 <HardDrive size={12} /> Total Size
               </span>
               <span className={styles.metricValue}>
-                {detailedStatus?.totalExtractedSizeFormatted ?? '0 B'}
+                {simulateNoAssets ? '0 B' : (detailedStatus?.totalExtractedSizeFormatted ?? '0 B')}
               </span>
             </div>
           </div>
@@ -288,7 +306,7 @@ export const ReferencePackManagerModal: React.FC<ReferencePackManagerModalProps>
           {isDownloading && (
             <div className={styles.progressContainer}>
               <div className={styles.progressTextRow}>
-                <span>{downloadProgress?.message || 'Downloading Bedrock Reference Assets...'}</span>
+                <span>{downloadProgress?.message || 'Downloading...'}</span>
                 <span>{Math.round((downloadProgress?.progress ?? 0.05) * 100)}%</span>
               </div>
               <div className={styles.progressBarTrack}>
@@ -310,7 +328,7 @@ export const ReferencePackManagerModal: React.FC<ReferencePackManagerModalProps>
                 className={styles.btnDanger}
                 onClick={handlePurgeData}
                 disabled={isDownloading || isPurgingData}
-                title="Purge all extracted reference assets"
+                title="Purge all extracted assets"
               >
                 <Trash2 size={13} />
                 <span>{isPurgingData ? 'Purging...' : 'Purge Extracted Data'}</span>
@@ -346,7 +364,7 @@ export const ReferencePackManagerModal: React.FC<ReferencePackManagerModalProps>
               ) : (
                 <>
                   <Download size={14} />
-                  <span>Download Reference Assets</span>
+                  <span>Download Assets</span>
                 </>
               )}
             </button>

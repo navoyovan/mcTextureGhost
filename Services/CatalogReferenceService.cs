@@ -58,13 +58,13 @@ public static class CatalogReferenceService
             var targetDir = VanillaReferencePackDirectory;
             Directory.CreateDirectory(targetDir);
 
-            onProgress?.Invoke(0.05, "Connecting to Mojang bedrock-samples repository...");
+            onProgress?.Invoke(0.05, "Connecting...");
 
             var zipUrl = "https://github.com/Mojang/bedrock-samples/archive/refs/heads/main.zip";
             using var client = new HttpClient { Timeout = TimeSpan.FromMinutes(4) };
             client.DefaultRequestHeaders.UserAgent.ParseAdd("McTextureGhost/1.0");
 
-            onProgress?.Invoke(0.15, "Downloading Bedrock reference assets archive...");
+            onProgress?.Invoke(0.15, "Downloading...");
             using var response = await client.GetAsync(zipUrl, HttpCompletionOption.ResponseHeadersRead);
             response.EnsureSuccessStatusCode();
 
@@ -82,11 +82,11 @@ public static class CatalogReferenceService
                     await fileStream.WriteAsync(buffer, 0, read);
                     readBytes += read;
                     double pct = 0.15 + 0.55 * Math.Min(1.0, (double)readBytes / totalBytes);
-                    onProgress?.Invoke(pct, $"Downloading reference assets ({readBytes / (1024 * 1024)} MB)...");
+                    onProgress?.Invoke(pct, "Downloading...");
                 }
             }
 
-            onProgress?.Invoke(0.75, "Extracting Bedrock 3D models and entity definitions...");
+            onProgress?.Invoke(0.75, "Extracting...");
             await Task.Run(() =>
             {
                 using var archive = ZipFile.OpenRead(tempZip);
@@ -124,7 +124,7 @@ public static class CatalogReferenceService
             try { File.Delete(tempZip); } catch { }
 
             _dataCache.Clear();
-            onProgress?.Invoke(1.0, "Reference pack installation complete!");
+            onProgress?.Invoke(1.0, "Installed");
             return true;
         }
         catch (Exception ex)
