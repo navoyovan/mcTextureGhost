@@ -14,7 +14,7 @@ Built to make texturing Minecraft packs faster and less tedious. It gives you a 
 
 ## What it does
 
-<video src="frontend/public/tut.webm" controls autoplay loop muted playsinline></video>
+<video src="frontend/public/tut.webm" controls autoplay></video>
 
 ### Ghost Detection
 
