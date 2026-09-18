@@ -6,7 +6,7 @@ Stop chasing "ghost". mcTextureGhost scans your pack, shows you every declared t
 
 ![mcTextureGhost Welcome Screen](frontend/public/welcome.png)
 
-Built to make texturing Minecraft packs faster and less tedious. It gives you a single workspace to inspect existing textures alongside all the missing ones you still need to create. Currently designed for Bedrock `resource-pack` formats.
+Built to make texturing Minecraft packs faster and less tedious. It gives you a single workspace to inspect existing textures alongside all the missing ones you still need to create. For now only support Bedrock `resource-pack` formats.
 
 ![mcTextureGhost Workspace](frontend/public/workspace.png)
 
@@ -14,7 +14,7 @@ Built to make texturing Minecraft packs faster and less tedious. It gives you a 
 
 ## What it does
 
-<video src="frontend/public/tut.webm" controls autoplay loop muted playsinline height="360"></video>
+<video src="frontend/public/tut.webm" controls autoplay loop muted playsinline height="720"></video>
 
 ### Ghost Detection
 
