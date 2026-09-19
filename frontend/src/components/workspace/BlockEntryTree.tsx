@@ -15,7 +15,7 @@ export interface BlockEntryTreeProps {
 
 export const BlockEntryTree: React.FC<BlockEntryTreeProps> = ({ block, onTileClick }) => {
   const [collapsedNodes, setCollapsedNodes] = useState<Record<string, boolean>>({});
-  const [isMinimized, setIsMinimized] = useState<boolean>(false);
+  const [isMinimized, setIsMinimized] = useState<boolean>(true);
 
   const toggleMinimize = (e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
@@ -79,8 +79,44 @@ export const BlockEntryTree: React.FC<BlockEntryTreeProps> = ({ block, onTileCli
     return block.aliasGroups || [];
   }, [block]);
 
+  // Calculate total visible lines
+  const visibleLines = useMemo(() => {
+    let count = 1; // root blocks.json
+    if (!collapsedNodes['root_blocks_json']) {
+      for (const ag of aliases) {
+        count += 1; // alias line
+        const aliasKey = `alias_${ag.alias}`;
+        if (!collapsedNodes[aliasKey]) {
+          const seenLeaves = new Set<string>();
+          const rawLeaves = [
+            ...(ag.leaves ?? []),
+            ...(ag.faceNodes ? ag.faceNodes.flatMap((fn) => fn.leaves ?? []) : []),
+          ];
+          for (const leaf of rawLeaves) {
+            const leafKey = `${leaf.relativePath || leaf.alias}:${leaf.blockVariantIndex ?? ''}:${leaf.textureVariantIndex ?? ''}`;
+            if (!seenLeaves.has(leafKey)) {
+              seenLeaves.add(leafKey);
+              count += 1;
+            }
+          }
+        }
+      }
+    }
+    return count;
+  }, [aliases, collapsedNodes]);
+
+  // Target lines = visibleLines + 1, with a minimum clamp of 5 lines (~200px) and max of 340px
+  const autoHeight = useMemo(() => {
+    const targetLines = Math.max(5, visibleLines + 1);
+    const calculated = 64 + targetLines * 28;
+    return Math.min(340, Math.max(200, calculated));
+  }, [visibleLines]);
+
   return (
-    <div className={`${styles.treeContainer} ${isMinimized ? styles.treeContainerCollapsed : ''}`}>
+    <div
+      className={`${styles.treeContainer} ${isMinimized ? styles.treeContainerCollapsed : ''}`}
+      style={!isMinimized ? ({ '--tree-auto-height': `${autoHeight}px` } as React.CSSProperties) : undefined}
+    >
       <div
         className={styles.treeHeader}
         onClick={toggleMinimize}

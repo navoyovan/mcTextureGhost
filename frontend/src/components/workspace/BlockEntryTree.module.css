@@ -7,19 +7,35 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  height: 340px;
-  min-height: 340px;
+  height: var(--tree-auto-height, auto);
+  min-height: 200px;
+  max-height: 340px;
   flex-shrink: 0;
   box-sizing: border-box;
   font-family: var(--font-mono, monospace);
   user-select: none;
-  transition: height 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  resize: vertical;
+}
+
+.treeContainer:not(.treeContainerCollapsed)::after {
+  content: '';
+  position: absolute;
+  bottom: 3px;
+  right: 3px;
+  width: 10px;
+  height: 10px;
+  background: linear-gradient(135deg, transparent 0%, transparent 40%, rgba(255, 255, 255, 0.25) 40%, rgba(255, 255, 255, 0.25) 55%, transparent 55%, transparent 70%, rgba(255, 255, 255, 0.25) 70%, rgba(255, 255, 255, 0.25) 85%, transparent 85%);
+  pointer-events: none;
+  opacity: 0.7;
+  z-index: 10;
 }
 
 .treeContainerCollapsed {
   height: 38px !important;
   min-height: 38px !important;
   max-height: 38px !important;
+  resize: none !important;
   flex-shrink: 0;
 }
 

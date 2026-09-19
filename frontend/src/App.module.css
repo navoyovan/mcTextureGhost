@@ -103,6 +103,14 @@
   display: inline-block;
 }
 
+.packBadgeFull {
+  display: inline;
+}
+
+.packBadgeCompact {
+  display: none;
+}
+
 .dragHandle {
   display: flex;
   align-items: center;
@@ -177,6 +185,7 @@
 .workspaceContainer {
   flex: 1;
   display: flex;
+  position: relative;
   overflow: hidden;
   height: 100%;
   background: transparent;
@@ -189,6 +198,7 @@
   overflow: hidden;
   height: 100%;
   background: transparent;
+  min-width: 0;
 }
 
 /* Notification / Error Toast */
@@ -275,5 +285,37 @@
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+/* ─── Responsive Adjustments for Small / Narrow Viewports ─── */
+@media (max-width: 860px) {
+  .titleBar {
+    padding: 0 8px 0 12px;
+  }
+
+  .appTitle {
+    display: none !important;
+  }
+
+  .packBadge {
+    margin-left: 6px;
+    padding: 4px 8px;
+    font-size: 11.5px;
+    max-width: min(35vw, calc(100vw - 220px));
+  }
+
+  .packBadgeFull {
+    display: none;
+  }
+
+  .packBadgeCompact {
+    display: inline;
+  }
+}
+
+@media (max-width: 480px) {
+  .packBadge {
+    display: none !important;
   }
 }

@@ -1,4 +1,3 @@
-// frontend/src/components/sidebar/Sidebar.tsx
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { AlertTriangle, BookOpen, X } from 'lucide-react';
@@ -36,6 +35,8 @@ export const Sidebar: React.FC = () => {
   const setSelectedFolderPath = usePackStore((s) => s.setSelectedFolderPath);
   const isCatalogOpen = usePackStore((s) => s.isCatalogOpen);
   const setIsCatalogOpen = usePackStore((s) => s.setIsCatalogOpen);
+  const isSidebarCollapsed = usePackStore((s) => s.isSidebarCollapsed);
+  const toggleSidebar = usePackStore((s) => s.toggleSidebar);
   const referencePacks = usePackStore((s) => s.referencePacks);
   const activeReferenceId = usePackStore((s) => s.activeReferenceId);
   const setActiveReferenceId = usePackStore((s) => s.setActiveReferenceId);
@@ -53,24 +54,23 @@ export const Sidebar: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [btnRect, setBtnRect] = useState<DOMRect | null>(null);
   const [shouldPortal, setShouldPortal] = useState<boolean>(false);
+  const [isHovered, setIsHovered] = useState<boolean>(false);
+  const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     setPackIconLoadError(false);
   }, [packIconUrl, packRoot]);
 
   useEffect(() => {
-    if (isCatalogOpen) {
+    if (isHovered && !isCatalogOpen) {
       setShouldPortal(true);
     } else {
       const timer = setTimeout(() => {
         setShouldPortal(false);
-      }, 300);
+      }, 200);
       return () => clearTimeout(timer);
     }
-  }, [isCatalogOpen]);
-
-  const [isHovered, setIsHovered] = useState<boolean>(false);
-  const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  }, [isHovered, isCatalogOpen]);
 
   const handleMouseEnter = () => {
     if (hoverTimerRef.current) {
@@ -186,7 +186,7 @@ export const Sidebar: React.FC = () => {
       height: `${btnRect.height}px`,
       margin: 0,
       zIndex: 1002,
-    } : shouldPortal ? {
+    } : (shouldPortal && !isCatalogOpen) ? {
       visibility: 'hidden',
     } : {};
 
@@ -345,7 +345,19 @@ export const Sidebar: React.FC = () => {
   };
 
   return (
-    <aside className={styles.sidebar} aria-label="Pack Explorer Sidebar">
+    <>
+      {!isSidebarCollapsed && (
+        <div
+          className={styles.sidebarBackdrop}
+          onClick={toggleSidebar}
+          aria-hidden="true"
+        />
+      )}
+      <aside
+        className={`${styles.sidebar} ${isSidebarCollapsed ? styles.sidebarCollapsed : ''}`}
+        aria-label="Pack Explorer Sidebar"
+        aria-hidden={isSidebarCollapsed}
+      >
       {/* 1. Active Pack Identity Card */}
       <div className={styles.packCard}>
         <div className={styles.packIdentityRow}>
@@ -454,7 +466,7 @@ export const Sidebar: React.FC = () => {
 
       {/* 4. Catalog Button — bare, sticks to sidebar bottom */}
       {renderCatalogButton(false)}
-      {shouldPortal && btnRect && createPortal(renderCatalogButton(true), document.body)}
+      {shouldPortal && !isCatalogOpen && btnRect && createPortal(renderCatalogButton(true), document.body)}
 
       {/* Singleton Context Menu for Pack Icon */}
       {contextMenuTarget && (
@@ -508,6 +520,7 @@ export const Sidebar: React.FC = () => {
         />
       )}
     </aside>
+    </>
   );
 };
 

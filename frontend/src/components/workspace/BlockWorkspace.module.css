@@ -8,8 +8,10 @@
 }
 
 .blockListPane {
-  width: 280px;
-  min-width: 240px;
+  width: 360px;
+  min-width: 320px;
+  max-width: 420px;
+  flex-shrink: 0;
   border-right: 1px solid rgba(255, 255, 255, 0.08);
   display: flex;
   flex-direction: column;
@@ -166,10 +168,14 @@
 .detailPane {
   flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: 20px;
   display: flex;
   flex-direction: column;
   gap: 20px;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .detailHeader {
@@ -726,5 +732,87 @@
   padding: 2px 6px;
   border-radius: 4px;
   border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.workspaceListToggleBtn {
+  display: none;
+}
+
+.blockListBackdrop {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .workspaceContainer {
+    position: relative;
+  }
+
+  .blockListPane {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 500;
+    width: 320px;
+    max-width: 85vw;
+    background: rgba(18, 18, 24, 0.98);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    box-shadow: 8px 0 32px rgba(0, 0, 0, 0.7);
+    transform: translateX(-100%);
+    transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease, visibility 0.25s;
+    pointer-events: none;
+    visibility: hidden;
+    opacity: 0;
+  }
+
+  .blockListPaneOpen {
+    transform: translateX(0) !important;
+    pointer-events: auto !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+  }
+
+  .blockListBackdrop {
+    display: block;
+    position: absolute;
+    inset: 0;
+    z-index: 490;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+  }
+
+  .detailPane {
+    padding: 16px;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  .workspaceListToggleBtn {
+    display: inline-flex;
+    align-items: center;
+    align-self: flex-start;
+    gap: 6px;
+    height: 28px;
+    padding: 0 10px;
+    margin-bottom: 8px;
+    background: #18181c;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 6px;
+    color: var(--text-primary, #ffffff);
+    font-family: var(--font-brand, 'Syne', sans-serif);
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease;
+    flex-shrink: 0;
+  }
+
+  .workspaceListToggleBtn:hover {
+    background: #24242c;
+    border-color: rgba(255, 255, 255, 0.25);
+  }
 }
 

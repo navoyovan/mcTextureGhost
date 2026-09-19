@@ -92,7 +92,7 @@
   border-radius: 4px;
   backdrop-filter: blur(8px);
   cursor: grab;
-  z-index: 100;
+  z-index: 10;
   pointer-events: auto;
   touch-action: none;
   transition: background 0.15s, border-color 0.15s;
@@ -130,7 +130,7 @@
   flex-direction: column;
   align-items: flex-start;
   gap: 4px;
-  z-index: 100;
+  z-index: 10;
   pointer-events: auto;
   user-select: none;
 }
@@ -427,4 +427,14 @@
   font-family: var(--font-mono, monospace);
   display: flex;
   justify-content: space-between;
+}
+
+@media (max-width: 860px) {
+  .hintText {
+    display: none;
+  }
+
+  .expandWrapperActive {
+    max-width: min(180px, calc(100vw - 110px));
+  }
 }

@@ -935,6 +935,41 @@ export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose })
             autoFocus
             data-testid="catalog-search-input"
           />
+
+          {/* Inline Category Pills for small viewports when floating cluster is hidden */}
+          <div className={styles.inlineCategoryPills}>
+            <button
+              type="button"
+              className={`${styles.inlinePillBtn} ${categoryFilter === 'all' ? styles.inlinePillBtnActive : ''}`}
+              onClick={() => setCategoryFilter('all')}
+            >
+              All
+            </button>
+            <button
+              type="button"
+              className={`${styles.inlinePillBtn} ${categoryFilter === 'block' ? styles.inlinePillBtnActive : ''}`}
+              onClick={() => setCategoryFilter((prev) => (prev === 'block' ? 'all' : 'block'))}
+            >
+              <Box size={12} />
+              <span>Blocks</span>
+            </button>
+            <button
+              type="button"
+              className={`${styles.inlinePillBtn} ${categoryFilter === 'item' ? styles.inlinePillBtnActive : ''}`}
+              onClick={() => setCategoryFilter((prev) => (prev === 'item' ? 'all' : 'item'))}
+            >
+              <Sword size={12} />
+              <span>Items</span>
+            </button>
+            <button
+              type="button"
+              className={`${styles.inlinePillBtn} ${categoryFilter === 'entity' ? styles.inlinePillBtnActive : ''}`}
+              onClick={() => setCategoryFilter((prev) => (prev === 'entity' ? 'all' : 'entity'))}
+            >
+              <PawPrint size={12} />
+              <span>Entities</span>
+            </button>
+          </div>
         </div>
 
         {/* Scrollable Catalog Tree */}

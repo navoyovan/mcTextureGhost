@@ -56,6 +56,10 @@ export interface PackStoreState {
   jsonViewerInfo: { lineCount: number; sizeLabel: string; matchCount: number | null } | null;
   /** Whether the Manifest raw JSON sidebar/drawer is open */
   isManifestJsonDrawerOpen: boolean;
+  /** Whether the workspace (Blocks / Entities) list drawer is open on compact viewports */
+  isWorkspaceDrawerOpen: boolean;
+  /** Whether the whole left sidebar is collapsed */
+  isSidebarCollapsed: boolean;
 
   // App & Theme Config
   tintOpacity: number;
@@ -94,6 +98,10 @@ export interface PackStoreActions {
   setJsonViewerInfo: (info: { lineCount: number; sizeLabel: string; matchCount: number | null } | null) => void;
   setIsManifestJsonDrawerOpen: (open: boolean) => void;
   toggleManifestJsonDrawer: () => void;
+  setIsWorkspaceDrawerOpen: (open: boolean) => void;
+  toggleWorkspaceDrawer: () => void;
+  setIsSidebarCollapsed: (collapsed: boolean) => void;
+  toggleSidebar: () => void;
   setAppConfig: (config: Partial<AppConfigPayload>) => void;
   setOpenWithApps: (apps: OpenWithAppDto[]) => void;
   setJsonOpenWithApps: (apps: OpenWithAppDto[]) => void;
@@ -161,6 +169,8 @@ const initialState: PackStoreState = {
   tileZoom: 120,
   jsonViewerInfo: null,
   isManifestJsonDrawerOpen: false,
+  isWorkspaceDrawerOpen: false,
+  isSidebarCollapsed: false,
 
   tintOpacity: 85,
   tintBrightness: 30,
@@ -417,6 +427,30 @@ export const packStoreActions: PackStoreActions = {
 
   toggleManifestJsonDrawer(): void {
     currentState = { ...currentState, isManifestJsonDrawerOpen: !currentState.isManifestJsonDrawerOpen };
+    cachedSnapshot = null;
+    notify();
+  },
+
+  setIsWorkspaceDrawerOpen(open: boolean): void {
+    currentState = { ...currentState, isWorkspaceDrawerOpen: open };
+    cachedSnapshot = null;
+    notify();
+  },
+
+  toggleWorkspaceDrawer(): void {
+    currentState = { ...currentState, isWorkspaceDrawerOpen: !currentState.isWorkspaceDrawerOpen };
+    cachedSnapshot = null;
+    notify();
+  },
+
+  setIsSidebarCollapsed(collapsed: boolean): void {
+    currentState = { ...currentState, isSidebarCollapsed: collapsed };
+    cachedSnapshot = null;
+    notify();
+  },
+
+  toggleSidebar(): void {
+    currentState = { ...currentState, isSidebarCollapsed: !currentState.isSidebarCollapsed };
     cachedSnapshot = null;
     notify();
   },

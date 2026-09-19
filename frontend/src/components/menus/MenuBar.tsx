@@ -220,20 +220,6 @@ export const MenuBar: React.FC = () => {
         );
       })}
 
-      {/* BETA button */}
-      <div className={styles.menuRoot}>
-        <button
-          type="button"
-          className={`${styles.menuTrigger} ${openMenu?.label === 'Beta' ? styles.menuTriggerOpen : ''}`}
-          onClick={(e) => handleTriggerClick('Beta', e)}
-          aria-haspopup="menu"
-          aria-expanded={openMenu?.label === 'Beta'}
-        >
-          BETA
-          <ChevronDown size={10} className={styles.menuChevron} />
-        </button>
-      </div>
-
       {/* Portal-rendered dropdown to escape overflow:hidden parents */}
       {openMenu &&
         createPortal(
@@ -248,38 +234,7 @@ export const MenuBar: React.FC = () => {
               style={{ left: openMenu.x, top: openMenu.y }}
               onMouseDown={(e) => e.stopPropagation()}
             >
-              {openMenu.label === 'Beta' ? (
-                <div className={styles.betaPanel}>
-                  <div className={styles.betaSection}>
-                    <div className={styles.betaSectionHeader}>
-                      <span className={styles.betaSectionLabel}>Zoom level</span>
-                      <span className={styles.betaZoomValue}>{tileZoom}px</span>
-                    </div>
-                    <div className={styles.betaZoomControls}>
-                      {zoomPresets.map((preset) => (
-                        <button
-                          key={preset.label}
-                          type="button"
-                          className={`${styles.betaZoomButton} ${tileZoom === preset.value ? styles.betaButtonActive : ''}`}
-                          onClick={() => runItem(() => setTileZoom(preset.value))}
-                        >
-                          {preset.label}
-                        </button>
-                      ))}
-                    </div>
-                    <input
-                      type="range"
-                      className={styles.betaSlider}
-                      min={80}
-                      max={200}
-                      step={8}
-                      value={tileZoom}
-                      onChange={(e) => setTileZoom(Number(e.target.value))}
-                      aria-label="Tile size zoom"
-                    />
-                  </div>
-                </div>
-              ) : menus
+              {menus
                 .find((m) => m.label === openMenu.label)
                 ?.items.map((item, idx) => (
                   <React.Fragment key={idx}>
@@ -296,6 +251,42 @@ export const MenuBar: React.FC = () => {
                     {item.hasDivider && <div className={styles.menuDivider} />}
                   </React.Fragment>
                 ))}
+
+              {openMenu.label === 'Dev' && (
+                <>
+                  <div className={styles.menuDivider} />
+                  <div className={styles.betaPanel}>
+                    <div className={styles.betaSection}>
+                      <div className={styles.betaSectionHeader}>
+                        <span className={styles.betaSectionLabel}>Zoom level</span>
+                        <span className={styles.betaZoomValue}>{tileZoom}px</span>
+                      </div>
+                      <div className={styles.betaZoomControls}>
+                        {zoomPresets.map((preset) => (
+                          <button
+                            key={preset.label}
+                            type="button"
+                            className={`${styles.betaZoomButton} ${tileZoom === preset.value ? styles.betaButtonActive : ''}`}
+                            onClick={() => runItem(() => setTileZoom(preset.value))}
+                          >
+                            {preset.label}
+                          </button>
+                        ))}
+                      </div>
+                      <input
+                        type="range"
+                        className={styles.betaSlider}
+                        min={80}
+                        max={200}
+                        step={8}
+                        value={tileZoom}
+                        onChange={(e) => setTileZoom(Number(e.target.value))}
+                        aria-label="Tile size zoom"
+                      />
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           </div>,
           document.body

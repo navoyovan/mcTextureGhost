@@ -89,6 +89,8 @@ export const EntityWorkspace: React.FC = () => {
   const [selectedEntityId, setSelectedEntityId] = useState<string | null>(null);
   const [activeLeafKey, setActiveLeafKey] = useState<string | null>(null);
   const [activeMenuKey, setActiveMenuKey] = useState<string | null>(null);
+  const isListDrawerOpen = usePackStore((s) => s.isWorkspaceDrawerOpen);
+  const setIsListDrawerOpen = usePackStore((s) => s.setIsWorkspaceDrawerOpen);
   const [hoverMorphTarget, setHoverMorphTarget] = useState<TileHoverMorphTarget | null>(null);
   const [contextMenuTarget, setContextMenuTarget] = useState<{
     alias: TextureAliasDto;
@@ -370,8 +372,20 @@ export const EntityWorkspace: React.FC = () => {
 
   return (
     <div className={styles.workspaceContainer}>
+      {/* Backdrop for compact viewports */}
+      {isListDrawerOpen && (
+        <div
+          className={styles.blockListBackdrop}
+          onClick={() => setIsListDrawerOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
       {/* Left List */}
-      <aside className={styles.blockListPane} aria-label="Entities List">
+      <aside
+        className={`${styles.blockListPane} ${isListDrawerOpen ? styles.blockListPaneOpen : ''}`}
+        aria-label="Entities List"
+      >
         <div className={styles.blockListHeader}>
           Pack Entities ({filteredEntityWorkspaceTree.length}
           {filteredEntityWorkspaceTree.length !== entityWorkspaceTree.length ? ` / ${entityWorkspaceTree.length}` : ''})
@@ -389,7 +403,10 @@ export const EntityWorkspace: React.FC = () => {
                 data-entity-id={entity.blockId}
                 type="button"
                 className={`${styles.blockItem} ${isActive ? styles.blockItemActive : ''} ${!isCustom ? styles.blockItemVanilla : ''}`}
-                onClick={() => setSelectedEntityId(entity.blockId)}
+                onClick={() => {
+                  setSelectedEntityId(entity.blockId);
+                  setIsListDrawerOpen(false);
+                }}
               >
                 <div className={styles.blockItemLeft}>
                   {isAttachable ? (
