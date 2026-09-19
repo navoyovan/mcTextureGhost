@@ -4,11 +4,13 @@
 
 Stop chasing "ghost". mcTextureGhost scans your pack, shows you every declared texture entries that doesn't exist yet ("ghosts"). No JSON wrangling required.
 
-![mcTextureGhost Welcome Screen](frontend/public/welcome.png)
+![mcTextureGhost Welcome Screen](frontend/public/welcome.webp)
 
 Built to make texturing Minecraft packs faster and less tedious. It gives you a single workspace to inspect existing textures alongside all the missing ones you still need to create. For now only support Bedrock `resource-pack` formats.
 
-![mcTextureGhost Workspace](frontend/public/workspace.png)
+![mcTextureGhost Workspace](frontend/public/workspace.webp)
+
+![mcTextureGhost Welcome Screen](frontend/public/workspace-fullscreen.webp)
 
 ---
 
