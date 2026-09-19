@@ -8,6 +8,7 @@ import { BlockEntryTree } from './BlockEntryTree';
 import { WorkspaceTileCard, VariantTileGroup } from './WorkspaceTileCard';
 import { TileHoverMorphPortal, TileHoverMorphTarget } from '../grid/TileHoverMorphPortal';
 import { TextureContextMenu } from '../common/TextureContextMenu';
+import { Badge } from '../common/Badge';
 import styles from './BlockWorkspace.module.css';
 
 function leafToAliasDto(leaf: CatalogLeafDto): TextureAliasDto {
@@ -521,10 +522,10 @@ export const BlockWorkspace: React.FC = () => {
                 </div>
                 <div className={styles.blockItemBadges}>
                   {!isCustom && block.blockId !== 'uncategorized' && (
-                    <span className={styles.vanillaTag} title="Inferred from vanilla blocks.json">fallback</span>
+                    <Badge variant="fallback" size="sm" title="Inferred from vanilla blocks.json">fallback</Badge>
                   )}
                   {block.ghostCount > 0 && (
-                    <span className={styles.ghostBadge}>{block.ghostCount}</span>
+                    <Badge variant="ghost" size="counter">{block.ghostCount}</Badge>
                   )}
                 </div>
               </button>
@@ -553,12 +554,12 @@ export const BlockWorkspace: React.FC = () => {
             </div>
             <div className={styles.detailHeaderActions}>
               {selectedBlock.isUserDefined === false && selectedBlock.blockId !== 'uncategorized' && (
-                <span className={styles.vanillaHeaderBadge} title="Using vanilla blocks.json definition">
+                <Badge variant="fallback" size="sm" title="Using vanilla blocks.json definition">
                   Vanilla Fallback
-                </span>
+                </Badge>
               )}
               {selectedBlock.ghostCount > 0 && (
-                <span className={styles.ghostBadge}>{selectedBlock.ghostCount} ghosts</span>
+                <Badge variant="ghost" size="sm">{selectedBlock.ghostCount} ghosts</Badge>
               )}
             </div>
           </div>
@@ -605,9 +606,9 @@ export const BlockWorkspace: React.FC = () => {
                     <Layers size={14} />
                     <span>Alias: {ag.alias}</span>
                     {!isDeclaredInTerrainTexture && (
-                      <span className={styles.vanillaHeaderBadge} title="Using vanilla terrain_texture.json definition">
+                      <Badge variant="fallback" size="sm" title="Using vanilla terrain_texture.json definition">
                         Vanilla Fallback
-                      </span>
+                      </Badge>
                     )}
                   </div>
 
@@ -617,13 +618,10 @@ export const BlockWorkspace: React.FC = () => {
                       const groups = groupLeavesByVariantSlot(fn.leaves ?? []);
                       return (
                         <div key={fn.faceLabel} className={styles.faceRow}>
-                          <div className={styles.faceLabelBadge}>
-                            <ArrowRight size={10} />
-                            <span>Face: {fn.faceLabel}</span>
-                            {fn.ghostCount > 0 && (
-                              <span className={styles.faceGhostCount}>• {fn.ghostCount}</span>
-                            )}
-                          </div>
+                          <Badge variant="neutral" size="sm" icon={<ArrowRight size={10} />}>
+                            Face: {fn.faceLabel}
+                            {fn.ghostCount > 0 && ` • ${fn.ghostCount}`}
+                          </Badge>
                           <div className={styles.variantStrip}>
                             {groups.map((grp) => {
                               const cardKey = `${grp.key}-${fn.faceLabel}`;

@@ -25,6 +25,7 @@ import {
   ReferencePackDetailedStatusPayload,
   DownloadProgressPayload,
 } from '../../types/ipc';
+import { Badge } from '../common/Badge';
 import styles from './ReferencePackManagerModal.module.css';
 
 export interface ReferencePackManagerModalProps {
@@ -170,32 +171,19 @@ export const ReferencePackManagerModal: React.FC<ReferencePackManagerModalProps>
               <h4 className={styles.sectionTitle}>
                 {detailedStatus?.activeName || 'Vanilla Bedrock'} ({detailedStatus?.versionTag || '1.21.x'})
               </h4>
-              <span
-                className={`${styles.statusPill} ${
-                  isDownloading
-                    ? styles.statusPillDownloading
-                    : isReady
-                    ? styles.statusPillReady
-                    : styles.statusPillMissing
-                }`}
-              >
-                {isDownloading ? (
-                  <>
-                    <Loader2 size={11} className={styles.spinner} />
-                    Syncing...
-                  </>
-                ) : isReady ? (
-                  <>
-                    <CheckCircle2 size={11} />
-                    Extracted & Ready
-                  </>
-                ) : (
-                  <>
-                    <AlertTriangle size={11} />
-                    Not Extracted
-                  </>
-                )}
-              </span>
+              {isDownloading ? (
+                <Badge variant="ok" size="sm" icon={<Loader2 size={11} className={styles.spinner} />}>
+                  Syncing...
+                </Badge>
+              ) : isReady ? (
+                <Badge variant="ok" size="sm" icon={<CheckCircle2 size={11} />}>
+                  Extracted & Ready
+                </Badge>
+              ) : (
+                <Badge variant="ghost" size="sm" icon={<AlertTriangle size={11} />}>
+                  Not Extracted
+                </Badge>
+              )}
             </div>
 
             <div className={styles.pathRow}>

@@ -9,7 +9,7 @@ Fast reference for day-to-day tasks. Start with the relevant code below; load sp
 - **Styling:** CSS Modules (`*.module.css`) + CSS Custom Properties. **No Tailwind CSS**.
 - **Fonts:** Preserve design tokens in `frontend/src/styles/` (`Syne`, `Press Start 2P`, and system code/UI fonts).
 - **Category Icons:** Standardized Lucide icons across UI: Blocks (`<Box />`), Items (`<Sword />`), Entities (`<PawPrint />`, attachable: `<Shield />`), All (`<LayoutGrid />`). `<Ghost />` is strictly reserved for ghost texture status.
-- **Status & Badge Colors:** Standardized status tokens across UI: `OK`, `ADDED`, `DONE`, and `FALLBACK` are strictly **Soft Blue** (`#38bdf8`, `background: rgba(56, 189, 248, 0.15)`). `GHOST` is strictly reserved for missing files using **Green** (`#8CEB1F`) on purple (`rgba(68, 38, 56, 0.75)`). Never use green for `OK` or `ADDED`.
+- **Status & Badge Colors:** Standardized status tokens across UI: `OK`, `ADDED`, `DONE`, and `FALLBACK` are strictly **Soft Blue** (`#38bdf8`, `background: rgba(56, 189, 248, 0.15)`). `GHOST` is strictly reserved for missing files using **Green** (`#8CEB1F`) on purple (`rgba(68, 38, 56, 0.75)`). Never use green for `OK` or `ADDED`. **ALWAYS use the shared `<Badge />` component (`frontend/src/components/common/Badge.tsx`) with the appropriate `variant` rather than creating custom span classes.** Ensure Badges retain their standard rounded corners (`4px` for text, `10px` pill for `.size_counter`) for visual distinction; do not override them with sharp corners.
 - **Drawer Stacking & Overlay Invariants:** Overlay drawers (`.blockListPane`, `.sidebar`, `.jsonSidebarDrawer`) use `z-index: 500` (backdrops `490`–`1000`). 3D camera controls and viewport drag handles are scoped to `z-index: 10` so interactive 3D overlays never poke through opened drawers.
 
 ## 2. Task-to-Code Lookup
@@ -54,7 +54,7 @@ Paths are repository-relative. Read the entry point relevant to the task, not ev
 
 ## 4. View Navigation
 - **Routed views (`activeView`):** `'grid'` | `'workspace'` | `'entity'`; navigate through `setActiveView(view)`.
-- **Responsive Workspace Drawers:** On compact viewports (`<= 900px`), `.blockListPane` converts to an off-canvas slide drawer toggled via the toolbar's `[ 📦 Blocks (N) ]` / `[ 🐾 Entities (N) ]` button. Its width matches the explorer sidebar (`360px` desktop, `320px` responsive).
+- **Responsive Workspace Drawers & Sidebars:** On compact viewports (`<= 1100px`), the main `.sidebar` becomes an absolute-positioned overlay to prevent squishing the center grid (crucial for users with half-screen snapped windows). Similarly, `.blockListPane` converts to an off-canvas slide drawer toggled via the toolbar's `[ 📦 Blocks (N) ]` / `[ 🐾 Entities (N) ]` button. Its width matches the explorer sidebar (`360px` desktop, `320px` responsive).
 - **JSON and manifest files:** Open through `setSelectedFolderPath(filePath)` (for example, `'manifest.json'`). `JsonReader` mounts as a focused overlay without an extra routed view.
 - **Manifest UI:** `ManifestForm.tsx` supplies the form with a slide-in raw JSON sidebar drawer.
 

@@ -251,43 +251,6 @@
   flex-shrink: 0;
 }
 
-.badge {
-  font-family: var(--font-brand, 'Syne', sans-serif);
-  font-size: 9px;
-  font-weight: 700;
-  line-height: 1;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-  padding: 2.5px 6px;
-  border-radius: var(--radius-sm, 4px);
-  margin-left: auto;
-  flex-shrink: 0;
-}
-
-.vanillaBadge {
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(56, 189, 248, 0.25);
-  color: #38bdf8;
-}
-
-.addedBadge {
-  background: rgba(56, 189, 248, 0.15);
-  border: 1px solid rgba(56, 189, 248, 0.35);
-  color: #38bdf8;
-}
-
-.okBadge {
-  background: rgba(56, 189, 248, 0.15);
-  border: 1px solid rgba(56, 189, 248, 0.35);
-  color: #38bdf8;
-}
-
-.ghostBadge {
-  background: rgba(68, 38, 56, 0.75);
-  border: 1px solid rgba(168, 85, 247, 0.35);
-  color: var(--accent-primary, #8CEB1F);
-}
-
 /* Branch Indentation */
 .treeChildren {
   margin-left: 18px;

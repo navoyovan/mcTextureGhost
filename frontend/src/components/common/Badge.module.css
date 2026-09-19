@@ -1,0 +1,193 @@
+/* frontend/src/components/common/Badge.module.css */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-family: var(--font-brand, 'Syne', sans-serif);
+  font-weight: 700;
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  box-sizing: border-box;
+  white-space: nowrap;
+  flex-shrink: 0;
+  user-select: none;
+  border-radius: 4px;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  line-height: 0;
+}
+
+/* ── SIZES ── */
+
+/* Normal / Default: 18-20px height */
+.size_normal {
+  height: 18px;
+  padding: 2px 7px;
+  font-size: 10px;
+}
+
+/* Small: 14-16px height for compact trees & cards */
+.size_sm {
+  height: 15px;
+  padding: 1.5px 5px;
+  font-size: 8.5px;
+  letter-spacing: 0.02em;
+}
+
+/* Counter / Mini: compact pill/circle for numbers */
+.size_counter {
+  height: 14px;
+  min-width: 14px;
+  padding: 0 4px;
+  font-family: var(--font-mono, monospace);
+  font-size: 8.5px;
+  font-weight: 700;
+  border-radius: 10px;
+}
+
+/* Large: 24px height for headers & hero stats */
+.size_lg {
+  height: 24px;
+  padding: 4px 10px;
+  font-size: 11px;
+}
+
+/* ── STATUS VARIANTS ── */
+
+/* GHOST: Neon green on dark purple (Minecraft Bedrock missing asset) */
+.variant_ghost {
+  background: rgba(68, 38, 56, 0.85);
+  border: 1px solid rgba(168, 85, 247, 0.45);
+  color: var(--accent-primary, #8CEB1F);
+}
+
+/* OK: Soft Blue */
+.variant_ok {
+  background: rgba(56, 189, 248, 0.15);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  color: #38bdf8;
+}
+
+/* ADDED: Soft Blue (in pack) */
+.variant_added {
+  background: rgba(56, 189, 248, 0.15);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  color: #38bdf8;
+}
+
+/* FALLBACK: Vanilla reference / default */
+.variant_fallback {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  color: #38bdf8;
+}
+
+/* ORPHAN: Amber warning */
+.variant_orphan {
+  background: rgba(38, 20, 6, 0.92);
+  border: 1px solid rgba(245, 158, 11, 0.75);
+  color: #fbbf24;
+}
+
+/* OVERRIDE: Purple */
+.variant_override {
+  background: rgba(28, 10, 38, 0.92);
+  border: 1px solid rgba(168, 85, 247, 0.75);
+  color: #c084fc;
+}
+
+/* ANIM: Flipbook texture animation (lime green) */
+.variant_anim {
+  background: rgba(16, 26, 8, 0.92);
+  border: 1px solid rgba(190, 242, 100, 0.75);
+  color: #bef264;
+}
+
+/* MERS: PBR Roughness / Metallic (Pink/Rose) */
+.variant_mers {
+  background: rgba(34, 10, 22, 0.92);
+  border: 1px solid rgba(244, 114, 182, 0.75);
+  color: #f472b6;
+}
+
+.variant_mers.isActive {
+  background: rgba(244, 114, 182, 0.55) !important;
+  border-color: #f472b6 !important;
+  color: #ffffff !important;
+  box-shadow: 0 0 12px rgba(244, 114, 182, 0.75) !important;
+}
+
+/* ATLAS: Companion Atlas texture (Sky Blue) */
+.variant_atlas {
+  background: rgba(8, 28, 44, 0.92);
+  border: 1px solid rgba(56, 189, 248, 0.75);
+  color: #38bdf8;
+}
+
+/* CATEGORY - BLOCK: Violet */
+.variant_category_block {
+  background: rgba(139, 92, 246, 0.18);
+  border: 1px solid rgba(139, 92, 246, 0.35);
+  color: #c4b5fd;
+}
+
+/* CATEGORY - ITEM: Sky Blue */
+.variant_category_item {
+  background: rgba(56, 189, 248, 0.18);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  color: #7dd3fc;
+}
+
+/* CATEGORY - ENTITY: Emerald */
+.variant_category_entity {
+  background: rgba(16, 185, 129, 0.18);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  color: #6ee7b7;
+}
+
+/* CATEGORY - ATTACHABLE: Cyan */
+.variant_category_attachable {
+  background: rgba(6, 182, 212, 0.18);
+  border: 1px solid rgba(6, 182, 212, 0.35);
+  color: #67e8f9;
+}
+
+/* NEUTRAL: Subtle dark glass */
+.variant_neutral {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #d4d4d8;
+}
+
+/* MONO: Consolas font metadata & resolutions */
+.variant_mono {
+  font-family: var(--font-mono, 'Consolas', monospace);
+  text-transform: none;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.75);
+}
+
+/* COUNTER: Accent count pill */
+.variant_counter {
+  font-family: var(--font-mono, monospace);
+  background: var(--accent-primary, #8CEB1F);
+  border: 1px solid transparent;
+  color: #0c0e12;
+}
+
+/* DIRTY: Amber modified indicator */
+.variant_dirty {
+  background: rgba(245, 158, 11, 0.15);
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  color: #fbbf24;
+}

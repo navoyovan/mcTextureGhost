@@ -6,6 +6,7 @@ import { FlipbookThumbnail } from '../common/FlipbookThumbnail';
 import { TextureContextMenu } from '../common/TextureContextMenu';
 import { TileHoverMorphPortal, TileHoverMorphTarget } from './TileHoverMorphPortal';
 import { TextureDropConfirm } from './TextureDropConfirm';
+import { Badge } from '../common/Badge';
 import styles from './PackGrid.module.css';
 
 interface PackGridTileProps {
@@ -350,19 +351,19 @@ const PackGridTile = React.memo<PackGridTileProps>(({
             <span className={styles.fileExt}>{fileExt}</span>
           </span>
           {alias.hasMers && (
-            <span className={styles.mersBadge} title={`PBR MERS layer exists: ${alias.mersFullPath}`}>
+            <Badge variant="mers" size="sm" title={`PBR MERS layer exists: ${alias.mersFullPath}`}>
               MERS
-            </span>
+            </Badge>
           )}
           {alias.hasAtlas && (
-            <span className={styles.atlasBadge} title={`Item Atlas companion exists: ${alias.atlasFullPath || 'Linked Atlas'}`}>
+            <Badge variant="atlas" size="sm" title={`Item Atlas companion exists: ${alias.atlasFullPath || 'Linked Atlas'}`}>
               ATLAS
-            </span>
+            </Badge>
           )}
           {alias.isFlipbook && (
-            <span className={styles.animBadge} title="Animated flipbook sprite-sheet">
+            <Badge variant="anim" size="sm" title="Animated flipbook sprite-sheet">
               ANIM
-            </span>
+            </Badge>
           )}
         </div>
         <div className={styles.tileSubRow}>

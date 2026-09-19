@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { usePackStore, TextureFilterKey } from '../../store/packStore';
 import { SearchInput } from '../common/SearchInput';
+import { Badge } from '../common/Badge';
 import styles from './Toolbar.module.css';
 
 interface FilterOption {
@@ -184,7 +185,9 @@ export const Toolbar: React.FC = () => {
               <Filter size={13} className={styles.filterIcon} />
               <span className={styles.filterLabel}>Filter</span>
               {totalFilterCount > 0 && (
-                <span className={styles.filterCountBadge}>{totalFilterCount}</span>
+                <Badge variant="counter" size="counter" className={styles.filterCountBadge}>
+                  {totalFilterCount}
+                </Badge>
               )}
               <ChevronDown size={12} className={`${styles.filterChevron} ${isFilterOpen ? styles.filterChevronOpen : ''}`} />
             </button>
@@ -233,7 +236,9 @@ export const Toolbar: React.FC = () => {
                         <div className={styles.filterItemIcon}>{item.icon}</div>
                         <span className={styles.filterItemLabel}>{item.label}</span>
                         {item.ghostCount !== undefined && item.ghostCount > 0 && (
-                          <span className={styles.ghostCountPill}>{item.ghostCount}</span>
+                          <Badge variant="ghost" size="counter">
+                            {item.ghostCount}
+                          </Badge>
                         )}
                       </button>
                     );

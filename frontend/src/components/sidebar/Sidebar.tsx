@@ -7,6 +7,7 @@ import { IpcMessageTypes, TextureAliasDto, OpenWithAppDto } from '../../types/ip
 import { TileHoverMorphPortal, TileHoverMorphTarget } from '../grid/TileHoverMorphPortal';
 import { TextureContextMenu, ContextMenuAnchor } from '../common/TextureContextMenu';
 import { DirectoryTree } from './DirectoryTree';
+import { Badge } from '../common/Badge';
 import styles from './Sidebar.module.css';
 
 function formatPackPath(path: string | null): string {
@@ -249,7 +250,7 @@ export const Sidebar: React.FC = () => {
             <div className={styles.catalogCardMeta}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <span className={styles.catalogCardTitle}>Vanilla Bedrock</span>
-                <span className={styles.referenceVersionBadge}>1.21.x</span>
+                <Badge variant="mono" size="sm">1.21.x</Badge>
               </div>
               <span className={styles.catalogCardSubtitle}>
                 {activeReferenceId === 'vanilla' ? 'Active reference' : 'Click to select vanilla'}
@@ -297,7 +298,7 @@ export const Sidebar: React.FC = () => {
                 <div className={styles.catalogCardMeta}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <span className={styles.catalogCardTitle}>{customReference.name}</span>
-                    <span className={styles.referenceVersionBadge}>{customReference.version}</span>
+                    <Badge variant="mono" size="sm">{customReference.version}</Badge>
                   </div>
                   <span className={styles.catalogCardSubtitle}>
                     {activeReferenceId === customReference.id ? 'Active custom pack' : 'Click to select custom'}
@@ -385,24 +386,20 @@ export const Sidebar: React.FC = () => {
             )}
           </button>
 
-          {/* Retro Status Badge Pills on the side */}
+          {/* Status Badge Pills on the side */}
           <div className={styles.statusPillsRow}>
-            <span className={styles.pillTotal} title="Total declared textures">
-              <span className={styles.pillIcon}>Σ</span>
-              <span className={styles.pillText}>{stats.totalCount || stats.total || 0} total</span>
-            </span>
-            <span className={styles.pillOk} title="Textures with valid artwork on disk (done)">
-              <span className={styles.pillIcon}>✓</span>
-              <span className={styles.pillText}>{stats.okCount || stats.done || 0} done</span>
-            </span>
-            <span className={styles.pillGhost} title="Missing texture artwork (Ghosts)">
-              <span className={styles.pillGhostIcon}>👻</span>
-              <span className={styles.pillGhostCount}>{stats.ghostCount || stats.ghosts || 0}</span>
-            </span>
-            <span className={styles.pillOrphan} title="Unlinked/orphan textures">
-              <span className={styles.pillIcon}>◈</span>
-              <span className={styles.pillText}>{stats.orphanCount || stats.orphans || 0} orphan</span>
-            </span>
+            <Badge variant="neutral" size="normal" icon={<span style={{ fontWeight: 800, fontSize: '11px' }}>Σ</span>} title="Total declared textures">
+              {stats.totalCount || stats.total || 0} total
+            </Badge>
+            <Badge variant="ok" size="normal" icon={<span style={{ fontWeight: 800 }}>✓</span>} title="Textures with valid artwork on disk (done)">
+              {stats.okCount || stats.done || 0} done
+            </Badge>
+            <Badge variant="ghost" size="normal" icon="👻" title="Missing texture artwork (Ghosts)">
+              {stats.ghostCount || stats.ghosts || 0}
+            </Badge>
+            <Badge variant="orphan" size="normal" icon="◈" title="Unlinked/orphan textures">
+              {stats.orphanCount || stats.orphans || 0} orphan
+            </Badge>
           </div>
         </div>
 

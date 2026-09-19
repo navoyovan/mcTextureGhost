@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { usePackStore } from '../../store/packStore';
 import { BlockGroupNodeDto, CatalogLeafDto } from '../../types/ipc';
+import { Badge } from '../common/Badge';
 import styles from './BlockEntryTree.module.css';
 
 export interface BlockEntryTreeProps {
@@ -164,13 +165,13 @@ export const BlockEntryTree: React.FC<BlockEntryTreeProps> = ({ block, onTileCli
             </div>
 
             {isBlockUserDefined ? (
-              <span className={`${styles.badge} ${styles.addedBadge}`} title="Defined in pack blocks.json">
+              <Badge variant="added" size="sm" title="Defined in pack blocks.json">
                 added
-              </span>
+              </Badge>
             ) : (
-              <span className={`${styles.badge} ${styles.vanillaBadge}`} title="Inferred from vanilla blocks.json">
+              <Badge variant="fallback" size="sm" title="Inferred from vanilla blocks.json">
                 vanilla fallback
-              </span>
+              </Badge>
             )}
           </div>
 
@@ -231,13 +232,13 @@ export const BlockEntryTree: React.FC<BlockEntryTreeProps> = ({ block, onTileCli
                       </div>
 
                       {isDeclaredInTerrainTexture ? (
-                        <span className={`${styles.badge} ${styles.addedBadge}`} title="Texture alias declared in user terrain_texture.json">
+                        <Badge variant="added" size="sm" title="Texture alias declared in user terrain_texture.json">
                           added
-                        </span>
+                        </Badge>
                       ) : (
-                        <span className={`${styles.badge} ${styles.vanillaBadge}`} title="Inferred from vanilla terrain_texture.json">
+                        <Badge variant="fallback" size="sm" title="Inferred from vanilla terrain_texture.json">
                           vanilla fallback
-                        </span>
+                        </Badge>
                       )}
                     </div>
 
@@ -282,12 +283,12 @@ const TextureLeafRow: React.FC<TextureLeafRowProps> = ({ leaf, onTileClick }) =>
 
   const getStatusBadge = () => {
     if (isVanilla) {
-      return <span className={`${styles.badge} ${styles.vanillaBadge}`}>vanilla</span>;
+      return <Badge variant="fallback" size="sm">vanilla</Badge>;
     }
     if (isGhost) {
-      return <span className={`${styles.badge} ${styles.ghostBadge}`}>ghost</span>;
+      return <Badge variant="ghost" size="sm">ghost</Badge>;
     }
-    return <span className={`${styles.badge} ${styles.okBadge}`}>ok</span>;
+    return <Badge variant="ok" size="sm">ok</Badge>;
   };
 
   return (

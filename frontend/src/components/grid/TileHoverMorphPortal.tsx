@@ -5,6 +5,7 @@ import { TextureAliasDto, IpcMessageTypes } from '../../types/ipc';
 import { usePackStore } from '../../store/packStore';
 import { useIpc } from '../../hooks/useIpc';
 import { FlipbookThumbnail } from '../common/FlipbookThumbnail';
+import { Badge } from '../common/Badge';
 import { ContextMenuAnchor } from '../common/TextureContextMenu';
 import { TextureDropConfirm } from './TextureDropConfirm';
 import styles from './TileHoverMorphPortal.module.css';
@@ -640,15 +641,15 @@ const TileHoverMorphCard: React.FC<TileHoverMorphPortalProps> = ({
   const getStatusBadge = () => {
     switch (alias.status) {
       case 'OK':
-        return <span className={`${styles.badge} ${styles.badgeOk}`}>OK</span>;
+        return <Badge variant="ok">OK</Badge>;
       case 'GHOST':
-        return <span className={`${styles.badge} ${styles.badgeGhost}`}>GHOST</span>;
+        return <Badge variant="ghost">GHOST</Badge>;
       case 'ORPHAN':
-        return <span className={`${styles.badge} ${styles.badgeOrphan}`}>ORPHAN</span>;
+        return <Badge variant="orphan">ORPHAN</Badge>;
       case 'OVERRIDE':
-        return <span className={`${styles.badge} ${styles.badgeOverride}`}>OVERRIDE</span>;
+        return <Badge variant="override">OVERRIDE</Badge>;
       default:
-        return <span className={`${styles.badge} ${styles.badgeOk}`}>OK</span>;
+        return <Badge variant="ok">OK</Badge>;
     }
   };
 
@@ -681,16 +682,16 @@ const TileHoverMorphCard: React.FC<TileHoverMorphPortalProps> = ({
         {isMorphed && (
           <div className={styles.outsideBadgeRow}>
             {getStatusBadge()}
-            {alias.isFlipbook && <span className={`${styles.badge} ${styles.badgeAnim}`}>ANIM</span>}
+            {alias.isFlipbook && <Badge variant="anim">ANIM</Badge>}
             {alias.hasMers && (
-              <span className={`${styles.badge} ${styles.badgeMers} ${isPeekingMers ? styles.badgeMersActive : ''}`}>
+              <Badge variant="mers" active={isPeekingMers}>
                 {isPeekingMers ? 'MERS MAP' : 'MERS'}
-              </span>
+              </Badge>
             )}
             {(Boolean(alias.hasAtlas) || Boolean(alias.atlasFullPath)) && (
-              <span className={`${styles.badge} ${styles.badgeAtlas}`}>
+              <Badge variant="atlas">
                 ATLAS
-              </span>
+              </Badge>
             )}
           </div>
         )}
@@ -742,9 +743,9 @@ const TileHoverMorphCard: React.FC<TileHoverMorphPortalProps> = ({
                 {alias.relativePath || alias.alias}
               </div>
               <div className={styles.resRow}>
-                <span className={styles.resBadge}>
+                <Badge variant="mono" size="sm">
                   {baseTexWidth}×{effectiveTexHeight} • {alias.category?.toUpperCase() || 'TEXTURE'}
-                </span>
+                </Badge>
               </div>
             </div>
 

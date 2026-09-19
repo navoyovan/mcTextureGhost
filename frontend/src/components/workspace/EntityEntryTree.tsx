@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { usePackStore } from '../../store/packStore';
 import { BlockGroupNodeDto, CatalogLeafDto } from '../../types/ipc';
+import { Badge } from '../common/Badge';
 import styles from './BlockEntryTree.module.css';
 
 export interface EntityEntryTreeProps {
@@ -157,13 +158,13 @@ export const EntityEntryTree: React.FC<EntityEntryTreeProps> = ({ entity, onTile
             </div>
 
             {isEntityUserDefined ? (
-              <span className={`${styles.badge} ${styles.addedBadge}`} title="Defined in pack entity definition">
+              <Badge variant="added" size="sm" title="Defined in pack entity definition">
                 added
-              </span>
+              </Badge>
             ) : (
-              <span className={`${styles.badge} ${styles.vanillaBadge}`} title="Inferred from vanilla entity definition">
+              <Badge variant="fallback" size="sm" title="Inferred from vanilla entity definition">
                 vanilla fallback
-              </span>
+              </Badge>
             )}
           </div>
 
@@ -215,13 +216,13 @@ export const EntityEntryTree: React.FC<EntityEntryTreeProps> = ({ entity, onTile
                       </div>
 
                       {isEntityUserDefined ? (
-                        <span className={`${styles.badge} ${styles.addedBadge}`} title="Slot declared in user entity definition">
+                        <Badge variant="added" size="sm" title="Slot declared in user entity definition">
                           added
-                        </span>
+                        </Badge>
                       ) : (
-                        <span className={`${styles.badge} ${styles.vanillaBadge}`} title="Inferred from vanilla entity definition">
+                        <Badge variant="fallback" size="sm" title="Inferred from vanilla entity definition">
                           vanilla fallback
-                        </span>
+                        </Badge>
                       )}
                     </div>
 
@@ -266,12 +267,12 @@ const EntityTextureLeafRow: React.FC<EntityTextureLeafRowProps> = ({ leaf, onTil
 
   const getStatusBadge = () => {
     if (isVanilla) {
-      return <span className={`${styles.badge} ${styles.vanillaBadge}`}>vanilla</span>;
+      return <Badge variant="fallback" size="sm">vanilla</Badge>;
     }
     if (isGhost) {
-      return <span className={`${styles.badge} ${styles.ghostBadge}`}>ghost</span>;
+      return <Badge variant="ghost" size="sm">ghost</Badge>;
     }
-    return <span className={`${styles.badge} ${styles.okBadge}`}>ok</span>;
+    return <Badge variant="ok" size="sm">ok</Badge>;
   };
 
   return (
