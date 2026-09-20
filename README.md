@@ -52,31 +52,6 @@ Sidebar tree of your pack's directory structure with live texture and ghost coun
 
 ---
 
-## Roadmap
-
-- [X] Block and item texture scanning with ghost detection
-- [X] Live reload on external editor save
-- [X] Flipbook animation (20 tick and blending)
-- [X] Vanilla Bedrock reference catalog with offline cache
-- [X] JSON scaffolding (blocks, aliases, items, flipbooks)
-- [X] Pack creation wizard and manifest editor
-- [X] Export resource pack to `.mcpack` archive
-- [X] Block Workspace
-- [X] Entity Workspace
-- [X] Context menu: block state formatting and deletion
-- [X] Drag-and-drop texture import with overwrite confirmation
-- [ ] Curating each 3D preview for blocks and entities to accurately reflect their original in-game shapes
-- [ ] Curating each texture flipbook rendering to accurately reflect their original render
-- [ ] UI and particle texture support
-- [X] `.tga` format decoding and preview
-- [X] Per-texture vanilla reference preview alongside stubs
-- [ ] Customize texture entries and variation paths (e.g. detach shared textures like `acacia_fence` using `acacia_planks` into dedicated `acacia_fence` definitions with auto variation entry indexing)
-- [ ] Target Bedrock engine version selector
-- [X] Compile  (`_mers`)
-- [X] Compile (`_atlas`) against (`_item`)
-
----
-
 ## Getting Started
 
 ### Environment
