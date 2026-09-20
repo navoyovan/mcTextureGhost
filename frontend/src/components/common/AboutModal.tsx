@@ -3,6 +3,7 @@ import React, { useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { X, ExternalLink, Info } from 'lucide-react';
 import { useIpc } from '../../hooks/useIpc';
+import { Badge } from './Badge';
 import styles from './AboutModal.module.css';
 
 export interface AboutModalProps {
@@ -154,7 +155,7 @@ export const AboutModal: React.FC<AboutModalProps> = ({ isOpen, onClose }) => {
                 <span className={styles.appNamePixel}>Texture</span>
                 <span>Ghost</span>
               </h2>
-              <span className={styles.appVersionBadge}>v1.0.0</span>
+              <Badge variant="mono" size="sm">v1.0.0</Badge>
             </div>
 
             <p className={styles.appCopyright}>© 2026 navoyovan</p>
@@ -168,7 +169,7 @@ export const AboutModal: React.FC<AboutModalProps> = ({ isOpen, onClose }) => {
           <div className={styles.licensesSection}>
             <div className={styles.licensesHeader}>
               <span className={styles.licensesTitle}>Open Source Licenses</span>
-              <span className={styles.licensesCount}>{LICENSES.length}</span>
+              <Badge variant="counter" size="counter">{LICENSES.length}</Badge>
             </div>
 
             <div className={styles.licenseList}>
@@ -190,7 +191,7 @@ export const AboutModal: React.FC<AboutModalProps> = ({ isOpen, onClose }) => {
                   <div className={styles.licenseHeaderLeft}>
                     <div className={styles.licenseNameRow}>
                       <span className={styles.licenseName}>{entry.name}</span>
-                      <span className={styles.licenseTypeBadge}>{entry.license}</span>
+                      <Badge variant="neutral" size="sm">{entry.license}</Badge>
                     </div>
                     <p className={styles.licenseNotice}>{entry.notice}</p>
                   </div>

@@ -9,6 +9,7 @@ import {
 import { usePackStore } from '../../store/packStore';
 import { useIpc } from '../../hooks/useIpc';
 import { RecentPackItemDto } from '../../types/ipc';
+import { Badge } from '../common/Badge';
 import styles from './WelcomeView.module.css';
 
 interface WelcomeViewProps {
@@ -108,7 +109,7 @@ export const WelcomeView: React.FC<WelcomeViewProps> = ({ onOpenNewPackDialog })
               <span>Recent Workspaces</span>
             </div>
             {visibleRecentPacks.length > 0 && (
-              <span className={styles.countBadge}>{visibleRecentPacks.length}</span>
+              <Badge variant="counter" size="counter">{visibleRecentPacks.length}</Badge>
             )}
           </div>
 
@@ -147,7 +148,7 @@ export const WelcomeView: React.FC<WelcomeViewProps> = ({ onOpenNewPackDialog })
                         {pack.packName || pack.displayFolder || 'Unnamed Pack'}
                       </span>
                       {pack.version && (
-                        <span className={styles.versionTag}>v{pack.version}</span>
+                        <Badge variant="mono" size="sm">v{pack.version}</Badge>
                       )}
                     </div>
                     <span className={styles.packPath}>

@@ -5,6 +5,7 @@ import { useIpc } from '../../hooks/useIpc';
 import { IpcMessageTypes, GeometryDataPayload, DownloadProgressPayload } from '../../types/ipc';
 import { parseBedrockGeometryJson, buildEntityModel } from './entityGeometryBuilder';
 import { isTgaUrl, loadTgaAsDataUrl } from '../../utils/tgaDecoder';
+import { Badge } from '../common/Badge';
 import styles from './Entity3DViewer.module.css';
 
 export interface EntitySlotVariationOption {
@@ -86,7 +87,7 @@ const OdometerSlotButton: React.FC<{
       <span className={styles.odometerIndex}>{stLabel}</span>
       <span className={`${styles.odometerExpandWrapper} ${isExpanded ? styles.expandWrapperActive : ''}`}>
         <span className={styles.odometerPipe}>|</span>
-        <span className={styles.odometerGeometryBadge}>{st.label}</span>
+        <Badge variant="neutral" size="sm">{st.label}</Badge>
       </span>
     </button>
   );

@@ -9,6 +9,7 @@ import { EntityEntryTree } from './EntityEntryTree';
 import { WorkspaceTileCard, VariantTileGroup } from './WorkspaceTileCard';
 import { TileHoverMorphPortal, TileHoverMorphTarget } from '../grid/TileHoverMorphPortal';
 import { TextureContextMenu } from '../common/TextureContextMenu';
+import { Badge } from '../common/Badge';
 import styles from './BlockWorkspace.module.css';
 
 function leafToAliasDto(leaf: CatalogLeafDto): TextureAliasDto {
@@ -418,13 +419,13 @@ export const EntityWorkspace: React.FC = () => {
                 </div>
                 <div className={styles.blockItemBadges}>
                   {isAttachable && (
-                    <span className={styles.attachableTag}>attachable</span>
+                    <Badge variant="category-attachable" size="sm">attachable</Badge>
                   )}
                   {!isCustom && (
-                    <span className={styles.vanillaTag} title="Inferred from vanilla entity definition">fallback</span>
+                    <Badge variant="fallback" size="sm" title="Inferred from vanilla entity definition">fallback</Badge>
                   )}
                   {entity.ghostCount > 0 && (
-                    <span className={styles.ghostBadge}>{entity.ghostCount}</span>
+                    <Badge variant="ghost" size="counter">{entity.ghostCount}</Badge>
                   )}
                 </div>
               </button>
@@ -449,9 +450,9 @@ export const EntityWorkspace: React.FC = () => {
               <div className={styles.blockHeaderTitleRow}>
                 <h2 className={styles.blockDisplayName}>{selectedEntity.displayName}</h2>
                 {isAttachableEntity && (
-                  <span className={styles.attachableTag} style={{ fontSize: '9px', padding: '2px 6px' }}>
+                  <Badge variant="category-attachable" size="sm">
                     Attachable / Armor
-                  </span>
+                  </Badge>
                 )}
               </div>
               <span className={styles.blockIdSub}>
@@ -460,14 +461,14 @@ export const EntityWorkspace: React.FC = () => {
             </div>
             <div className={styles.detailHeaderActions}>
               {selectedEntity.isUserDefined === false && (
-                <span className={styles.vanillaHeaderBadge} title="Using vanilla entity definition">
+                <Badge variant="fallback" size="sm" title="Using vanilla entity definition">
                   Vanilla Fallback
-                </span>
+                </Badge>
               )}
               {selectedEntity.ghostCount > 0 && (
-                <span className={styles.ghostBadge}>
+                <Badge variant="ghost" size="sm">
                   {selectedEntity.ghostCount} {selectedEntity.ghostCount === 1 ? 'ghost' : 'ghosts'}
-                </span>
+                </Badge>
               )}
             </div>
           </div>
@@ -504,18 +505,17 @@ export const EntityWorkspace: React.FC = () => {
                   <PawPrint size={14} />
                   <span>Slot: {ag.alias}</span>
                   {selectedEntity.isUserDefined === false && (
-                    <span className={styles.vanillaHeaderBadge} title="Using vanilla entity definition">
+                    <Badge variant="fallback" size="sm" title="Using vanilla entity definition">
                       Vanilla Fallback
-                    </span>
+                    </Badge>
                   )}
                 </div>
 
                 <div className={styles.faceRow}>
                   {ag.geometryId && (
-                    <div className={styles.faceLabelBadge}>
-                      <ArrowRight size={10} />
-                      <span>Geo: {ag.geometryId}</span>
-                    </div>
+                    <Badge variant="neutral" size="sm" icon={<ArrowRight size={10} />}>
+                      Geo: {ag.geometryId}
+                    </Badge>
                   )}
 
                   <div className={styles.variantStrip}>

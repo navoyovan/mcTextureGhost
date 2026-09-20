@@ -219,69 +219,6 @@
   animation: fadeIn 0.18s cubic-bezier(0.2, 0.8, 0.2, 1) 0.05s both;
 }
 
-.badge {
-  font-family: var(--font-brand, 'Syne', sans-serif);
-  font-size: 9.5px;
-  font-weight: 700;
-  padding: 3.5px 7px;
-  border-radius: 4px;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  line-height: 1;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.7);
-  backdrop-filter: blur(8px);
-}
-
-.badgeOk {
-  background: rgba(4, 28, 34, 0.92);
-  border: 1px solid rgba(6, 182, 212, 0.75);
-  color: #22d3ee;
-}
-
-.badgeGhost {
-  background: rgba(68, 38, 56, 0.75);
-  border: 1px solid rgba(168, 85, 247, 0.35);
-  color: var(--accent-primary, #8CEB1F);
-}
-
-.badgeOrphan {
-  background: rgba(38, 20, 6, 0.92);
-  border: 1px solid rgba(245, 158, 11, 0.75);
-  color: #fbbf24;
-}
-
-.badgeOverride {
-  background: rgba(28, 10, 38, 0.92);
-  border: 1px solid rgba(168, 85, 247, 0.75);
-  color: #c084fc;
-}
-
-.badgeAnim {
-  background: rgba(16, 26, 8, 0.92);
-  border: 1px solid rgba(190, 242, 100, 0.75);
-  color: #bef264;
-}
-
-.badgeMers {
-  background: rgba(34, 10, 22, 0.92);
-  border: 1px solid rgba(244, 114, 182, 0.75);
-  color: #f472b6;
-  transition: all 0.15s ease;
-}
-
-.badgeMersActive {
-  background: rgba(244, 114, 182, 0.55) !important;
-  border-color: #f472b6 !important;
-  color: #ffffff !important;
-  box-shadow: 0 0 12px rgba(244, 114, 182, 0.75) !important;
-}
-
-.badgeAtlas {
-  background: rgba(8, 28, 44, 0.92);
-  border: 1px solid rgba(56, 189, 248, 0.75);
-  color: #38bdf8;
-}
-
 /* ── Metadata Area ────────────────────────────────────────────────────────── */
 
 .metaArea {

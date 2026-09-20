@@ -30,6 +30,7 @@ import {
 } from '../../types/ipc';
 import { FlipbookThumbnail } from '../common/FlipbookThumbnail';
 import { SearchInput } from '../common/SearchInput';
+import { Badge } from '../common/Badge';
 import { ReferencePackManagerModal } from './ReferencePackManagerModal';
 import styles from './CatalogDrawer.module.css';
 
@@ -172,14 +173,14 @@ const CatalogLeafRow: React.FC<{
               {fileName}
             </span>
             {leaf.totalTextureVariants && leaf.totalTextureVariants > 1 && (
-              <span className={styles.variantCountBadge}>
+              <Badge variant="override" size="sm">
                 {leaf.totalTextureVariants}v
-              </span>
+              </Badge>
             )}
             {leaf.isFlipbook && (
-              <span className={styles.animBadge} title="Animated flipbook texture">
+              <Badge variant="anim" size="sm" title="Animated flipbook texture">
                 ANIM
-              </span>
+              </Badge>
             )}
           </div>
           <div className={styles.leafPathRow}>
@@ -242,32 +243,32 @@ const CatalogAliasGroup: React.FC<{
             {isEntity ? `Slot: ${slotName}` : `Alias: ${aliasGroup.alias}`}
           </span>
           {isAttachable && (
-            <span className={styles.faceLabelBadge} title="Attachable entity definition">
-              <span>Attachable</span>
-            </span>
+            <Badge variant="category-attachable" size="sm" title="Attachable entity definition">
+              Attachable
+            </Badge>
           )}
           {!isEntity && aliasGroup.faceSummary && (
-            <span
-              className={styles.faceLabelBadge}
+            <Badge
+              variant="neutral"
+              size="sm"
+              icon={<ArrowRight size={9} />}
               title={`Face mapping: ${aliasGroup.faceSummary}`}
             >
-              <ArrowRight size={9} />
-              <span>Face: {aliasGroup.faceSummary}</span>
-            </span>
+              Face: {aliasGroup.faceSummary}
+            </Badge>
           )}
           {aliasGroup.ghostCount > 0 && (
-            <span className={styles.ghostBadge}>
+            <Badge variant="ghost" size="counter" title={`${aliasGroup.ghostCount} ghost textures`}>
               {aliasGroup.ghostCount}
-            </span>
+            </Badge>
           )}
         </div>
 
         {!isEntity && (
           isAdded ? (
-            <span className={styles.addedBadge} title="This item is already in your pack">
-              <Check size={11} />
-              <span>Added</span>
-            </span>
+            <Badge variant="added" size="sm" icon={<Check size={11} />} title="This item is already in your pack">
+              Added
+            </Badge>
           ) : (
             <button
               type="button"
@@ -371,42 +372,31 @@ const CatalogBlockGroup: React.FC<{
         </div>
 
         <div className={styles.blockBadgesAndActions}>
-          <span
-            className={`${styles.categoryBadge} ${
-              isEntity
-                ? styles.categoryBadgeEntity
-                : isItem
-                ? styles.categoryBadgeItem
-                : ''
-            }`}
+          <Badge
+            variant={isEntity ? 'category-entity' : isItem ? 'category-item' : 'category-block'}
+            size="sm"
+            icon={isEntity ? <PawPrint size={11} /> : isItem ? <Sword size={11} /> : <Box size={11} />}
             title={block.category}
           >
-            {isEntity ? (
-              <PawPrint size={11} className={styles.badgeIcon} />
-            ) : isItem ? (
-              <Sword size={11} className={styles.badgeIcon} />
-            ) : (
-              <Box size={11} className={styles.badgeIcon} />
-            )}
-          </span>
+            {isEntity ? 'ENTITY' : isItem ? 'ITEM' : 'BLOCK'}
+          </Badge>
 
           {block.ghostCount > 0 && (
-            <span className={styles.ghostBadge} title={`${block.ghostCount} ghost textures`}>
+            <Badge variant="ghost" size="counter" title={`${block.ghostCount} ghost textures`}>
               {block.ghostCount}
-            </span>
+            </Badge>
           )}
 
           {block.totalVariants > 0 && (
-            <span className={styles.variantsBadge} title={`${block.totalVariants} total variants`}>
+            <Badge variant="neutral" size="counter" title={`${block.totalVariants} total variants`}>
               {block.totalVariants}
-            </span>
+            </Badge>
           )}
 
           {isAdded ? (
-            <span className={styles.addedBadge} title="This item is already in your pack">
-              <Check size={11} />
-              <span>Added</span>
-            </span>
+            <Badge variant="added" size="sm" icon={<Check size={11} />} title="This item is already in your pack">
+              Added
+            </Badge>
           ) : (
             <button
               type="button"
@@ -877,7 +867,7 @@ export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose })
             <div className={styles.headerTextGroup}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <h2 className={styles.headerTitle}>{activeReference.name}</h2>
-                <span className={styles.versionBadge}>{activeReference.version}</span>
+                <Badge variant="mono" size="sm">{activeReference.version}</Badge>
               </div>
               <span className={styles.headerSubtitle}>
                 {activeReference.description || (activeReference.isVanilla ? 'Mojang bedrock-samples official reference database' : 'Custom local resource pack reference')}
@@ -886,11 +876,11 @@ export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose })
           </div>
 
           <div className={styles.headerRightActions}>
-            <span className={styles.resultCountBadge} data-testid="result-count-badge">
+            <Badge variant="neutral" size="sm" data-testid="result-count-badge">
               {isSearching
                 ? `${visibleBlocks.length} / ${filteredBlocks.length}`
                 : `${visibleBlocks.length} / ${totalCatalogCount}`}
-            </span>
+            </Badge>
             {(!simulateNoAssets && (activeReference.isVanilla ? hasVanillaAssets : Boolean(activeReference.packPath))) ? (
               <button
                 type="button"

@@ -15,6 +15,7 @@ import {
 import { PackFolderItemDto } from '../../types/ipc';
 import { usePackStore } from '../../store/packStore';
 import { JsonFileContextMenu } from '../common/JsonFileContextMenu';
+import { Badge } from '../common/Badge';
 import styles from './DirectoryTree.module.css';
 
 function renderNodeIcon(node: PackFolderItemDto, isSelected: boolean) {
@@ -150,24 +151,24 @@ export const DirectoryTreeNode: React.FC<DirectoryTreeNodeProps> = ({
 
         <div className={styles.nodeBadges}>
           {node.isMissing && (
-            <span className={styles.missingBadge} title="Folder missing on disk">
+            <Badge variant="ghost" size="sm" title="Folder missing on disk">
               MISSING
-            </span>
+            </Badge>
           )}
           {node.ghostCount > 0 && (
-            <span className={styles.ghostPill} title={`${node.ghostCount} ghost textures`}>
+            <Badge variant="ghost" size="counter" title={`${node.ghostCount} ghost textures`}>
               {node.ghostCount}
-            </span>
+            </Badge>
           )}
           {node.orphanCount > 0 && (
-            <span className={styles.orphanPill} title={`${node.orphanCount} orphan textures`}>
+            <Badge variant="orphan" size="counter" title={`${node.orphanCount} orphan textures`}>
               {node.orphanCount}
-            </span>
+            </Badge>
           )}
           {node.textureCount > 0 && (
-            <span className={styles.countPill} title={`${node.textureCount} textures`}>
+            <Badge variant="neutral" size="counter" title={`${node.textureCount} textures`}>
               {node.textureCount}
-            </span>
+            </Badge>
           )}
           {isManifest && onOpenManifest && (
             <button

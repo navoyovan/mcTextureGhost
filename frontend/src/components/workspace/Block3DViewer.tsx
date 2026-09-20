@@ -7,6 +7,7 @@ import { flipbookCoordinator } from '../common/FlipbookThumbnail';
 import { resolveBlockShape } from '../../config/blockShapes';
 import { buildBlockMesh } from './blockGeometryBuilder';
 import { isTgaUrl, loadTgaAsDataUrl } from '../../utils/tgaDecoder';
+import { Badge } from '../common/Badge';
 import styles from './Block3DViewer.module.css';
 
 export interface TextureVariationOption {
@@ -133,7 +134,7 @@ const OdometerBlockStateButton: React.FC<{
       <span className={styles.odometerIndex}>{stLabel}</span>
       <span className={`${styles.odometerExpandWrapper} ${isExpanded ? styles.expandWrapperActive : ''}`}>
         <span className={styles.odometerPipe}>|</span>
-        <span className={styles.odometerStateBadge}>{st.label}</span>
+        <Badge variant="neutral" size="sm">{st.label}</Badge>
       </span>
     </button>
   );

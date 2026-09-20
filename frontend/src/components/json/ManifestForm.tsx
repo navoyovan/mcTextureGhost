@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { usePackStore } from '../../store/packStore';
 import { ManifestModelDto } from '../../types/ipc';
+import { Badge } from '../common/Badge';
 import styles from './JsonReader.module.css';
 
 interface VersionSegmentProps {
@@ -163,9 +164,9 @@ export const ManifestForm: React.FC<ManifestFormProps> = ({
             </div>
             <div className={styles.packMetaActionsRow}>
               <div className={styles.packMetaTags}>
-                <span className={styles.metaPill}>Format {form.formatVersion || 2}</span>
-                <span className={styles.metaPill}>{form.moduleType || 'resources'}</span>
-                <span className={styles.metaPillHighlight}>v{form.versionMajor}.{form.versionMinor}.{form.versionPatch}</span>
+                <Badge variant="neutral" size="sm">Format {form.formatVersion || 2}</Badge>
+                <Badge variant="neutral" size="sm">{form.moduleType || 'resources'}</Badge>
+                <Badge variant="ok" size="sm">v{form.versionMajor}.{form.versionMinor}.{form.versionPatch}</Badge>
               </div>
               <div className={styles.packMetaActionsRight}>
                 {onSave && (
