@@ -22,7 +22,8 @@ export const CatalogFab: React.FC = () => {
 
   const [isHovered, setIsHovered] = useState(false);
   const [catalogIconLoadError, setCatalogIconLoadError] = useState(false);
-  const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const enterTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const leaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const vanillaPackIconLocal = 'https://vanilla.local/pack_icon.png';
   const vanillaPackIconRemote = 'https://raw.githubusercontent.com/Mojang/bedrock-samples/main/resource_pack/pack_icon.png';
@@ -51,14 +52,40 @@ export const CatalogFab: React.FC = () => {
     }
   };
 
-  const handleMouseEnter = () => {
-    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
-    hoverTimerRef.current = setTimeout(() => setIsHovered(true), 120);
+  // Only the main trigger card expands the stack (picker cards do not trigger expand)
+  const handleMainEnter = () => {
+    if (leaveTimerRef.current) {
+      clearTimeout(leaveTimerRef.current);
+      leaveTimerRef.current = null;
+    }
+    if (isHovered) return;
+    if (enterTimerRef.current) clearTimeout(enterTimerRef.current);
+    enterTimerRef.current = setTimeout(() => setIsHovered(true), 120);
   };
 
-  const handleMouseLeave = () => {
-    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
-    setIsHovered(false);
+  const handleMainLeave = () => {
+    if (enterTimerRef.current) {
+      clearTimeout(enterTimerRef.current);
+      enterTimerRef.current = null;
+    }
+    // Linger before collapsing so cursor can travel to the floating stack
+    if (leaveTimerRef.current) clearTimeout(leaveTimerRef.current);
+    leaveTimerRef.current = setTimeout(() => setIsHovered(false), 700);
+  };
+
+  const handleStackEnter = () => {
+    // Keep expanded while cursor is over the picker stack, but don't trigger expand from collapsed
+    if (!isHovered) return;
+    if (leaveTimerRef.current) {
+      clearTimeout(leaveTimerRef.current);
+      leaveTimerRef.current = null;
+    }
+  };
+
+  const handleStackLeave = () => {
+    if (!isHovered) return;
+    if (leaveTimerRef.current) clearTimeout(leaveTimerRef.current);
+    leaveTimerRef.current = setTimeout(() => setIsHovered(false), 350);
   };
 
   // Only show when a pack is loaded
@@ -69,11 +96,13 @@ export const CatalogFab: React.FC = () => {
   return (
     <div
       className={`${styles.fabRoot} ${isCatalogOpen ? styles.fabRootOpen : ''} ${isHovered ? styles.fabRootHovered : ''}`}
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
     >
-      {/* Floating reference picker stack — revealed on hover */}
-      <div className={styles.floatingStack}>
+      {/* Floating reference picker stack — revealed only by main trigger hover (with linger) */}
+      <div
+        className={styles.floatingStack}
+        onMouseEnter={handleStackEnter}
+        onMouseLeave={handleStackLeave}
+      >
         {/* Vanilla Bedrock Reference */}
         <button
           type="button"
@@ -183,11 +212,13 @@ export const CatalogFab: React.FC = () => {
         )}
       </div>
 
-      {/* Main trigger card */}
+      {/* Main trigger card — sole hover source for expansion */}
       <button
         type="button"
         className={`${styles.fabCard} ${isCatalogOpen ? styles.fabCardOpen : ''}`}
         onClick={() => setIsCatalogOpen(!isCatalogOpen)}
+        onMouseEnter={handleMainEnter}
+        onMouseLeave={handleMainLeave}
         title={isCatalogOpen ? `Close ${activeReference.name} Catalog` : `Open ${activeReference.name} Catalog`}
         aria-label={isCatalogOpen ? `Close ${activeReference.name} Catalog` : `Open ${activeReference.name} Catalog`}
       >

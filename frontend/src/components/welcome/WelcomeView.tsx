@@ -115,10 +115,10 @@ export const WelcomeView: React.FC<WelcomeViewProps> = ({ onOpenNewPackDialog })
 
           {visibleRecentPacks.length > 0 ? (
             <div className={styles.recentList} data-testid="recent-packs-list">
-              {visibleRecentPacks.map((pack) => (
+              {visibleRecentPacks.map((pack, index) => (
                 <div
                   key={pack.folderPath}
-                  className={styles.recentRow}
+                  className={`${styles.recentRow} ${index === 0 ? styles.recentRowFeatured : ''}`}
                   onClick={() => handleOpenRecent(pack)}
                   role="button"
                   tabIndex={0}
