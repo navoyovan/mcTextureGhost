@@ -111,23 +111,6 @@ export const BlockWorkspace: React.FC = () => {
     return check(packFolders || []);
   }, [packFolders]);
 
-  const hasBlocksJson = useMemo(() => {
-    function check(items: any[]): boolean {
-      if (!items) return false;
-      for (const item of items) {
-        const p = (item.relativePath || item.name || '').replace(/\\/g, '/').toLowerCase();
-        if ((p === 'blocks.json' || p.endsWith('/blocks.json')) && !item.isMissing) {
-          return true;
-        }
-        if (item.subFolders && item.subFolders.length > 0) {
-          if (check(item.subFolders)) return true;
-        }
-      }
-      return false;
-    }
-    return check(packFolders || []);
-  }, [packFolders]);
-
   const [activeMenuKey, setActiveMenuKey] = useState<string | null>(null);
   const isListDrawerOpen = usePackStore((s) => s.isWorkspaceDrawerOpen);
   const setIsListDrawerOpen = usePackStore((s) => s.setIsWorkspaceDrawerOpen);
@@ -596,9 +579,7 @@ export const BlockWorkspace: React.FC = () => {
 
           <div className={styles.hierarchySection}>
             {selectedBlock.aliasGroups?.map((ag) => {
-              const isBlockUserDefined = hasBlocksJson && selectedBlock.isUserDefined !== false;
               const isDeclaredInTerrainTexture =
-                isBlockUserDefined &&
                 hasTerrainTextureJson &&
                 packAliases.some(
                   (a: TextureAliasDto) =>

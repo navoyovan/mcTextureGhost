@@ -241,7 +241,8 @@ public record TintSetPayload(
 /// </summary>
 public record VanillaAddPayload(
     [property: JsonPropertyName("id")] string Id,
-    [property: JsonPropertyName("category")] string Category // "block" | "item"
+    [property: JsonPropertyName("category")] string Category, // "block" | "item"
+    [property: JsonPropertyName("alias")] string? Alias = null // when adding a specific alias (e.g. glowing_obsidian), Id may be same as alias; Alias explicitly marks alias-only intent
 );
 
 /// <summary>

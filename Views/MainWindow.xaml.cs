@@ -847,8 +847,13 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
                         }
                         else
                         {
-                            // Check if payload.Id is a known BlockId in blocks.json
-                            if (ViewModel.VanillaData.RawBlocksJson.ContainsKey(payload.Id))
+                            // Explicit alias intent from catalog (e.g. glowing_obsidian alias vs glowingobsidian block)
+                            // fixes: alias "obsidian" equals blockId "obsidian" — must not add blocks.json when only terrain was requested
+                            if (!string.IsNullOrEmpty(payload.Alias))
+                            {
+                                JsonWriterService.AddVanillaBlockAlias(ViewModel.PackRootPath, payload.Alias, ViewModel.VanillaData);
+                            }
+                            else if (ViewModel.VanillaData.RawBlocksJson.ContainsKey(payload.Id))
                             {
                                 JsonWriterService.AddVanillaBlock(ViewModel.PackRootPath, payload.Id, ViewModel.VanillaData);
                             }

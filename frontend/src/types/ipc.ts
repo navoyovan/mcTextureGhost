@@ -176,7 +176,8 @@ export interface TintSetPayload {
 
 export interface VanillaAddPayload {
   id: string;
-  category: 'block' | 'item';
+  category: 'block' | 'item' | 'entity';
+  alias?: string;
 }
 
 export interface TextureExtractReferencePayload {

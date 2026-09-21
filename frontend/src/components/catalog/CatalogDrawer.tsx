@@ -219,7 +219,7 @@ const CatalogAliasGroup: React.FC<{
   category: string;
   blockDisplayName?: string;
   parentBlockId?: string;
-  onAdd: (id: string, category: string) => void;
+  onAdd: (id: string, category: string, alias?: string) => void;
   isAliasDeclaredInPack: (alias: string, category: string, parentBlockId?: string) => boolean;
 }> = ({ aliasGroup, category, blockDisplayName, parentBlockId, onAdd, isAliasDeclaredInPack }) => {
   const isEntity = (aliasGroup.category || category).toLowerCase() === 'entity';
@@ -273,7 +273,7 @@ const CatalogAliasGroup: React.FC<{
             <button
               type="button"
               className={styles.addAliasBtn}
-              onClick={() => onAdd(aliasGroup.alias, aliasGroup.category || category)}
+              onClick={() => onAdd(aliasGroup.alias, aliasGroup.category || category, aliasGroup.alias)}
               title={`Add alias '${aliasGroup.alias}' to pack`}
               aria-label={`Add alias ${aliasGroup.alias}`}
             >
@@ -307,7 +307,7 @@ const CatalogBlockGroup: React.FC<{
   blockKey: string;
   isExpanded: boolean;
   onToggleExpand: () => void;
-  onAdd: (id: string, category: string) => void;
+  onAdd: (id: string, category: string, alias?: string) => void;
   isBlockUserDefined: (blockId: string) => boolean;
   isEntityInWorkspace: (entityId: string) => boolean;
   isAliasDeclaredInPack: (alias: string, category: string, parentBlockId?: string) => boolean;
@@ -424,11 +424,11 @@ const CatalogBlockGroup: React.FC<{
               category={block.category}
               blockDisplayName={block.displayName}
               parentBlockId={block.blockId}
-              onAdd={(id, cat) => {
+              onAdd={(id, cat, alias) => {
                 if (isEntity) {
                   onAdd(block.blockId, 'entity');
                 } else {
-                  onAdd(id, cat);
+                  onAdd(id, cat, alias ?? id);
                 }
               }}
               isAliasDeclaredInPack={isAliasDeclaredInPack}
@@ -530,10 +530,19 @@ export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose })
     (alias: string, category: string, parentBlockId?: string): boolean => {
       const cat = category.toLowerCase();
       if (cat === 'block') {
-        if (!hasTerrainTextureJson || !blockWorkspaceTree || !Array.isArray(blockWorkspaceTree)) return false;
+        if (!hasTerrainTextureJson) return false;
+        // Check pack aliases directly — alias is declared if it exists in terrain_texture.json user data
+        // (status Ghost/Ok), regardless of whether its parent block is user-defined or vanilla fallback.
+        // This fixes cases like glowing_obsidian where blockId is glowingobsidian (no underscore)
+        // but alias is glowing_obsidian and block is vanilla fallback (isUserDefined false).
+        const aliasInTerrain = aliases.some(
+          (a) => a.alias.toLowerCase() === alias.toLowerCase() && a.category.toLowerCase() === 'block' && a.status !== 'ORPHAN'
+        );
+        if (aliasInTerrain) return true;
+        // Fallback: check workspace tree (covers face-specific aliasGroups)
+        if (!blockWorkspaceTree || !Array.isArray(blockWorkspaceTree)) return false;
         return blockWorkspaceTree.some(
           (b) =>
-            b.isUserDefined !== false &&
             (parentBlockId ? b.blockId.toLowerCase() === parentBlockId.toLowerCase() : true) &&
             b.aliasGroups?.some((ag) => ag.alias.toLowerCase() === alias.toLowerCase())
         );
@@ -749,10 +758,11 @@ export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose })
   }, []);
 
   const handleAdd = useCallback(
-    (id: string, category: string) => {
+    (id: string, category: string, alias?: string) => {
       postCommand('VANILLA:ADD', {
         id,
-        category: category.toLowerCase(),
+        category: category.toLowerCase() as any,
+        ...(alias ? { alias } : {}),
       });
     },
     [postCommand]

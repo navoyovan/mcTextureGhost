@@ -182,7 +182,6 @@ export const BlockEntryTree: React.FC<BlockEntryTreeProps> = ({ block, onTileCli
                 const aliasKey = `alias_${ag.alias}`;
                 const isAliasCollapsed = Boolean(collapsedNodes[aliasKey]);
                 const isDeclaredInTerrainTexture =
-                  isBlockUserDefined &&
                   hasTerrainTextureJson &&
                   packAliases.some(
                     (a) =>
