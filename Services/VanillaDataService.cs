@@ -68,6 +68,38 @@ public record VanillaData(
         return null;
     }
 
+    /// <summary>
+    /// Reverse-looks up which geometry dict key ("default", "baby", "rolled", etc.)
+    /// in the entity's client JSON maps to the given <paramref name="geoId"/> value.
+    /// Returns null when no match is found.
+    /// </summary>
+    public string? GetGeometryKeyForEntity(string entityId, string? geoId)
+    {
+        if (string.IsNullOrEmpty(geoId)) return null;
+        var cleanId = entityId.StartsWith("minecraft:", StringComparison.OrdinalIgnoreCase)
+            ? entityId.Substring(10)
+            : entityId;
+
+        foreach (var (mapKey, mapVal) in EntityGeometryMap)
+        {
+            if (!string.Equals(mapVal, geoId, StringComparison.OrdinalIgnoreCase)) continue;
+            // mapKey format: "{entityId}:{geoSlot}" (e.g. "minecraft:axolotl:default")
+            var colonIdx = mapKey.IndexOf(':');
+            if (colonIdx < 0) continue;
+            // skip the plain "{entityId}" entries (no slot suffix)
+            var secondColon = mapKey.IndexOf(':', colonIdx + 1);
+            if (secondColon < 0 && mapKey.StartsWith("minecraft:", StringComparison.OrdinalIgnoreCase)) continue;
+            var id = mapKey.Substring(0, colonIdx);
+            var slot = mapKey.Substring(colonIdx + 1);
+            // slot itself must not look like an entity id (guard against bare entityId entries)
+            if (slot.Contains(':')) continue;
+            if (string.Equals(id, entityId, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(id, cleanId, StringComparison.OrdinalIgnoreCase))
+                return slot; // "default", "baby", "rolled", etc.
+        }
+        return null;
+    }
+
     public string? GetGeometryJson(string geometryId)
     {
         if (RawGeometryJson.TryGetValue(geometryId, out var json))
@@ -599,6 +631,7 @@ public static class VanillaDataService
                             foreach (var (geoSlot, geoVal) in detail.Geometries)
                             {
                                 entityGeometryMap[$"{detail.Identifier}:{geoSlot}"] = geoVal;
+                                entityGeometryMap[$"{cleanId}:{geoSlot}"] = geoVal;
                             }
 
                             if (detail.Geometries.TryGetValue("default", out var defaultGeo) && !string.IsNullOrWhiteSpace(defaultGeo))

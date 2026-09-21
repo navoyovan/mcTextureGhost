@@ -1743,13 +1743,14 @@ public static class PackScanner
             }
 
             // Group slots by geometry/baby
-            var slotItems = new List<(string SlotKey, string RawTexPath, string? GeoId, bool IsBaby, bool IsAttachable)>();
+            var slotItems = new List<(string SlotKey, string RawTexPath, string? GeoId, string? GeoKey, bool IsBaby, bool IsAttachable)>();
             foreach (var (slotKey, rawTexPath) in declaredSlots)
             {
                 var geoId = vanilla.GetGeometryForEntity(entityId, slotKey, rawTexPath);
+                var geoKey = vanilla.GetGeometryKeyForEntity(entityId, geoId);
                 var isAttachable = vanilla.RawClientEntityRelPath.TryGetValue(entityId, out var rp) && rp.StartsWith("attachables", StringComparison.OrdinalIgnoreCase);
                 var isBaby = (geoId != null && geoId.Contains("baby", StringComparison.OrdinalIgnoreCase)) || slotKey.Contains("baby", StringComparison.OrdinalIgnoreCase);
-                slotItems.Add((slotKey, rawTexPath, geoId, isBaby, isAttachable));
+                slotItems.Add((slotKey, rawTexPath, geoId, geoKey, isBaby, isAttachable));
             }
 
             // If declaredSlots is empty but user has tiles for this entity
@@ -1758,13 +1759,14 @@ public static class PackScanner
                 foreach (var tile in entityUserTiles)
                 {
                     var isBaby = (tile.GeometryId != null && tile.GeometryId.Contains("baby", StringComparison.OrdinalIgnoreCase)) || (tile.TextureKey != null && tile.TextureKey.Contains("baby", StringComparison.OrdinalIgnoreCase));
-                    slotItems.Add((tile.TextureKey ?? "default", tile.RelativePath, tile.GeometryId, isBaby, tile.IsAttachable));
+                    var geoKey = vanilla.GetGeometryKeyForEntity(entityId, tile.GeometryId);
+                    slotItems.Add((tile.TextureKey ?? "default", tile.RelativePath, tile.GeometryId, geoKey, isBaby, tile.IsAttachable));
                 }
             }
 
             var groupedSlots = slotItems
-                .GroupBy(s => s.GeoId ?? (s.IsBaby ? "baby" : "default"), StringComparer.OrdinalIgnoreCase)
-                .OrderBy(g => g.Key.Contains("baby", StringComparison.OrdinalIgnoreCase) ? 1 : 0);
+                .GroupBy(s => s.GeoKey ?? (s.IsBaby ? "baby" : "default"), StringComparer.OrdinalIgnoreCase)
+                .OrderBy(g => g.Key.Equals("baby", StringComparison.OrdinalIgnoreCase) ? 1 : 0);
 
             foreach (var group in groupedSlots)
             {
@@ -1774,24 +1776,17 @@ public static class PackScanner
                 var isAttachable = group.Any(s => s.IsAttachable);
 
                 string slotAlias;
+                // Normalize geo key: if it equals the entity name itself, call it "default"
+                var geoKeyLabel = group.Key.Equals(cleanId, StringComparison.OrdinalIgnoreCase) ? "default" : group.Key;
                 if (groupedSlots.Count() > 1)
                 {
-                    if (isBaby)
-                    {
-                        slotAlias = $"{cleanId} (baby)";
-                    }
-                    else
-                    {
-                        var suffix = !string.IsNullOrEmpty(first.SlotKey) && !first.SlotKey.Equals("default", StringComparison.OrdinalIgnoreCase)
-                            ? first.SlotKey
-                            : (geoId?.Replace("geometry.", "", StringComparison.OrdinalIgnoreCase) ?? "variant");
-                        slotAlias = $"{cleanId} ({suffix})";
-                    }
+                    slotAlias = $"{cleanId} ({geoKeyLabel})";
                 }
                 else
                 {
                     slotAlias = cleanId;
                 }
+
 
                 var aliasNode = new AliasGroupNode
                 {
@@ -1803,7 +1798,7 @@ public static class PackScanner
                     ParentBlock = entityNode
                 };
 
-                foreach (var (slotKey, rawTexPath, _, _, _) in group)
+                foreach (var (slotKey, rawTexPath, _, _, _, _) in group)
                 {
                     var normTexPath = VanillaDataService.NormalizeTexturePath(rawTexPath);
                     var fullTexPath = normTexPath + ".png";
@@ -1834,7 +1829,7 @@ public static class PackScanner
                             TextureKey = slotKey,
                             GeometryId = geoId,
                             IsAttachable = isAttachable,
-                            SubtitleCaption = matchingUserTile.SubtitleCaption
+                            SubtitleCaption = geoKeyLabel
                         };
                         aliasNode.Leaves.Add(leaf);
                     }
@@ -1856,7 +1851,7 @@ public static class PackScanner
                             TextureKey = slotKey,
                             GeometryId = geoId,
                             IsAttachable = isAttachable,
-                            SubtitleCaption = slotKey != "default" ? $"slot: {slotKey}" : ""
+                            SubtitleCaption = geoKeyLabel
                         };
                         aliasNode.Leaves.Add(leaf);
                     }
@@ -2440,9 +2435,15 @@ public static class PackScanner
                     }
                     else
                     {
-                        var suffix = !string.IsNullOrEmpty(firstTile?.TextureKey) && !firstTile.TextureKey.Equals("default", StringComparison.OrdinalIgnoreCase)
-                            ? firstTile.TextureKey
-                            : (geoId?.Replace("geometry.", "", StringComparison.OrdinalIgnoreCase) ?? "variant");
+                        // Derive label from geometry ID, not texture slot key
+                        // "geometry.axolotl.baby" → "axolotl.baby" → strip "axolotl." → "baby"
+                        // "geometry.axolotl"      → "axolotl"      → equals cleanId → "default"
+                        // "geometry.armadillo"    → "armadillo"    → equals cleanId → "default"
+                        var suffix = geoId?.Replace("geometry.", "", StringComparison.OrdinalIgnoreCase) ?? "variant";
+                        if (suffix.StartsWith(cleanId + ".", StringComparison.OrdinalIgnoreCase))
+                            suffix = suffix.Substring(cleanId.Length + 1);
+                        if (suffix.Equals(cleanId, StringComparison.OrdinalIgnoreCase) || string.IsNullOrEmpty(suffix))
+                            suffix = "default";
                         slotAlias = $"{cleanId} ({suffix})";
                     }
                 }
