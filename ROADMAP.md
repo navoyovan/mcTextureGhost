@@ -22,9 +22,8 @@
 
 ---
  
-### v1.0.1
+### v1.0.1 (Released — 2026-09-22)
 **Improvements**
-- [x] Added some bugs to fix later
 - [x] Narrow viewport optimization — sidebar, JSON viewer (manifest editor), and block list become overlay drawers
 - [x] Moved Docs/Guide entry to Help in the top bar
 - [x] Expanded recent packs limit (up to 20) for faster workspace switching
@@ -38,7 +37,7 @@
 
 **Bug Fixes**
 - [x] Catalog required multiple clicks to open (focus issue) — fixed via FAB refactor
-- [x] Tideous catalog access on narrow viewports without opening the sidebar — fixed via FAB refactor
+- [x] Tedious catalog access on narrow viewports without opening the sidebar — fixed via FAB refactor
 - [x] Adding an alias to `terrain_texture.json` also added a `blocks.json` entry — fixed alias vs block distinction
 - [x] Terrain alias declared in `terrain_texture.json` but treated as vanilla fallback/missing — fixed declaration check to use pack aliases independent of `block.isUserDefined`
 - [x] Manifest editor was squished by the JSON viewer — refactored JSON Viewer to a dedicated sidebar
