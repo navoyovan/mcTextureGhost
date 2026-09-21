@@ -9,7 +9,7 @@
 - [ ] **particle texture** support
 - [ ] target `resource-pack` engine (version selector)
 - [ ] add custom catalog (with other resource pack)
-- [ ] add ability to support addons and distinguish thier entries from the vanilla
+- [ ] add ability to support add-ons and distinguish their entries from vanilla
 - [ ] render controllers? 👀
 - [ ] matching catalog button to the rest of the design language
 - [ ] matching welcome screen to the rest of the design language
@@ -22,27 +22,30 @@
 
 ---
  
-### v1.0.1
-- [X] narrow viewport optimization
-- [X] docs and guide button has been moved to help in the top bar
-- [X] allows more recent packs to be added
-- [X] reworked json viewer top bar   
-- [X] refactored fragmented badges to a unified badges
-- [X] added bugs to fix later
-- [X] sanity checking entity workspace "slot: [xxxxxx (xxxx)]" and show the its real entries (sometimes entity entries switches the texture and geo index so it confuses the parser to returns the wrong label)
-- [ ] restoring exact scroll + selection when returning to view (opening json/going to gridview)
-- [X] refactored catalog button for ease of access and clean workflow
-- [X] Removed Herobrine  
+### v1.0.1 (Skip Release)
+**Improvements**
+- [x] Added some bugs to fix later
+- [x] Narrow viewport optimization — sidebar, JSON viewer (manifest editor), and block list become overlay drawers
+- [x] Moved Docs/Guide entry to Help in the top bar
+- [x] Expanded recent packs limit (up to 20) for faster workspace switching
+- [x] Reworked JSON viewer top bar
+- [x] Unified fragmented badges into shared `<Badge />` system (consistent variants, sizes, and colors)
+- [x] Entity Workspace: sanity-checked slot labels, correctly resolve texture vs geometry mapping
+- [x] Restored exact scroll and selection when returning to a view
+- [x] Refactored catalog button into always-visible FAB (sidebar-independent)
+- [x] Fixed title typography — matched `mcTextureGhost` header to logo
+- [x] Removed Herobrine
 
 **Bug Fixes**
-- [ ] ~~requires clicking catalog multiple times to open (catalog is out of focus?)~~
-- [ ] ~~bring catalog front on narrow viewport for ease of access without opening pack sidebar~~ solved along the button refactoring
-- [ ] adding entries specifically for `terrain_texture.json` sometimes adds its `blocks.json` as well
-- [X] manifest editor got squished by the json viewer
-- [x] texture context menu overshoots to right on rightmost tile
-- [x] normalizes how context menu "open with" opens 
-- [x] removed entity delete button (ui inconcistency)
-- [x] changes app name McTextureGhost > mcTextureGhost
+- [x] Catalog required multiple clicks to open (focus issue) — fixed via FAB refactor
+- [x] Tideous catalog access on narrow viewports without opening the sidebar — fixed via FAB refactor
+- [x] Adding an alias to `terrain_texture.json` also added a `blocks.json` entry — fixed alias vs block distinction
+- [x] Terrain alias declared in `terrain_texture.json` but treated as vanilla fallback/missing — fixed declaration check to use pack aliases independent of `block.isUserDefined`
+- [x] Manifest editor was squished by the JSON viewer — refactored JSON Viewer to a dedicated sidebar
+- [x] Texture context menu overshot outside viewport on the rightmost tile
+- [x] Normalized “Open With” handling in context menus
+- [x] Removed inconsistent entity delete button
+- [x] Renamed app `McTextureGhost` → `mcTextureGhost`
 
 ---
 

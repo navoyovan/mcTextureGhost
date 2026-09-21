@@ -214,7 +214,9 @@ export const App: React.FC = () => {
         <div className={styles.titleBarLeft}>
           {packRoot && (
             <span className={styles.appTitle}>
-              mcTextureGhost
+              <span>mc</span>
+              <span className={styles.appTitlePixel}>Texture</span>
+              <span>Ghost</span>
             </span>
           )}
 

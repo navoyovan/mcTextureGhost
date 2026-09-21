@@ -55,6 +55,9 @@
 }
 
 .appTitle {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0;
   font-family: var(--font-brand);
   font-size: 17px;
   font-weight: 700;
@@ -62,9 +65,20 @@
   color: var(--text-primary, #f4f4f5);
   white-space: nowrap;
   margin-right: 8px;
-  display: inline-block;
   overflow: hidden;
   animation: titleReintroduce 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.appTitlePixel {
+  font-family: var(--font-pixel, 'Press Start 2P', monospace);
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  color: var(--accent-primary, #8CEB1F);
+  margin: 0 2px;
+  transform: translateY(2px);
+  text-shadow: 0 0 10px rgba(140, 235, 31, 0.45);
+  line-height: 1;
 }
 
 @keyframes titleReintroduce {
