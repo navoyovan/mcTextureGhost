@@ -11,14 +11,14 @@
 - [ ] add custom catalog (with other resource pack)
 - [ ] add ability to support add-ons and distinguish their entries from vanilla
 - [ ] render controllers? 👀
-- [ ] matching catalog button to the rest of the design language
-- [ ] matching welcome screen to the rest of the design language
+- [ ] deleting entries kicks user out of the workspace view/index they working on
 - [ ] adding shortcuts (and shortcuts badge show. maybe hold alt to show the shortcut combinations)
 
 ### v1.1.0
 - [ ] optimistic or loading state on each texture interactable (like tiles/thumbnail/catalog)
 - [ ] auto scaffold **variation** entry
-- [ ] auto scaffold custom face entries (like detaching shared textures **ex:** `acacia_fence` using `acacia_planks` into `acacia_fence`)
+- [ ] auto scaffold and detachface entries (like shared textures **ex:** `acacia_fence` using `acacia_planks` into `acacia_fence`)
+- [ ] auto scaffold custom face entries
 
 ---
  
