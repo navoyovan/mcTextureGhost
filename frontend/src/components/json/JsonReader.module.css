@@ -202,6 +202,14 @@
   gap: 18px;
 }
 
+.formColumn::after {
+  content: '';
+  display: block;
+  min-height: 80px;
+  flex-shrink: 0;
+}
+
+
 /* ─── Hero Pack Header ─── */
 .packHeaderSection {
   display: flex;

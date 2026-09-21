@@ -1,9 +1,8 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { createPortal } from 'react-dom';
-import { AlertTriangle, BookOpen, X } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { AlertTriangle } from 'lucide-react';
 import { usePackStore } from '../../store/packStore';
 import { useIpc } from '../../hooks/useIpc';
-import { IpcMessageTypes, TextureAliasDto, OpenWithAppDto } from '../../types/ipc';
+import { TextureAliasDto, OpenWithAppDto } from '../../types/ipc';
 import { TileHoverMorphPortal, TileHoverMorphTarget } from '../grid/TileHoverMorphPortal';
 import { TextureContextMenu, ContextMenuAnchor } from '../common/TextureContextMenu';
 import { DirectoryTree } from './DirectoryTree';
@@ -18,7 +17,6 @@ function formatPackPath(path: string | null): string {
 
 export const Sidebar: React.FC = () => {
   const {
-    postCommand,
     editTexture,
     openInExplorer,
     deleteTextureFile,
@@ -34,15 +32,9 @@ export const Sidebar: React.FC = () => {
   const packFolders = usePackStore((s) => s.packFolders);
   const selectedFolderPath = usePackStore((s) => s.selectedFolderPath);
   const setSelectedFolderPath = usePackStore((s) => s.setSelectedFolderPath);
-  const isCatalogOpen = usePackStore((s) => s.isCatalogOpen);
-  const setIsCatalogOpen = usePackStore((s) => s.setIsCatalogOpen);
   const isSidebarCollapsed = usePackStore((s) => s.isSidebarCollapsed);
   const toggleSidebar = usePackStore((s) => s.toggleSidebar);
-  const referencePacks = usePackStore((s) => s.referencePacks);
-  const activeReferenceId = usePackStore((s) => s.activeReferenceId);
-  const setActiveReferenceId = usePackStore((s) => s.setActiveReferenceId);
   const [packIconLoadError, setPackIconLoadError] = useState<boolean>(false);
-  const [catalogIconLoadError, setCatalogIconLoadError] = useState<boolean>(false);
 
   // Morphing Portal & Context Menu states for Pack Icon
   const [hoverMorphTarget, setHoverMorphTarget] = useState<TileHoverMorphTarget | null>(null);
@@ -52,53 +44,9 @@ export const Sidebar: React.FC = () => {
     key: string;
   } | null>(null);
 
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [btnRect, setBtnRect] = useState<DOMRect | null>(null);
-  const [shouldPortal, setShouldPortal] = useState<boolean>(false);
-  const [isHovered, setIsHovered] = useState<boolean>(false);
-  const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
   useEffect(() => {
     setPackIconLoadError(false);
   }, [packIconUrl, packRoot]);
-
-  useEffect(() => {
-    if (isHovered && !isCatalogOpen) {
-      setShouldPortal(true);
-    } else {
-      const timer = setTimeout(() => {
-        setShouldPortal(false);
-      }, 200);
-      return () => clearTimeout(timer);
-    }
-  }, [isHovered, isCatalogOpen]);
-
-  const handleMouseEnter = () => {
-    if (hoverTimerRef.current) {
-      clearTimeout(hoverTimerRef.current);
-    }
-    hoverTimerRef.current = setTimeout(() => {
-      setIsHovered(true);
-    }, 150);
-  };
-
-  const handleMouseLeave = () => {
-    if (hoverTimerRef.current) {
-      clearTimeout(hoverTimerRef.current);
-    }
-    setIsHovered(false);
-  };
-
-  useEffect(() => {
-    const updateRect = () => {
-      if (containerRef.current) {
-        setBtnRect(containerRef.current.getBoundingClientRect());
-      }
-    };
-    updateRect();
-    window.addEventListener('resize', updateRect);
-    return () => window.removeEventListener('resize', updateRect);
-  }, [isCatalogOpen, shouldPortal]);
 
   const showPackArtworkImage = Boolean(hasPackIcon && packIconUrl && !packIconLoadError);
 
@@ -151,199 +99,8 @@ export const Sidebar: React.FC = () => {
     });
   };
 
-  const vanillaPackIconLocal = 'https://vanilla.local/pack_icon.png';
-  const vanillaPackIconRemote = 'https://raw.githubusercontent.com/Mojang/bedrock-samples/main/resource_pack/pack_icon.png';
-  const [vanillaIconSrc, setVanillaIconSrc] = useState<string>(vanillaPackIconLocal);
 
-  const activeReference = useMemo(() => {
-    return referencePacks?.find((p) => p.id === activeReferenceId) || referencePacks?.[0] || {
-      id: 'vanilla',
-      name: 'Vanilla Bedrock',
-      version: '1.21.x',
-      description: 'Mojang bedrock-samples official reference database',
-      iconUrl: 'https://vanilla.local/pack_icon.png',
-      isVanilla: true,
-    };
-  }, [referencePacks, activeReferenceId]);
 
-  const customReference = useMemo(() => {
-    return referencePacks?.find((p) => !p.isVanilla) || null;
-  }, [referencePacks]);
-
-  const handleCatalogIconError = () => {
-    if (vanillaIconSrc === vanillaPackIconLocal) {
-      setVanillaIconSrc(vanillaPackIconRemote);
-    } else {
-      setCatalogIconLoadError(true);
-    }
-  };
-
-  const renderCatalogButton = (isPortaled: boolean = false) => {
-    const customStyle: React.CSSProperties = isPortaled && btnRect ? {
-      position: 'fixed',
-      top: `${btnRect.top}px`,
-      left: `${btnRect.left}px`,
-      width: `${btnRect.width}px`,
-      height: `${btnRect.height}px`,
-      margin: 0,
-      zIndex: 1002,
-    } : (shouldPortal && !isCatalogOpen) ? {
-      visibility: 'hidden',
-    } : {};
-
-    const catalogIcon = activeReference.isVanilla ? vanillaIconSrc : activeReference.iconUrl;
-
-    return (
-      <div
-        ref={!isPortaled ? containerRef : undefined}
-        style={customStyle}
-        className={`${styles.catalogCardContainer} ${isHovered ? styles.catalogCardContainerHovered : ''}`}
-        onMouseEnter={handleMouseEnter}
-        onMouseLeave={handleMouseLeave}
-      >
-        <button
-          type="button"
-          className={styles.exploreCatalogCard}
-          onClick={() => setIsCatalogOpen(!isCatalogOpen)}
-          title={isCatalogOpen ? `Close ${activeReference.name} Catalog` : `Open ${activeReference.name} Catalog`}
-        >
-          <div className={styles.catalogCardIconWrapper}>
-            {!catalogIconLoadError ? (
-              <img
-                src={catalogIcon}
-                alt={`${activeReference.name} Icon`}
-                className={styles.catalogCardPackImg}
-                onError={handleCatalogIconError}
-              />
-            ) : (
-              <BookOpen size={16} />
-            )}
-          </div>
-          <div className={styles.catalogCardMeta}>
-            <span className={styles.catalogCardTitle}>Explore Catalog</span>
-            <span className={styles.catalogCardSubtitle}>{activeReference.name}</span>
-          </div>
-        </button>
-
-        {/* Floating buttons stacked vertically on top of each other like copies of Explore Catalog card */}
-        <div className={styles.sidebarFloatingStack}>
-          {/* Top Button: Vanilla Bedrock Reference */}
-          <button
-            type="button"
-            className={`${styles.sidebarFloatingCard} ${activeReferenceId === 'vanilla' ? styles.sidebarFloatingCardActive : ''}`}
-            title="Vanilla Bedrock Reference Catalog"
-            aria-label="Vanilla Bedrock Reference"
-            onClick={(e) => {
-              e.stopPropagation();
-              setActiveReferenceId('vanilla');
-              postCommand(IpcMessageTypes.CatalogSetReference, { id: 'vanilla' });
-            }}
-          >
-            <div className={styles.floatingCardIconWrapper}>
-              <img
-                src={vanillaIconSrc}
-                alt="Vanilla Pack Icon"
-                style={{ width: '100%', height: '100%', borderRadius: 4, objectFit: 'cover', imageRendering: 'pixelated' }}
-                onError={handleCatalogIconError}
-              />
-            </div>
-            <div className={styles.catalogCardMeta}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span className={styles.catalogCardTitle}>Vanilla Bedrock</span>
-                <Badge variant="mono" size="sm">1.21.x</Badge>
-              </div>
-              <span className={styles.catalogCardSubtitle}>
-                {activeReferenceId === 'vanilla' ? 'Active reference' : 'Click to select vanilla'}
-              </span>
-            </div>
-            {activeReferenceId === 'vanilla' && (
-              <span className={styles.floatingCardCheck}>✓</span>
-            )}
-          </button>
-
-          {/* Under Button: Custom Reference / Empty State Button (prompts folder picker on click) */}
-          {customReference ? (
-            <div className={styles.customCardWrapper}>
-              <button
-                type="button"
-                className={`${styles.sidebarFloatingCard} ${activeReferenceId === customReference.id ? styles.sidebarFloatingCardActive : ''}`}
-                title={`Custom Reference: ${customReference.name}. Click to select, or right click to change folder.`}
-                aria-label="Custom Reference Pack"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (activeReferenceId === customReference.id) {
-                    // If already selected, clicking allows picking another folder
-                    postCommand(IpcMessageTypes.CatalogPickReference, {});
-                  } else {
-                    setActiveReferenceId(customReference.id);
-                    postCommand(IpcMessageTypes.CatalogSetReference, { id: customReference.id });
-                  }
-                }}
-                onContextMenu={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  postCommand(IpcMessageTypes.CatalogPickReference, {});
-                }}
-              >
-                <div className={styles.floatingCardIconWrapper}>
-                  <img
-                    src={customReference.iconUrl}
-                    alt={customReference.name}
-                    style={{ width: '100%', height: '100%', borderRadius: 4, objectFit: 'cover', imageRendering: 'pixelated' }}
-                    onError={(e) => {
-                      (e.currentTarget as HTMLImageElement).src = 'https://vanilla.local/pack_icon.png';
-                    }}
-                  />
-                </div>
-                <div className={styles.catalogCardMeta}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span className={styles.catalogCardTitle}>{customReference.name}</span>
-                    <Badge variant="mono" size="sm">{customReference.version}</Badge>
-                  </div>
-                  <span className={styles.catalogCardSubtitle}>
-                    {activeReferenceId === customReference.id ? 'Active custom pack' : 'Click to select custom'}
-                  </span>
-                </div>
-                {activeReferenceId === customReference.id && (
-                  <span className={styles.floatingCardCheck}>✓</span>
-                )}
-              </button>
-
-              <button
-                type="button"
-                className={styles.removeReferenceBtn}
-                title="Remove custom reference pack"
-                aria-label="Remove Custom Reference Pack"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setActiveReferenceId('vanilla');
-                  postCommand(IpcMessageTypes.CatalogRemoveReference, { id: customReference.id });
-                }}
-              >
-                <X size={12} strokeWidth={2.5} />
-              </button>
-            </div>
-          ) : (
-            <button
-              type="button"
-              className={`${styles.sidebarFloatingCard} ${styles.sidebarFloatingCardEmpty} ${styles.sidebarFloatingCardDisabled}`}
-              title="Custom Reference packs are coming soon"
-              aria-label="Custom Reference Coming Soon"
-              disabled
-            >
-              <div className={styles.floatingCardEmptyIconWrapper}>
-                <span>+</span>
-              </div>
-              <div className={styles.catalogCardMeta}>
-                <span className={styles.catalogCardTitle}>Custom Reference</span>
-                <span className={styles.catalogCardSubtitle}>Coming Soon</span>
-              </div>
-            </button>
-          )}
-        </div>
-      </div>
-    );
-  };
 
   return (
     <>
@@ -461,9 +218,8 @@ export const Sidebar: React.FC = () => {
         </div>
       </div>
 
-      {/* 4. Catalog Button — bare, sticks to sidebar bottom */}
-      {renderCatalogButton(false)}
-      {shouldPortal && !isCatalogOpen && btnRect && createPortal(renderCatalogButton(true), document.body)}
+
+
 
       {/* Singleton Context Menu for Pack Icon */}
       {contextMenuTarget && (

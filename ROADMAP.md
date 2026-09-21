@@ -8,6 +8,12 @@
 - [ ] **UI** texture support 
 - [ ] **particle texture** support
 - [ ] target `resource-pack` engine (version selector)
+- [ ] add custom catalog (with other resource pack)
+- [ ] add ability to support addons and distinguish thier entries from the vanilla
+- [ ] render controllers? 👀
+- [ ] matching catalog button to the rest of the design language
+- [ ] matching welcome screen to the rest of the design language
+- [ ] adding shortcuts (and shortcuts badge show. maybe hold alt to show the shortcut combinations)
 
 ### v1.1.0
 - [ ] optimistic or loading state on each texture interactable (like tiles/thumbnail/catalog)
@@ -23,9 +29,14 @@
 - [X] reworked json viewer top bar   
 - [X] refactored fragmented badges to a unified badges
 - [X] added bugs to fix later
+- [X] sanity checking entity workspace "slot: [xxxxxx (xxxx)]" and show the its real entries (sometimes entity entries switches the texture and geo index so it confuses the parser to returns the wrong label)
+- [ ] restoring exact scroll + selection when returning to view (opening json/going to gridview)
+- [X] refactored catalog button for ease of access and clean workflow
 - [X] Removed Herobrine  
 
 **Bug Fixes**
+- [ ] ~~requires clicking catalog multiple times to open (catalog is out of focus?)~~
+- [ ] ~~bring catalog front on narrow viewport for ease of access without opening pack sidebar~~ solved along the button refactoring
 - [ ] adding entries specifically for `terrain_texture.json` sometimes adds its `blocks.json` as well
 - [X] manifest editor got squished by the json viewer
 - [x] texture context menu overshoots to right on rightmost tile

@@ -235,7 +235,12 @@ export const BlockWorkspace: React.FC = () => {
     });
   }, [blockWorkspaceTree, searchQuery, statusFilter, activeFilters]);
 
-  const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
+  const selectedBlockId = usePackStore((s) => s.blockWorkspaceSelectedId);
+  const setSelectedBlockId = usePackStore((s) => s.setBlockWorkspaceSelectedId);
+  const activeBlockStateIndex = usePackStore((s) => s.blockWorkspaceActiveStateIndex);
+  const setActiveBlockStateIndex = usePackStore((s) => s.setBlockWorkspaceActiveStateIndex);
+  const activeVariationIndex = usePackStore((s) => s.blockWorkspaceActiveVariationIndex);
+  const setActiveVariationIndex = usePackStore((s) => s.setBlockWorkspaceActiveVariationIndex);
 
   // Keep selectedBlock pointed to a valid block in the filtered list
   const selectedBlock = useMemo<BlockGroupNodeDto | null>(() => {
@@ -247,14 +252,16 @@ export const BlockWorkspace: React.FC = () => {
     );
   }, [filteredBlockWorkspaceTree, selectedBlockId]);
 
-  const [activeBlockStateIndex, setActiveBlockStateIndex] = useState<number>(0);
-  const [activeVariationIndex, setActiveVariationIndex] = useState<number>(0);
-
-  // Reset active indices when switching block
+  // Reset active indices when switching block (but preserve when merely restoring from inactive view)
+  const prevBlockIdRef = useRef<string | null>(null);
   useEffect(() => {
-    setActiveBlockStateIndex(0);
-    setActiveVariationIndex(0);
-  }, [selectedBlock?.blockId]);
+    const curId = selectedBlock?.blockId ?? null;
+    if (curId && prevBlockIdRef.current !== null && prevBlockIdRef.current !== curId) {
+      setActiveBlockStateIndex(0);
+      setActiveVariationIndex(0);
+    }
+    prevBlockIdRef.current = curId;
+  }, [selectedBlock?.blockId, setActiveBlockStateIndex, setActiveVariationIndex]);
 
   // Keyboard arrow navigation (Up / Down) through blocks list
   useEffect(() => {

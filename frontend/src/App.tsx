@@ -13,6 +13,7 @@ import { BlockWorkspace } from './components/workspace/BlockWorkspace';
 import { EntityWorkspace } from './components/workspace/EntityWorkspace';
 import { JsonReader } from './components/json/JsonReader';
 import { CatalogDrawer } from './components/catalog/CatalogDrawer';
+import { CatalogFab } from './components/catalog/CatalogFab';
 import { MenuBar } from './components/menus/MenuBar';
 import { ComponentLibrary } from './components/common/ComponentLibrary';
 import { LoadingOverlay } from './components/common/LoadingOverlay';
@@ -274,26 +275,50 @@ export const App: React.FC = () => {
             <Sidebar />
             <div className={styles.workspaceContentArea}>
               <Toolbar />
-              {isJsonFileSelected ? (
+              {/* Keep workspace/grid mounted when inactive to preserve scroll + selection (inactive views are hidden, not unmounted) */}
+              <div
+                style={{
+                  display: isJsonFileSelected ? 'none' : activeView === 'grid' ? 'flex' : 'none',
+                  flex: 1,
+                  overflow: 'hidden',
+                  minHeight: 0,
+                }}
+              >
+                <PackGrid />
+              </div>
+              <div
+                style={{
+                  display: isJsonFileSelected ? 'none' : activeView === 'workspace' ? 'flex' : 'none',
+                  flex: 1,
+                  overflow: 'hidden',
+                  minHeight: 0,
+                }}
+              >
+                <BlockWorkspace />
+              </div>
+              <div
+                style={{
+                  display: isJsonFileSelected ? 'none' : activeView === 'entity' ? 'flex' : 'none',
+                  flex: 1,
+                  overflow: 'hidden',
+                  minHeight: 0,
+                }}
+              >
+                <EntityWorkspace />
+              </div>
+              {isJsonFileSelected && (
                 <JsonReader
                   key={`${packRoot}:${selectedFolderPath}`}
                   filePath={selectedFolderPath!}
                 />
-              ) : (
-                <>
-                  {activeView === 'workspace' ? (
-                    <BlockWorkspace />
-                  ) : activeView === 'entity' ? (
-                    <EntityWorkspace />
-                  ) : (
-                    <PackGrid />
-                  )}
-                </>
               )}
             </div>
           </div>
         )}
       </main>
+
+      {/* Always-visible Catalog FAB — visible regardless of sidebar state */}
+      {packRoot && <CatalogFab />}
 
       {/* Vanilla Bedrock Reference Catalog Drawer (Milestone 3: R3) */}
       <CatalogDrawer

@@ -1,4 +1,4 @@
-# Antigravity Agent Context & Workflow Rules
+# Agent Context & Workflow Rules
 
 ## Project Bootstrapping Hierarchy (On-Demand Reference)
 Consult these project specification files **only when relevant** to the task at hand. Do NOT sequentially read all files on every turn or loop through them before taking action:
@@ -22,7 +22,7 @@ Consult these project specification files **only when relevant** to the task at 
 
 ---
 
-## Execution Rules for Antigravity Agents
+## Execution Rules for Agents
 - **Strict Anti-Looping & Action Invariant:**
   - Read the smallest relevant sections; do not loop through documentation or reread unchanged content already available in context.
   - Start with the most relevant file. Inspect related files when needed for cross-file contracts, verification, or changed source context.

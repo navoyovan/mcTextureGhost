@@ -61,6 +61,17 @@ export interface PackStoreState {
   /** Whether the whole left sidebar is collapsed */
   isSidebarCollapsed: boolean;
 
+  /** Persisted Block Workspace state (restored when navigating back from grid/json) */
+  blockWorkspaceSelectedId: string | null;
+  blockWorkspaceActiveStateIndex: number;
+  blockWorkspaceActiveVariationIndex: number;
+
+  /** Persisted Entity Workspace state */
+  entityWorkspaceSelectedId: string | null;
+  entityWorkspaceActiveLeafKey: string | null;
+  entityWorkspaceActiveSlotIndex: number;
+  entityWorkspaceActiveVariationIndex: number;
+
   // App & Theme Config
   tintOpacity: number;
   tintBrightness: number;
@@ -102,6 +113,13 @@ export interface PackStoreActions {
   toggleWorkspaceDrawer: () => void;
   setIsSidebarCollapsed: (collapsed: boolean) => void;
   toggleSidebar: () => void;
+  setBlockWorkspaceSelectedId: (id: string | null) => void;
+  setBlockWorkspaceActiveStateIndex: (index: number) => void;
+  setBlockWorkspaceActiveVariationIndex: (index: number) => void;
+  setEntityWorkspaceSelectedId: (id: string | null) => void;
+  setEntityWorkspaceActiveLeafKey: (key: string | null) => void;
+  setEntityWorkspaceActiveSlotIndex: (index: number) => void;
+  setEntityWorkspaceActiveVariationIndex: (index: number) => void;
   setAppConfig: (config: Partial<AppConfigPayload>) => void;
   setOpenWithApps: (apps: OpenWithAppDto[]) => void;
   setJsonOpenWithApps: (apps: OpenWithAppDto[]) => void;
@@ -171,6 +189,14 @@ const initialState: PackStoreState = {
   isManifestJsonDrawerOpen: false,
   isWorkspaceDrawerOpen: false,
   isSidebarCollapsed: false,
+
+  blockWorkspaceSelectedId: null,
+  blockWorkspaceActiveStateIndex: 0,
+  blockWorkspaceActiveVariationIndex: 0,
+  entityWorkspaceSelectedId: null,
+  entityWorkspaceActiveLeafKey: null,
+  entityWorkspaceActiveSlotIndex: 0,
+  entityWorkspaceActiveVariationIndex: 0,
 
   tintOpacity: 85,
   tintBrightness: 30,
@@ -451,6 +477,48 @@ export const packStoreActions: PackStoreActions = {
 
   toggleSidebar(): void {
     currentState = { ...currentState, isSidebarCollapsed: !currentState.isSidebarCollapsed };
+    cachedSnapshot = null;
+    notify();
+  },
+
+  setBlockWorkspaceSelectedId(id: string | null): void {
+    currentState = { ...currentState, blockWorkspaceSelectedId: id };
+    cachedSnapshot = null;
+    notify();
+  },
+
+  setBlockWorkspaceActiveStateIndex(index: number): void {
+    currentState = { ...currentState, blockWorkspaceActiveStateIndex: index };
+    cachedSnapshot = null;
+    notify();
+  },
+
+  setBlockWorkspaceActiveVariationIndex(index: number): void {
+    currentState = { ...currentState, blockWorkspaceActiveVariationIndex: index };
+    cachedSnapshot = null;
+    notify();
+  },
+
+  setEntityWorkspaceSelectedId(id: string | null): void {
+    currentState = { ...currentState, entityWorkspaceSelectedId: id };
+    cachedSnapshot = null;
+    notify();
+  },
+
+  setEntityWorkspaceActiveLeafKey(key: string | null): void {
+    currentState = { ...currentState, entityWorkspaceActiveLeafKey: key };
+    cachedSnapshot = null;
+    notify();
+  },
+
+  setEntityWorkspaceActiveSlotIndex(index: number): void {
+    currentState = { ...currentState, entityWorkspaceActiveSlotIndex: index };
+    cachedSnapshot = null;
+    notify();
+  },
+
+  setEntityWorkspaceActiveVariationIndex(index: number): void {
+    currentState = { ...currentState, entityWorkspaceActiveVariationIndex: index };
     cachedSnapshot = null;
     notify();
   },

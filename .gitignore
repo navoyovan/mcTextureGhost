@@ -55,3 +55,7 @@ graphify-out/
 .graphify/
 .graphify*
 
+## OpenCode local session / plugins (machine-local)
+.opencode/
+opencode.json
+

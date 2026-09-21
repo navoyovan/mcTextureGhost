@@ -605,7 +605,8 @@ export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose })
     animationRef.current?.kill();
 
     if (isOpen) {
-      gsap.set(overlay, { autoAlpha: 0 });
+      // Set initial state before animation
+      gsap.set(overlay, { autoAlpha: 0, pointerEvents: 'none' });
       gsap.set(drawer, { xPercent: 100 });
 
       animationRef.current = gsap
@@ -614,6 +615,9 @@ export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose })
           autoAlpha: 1,
           duration: 0.2,
           ease: 'power1.out',
+          onStart: () => {
+            gsap.set(overlay, { pointerEvents: 'auto' });
+          },
         }, 0)
         .to(drawer, {
           xPercent: 0,
@@ -626,7 +630,10 @@ export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose })
     animationRef.current = gsap
       .timeline({
         defaults: { overwrite: 'auto' },
-        onComplete: () => setIsMounted(false),
+        onComplete: () => {
+          setIsMounted(false);
+          gsap.set(overlay, { pointerEvents: 'none' });
+        },
       })
       .to(overlay, {
         autoAlpha: 0,

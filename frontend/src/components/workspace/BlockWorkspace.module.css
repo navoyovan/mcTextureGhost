@@ -20,6 +20,13 @@
   user-select: none;
 }
 
+.blockListPane::after {
+  content: '';
+  display: block;
+  min-height: 80px;
+  flex-shrink: 0;
+}
+
 .blockListHeader {
   padding: 12px 16px;
   font-family: var(--font-brand);
@@ -177,6 +184,14 @@
   max-width: 100%;
   box-sizing: border-box;
 }
+
+.detailPane::after {
+  content: '';
+  display: block;
+  min-height: 80px;
+  flex-shrink: 0;
+}
+
 
 .detailHeader {
   display: flex;

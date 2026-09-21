@@ -87,8 +87,14 @@ export const EntityWorkspace: React.FC = () => {
   const tileZoom = usePackStore((s) => s.tileZoom);
   const { editTexture, deleteTextureFile, deleteTextureEntries, openInExplorer } = useIpc();
 
-  const [selectedEntityId, setSelectedEntityId] = useState<string | null>(null);
-  const [activeLeafKey, setActiveLeafKey] = useState<string | null>(null);
+  const selectedEntityId = usePackStore((s) => s.entityWorkspaceSelectedId);
+  const setSelectedEntityId = usePackStore((s) => s.setEntityWorkspaceSelectedId);
+  const activeLeafKey = usePackStore((s) => s.entityWorkspaceActiveLeafKey);
+  const setActiveLeafKey = usePackStore((s) => s.setEntityWorkspaceActiveLeafKey);
+  const activeSlotIndex = usePackStore((s) => s.entityWorkspaceActiveSlotIndex);
+  const setActiveSlotIndex = usePackStore((s) => s.setEntityWorkspaceActiveSlotIndex);
+  const activeVariationIndex = usePackStore((s) => s.entityWorkspaceActiveVariationIndex);
+  const setActiveVariationIndex = usePackStore((s) => s.setEntityWorkspaceActiveVariationIndex);
   const [activeMenuKey, setActiveMenuKey] = useState<string | null>(null);
   const isListDrawerOpen = usePackStore((s) => s.isWorkspaceDrawerOpen);
   const setIsListDrawerOpen = usePackStore((s) => s.setIsWorkspaceDrawerOpen);
@@ -262,15 +268,17 @@ export const EntityWorkspace: React.FC = () => {
     return firstOk || allLeaves[0] || null;
   }, [allLeaves, activeLeafKey]);
 
-  // Reset active leaf on entity switch
+  // Reset active leaf/slot on entity switch (preserve when restoring from inactive view)
+  const prevEntityIdRef = useRef<string | null>(null);
   useEffect(() => {
-    setActiveLeafKey(null);
-    setActiveSlotIndex(0);
-    setActiveVariationIndex(0);
-  }, [selectedEntity?.blockId]);
-
-  const [activeSlotIndex, setActiveSlotIndex] = useState<number>(0);
-  const [activeVariationIndex, setActiveVariationIndex] = useState<number>(0);
+    const curId = selectedEntity?.blockId ?? null;
+    if (curId && prevEntityIdRef.current !== null && prevEntityIdRef.current !== curId) {
+      setActiveLeafKey(null);
+      setActiveSlotIndex(0);
+      setActiveVariationIndex(0);
+    }
+    prevEntityIdRef.current = curId;
+  }, [selectedEntity?.blockId, setActiveLeafKey, setActiveSlotIndex, setActiveVariationIndex]);
 
   // Compute all available slots and their variations
   const slotOptions = useMemo<EntitySlotOption[]>(() => {

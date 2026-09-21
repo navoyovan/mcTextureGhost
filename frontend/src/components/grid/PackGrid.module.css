@@ -8,12 +8,22 @@
   flex-direction: column;
 }
 
+/* Guaranteed scroll clearance below last tile — ::after is more reliable than
+   padding-bottom in flex+overflow containers across Chromium/WebView2 versions */
+.gridContainer::after {
+  content: '';
+  display: block;
+  min-height: 80px;
+  flex-shrink: 0;
+}
+
 .tileGrid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(var(--tile-card-width, 140px), 1fr));
   gap: 12px;
   align-content: start;
 }
+
 
 .tileCard {
   position: relative;

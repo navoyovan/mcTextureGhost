@@ -369,6 +369,12 @@
   padding: 0 8px;
 }
 
+.folderTreeContainer::after {
+  content: '';
+  display: block;
+  min-height: 80px;
+}
+
 .folderItemText {
   font-family: var(--font-mono);
   font-size: 11px;
