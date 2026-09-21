@@ -22,7 +22,7 @@
 
 ---
  
-### v1.0.1 (Skip Release)
+### v1.0.1
 **Improvements**
 - [x] Added some bugs to fix later
 - [x] Narrow viewport optimization — sidebar, JSON viewer (manifest editor), and block list become overlay drawers
