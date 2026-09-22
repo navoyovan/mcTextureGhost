@@ -24,7 +24,7 @@
 > preset or add count
 > bug: adding variation in grid view adds to all variation under the same alias texture; its adding for a split second this behavior also affect when adding on that split second window and registered as replacing until the splitsecond is done it seems the replace modal trying to replace a missing/blank (bcs.. well... its already blank (splitsecond is done)) 
 - [ ] auto scaffold and detach face entries (like shared textures **ex:** `acacia_fence` using `acacia_planks` into `acacia_fence`)
-- [ ] deleting entries kicks user out of the workspace view/index they working on
+- [ ] deleting entries kicks user out of the workspace view/index they working on 
 - [X] animate in welcome layout 
 - [X] added option to disable 3d preview 
 
