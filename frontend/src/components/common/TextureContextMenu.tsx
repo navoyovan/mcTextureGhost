@@ -58,8 +58,8 @@ interface TextureContextMenuProps {
   onDeleteEntries: () => void;
   onEditMers?: () => void;
   onEditAtlas?: () => void;
-  /** Blocks-only: scaffold a new texture variation entry for this tile's blockstate slot */
-  onAddVariation?: () => void;
+  /** Blocks-only: scaffold N new texture variation entries for this tile's blockstate slot */
+  onAddVariation?: (count: number) => void;
   /** Blocks-only: delete this tile's texture variation entry (file on disk is kept) */
   onDeleteVariation?: () => void;
 }
@@ -118,6 +118,7 @@ export const TextureContextMenu: React.FC<TextureContextMenuProps> = ({
   const { addCustomEditor, removeCustomEditor, setDefaultEditor } = useIpc();
   const [isSubmenuOpen, setIsSubmenuOpen] = useState(false);
   const [copiedKey, setCopiedKey] = useState<'full' | 'rel' | null>(null);
+  const [varCount, setVarCount] = useState(1);
 
   const defaultApp = openWithApps?.find((a) => a.isDefault);
 
@@ -464,18 +465,48 @@ export const TextureContextMenu: React.FC<TextureContextMenuProps> = ({
         {onAddVariation && (
           <>
             <div className={styles.menuDivider} />
-            <button
-              type="button"
-              className={styles.menuItem}
-              onClick={() => {
-                onClose();
-                onAddVariation();
-              }}
-              title={`Scaffold a new texture variation entry for '${item.alias}' in terrain_texture.json`}
-            >
+            <div className={styles.addVariationRow}>
               <Shuffle size={13} className={styles.menuIcon} />
               <span className={styles.menuLabel}>Add variation</span>
-            </button>
+              <div className={styles.varStepper}>
+                <button
+                  type="button"
+                  className={styles.varStepBtn}
+                  onClick={(e) => { e.stopPropagation(); setVarCount((n) => Math.max(1, n - 1)); }}
+                  title="Decrease count"
+                >−</button>
+                <input
+                  type="number"
+                  className={styles.varCountInput}
+                  value={varCount}
+                  min={1}
+                  max={16}
+                  onChange={(e) => setVarCount(Math.max(1, Math.min(16, parseInt(e.target.value) || 1)))}
+                  onClick={(e) => e.stopPropagation()}
+                  onKeyDown={(e) => {
+                    e.stopPropagation();
+                    if (e.key === 'Enter') {
+                      onClose();
+                      onAddVariation(varCount);
+                    }
+                  }}
+                />
+                <button
+                  type="button"
+                  className={styles.varStepBtn}
+                  onClick={(e) => { e.stopPropagation(); setVarCount((n) => Math.min(16, n + 1)); }}
+                  title="Increase count"
+                >+</button>
+              </div>
+              <button
+                type="button"
+                className={styles.varConfirmBtn}
+                onClick={() => { onClose(); onAddVariation(varCount); }}
+                title={`Add ${varCount} variation${varCount > 1 ? 's' : ''} for '${item.alias}'`}
+              >
+                <Check size={11} />
+              </button>
+            </div>
           </>
         )}
 

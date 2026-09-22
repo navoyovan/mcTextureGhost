@@ -12,23 +12,25 @@
 - [ ] add ability to support add-ons and distinguish their entries from vanilla
 - [ ] render controllers? 👀
 - [ ] adding shortcuts (and shortcuts badge show. maybe hold alt to show the shortcut combinations)
-- [ ] auto scaffold custom face entries
 - [ ] ~~catalog button got blurred on catalog open (not too important)~~
-- [ ] this bs already scaled up maybe refactoring so stuff doesnt get in the way and break other stuff
+- [ ] this bs already scaled up maybe refactoring so stuff doesnt get in the way and break other stuff (x.x.1 on minor update)
 
-### v1.1.0
-- [ ] optimistic or loading state on each texture interactable (like tiles/thumbnail/catalog)
+### v1.2.0 (Staging)
+- [ ] auto scaffold and detach face entries (like shared textures **ex:** `acacia_fence` using `acacia_planks` into `acacia_fence`) maybe default to its own alias but they might clash bcs acacia_planks alias is acacia_planks, get it?
+
+### v1.1.0 (In Progress)
+**Improvements**
+- [ ] optimistic or loading state or background working on each texture interactable (like tiles/thumbnail/catalog)
 > the problem is adding stuff is so delayed
 - [ ] auto scaffold **variation** entry 
 > not yet weight editor
 > preset or add count
-> bug: adding variation in grid view adds to all variation under the same alias texture; its adding for a split second this behavior also affect when adding on that split second window and registered as replacing until the splitsecond is done it seems the replace modal trying to replace a missing/blank (bcs.. well... its already blank (splitsecond is done)) 
-- [ ] auto scaffold and detach face entries (like shared textures **ex:** `acacia_fence` using `acacia_planks` into `acacia_fence`)
+> bug since pre release btw: adding variation in grid view adds to all variation under the same alias texture; its adding for a split second this behavior also affect when adding on that split second window and registered as replacing until the splitsecond is done it seems the replace modal trying to replace a missing/blank (bcs.. well... its already blank (splitsecond is done)) or **blockstates**? i forgor
 - [ ] deleting entries kicks user out of the workspace view/index they working on 
 - [X] animate in welcome layout 
-- [X] added option to disable 3d preview 
+- [X] optional peformance optimizations: added option to disable 3d preview so my laptop fan doesnt fucking kicks off everytime i open workspace
 
-bug fix
+**Bug Fixes**
 - [x] vanilla fallback alias: for multiple block that defines same textures defaulted to the first index in the block workspace and terrain_texture.json entry are somehow "added" even after deletion and checked the terrain texture none. expected behavior: orphaned png should show all the vanilla fallback entries it shared even after its added 1 entry that uses this png bcs it currently doesnt and fix the "added badge" both in workspace and catalog
 - [x] clciking on stuff under the hidden catalog selector didn went thru to where it actually is
 ---
@@ -59,7 +61,7 @@ bug fix
 
 ---
 
-### v1.0.0 (Released)
+### v1.0.0 (Released — 2026-09-19)
 - [X] Block and item texture scanning with ghost detection
 - [X] Live reload on external editor save
 - [X] Flipbook animation (20 tick and blending)

@@ -23,7 +23,8 @@ interface WorkspaceTileCardProps {
   onTileClick: (domEl: HTMLElement, leaf: CatalogLeafDto, key: string, targetType?: 'card' | 'image') => void;
   onDeleteTextureFile: (path: string, alias: string) => void;
   onDeleteTextureEntries: (alias: string, relativePath?: string | null) => void;
-  onAddVariation?: (leaf: CatalogLeafDto) => void;
+  onAddVariation?: (leaf: CatalogLeafDto, count?: number) => void;
+
   onDeleteVariation?: (leaf: CatalogLeafDto) => void;
 }
 
@@ -418,7 +419,7 @@ export const WorkspaceTileCard: React.FC<WorkspaceTileCardProps> = React.memo(({
           onDeleteEntries={() => {
             onDeleteTextureEntries(primary.alias, primary.relativePath);
           }}
-          onAddVariation={onAddVariation ? () => onAddVariation(primary) : undefined}
+          onAddVariation={onAddVariation ? (count) => onAddVariation(primary, count) : undefined}
           onDeleteVariation={onDeleteVariation && primary.textureVariantIndex != null ? () => onDeleteVariation(primary) : undefined}
         />
       )}
@@ -451,7 +452,7 @@ export const WorkspaceTileCard: React.FC<WorkspaceTileCardProps> = React.memo(({
           onDeleteEntries={() => {
             onDeleteTextureEntries(variationMenu.leaf.alias, variationMenu.leaf.relativePath);
           }}
-          onAddVariation={onAddVariation ? () => onAddVariation(variationMenu.leaf) : undefined}
+          onAddVariation={onAddVariation ? (count) => onAddVariation(variationMenu.leaf, count) : undefined}
           onDeleteVariation={onDeleteVariation && variationMenu.leaf.textureVariantIndex != null ? () => onDeleteVariation(variationMenu.leaf) : undefined}
         />
       )}

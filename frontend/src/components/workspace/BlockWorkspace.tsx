@@ -459,8 +459,10 @@ export const BlockWorkspace: React.FC = () => {
     deleteTextureEntries(alias, 'block', relativePath ?? undefined);
   }, [deleteTextureEntries]);
 
-  const handleAddVariation = useCallback((leaf: CatalogLeafDto) => {
-    scaffoldTextureVariation(leaf.alias, leaf.blockVariantIndex ?? null, leaf.relativePath ?? null);
+  const handleAddVariation = useCallback(async (leaf: CatalogLeafDto, count = 1) => {
+    for (let i = 0; i < count; i++) {
+      await scaffoldTextureVariation(leaf.alias, leaf.blockVariantIndex ?? null, leaf.relativePath ?? null);
+    }
   }, [scaffoldTextureVariation]);
 
   const handleDeleteVariation = useCallback((leaf: CatalogLeafDto) => {
@@ -710,13 +712,15 @@ export const BlockWorkspace: React.FC = () => {
                 a.category === 'block' &&
                 a.status !== 'ORPHAN'
             )
-              ? () => {
+              ? async (count = 1) => {
                   setHoverMorphTarget(null);
-                  scaffoldTextureVariation(
-                    contextMenuTarget.alias.alias,
-                    contextMenuTarget.alias.blockVariantIndex ?? null,
-                    contextMenuTarget.alias.relativePath ?? null
-                  );
+                  for (let i = 0; i < count; i++) {
+                    await scaffoldTextureVariation(
+                      contextMenuTarget.alias.alias,
+                      contextMenuTarget.alias.blockVariantIndex ?? null,
+                      contextMenuTarget.alias.relativePath ?? null
+                    );
+                  }
                 }
               : undefined
           }

@@ -398,7 +398,23 @@ export const PackGrid: React.FC = () => {
   const activeFilters = usePackStore((s) => s.activeFilters);
   const selectedFolderPath = usePackStore((s) => s.selectedFolderPath);
   const tileZoom = usePackStore((s) => s.tileZoom);
-  const { editTexture, deleteTextureFile, deleteTextureEntries, openInExplorer } = useIpc();
+  const packAliases = usePackStore((s) => s.aliases);
+  const packFolders = usePackStore((s) => s.packFolders);
+  const { editTexture, deleteTextureFile, deleteTextureEntries, openInExplorer, scaffoldTextureVariation, deleteTextureVariation } = useIpc();
+
+  const hasTerrainTextureJson = React.useMemo(() => {
+    function check(items: any[]): boolean {
+      if (!items) return false;
+      for (const item of items) {
+        const p = (item.relativePath || item.name || '').replace(/[/\\]+/g, '/').toLowerCase();
+        if ((p === 'textures/terrain_texture.json' || p.endsWith('/terrain_texture.json') || p === 'terrain_texture.json') && !item.isMissing) return true;
+        if (item.subFolders?.length && check(item.subFolders)) return true;
+      }
+      return false;
+    }
+    return check(packFolders || []);
+  }, [packFolders]);
+
 
   // Single active context menu target (prevents full-grid re-renders on menu toggle)
   const [contextMenuTarget, setContextMenuTarget] = useState<{
@@ -589,6 +605,39 @@ export const PackGrid: React.FC = () => {
               editTexture(contextMenuTarget.alias.alias + '_atlas', contextMenuTarget.alias.atlasFullPath, false);
             }
           }}
+          onAddVariation={
+            hasTerrainTextureJson &&
+            contextMenuTarget.alias.category === 'block' &&
+            packAliases.some(
+              (a) =>
+                a.alias.toLowerCase() === contextMenuTarget.alias.alias.toLowerCase() &&
+                a.category === 'block' &&
+                a.status !== 'ORPHAN' &&
+                a.isUserDefined !== false
+            )
+              ? async (count = 1) => {
+                  setHoverMorphTarget(null);
+                  for (let i = 0; i < count; i++) {
+                    await scaffoldTextureVariation(
+                      contextMenuTarget.alias.alias,
+                      contextMenuTarget.alias.blockVariantIndex ?? null,
+                      contextMenuTarget.alias.relativePath ?? null
+                    );
+                  }
+                }
+              : undefined
+          }
+          onDeleteVariation={
+            hasTerrainTextureJson &&
+            contextMenuTarget.alias.category === 'block' &&
+            contextMenuTarget.alias.textureVariantIndex != null &&
+            contextMenuTarget.alias.relativePath
+              ? () => {
+                  setHoverMorphTarget(null);
+                  deleteTextureVariation(contextMenuTarget.alias.alias, contextMenuTarget.alias.relativePath!);
+                }
+              : undefined
+          }
         />
       )}
 
