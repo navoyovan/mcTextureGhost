@@ -539,7 +539,8 @@ public record TextureAliasDto(
     [property: JsonPropertyName("entityId")] string? EntityId = null,
     [property: JsonPropertyName("textureKey")] string? TextureKey = null,
     [property: JsonPropertyName("geometryId")] string? GeometryId = null,
-    [property: JsonPropertyName("isAttachable")] bool IsAttachable = false
+    [property: JsonPropertyName("isAttachable")] bool IsAttachable = false,
+    [property: JsonPropertyName("isUserDefined")] bool IsUserDefined = false
 );
 
 public record CatalogLeafDto(
@@ -735,7 +736,8 @@ public static class IpcContractMapper
             EntityId: alias.EntityId,
             TextureKey: alias.TextureKey,
             GeometryId: alias.GeometryId,
-            IsAttachable: alias.IsAttachable
+            IsAttachable: alias.IsAttachable,
+            IsUserDefined: alias.IsUserDefined
         );
     }
 

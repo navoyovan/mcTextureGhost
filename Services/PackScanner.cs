@@ -551,6 +551,7 @@ public static class PackScanner
                         RelativePath = relNoExt,
                         FullPath = file,
                         Status = TextureStatus.Ok,
+                        IsUserDefined = false,
                         VariantKind = vKind,
                         BlockVariantIndex = matchedVanillaEntry?.BlockVariantIndex,
                         TotalBlockVariants = matchedVanillaEntry?.TotalBlockVariants,
@@ -1351,12 +1352,12 @@ public static class PackScanner
 
         // Index user aliases by Category + Alias
         var userBlockAliases = userAliases
-            .Where(a => a.Category == TextureCategory.Block && a.Status != TextureStatus.NoEntry)
+            .Where(a => a.Category == TextureCategory.Block && a.Status != TextureStatus.NoEntry && a.IsUserDefined)
             .GroupBy(a => a.Alias, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(g => g.Key, g => g.ToList(), StringComparer.OrdinalIgnoreCase);
 
         var userItemAliases = userAliases
-            .Where(a => a.Category == TextureCategory.Item && a.Status != TextureStatus.NoEntry)
+            .Where(a => a.Category == TextureCategory.Item && a.Status != TextureStatus.NoEntry && a.IsUserDefined)
             .GroupBy(a => a.Alias, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(g => g.Key, g => g.ToList(), StringComparer.OrdinalIgnoreCase);
 

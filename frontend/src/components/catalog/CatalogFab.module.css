@@ -21,6 +21,10 @@
 
 /* ─── Hover-revealed floating reference picker ─── */
 .floatingStack {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  right: 0;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -28,13 +32,15 @@
   pointer-events: none;
   transform: translateY(6px);
   transition: opacity 0.2s ease, transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-  margin-bottom: 8px;
+  /* Hidden stack must not block clicks to tiles underneath */
+  visibility: hidden;
 }
 
 .fabRootHovered .floatingStack {
   opacity: 1;
   pointer-events: auto;
   transform: translateY(0);
+  visibility: visible;
 }
 
 /* Keep stack open while catalog is open */
@@ -42,6 +48,7 @@
   opacity: 1;
   pointer-events: auto;
   transform: translateY(0);
+  visibility: visible;
 }
 
 /* ─── Floating reference cards (picker stack) ─── */

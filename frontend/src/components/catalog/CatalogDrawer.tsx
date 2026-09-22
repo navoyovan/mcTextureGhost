@@ -118,10 +118,6 @@ const CatalogLeafRow: React.FC<{
     }
   };
 
-  const fileName = leaf.relativePath
-    ? (leaf.relativePath.split(/[/\\]/).pop() ?? leaf.displayName ?? leaf.alias)
-    : (leaf.displayName ?? leaf.alias);
-
   const isEntity = (leaf.category || '').toLowerCase() === 'entity';
   const blockVariantSuffix = leaf.blockVariantIndex && leaf.totalBlockVariants
     ? ` (block state ${leaf.blockVariantIndex}/${leaf.totalBlockVariants})`
@@ -168,10 +164,15 @@ const CatalogLeafRow: React.FC<{
       <div className={styles.leafLeft}>
         <LeafThumbnail leaf={leaf} />
         <div className={styles.leafMeta}>
-          <div className={styles.leafHeaderRow}>
-            <span className={styles.leafName} title={fileName}>
-              {fileName}
+          <div className={styles.leafPathRow}>
+            <span className={styles.leafPathSub} title={leaf.relativePath}>
+              {leaf.relativePath}
             </span>
+            {leaf.subtitleCaption && (
+              <span className={styles.leafSubtitle} title={leaf.subtitleCaption}>
+                • {leaf.subtitleCaption}
+              </span>
+            )}
             {leaf.totalTextureVariants && leaf.totalTextureVariants > 1 && (
               <Badge variant="override" size="sm">
                 {leaf.totalTextureVariants}v
@@ -181,16 +182,6 @@ const CatalogLeafRow: React.FC<{
               <Badge variant="anim" size="sm" title="Animated flipbook texture">
                 ANIM
               </Badge>
-            )}
-          </div>
-          <div className={styles.leafPathRow}>
-            <span className={styles.leafPathSub} title={leaf.relativePath}>
-              {leaf.relativePath}
-            </span>
-            {leaf.subtitleCaption && (
-              <span className={styles.leafSubtitle} title={leaf.subtitleCaption}>
-                • {leaf.subtitleCaption}
-              </span>
             )}
           </div>
         </div>
@@ -226,9 +217,10 @@ const CatalogAliasGroup: React.FC<{
   const slotName = aliasGroup.geometryId || aliasGroup.alias;
   const isAttachable = isEntity && (aliasGroup.isAttachable || aliasGroup.leaves?.some((l) => l.isAttachable));
   const hasNotAdded = aliasGroup.notAddedCount > 0 || Boolean(aliasGroup.leaves?.some((l) => l.status === 'VANILLA'));
+  const allLeavesAreOrphan = Boolean(aliasGroup.leaves?.length && aliasGroup.leaves.every((l) => l.status === 'ORPHAN'));
   const isAdded = isEntity
     ? false
-    : !hasNotAdded && isAliasDeclaredInPack(aliasGroup.alias, aliasGroup.category || category, parentBlockId);
+    : !hasNotAdded && !allLeavesAreOrphan && isAliasDeclaredInPack(aliasGroup.alias, aliasGroup.category || category, parentBlockId);
 
   return (
     <div className={styles.aliasGroupCard} data-testid={`alias-group-${aliasGroup.alias}`}>
