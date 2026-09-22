@@ -187,7 +187,8 @@ export const BlockEntryTree: React.FC<BlockEntryTreeProps> = ({ block, onTileCli
                     (a) =>
                       a.alias.toLowerCase() === ag.alias.toLowerCase() &&
                       a.category === 'block' &&
-                      a.status !== 'ORPHAN'
+                      a.status !== 'ORPHAN' &&
+                      (a as any).isUserDefined !== false
                   );
 
                 // Deduplicate unique texture leaves for this alias

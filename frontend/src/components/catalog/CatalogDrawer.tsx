@@ -536,7 +536,11 @@ export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose })
         // This fixes cases like glowing_obsidian where blockId is glowingobsidian (no underscore)
         // but alias is glowing_obsidian and block is vanilla fallback (isUserDefined false).
         const aliasInTerrain = aliases.some(
-          (a) => a.alias.toLowerCase() === alias.toLowerCase() && a.category.toLowerCase() === 'block' && a.status !== 'ORPHAN'
+          (a) =>
+            a.alias.toLowerCase() === alias.toLowerCase() &&
+            a.category.toLowerCase() === 'block' &&
+            a.status !== 'ORPHAN' &&
+            a.isUserDefined !== false
         );
         if (aliasInTerrain) return true;
         // Fallback: check workspace tree (covers face-specific aliasGroups)

@@ -273,6 +273,7 @@ export interface TextureAliasDto {
   textureKey?: string | null;
   geometryId?: string | null;
   isAttachable?: boolean;
+  isUserDefined?: boolean;
   status: 'OK' | 'GHOST' | 'ORPHAN' | 'NEW' | 'OVERRIDE';
   exists: boolean;
   imageUrl: string;

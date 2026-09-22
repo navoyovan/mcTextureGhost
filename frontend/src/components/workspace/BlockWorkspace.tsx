@@ -596,7 +596,8 @@ export const BlockWorkspace: React.FC = () => {
                   (a: TextureAliasDto) =>
                     a.alias.toLowerCase() === ag.alias.toLowerCase() &&
                     a.category === 'block' &&
-                    a.status !== 'ORPHAN'
+                    a.status !== 'ORPHAN' &&
+                    (a as any).isUserDefined !== false
                 );
 
               return (
