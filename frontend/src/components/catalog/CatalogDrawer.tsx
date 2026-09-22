@@ -527,7 +527,7 @@ export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose })
   );
 
   const isAliasDeclaredInPack = useCallback(
-    (alias: string, category: string, parentBlockId?: string): boolean => {
+    (alias: string, category: string, _parentBlockId?: string): boolean => {
       const cat = category.toLowerCase();
       if (cat === 'block') {
         if (!hasTerrainTextureJson) return false;
@@ -535,20 +535,17 @@ export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose })
         // (status Ghost/Ok), regardless of whether its parent block is user-defined or vanilla fallback.
         // This fixes cases like glowing_obsidian where blockId is glowingobsidian (no underscore)
         // but alias is glowing_obsidian and block is vanilla fallback (isUserDefined false).
-        const aliasInTerrain = aliases.some(
+        if (!hasTerrainTextureJson) return false;
+        // Declared check must be via pack aliases with IsUserDefined, not workspace tree.
+        // Workspace tree contains vanilla fallback aliasGroups even when terrain has no entry
+        // (e.g. bamboo_mosaic slab fallback), which previously made isAliasDeclared true
+        // even after deletion (terrain_texture.json entry removed, only orphan PNG remains).
+        return aliases.some(
           (a) =>
             a.alias.toLowerCase() === alias.toLowerCase() &&
             a.category.toLowerCase() === 'block' &&
             a.status !== 'ORPHAN' &&
             a.isUserDefined !== false
-        );
-        if (aliasInTerrain) return true;
-        // Fallback: check workspace tree (covers face-specific aliasGroups)
-        if (!blockWorkspaceTree || !Array.isArray(blockWorkspaceTree)) return false;
-        return blockWorkspaceTree.some(
-          (b) =>
-            (parentBlockId ? b.blockId.toLowerCase() === parentBlockId.toLowerCase() : true) &&
-            b.aliasGroups?.some((ag) => ag.alias.toLowerCase() === alias.toLowerCase())
         );
       }
       if (cat === 'item') {
