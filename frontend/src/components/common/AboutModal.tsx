@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom';
 import { X, ExternalLink, Info } from 'lucide-react';
 import { useIpc } from '../../hooks/useIpc';
 import { Badge } from './Badge';
+import { APP_VERSION } from '../../version';
 import styles from './AboutModal.module.css';
 
 export interface AboutModalProps {
@@ -155,7 +156,7 @@ export const AboutModal: React.FC<AboutModalProps> = ({ isOpen, onClose }) => {
                 <span className={styles.appNamePixel}>Texture</span>
                 <span>Ghost</span>
               </h2>
-              <Badge variant="mono" size="sm">v1.0.0</Badge>
+              <Badge variant="mono" size="sm">v{APP_VERSION}</Badge>
             </div>
 
             <p className={styles.appCopyright}>© 2026 navoyovan</p>

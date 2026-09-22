@@ -78,6 +78,54 @@
   text-shadow: 0 0 14px rgba(140, 235, 31, 0.45);
 }
 
+/* App version tag — right-indented, bottom-anchored on the header divider */
+.headerVersion {
+  font-family: var(--font-mono, 'Consolas', monospace);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--text-muted, #71717a);
+  white-space: nowrap;
+  user-select: none;
+  padding: 0 4px 8px 0;
+}
+
+/* ─── Welcome entrance cascade (masks WPF-empty → React-mount pop-in) ─── */
+@keyframes welcomeRise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.launcherCard {
+  animation: welcomeRise 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.header {
+  animation: welcomeRise 0.5s cubic-bezier(0.16, 1, 0.3, 1) 0.05s both;
+}
+
+.actionRow {
+  animation: welcomeRise 0.5s cubic-bezier(0.16, 1, 0.3, 1) 0.12s both;
+}
+
+.recentSection {
+  animation: welcomeRise 0.5s cubic-bezier(0.16, 1, 0.3, 1) 0.2s both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .launcherCard,
+  .header,
+  .actionRow,
+  .recentSection {
+    animation: none;
+  }
+}
+
 /* Action Bar: Primary & Secondary */
 .actionRow {
   display: grid;

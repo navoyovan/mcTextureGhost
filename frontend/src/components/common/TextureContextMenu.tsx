@@ -17,6 +17,7 @@ import {
   Star,
   X,
   Compass,
+  Shuffle,
 } from 'lucide-react';
 import { usePackStore } from '../../store/packStore';
 import { useIpc } from '../../hooks/useIpc';
@@ -30,6 +31,7 @@ export interface TextureContextItemData {
   relativePath?: string;
   status: string;
   category?: string;
+  blockVariantIndex?: number | null;
   hasMers?: boolean;
   mersFullPath?: string | null;
   hasAtlas?: boolean;
@@ -56,6 +58,10 @@ interface TextureContextMenuProps {
   onDeleteEntries: () => void;
   onEditMers?: () => void;
   onEditAtlas?: () => void;
+  /** Blocks-only: scaffold a new texture variation entry for this tile's blockstate slot */
+  onAddVariation?: () => void;
+  /** Blocks-only: delete this tile's texture variation entry (file on disk is kept) */
+  onDeleteVariation?: () => void;
 }
 
 function computeMenuPosition(anchor?: ContextMenuAnchor | null, measuredWidth = 240, measuredHeight = 260): { top: number; left: number } {
@@ -105,6 +111,8 @@ export const TextureContextMenu: React.FC<TextureContextMenuProps> = ({
   onDeleteEntries,
   onEditMers,
   onEditAtlas,
+  onAddVariation,
+  onDeleteVariation,
 }) => {
   const openWithApps = usePackStore((s) => s.openWithApps);
   const { addCustomEditor, removeCustomEditor, setDefaultEditor } = useIpc();
@@ -450,6 +458,41 @@ export const TextureContextMenu: React.FC<TextureContextMenuProps> = ({
               <span className={styles.menuLabel}>Edit Atlas</span>
             </button>
           </>
+        )}
+
+        {/* 6c. Add Variation (blocks workspace only) */}
+        {onAddVariation && (
+          <>
+            <div className={styles.menuDivider} />
+            <button
+              type="button"
+              className={styles.menuItem}
+              onClick={() => {
+                onClose();
+                onAddVariation();
+              }}
+              title={`Scaffold a new texture variation entry for '${item.alias}' in terrain_texture.json`}
+            >
+              <Shuffle size={13} className={styles.menuIcon} />
+              <span className={styles.menuLabel}>Add variation</span>
+            </button>
+          </>
+        )}
+
+        {/* 6d. Delete Variation (blocks workspace only, file on disk is kept) */}
+        {onDeleteVariation && (
+          <button
+            type="button"
+            className={styles.menuItem}
+            onClick={() => {
+              onClose();
+              onDeleteVariation();
+            }}
+            title={`Remove this variation entry for '${item.alias}' from terrain_texture.json (file on disk is kept)`}
+          >
+            <FileX size={13} className={styles.menuIcon} />
+            <span className={styles.menuLabel}>Delete variation</span>
+          </button>
         )}
 
         <div className={styles.menuDivider} />

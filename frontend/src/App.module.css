@@ -26,6 +26,28 @@
   -webkit-app-region: drag;
   flex-shrink: 0;
   z-index: 100;
+  animation: titleBarEnter 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Title bar entrance — slides the whole bar down so the WPF-empty → React-mount handoff feels continuous */
+@keyframes titleBarEnter {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes controlsFade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 .titleBarLeft {
@@ -156,6 +178,15 @@
   margin-left: auto;
   -webkit-app-region: no-drag;
   flex-shrink: 0;
+  animation: controlsFade 0.4s ease-out 0.12s both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .titleBar,
+  .titleBarControls,
+  .appTitle {
+    animation: none;
+  }
 }
 
 .captionButton {

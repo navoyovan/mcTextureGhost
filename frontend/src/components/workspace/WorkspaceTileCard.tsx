@@ -23,6 +23,8 @@ interface WorkspaceTileCardProps {
   onTileClick: (domEl: HTMLElement, leaf: CatalogLeafDto, key: string, targetType?: 'card' | 'image') => void;
   onDeleteTextureFile: (path: string, alias: string) => void;
   onDeleteTextureEntries: (alias: string, relativePath?: string | null) => void;
+  onAddVariation?: (leaf: CatalogLeafDto) => void;
+  onDeleteVariation?: (leaf: CatalogLeafDto) => void;
 }
 
 function leafToAliasDto(leaf: CatalogLeafDto): TextureAliasDto {
@@ -95,6 +97,8 @@ export const WorkspaceTileCard: React.FC<WorkspaceTileCardProps> = React.memo(({
   onTileClick,
   onDeleteTextureFile,
   onDeleteTextureEntries,
+  onAddVariation,
+  onDeleteVariation,
 }) => {
   const { alias, leaves } = grp;
   const primary = leaves[0];
@@ -347,6 +351,8 @@ export const WorkspaceTileCard: React.FC<WorkspaceTileCardProps> = React.memo(({
   }, [selectedBlockName, primary, alias, numVariations, hasTexVariants, leaves]);
 
   const [menuAnchor, setMenuAnchor] = React.useState<{ x?: number; y?: number; top?: number; bottom?: number; left?: number; right?: number } | null>(null);
+  const [variationMenu, setVariationMenu] = React.useState<{ leaf: CatalogLeafDto; anchor: { x?: number; y?: number } } | null>(null);
+  const lastMenuCloseRef = React.useRef<number>(0);
   const primaryThumbRef = React.useRef<HTMLDivElement>(null);
 
   const isCardDragOver = !hasTexVariants && dragSlotIndex === 0;
@@ -356,18 +362,28 @@ export const WorkspaceTileCard: React.FC<WorkspaceTileCardProps> = React.memo(({
       className={`${styles.leafCard} ${hasTexVariants ? styles.leafCardWithVariants : ''} ${isCardDragOver ? styles.leafCardDragOver : ''}`}
       style={cardStyle}
       title={tooltipTitle}
-      onClick={(e) => {
-        const targetEl = primaryThumbRef.current
-          || (e.currentTarget.querySelector(`.${styles.leafThumbWrapper}, .${styles.texVarThumbSlot}, .${styles.leafThumbInner}, img`) as HTMLElement | null)
-          || e.currentTarget;
-        onTileClick(targetEl, primary, cardKey, 'image');
-      }}
-      onContextMenu={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        setMenuAnchor({ x: e.clientX, y: e.clientY });
-        onToggleMenu(cardKey);
-      }}
+      onClick={
+        !hasTexVariants
+          ? (e) => {
+              if (Date.now() - lastMenuCloseRef.current < 300) return;
+              const targetEl =
+                primaryThumbRef.current ||
+                (e.currentTarget.querySelector(`.${styles.leafThumbWrapper}, .${styles.texVarThumbSlot}, .${styles.leafThumbInner}, img`) as HTMLElement | null) ||
+                e.currentTarget;
+              onTileClick(targetEl, primary, cardKey, 'image');
+            }
+          : undefined
+      }
+      onContextMenu={
+        !hasTexVariants
+          ? (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setMenuAnchor({ x: e.clientX, y: e.clientY });
+              onToggleMenu(cardKey);
+            }
+          : undefined
+      }
       onDragEnter={!hasTexVariants ? (e) => handleSlotDragEnter(e, 0) : undefined}
       onDragOver={!hasTexVariants ? handleSlotDragOver : undefined}
       onDragLeave={!hasTexVariants ? (e) => handleSlotDragLeave(e, 0) : undefined}
@@ -379,6 +395,7 @@ export const WorkspaceTileCard: React.FC<WorkspaceTileCardProps> = React.memo(({
           item={primary}
           anchor={menuAnchor}
           onClose={() => {
+            lastMenuCloseRef.current = Date.now();
             setMenuAnchor(null);
             onToggleMenu(cardKey);
           }}
@@ -401,6 +418,41 @@ export const WorkspaceTileCard: React.FC<WorkspaceTileCardProps> = React.memo(({
           onDeleteEntries={() => {
             onDeleteTextureEntries(primary.alias, primary.relativePath);
           }}
+          onAddVariation={onAddVariation ? () => onAddVariation(primary) : undefined}
+          onDeleteVariation={onDeleteVariation && primary.textureVariantIndex != null ? () => onDeleteVariation(primary) : undefined}
+        />
+      )}
+
+      {/* Per-variation context menu — texture-only interaction, morph does not expand on right-click */}
+      {variationMenu && (
+        <TextureContextMenu
+          item={variationMenu.leaf}
+          anchor={variationMenu.anchor}
+          onClose={() => {
+            lastMenuCloseRef.current = Date.now();
+            setVariationMenu(null);
+          }}
+          onEdit={(app?: OpenWithAppDto) => {
+            editTexture(variationMenu.leaf.alias, variationMenu.leaf.fullPath, variationMenu.leaf.status === 'GHOST', app?.exePath, false);
+          }}
+          onOpenWithDialog={() => {
+            editTexture(variationMenu.leaf.alias, variationMenu.leaf.fullPath, variationMenu.leaf.status === 'GHOST', null, true);
+          }}
+          onRevealInExplorer={() => {
+            if (variationMenu.leaf.fullPath) {
+              openInExplorer(variationMenu.leaf.fullPath, true);
+            }
+          }}
+          onDeleteTexture={() => {
+            if (variationMenu.leaf.fullPath) {
+              onDeleteTextureFile(variationMenu.leaf.fullPath, variationMenu.leaf.alias);
+            }
+          }}
+          onDeleteEntries={() => {
+            onDeleteTextureEntries(variationMenu.leaf.alias, variationMenu.leaf.relativePath);
+          }}
+          onAddVariation={onAddVariation ? () => onAddVariation(variationMenu.leaf) : undefined}
+          onDeleteVariation={onDeleteVariation && variationMenu.leaf.textureVariantIndex != null ? () => onDeleteVariation(variationMenu.leaf) : undefined}
         />
       )}
 
@@ -432,9 +484,19 @@ export const WorkspaceTileCard: React.FC<WorkspaceTileCardProps> = React.memo(({
                 draggable={!isLeafGhost && Boolean(leaf.imageUrl || leaf.fullPath)}
                 onDragStart={(e) => handleSlotDragStart(e, leaf)}
                 onClick={(e) => {
+                  if (Date.now() - lastMenuCloseRef.current < 300) return;
                   e.stopPropagation();
                   onTileClick(e.currentTarget, leaf, `${cardKey}-${i}`, 'image');
                 }}
+                onContextMenu={
+                  hasTexVariants
+                    ? (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setVariationMenu({ leaf, anchor: { x: e.clientX, y: e.clientY } });
+                      }
+                    : undefined
+                }
                 onDragEnter={hasTexVariants ? (e) => handleSlotDragEnter(e, i) : undefined}
                 onDragOver={hasTexVariants ? handleSlotDragOver : undefined}
                 onDragLeave={hasTexVariants ? (e) => handleSlotDragLeave(e, i) : undefined}

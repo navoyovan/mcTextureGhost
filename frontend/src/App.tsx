@@ -17,6 +17,7 @@ import { CatalogFab } from './components/catalog/CatalogFab';
 import { MenuBar } from './components/menus/MenuBar';
 import { ComponentLibrary } from './components/common/ComponentLibrary';
 import { LoadingOverlay } from './components/common/LoadingOverlay';
+import { PackClosingOverlay } from './components/common/PackClosingOverlay';
 import { AssetDownloadNotification } from './components/titlebar/AssetDownloadNotification';
 import { IconMinus, IconMaximize, IconX } from './components/common/TablerWindowIcons';
 import styles from './App.module.css';
@@ -32,6 +33,8 @@ export const App: React.FC = () => {
   const isCatalogOpen = usePackStore((s) => s.isCatalogOpen);
   const setIsCatalogOpen = usePackStore((s) => s.setIsCatalogOpen);
   const selectedFolderPath = usePackStore((s) => s.selectedFolderPath);
+  const isPackClosing = usePackStore((s) => s.isPackClosing);
+  const setPackClosing = usePackStore((s) => s.setPackClosing);
 
   const isJsonFileSelected = Boolean(
     selectedFolderPath &&
@@ -336,6 +339,9 @@ export const App: React.FC = () => {
 
       {/* Global Pack Loading & Scanning Overlay */}
       <LoadingOverlay />
+
+      {/* Pack-close transition guard — blocks input across Chromium reload + IPC re-init */}
+      {isPackClosing && <PackClosingOverlay onDone={() => setPackClosing(false)} />}
 
       {/* Error / Notification Toast */}
       {activeToast && (

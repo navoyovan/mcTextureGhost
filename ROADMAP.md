@@ -11,15 +11,20 @@
 - [ ] add custom catalog (with other resource pack)
 - [ ] add ability to support add-ons and distinguish their entries from vanilla
 - [ ] render controllers? 👀
-- [ ] deleting entries kicks user out of the workspace view/index they working on
 - [ ] adding shortcuts (and shortcuts badge show. maybe hold alt to show the shortcut combinations)
+- [ ] auto scaffold custom face entries
 
 ### v1.1.0
 - [ ] optimistic or loading state on each texture interactable (like tiles/thumbnail/catalog)
-- [ ] auto scaffold **variation** entry
+- [ ] auto scaffold **variation** entry > not yet weight editor and label
 - [ ] auto scaffold and detachface entries (like shared textures **ex:** `acacia_fence` using `acacia_planks` into `acacia_fence`)
-- [ ] auto scaffold custom face entries
+- [ ] deleting entries kicks user out of the workspace view/index they working on
+- [ ] fading in welcome layout 
 
+bug fix
+- [ ] vanilla fallback alias for multiple block that defines same textures defaulted to the first index in the block workspace
+- [ ] clciking on stuff under the hidden catalog selector didn went thru to where it actually is
+- [ ] catalog button got blurred on catalog open (not too important )
 ---
  
 ### v1.0.1 (Released — 2026-09-22)

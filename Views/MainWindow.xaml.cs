@@ -609,6 +609,30 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
             });
         });
 
+        // 4c2. TEXTURE:DELETE_VARIATION
+        _ipcBridge.RegisterHandler<TextureDeleteVariationPayload>(IpcMessageTypes.TextureDeleteVariation, async (payload, corrId) =>
+        {
+            await Dispatcher.InvokeAsync(async () =>
+            {
+                if (payload != null && ViewModel.PackRootPath != null && !string.IsNullOrWhiteSpace(payload.Alias))
+                {
+                    try
+                    {
+                        var removed = JsonWriterService.DeleteTextureVariation(ViewModel.PackRootPath, payload.Alias, payload.RelativePath);
+                        if (!removed)
+                        {
+                            _ipcBridge.PushError("Delete Variation", $"No matching variation entry found for '{payload.Alias}'.", "warning");
+                        }
+                        await ViewModel.RescanAsync();
+                    }
+                    catch (Exception ex)
+                    {
+                        _ipcBridge.PushError("Delete Variation", $"Failed to delete variation: {ex.Message}", "warning");
+                    }
+                }
+            });
+        });
+
         // 4d. TEXTURE:DROP_IMPORT
         _ipcBridge.RegisterHandler<TextureDropImportPayload>(IpcMessageTypes.TextureDropImport, async (payload, corrId) =>
         {
@@ -753,6 +777,23 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
                 if (payload != null && ViewModel.PackRootPath != null)
                 {
                     JsonWriterService.AddFlipbookBlock(ViewModel.PackRootPath, payload.AliasName, payload.BlockId, payload.TicksPerFrame ?? 10);
+                    await ViewModel.RescanAsync();
+                }
+            });
+        });
+
+        // 7b. SCAFFOLD:TEXTURE_VARIATION
+        _ipcBridge.RegisterHandler<ScaffoldTextureVariationPayload>(IpcMessageTypes.ScaffoldTextureVariation, async (payload, corrId) =>
+        {
+            await Dispatcher.InvokeAsync(async () =>
+            {
+                if (payload != null && ViewModel.PackRootPath != null && !string.IsNullOrWhiteSpace(payload.Alias))
+                {
+                    var newPath = JsonWriterService.AddTextureVariation(ViewModel.PackRootPath, payload.Alias, payload.BlockVariantIndex, payload.RelativePath);
+                    if (newPath == null)
+                    {
+                        _ipcBridge.PushError("Variation Not Added", $"Alias '{payload.Alias}' has an unrecognized terrain_texture.json shape.", "warning");
+                    }
                     await ViewModel.RescanAsync();
                 }
             });

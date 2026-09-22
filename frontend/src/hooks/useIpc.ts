@@ -7,6 +7,8 @@ import {
   TextureEditPayload,
   TextureDropImportPayload,
   TextureCopyFilePayload,
+  TextureDeleteVariationPayload,
+  ScaffoldTextureVariationPayload,
   WindowActionPayload,
   TintSetPayload,
   ManifestModelDto,
@@ -234,6 +236,10 @@ export function useIpc() {
     return postCommand(IpcMessageTypes.TextureDeleteEntries, { aliasKey, category, relativePath });
   }, []);
 
+  const deleteTextureVariation = useCallback((alias: string, relativePath: string) => {
+    return postCommand<TextureDeleteVariationPayload>(IpcMessageTypes.TextureDeleteVariation, { alias, relativePath });
+  }, []);
+
   const dropImportTexture = useCallback((payload: TextureDropImportPayload) => {
     return postCommand<TextureDropImportPayload>(IpcMessageTypes.TextureDropImport, payload);
   }, []);
@@ -264,6 +270,14 @@ export function useIpc() {
 
   const addVanillaEntry = useCallback((id: string, category: 'block' | 'item') => {
     return postCommand(IpcMessageTypes.VanillaAdd, { id, category });
+  }, []);
+
+  const scaffoldTextureVariation = useCallback((alias: string, blockVariantIndex?: number | null, relativePath?: string | null) => {
+    return postCommand<ScaffoldTextureVariationPayload>(IpcMessageTypes.ScaffoldTextureVariation, {
+      alias,
+      blockVariantIndex: blockVariantIndex ?? null,
+      relativePath: relativePath ?? null,
+    });
   }, []);
 
   const loadCatalog = useCallback(() => {
@@ -304,12 +318,14 @@ export function useIpc() {
     setDefaultEditor,
     deleteTextureFile,
     deleteTextureEntries,
+    deleteTextureVariation,
     windowAction,
     setTint,
     openInExplorer,
     closePack,
     saveManifest,
     addVanillaEntry,
+    scaffoldTextureVariation,
     loadCatalog,
     getDetailedCatalogStatus,
     purgeTempArchive,

@@ -53,6 +53,7 @@ public static class IpcMessageTypes
     public const string ScaffoldPlain    = "SCAFFOLD:PLAIN";
     public const string ScaffoldPerFace  = "SCAFFOLD:PER_FACE";
     public const string ScaffoldFlipbook = "SCAFFOLD:FLIPBOOK";
+    public const string ScaffoldTextureVariation = "SCAFFOLD:TEXTURE_VARIATION";
     public const string OrphanRegister   = "ORPHAN:REGISTER";
     public const string ManifestSave     = "MANIFEST:SAVE";
     public const string WindowAction     = "WINDOW:ACTION";
@@ -69,6 +70,7 @@ public static class IpcMessageTypes
     public const string AddVanillaEntry  = "ADD_VANILLA_ENTRY";
     public const string TextureDeleteFile = "TEXTURE:DELETE_FILE";
     public const string TextureDeleteEntries = "TEXTURE:DELETE_ENTRIES";
+    public const string TextureDeleteVariation = "TEXTURE:DELETE_VARIATION";
     public const string TextureDropImport = "TEXTURE:DROP_IMPORT";
     public const string TextureCopyFile  = "TEXTURE:COPY_FILE";
     public const string GeometryGet      = "GEOMETRY:GET";
@@ -174,6 +176,15 @@ public record TextureDeleteEntriesPayload(
 );
 
 /// <summary>
+/// Payload for "TEXTURE:DELETE_VARIATION". Removes one texture variation entry
+/// from a block alias in terrain_texture.json (file on disk is kept).
+/// </summary>
+public record TextureDeleteVariationPayload(
+    [property: JsonPropertyName("alias")] string Alias,
+    [property: JsonPropertyName("relativePath")] string RelativePath
+);
+
+/// <summary>
 /// Payload for "SCAFFOLD:PLAIN". Creates plain single-texture block in JSON.
 /// </summary>
 public record ScaffoldPlainPayload(
@@ -202,6 +213,17 @@ public record ScaffoldFlipbookPayload(
     [property: JsonPropertyName("frames")] int[]? Frames = null,
     [property: JsonPropertyName("ticksPerFrame")] int? TicksPerFrame = 10,
     [property: JsonPropertyName("blockId")] string? BlockId = null
+);
+
+/// <summary>
+/// Payload for "SCAFFOLD:TEXTURE_VARIATION". Appends a texture variation entry
+/// to an existing block alias in terrain_texture.json (1-based blockVariantIndex
+/// and/or leaf relativePath identify the target textures[] slot).
+/// </summary>
+public record ScaffoldTextureVariationPayload(
+    [property: JsonPropertyName("alias")] string Alias,
+    [property: JsonPropertyName("blockVariantIndex")] int? BlockVariantIndex = null,
+    [property: JsonPropertyName("relativePath")] string? RelativePath = null
 );
 
 /// <summary>

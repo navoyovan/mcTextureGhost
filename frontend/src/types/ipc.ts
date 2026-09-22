@@ -18,6 +18,7 @@ export const IpcMessageTypes = {
   ScaffoldPlain: 'SCAFFOLD:PLAIN',
   ScaffoldPerFace: 'SCAFFOLD:PER_FACE',
   ScaffoldFlipbook: 'SCAFFOLD:FLIPBOOK',
+  ScaffoldTextureVariation: 'SCAFFOLD:TEXTURE_VARIATION',
   OrphanRegister: 'ORPHAN:REGISTER',
   ManifestSave: 'MANIFEST:SAVE',
   WindowAction: 'WINDOW:ACTION',
@@ -34,6 +35,7 @@ export const IpcMessageTypes = {
   AddVanillaEntry: 'ADD_VANILLA_ENTRY',
   TextureDeleteFile: 'TEXTURE:DELETE_FILE',
   TextureDeleteEntries: 'TEXTURE:DELETE_ENTRIES',
+  TextureDeleteVariation: 'TEXTURE:DELETE_VARIATION',
   TextureDropImport: 'TEXTURE:DROP_IMPORT',
   TextureCopyFile: 'TEXTURE:COPY_FILE',
   GeometryGet: 'GEOMETRY:GET',
@@ -123,6 +125,11 @@ export interface TextureDeleteEntriesPayload {
   relativePath?: string;
 }
 
+export interface TextureDeleteVariationPayload {
+  alias: string;
+  relativePath: string;
+}
+
 export interface TextureDropImportPayload {
   aliasKey: string;
   fullPath: string;
@@ -152,6 +159,12 @@ export interface ScaffoldFlipbookPayload {
   frames?: number[] | null;
   ticksPerFrame?: number | null;
   blockId?: string | null;
+}
+
+export interface ScaffoldTextureVariationPayload {
+  alias: string;
+  blockVariantIndex?: number | null;
+  relativePath?: string | null;
 }
 
 export interface OrphanRegisterPayload {

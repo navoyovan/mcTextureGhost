@@ -10,6 +10,7 @@ import { usePackStore } from '../../store/packStore';
 import { useIpc } from '../../hooks/useIpc';
 import { RecentPackItemDto } from '../../types/ipc';
 import { Badge } from '../common/Badge';
+import { APP_VERSION } from '../../version';
 import styles from './WelcomeView.module.css';
 
 interface WelcomeViewProps {
@@ -70,6 +71,9 @@ export const WelcomeView: React.FC<WelcomeViewProps> = ({ onOpenNewPackDialog })
               </h1>
             </div>
           </div>
+          <span className={styles.headerVersion} title={`mcTextureGhost v${APP_VERSION}`}>
+            v{APP_VERSION}
+          </span>
         </header>
 
         {/* Action Bar: Primary Open Pack & Secondary Create Pack */}

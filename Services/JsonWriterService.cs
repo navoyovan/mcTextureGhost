@@ -114,6 +114,336 @@ public static class JsonWriterService
         SaveBlocksJson(packRoot, blocks);
     }
 
+    private static string NormPath(string? p)
+    {
+        var n = (p ?? "").Replace('\\', '/').TrimStart('/').ToLowerInvariant();
+        if (n.EndsWith(".png")) return n.Substring(0, n.Length - 4);
+        if (n.EndsWith(".tga")) return n.Substring(0, n.Length - 4);
+        return n;
+    }
+
+    private static string? SlotFirstPath(JsonNode? slot)
+    {
+        if (slot is JsonValue v) return v.TryGetValue<string>(out var s) ? s : null;
+        if (slot is JsonObject o)
+        {
+            if (o.TryGetPropertyValue("path", out var p) && p is JsonValue pv && pv.TryGetValue<string>(out var ps)) return ps;
+            if (o.TryGetPropertyValue("variations", out var vs) && vs is JsonArray va && va.Count > 0) return SlotFirstPath(va[0]);
+        }
+        return null;
+    }
+
+    private static List<string> CollectPaths(JsonNode? node)
+    {
+        var paths = new List<string>();
+        void Walk(JsonNode? n)
+        {
+            if (n is JsonValue jv)
+            {
+                if (jv.TryGetValue<string>(out var s) && !string.IsNullOrWhiteSpace(s)) paths.Add(s);
+            }
+            else if (n is JsonObject jo)
+            {
+                if (jo.TryGetPropertyValue("path", out var p)) Walk(p);
+                if (jo.TryGetPropertyValue("textures", out var t)) Walk(t);
+                if (jo.TryGetPropertyValue("variations", out var v)) Walk(v);
+            }
+            else if (n is JsonArray ja)
+            {
+                foreach (var item in ja) Walk(item);
+            }
+        }
+        Walk(node);
+        return paths;
+    }
+
+    /// <summary>
+    /// Appends a new texture variation (`{path, weight: 1}`) to a block alias in
+    /// terrain_texture.json. The target `textures[]` slot is located by leaf relative
+    /// path first, then 1-based blockVariantIndex, then slot 0. String-like slots are
+    /// lifted to `{variations: [...]}` without data loss. The new path reuses the
+    /// source texture's file stem with a `_var{N}` postfix. Returns the new variation
+    /// path, or null when the existing entry has an unrecognized shape.
+    /// </summary>
+    public static string? AddTextureVariation(string packRoot, string alias, int? blockVariantIndex, string? relativePath)
+    {
+        var terrain = LoadOrCreateTerrainTexture(packRoot);
+        var textureData = GetTextureData(terrain);
+
+        JsonObject NewVariation(string path) => new() { ["path"] = path, ["weight"] = 1 };
+
+        var existing = textureData.TryGetPropertyValue(alias, out var aliasNode) ? aliasNode : null;
+        var existingNorms = new HashSet<string>(CollectPaths(existing).Select(NormPath), StringComparer.OrdinalIgnoreCase);
+
+        // Target the right textures[] slot when the alias already declares blockstates
+        JsonArray? slotArray = null;
+        if (existing is JsonArray directArr)
+        {
+            slotArray = directArr;
+        }
+        else if (existing is JsonObject eo && eo.TryGetPropertyValue("textures", out var tProp) && tProp is JsonArray tArr)
+        {
+            slotArray = tArr;
+        }
+
+        int slotIdx = 0;
+        var targetNorm = NormPath(relativePath);
+        if (slotArray != null)
+        {
+            if (!string.IsNullOrEmpty(targetNorm))
+            {
+                for (int i = 0; i < slotArray.Count; i++)
+                {
+                    var itemPaths = CollectPaths(slotArray[i]).Select(NormPath);
+                    if (itemPaths.Any(p => string.Equals(p, targetNorm, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        slotIdx = i;
+                        break;
+                    }
+                }
+            }
+            else if (blockVariantIndex.HasValue && blockVariantIndex.Value >= 1 && blockVariantIndex.Value <= slotArray.Count)
+            {
+                slotIdx = blockVariantIndex.Value - 1;
+            }
+        }
+
+        // New path reuses the alias name with a _var{N} postfix in the sibling directory
+        var firstExisting = CollectPaths(existing).FirstOrDefault();
+        var firstNorm = NormPath(firstExisting);
+        var slash = firstNorm.LastIndexOf('/');
+        var baseDir = "textures/blocks";
+        if (!string.IsNullOrWhiteSpace(firstExisting) && slash > 0)
+        {
+            baseDir = firstExisting.Replace('\\', '/').TrimStart('/').Substring(0, slash);
+        }
+        var stem = alias.ToLowerInvariant();
+        if (string.IsNullOrWhiteSpace(stem)) stem = NormPath(alias);
+
+        string newPath = "";
+        for (int n = 1; ; n++)
+        {
+            var candidate = $"{baseDir}/{stem}_var{n}";
+            if (!existingNorms.Contains(NormPath(candidate)))
+            {
+                newPath = candidate;
+                break;
+            }
+        }
+
+        if (slotArray != null)
+        {
+            var slot = slotArray[slotIdx];
+            if (slot is JsonValue)
+            {
+                slotArray[slotIdx] = new JsonObject { ["variations"] = new JsonArray { new JsonObject { ["path"] = SlotFirstPath(slot), ["weight"] = 1 }, NewVariation(newPath) } };
+            }
+            else if (slot is JsonObject so && so.TryGetPropertyValue("variations", out var vs) && vs is JsonArray va)
+            {
+                va.Add(NewVariation(newPath));
+            }
+            else if (slot is JsonObject po && po.TryGetPropertyValue("path", out _))
+            {
+                var oldPath = SlotFirstPath(slot);
+                slotArray[slotIdx] = new JsonObject { ["variations"] = new JsonArray { new JsonObject { ["path"] = oldPath, ["weight"] = 1 }, NewVariation(newPath) } };
+            }
+            else
+            {
+                return null;
+            }
+
+            SaveTerrainTexture(packRoot, terrain);
+            return newPath;
+        }
+
+        if (existing is JsonValue)
+        {
+            var oldPath = SlotFirstPath(existing);
+            textureData[alias] = new JsonObject { ["textures"] = new JsonObject { ["variations"] = new JsonArray { new JsonObject { ["path"] = oldPath, ["weight"] = 1 }, NewVariation(newPath) } } };
+        }
+        else if (existing is JsonObject exo)
+        {
+            if (exo.TryGetPropertyValue("variations", out var dvs) && dvs is JsonArray dva)
+            {
+                dva.Add(NewVariation(newPath));
+            }
+            else if (exo.TryGetPropertyValue("path", out _))
+            {
+                var oldPath = SlotFirstPath(existing);
+                textureData[alias] = new JsonObject { ["textures"] = new JsonObject { ["variations"] = new JsonArray { new JsonObject { ["path"] = oldPath, ["weight"] = 1 }, NewVariation(newPath) } } };
+            }
+            else if (exo.TryGetPropertyValue("textures", out var single))
+            {
+                if (single is JsonValue)
+                {
+                    var oldPath = SlotFirstPath(single);
+                    exo["textures"] = new JsonObject { ["variations"] = new JsonArray { new JsonObject { ["path"] = oldPath, ["weight"] = 1 }, NewVariation(newPath) } };
+                }
+                else if (single is JsonObject sjo && sjo.TryGetPropertyValue("variations", out var svs) && svs is JsonArray sva)
+                {
+                    sva.Add(NewVariation(newPath));
+                }
+                else if (single is JsonObject pjo && pjo.TryGetPropertyValue("path", out _))
+                {
+                    var oldPath = SlotFirstPath(single);
+                    exo["textures"] = new JsonObject { ["variations"] = new JsonArray { new JsonObject { ["path"] = oldPath, ["weight"] = 1 }, NewVariation(newPath) } };
+                }
+                else
+                {
+                    return null;
+                }
+            }
+            else
+            {
+                return null;
+            }
+        }
+        else
+        {
+            // Alias not declared yet — scaffold a single-slot variations entry
+            textureData[alias] = new JsonObject { ["textures"] = new JsonObject { ["variations"] = new JsonArray { NewVariation(newPath) } } };
+        }
+
+        SaveTerrainTexture(packRoot, terrain);
+        return newPath;
+    }
+
+    /// <summary>
+    /// Removes one texture variation entry from a block alias in terrain_texture.json.
+    /// The PNG file on disk is kept (it surfaces as an orphan). Single-remaining
+    /// variations collapse back to plain entries; emptied slots and aliases are pruned.
+    /// Returns true when the file was changed.
+    /// </summary>
+    public static bool DeleteTextureVariation(string packRoot, string alias, string? relativePath)
+    {
+        if (string.IsNullOrWhiteSpace(relativePath)) return false;
+        var target = NormPath(relativePath);
+
+        var terrain = LoadOrCreateTerrainTexture(packRoot);
+        var textureData = GetTextureData(terrain);
+        if (!textureData.TryGetPropertyValue(alias, out var aliasNode) || aliasNode is null) return false;
+
+        static string? VariationPath(JsonNode? item)
+        {
+            if (item is JsonValue jv && jv.TryGetValue<string>(out var s)) return s;
+            if (item is JsonObject jo && jo.TryGetPropertyValue("path", out var p) && p is JsonValue pjv && pjv.TryGetValue<string>(out var ps)) return ps;
+            return null;
+        }
+
+        // Prune matching items from a variations array. Collapses a lone survivor
+        // back to a plain entry. Returns "consumed" when the array is now empty.
+        static bool PruneVariations(JsonArray va, string target, out JsonNode? survivor)
+        {
+            survivor = null;
+            for (int i = va.Count - 1; i >= 0; i--)
+            {
+                var p = VariationPath(va[i]);
+                if (p != null && string.Equals(NormPath(p), target, StringComparison.OrdinalIgnoreCase))
+                    va.RemoveAt(i);
+            }
+            if (va.Count == 1)
+            {
+                survivor = va[0];
+            }
+            return va.Count == 0;
+        }
+
+        // Remove one slot from a textures[] array by index, collapsing survivors
+        bool RemoveSlot(JsonArray slots, int idx)
+        {
+            var slot = slots[idx];
+            if (slot is JsonObject so && so.TryGetPropertyValue("variations", out var vs) && vs is JsonArray va)
+            {
+                if (!CollectPaths(va).Select(NormPath).Any(p => string.Equals(p, target, StringComparison.OrdinalIgnoreCase)))
+                    return false;
+                if (PruneVariations(va, target, out var survivor))
+                {
+                    slots.RemoveAt(idx);
+                }
+                else if (survivor != null)
+                {
+                    slots[idx] = survivor;
+                }
+                return true;
+            }
+
+            if (CollectPaths(slot).Select(NormPath).Any(p => string.Equals(p, target, StringComparison.OrdinalIgnoreCase)))
+            {
+                slots.RemoveAt(idx);
+                return true;
+            }
+            return false;
+        }
+
+        bool changed = false;
+
+        if (aliasNode is JsonArray directArr)
+        {
+            for (int i = 0; i < directArr.Count; i++)
+            {
+                if (RemoveSlot(directArr, i)) { changed = true; break; }
+            }
+            if (changed && directArr.Count == 0) textureData.Remove(alias);
+        }
+        else if (aliasNode is JsonObject ao)
+        {
+            if (ao.TryGetPropertyValue("textures", out var tProp) && tProp is JsonArray tArr)
+            {
+                for (int i = 0; i < tArr.Count; i++)
+                {
+                    if (RemoveSlot(tArr, i)) { changed = true; break; }
+                }
+                if (changed && tArr.Count == 0) textureData.Remove(alias);
+            }
+            else if (ao.TryGetPropertyValue("textures", out var single))
+            {
+                if (single is JsonObject sjo && sjo.TryGetPropertyValue("variations", out var svs) && svs is JsonArray sva)
+                {
+                    if (CollectPaths(sva).Select(NormPath).Any(p => string.Equals(p, target, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        if (PruneVariations(sva, target, out var survivor))
+                            textureData.Remove(alias);
+                        else if (survivor != null)
+                            ao["textures"] = survivor;
+                        changed = true;
+                    }
+                }
+                else if (CollectPaths(single).Select(NormPath).Any(p => string.Equals(p, target, StringComparison.OrdinalIgnoreCase)))
+                {
+                    textureData.Remove(alias);
+                    changed = true;
+                }
+            }
+            else if (ao.TryGetPropertyValue("variations", out var dvs) && dvs is JsonArray dva)
+            {
+                if (CollectPaths(dva).Select(NormPath).Any(p => string.Equals(p, target, StringComparison.OrdinalIgnoreCase)))
+                {
+                    if (PruneVariations(dva, target, out var survivor))
+                        textureData.Remove(alias);
+                    else if (survivor != null)
+                        textureData[alias] = survivor;
+                    changed = true;
+                }
+            }
+            else if (CollectPaths(aliasNode).Select(NormPath).Any(p => string.Equals(p, target, StringComparison.OrdinalIgnoreCase)))
+            {
+                textureData.Remove(alias);
+                changed = true;
+            }
+        }
+        else if (aliasNode is JsonValue)
+        {
+            if (CollectPaths(aliasNode).Select(NormPath).Any(p => string.Equals(p, target, StringComparison.OrdinalIgnoreCase)))
+            {
+                textureData.Remove(alias);
+                changed = true;
+            }
+        }
+
+        if (changed) SaveTerrainTexture(packRoot, terrain);
+        return changed;
+    }
+
     /// <summary>Registers an existing orphan texture file into terrain_texture.json.</summary>
     public static void RegisterOrphan(string packRoot, string alias, string relativePath)
     {
