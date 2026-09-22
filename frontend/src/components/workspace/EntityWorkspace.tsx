@@ -98,6 +98,7 @@ export const EntityWorkspace: React.FC = () => {
   const [activeMenuKey, setActiveMenuKey] = useState<string | null>(null);
   const isListDrawerOpen = usePackStore((s) => s.isWorkspaceDrawerOpen);
   const setIsListDrawerOpen = usePackStore((s) => s.setIsWorkspaceDrawerOpen);
+  const disable3DView = usePackStore((s) => s.disable3DView);
   const [hoverMorphTarget, setHoverMorphTarget] = useState<TileHoverMorphTarget | null>(null);
   const [contextMenuTarget, setContextMenuTarget] = useState<{
     alias: TextureAliasDto;
@@ -482,23 +483,25 @@ export const EntityWorkspace: React.FC = () => {
           </div>
 
           {/* 3D Entity Model Viewer */}
-          <div className={styles.previewSection}>
-            <Entity3DViewer
-              entityId={selectedEntity.blockId}
-              geometryId={primaryGeometryId}
-              textureUrl={activeTextureUrl}
-              isGhost={activeIsGhost}
-              isAttachable={isAttachableEntity}
-              slots={slotOptions}
-              activeSlotIndex={activeSlotIndex}
-              onSelectSlotIndex={(idx) => {
-                setActiveSlotIndex(idx);
-                setActiveVariationIndex(0);
-              }}
-              activeVariationIndex={activeVariationIndex}
-              onSelectVariationIndex={setActiveVariationIndex}
-            />
-          </div>
+          {!disable3DView && (
+            <div className={styles.previewSection}>
+              <Entity3DViewer
+                entityId={selectedEntity.blockId}
+                geometryId={primaryGeometryId}
+                textureUrl={activeTextureUrl}
+                isGhost={activeIsGhost}
+                isAttachable={isAttachableEntity}
+                slots={slotOptions}
+                activeSlotIndex={activeSlotIndex}
+                onSelectSlotIndex={(idx) => {
+                  setActiveSlotIndex(idx);
+                  setActiveVariationIndex(0);
+                }}
+                activeVariationIndex={activeVariationIndex}
+                onSelectVariationIndex={setActiveVariationIndex}
+              />
+            </div>
+          )}
 
           <EntityEntryTree
             entity={selectedEntity}

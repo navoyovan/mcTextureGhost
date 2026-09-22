@@ -50,6 +50,8 @@ export interface PackStoreState {
   activeReferenceId: string;
   hasVanillaAssets: boolean;
   simulateNoAssets: boolean;
+  /** When true, Block3DViewer and Entity3DViewer are not mounted (saves GPU/CPU power) */
+  disable3DView: boolean;
   /** Tile thumbnail size in px: 80 | 120 | 160 | 200 */
   tileZoom: number;
   /** Live stats for the shared-toolbar JSON viewer (matches, line count, formatted size) */
@@ -60,6 +62,9 @@ export interface PackStoreState {
   isWorkspaceDrawerOpen: boolean;
   /** Whether the whole left sidebar is collapsed */
   isSidebarCollapsed: boolean;
+
+  /** Pack-close transition guard: blocks input while Chromium reloads + IPC re-inits. Survives reload via sessionStorage. */
+  isPackClosing: boolean;
 
   /** Persisted Block Workspace state (restored when navigating back from grid/json) */
   blockWorkspaceSelectedId: string | null;
@@ -105,6 +110,7 @@ export interface PackStoreActions {
   setActiveReferenceId: (id: string) => void;
   setHasVanillaAssets: (has: boolean) => void;
   setSimulateNoAssets: (simulate: boolean) => void;
+  setDisable3DView: (disabled: boolean) => void;
   setTileZoom: (zoom: number) => void;
   setJsonViewerInfo: (info: { lineCount: number; sizeLabel: string; matchCount: number | null } | null) => void;
   setIsManifestJsonDrawerOpen: (open: boolean) => void;
@@ -113,6 +119,7 @@ export interface PackStoreActions {
   toggleWorkspaceDrawer: () => void;
   setIsSidebarCollapsed: (collapsed: boolean) => void;
   toggleSidebar: () => void;
+  setPackClosing: (closing: boolean) => void;
   setBlockWorkspaceSelectedId: (id: string | null) => void;
   setBlockWorkspaceActiveStateIndex: (index: number) => void;
   setBlockWorkspaceActiveVariationIndex: (index: number) => void;
@@ -184,6 +191,7 @@ const initialState: PackStoreState = {
   activeReferenceId: 'vanilla',
   hasVanillaAssets: false,
   simulateNoAssets: typeof window !== 'undefined' && localStorage.getItem('mctg_simulate_no_assets') === 'true',
+  disable3DView: typeof window !== 'undefined' && localStorage.getItem('mctg_disable_3d_view') === 'true',
   tileZoom: 120,
   jsonViewerInfo: null,
   isManifestJsonDrawerOpen: false,
@@ -197,6 +205,8 @@ const initialState: PackStoreState = {
   entityWorkspaceActiveLeafKey: null,
   entityWorkspaceActiveSlotIndex: 0,
   entityWorkspaceActiveVariationIndex: 0,
+
+  isPackClosing: typeof window !== 'undefined' && sessionStorage.getItem('mctg_pack_closing') === '1',
 
   tintOpacity: 85,
   tintBrightness: 30,
@@ -282,6 +292,7 @@ export const packStoreActions: PackStoreActions = {
       ...currentState,
       ...initialState,
       // Retain app config & recent packs
+      isPackClosing: currentState.isPackClosing,
       recentPacks: currentState.recentPacks,
       tintOpacity: currentState.tintOpacity,
       tintBrightness: currentState.tintBrightness,
@@ -432,6 +443,15 @@ export const packStoreActions: PackStoreActions = {
     notify();
   },
 
+  setDisable3DView(disabled: boolean): void {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('mctg_disable_3d_view', String(disabled));
+    }
+    currentState = { ...currentState, disable3DView: disabled };
+    cachedSnapshot = null;
+    notify();
+  },
+
   setTileZoom(zoom: number): void {
     const clamped = Math.max(80, Math.min(200, zoom));
     currentState = { ...currentState, tileZoom: clamped };
@@ -519,6 +539,19 @@ export const packStoreActions: PackStoreActions = {
 
   setEntityWorkspaceActiveVariationIndex(index: number): void {
     currentState = { ...currentState, entityWorkspaceActiveVariationIndex: index };
+    cachedSnapshot = null;
+    notify();
+  },
+
+  setPackClosing(closing: boolean): void {
+    if (typeof window !== 'undefined') {
+      if (closing) {
+        sessionStorage.setItem('mctg_pack_closing', '1');
+      } else {
+        sessionStorage.removeItem('mctg_pack_closing');
+      }
+    }
+    currentState = { ...currentState, isPackClosing: closing };
     cachedSnapshot = null;
     notify();
   },

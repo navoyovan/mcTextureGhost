@@ -49,11 +49,14 @@ export const MenuBar: React.FC = () => {
   const { openPackFolder, reloadPack, createPack, exportMcpack, openInExplorer, closePack } = useIpc();
   const packRoot = usePackStore((s) => s.packRoot);
   const resetPackState = usePackStore((s) => s.resetPackState);
+  const setPackClosing = usePackStore((s) => s.setPackClosing);
   const setSelectedFolderPath = usePackStore((s) => s.setSelectedFolderPath);
   const tileZoom = usePackStore((s) => s.tileZoom);
   const setTileZoom = usePackStore((s) => s.setTileZoom);
   const simulateNoAssets = usePackStore((s) => s.simulateNoAssets);
   const setSimulateNoAssets = usePackStore((s) => s.setSimulateNoAssets);
+  const disable3DView = usePackStore((s) => s.disable3DView);
+  const setDisable3DView = usePackStore((s) => s.setDisable3DView);
 
   const isPackLoaded = Boolean(packRoot);
   const zoomPresets = [
@@ -152,6 +155,9 @@ export const MenuBar: React.FC = () => {
           label: 'Close Pack',
           icon: <XCircle size={13} />,
           action: () => {
+            // Raise the transition guard first so the closing overlay blocks input
+            // across reset + Chromium reload + IPC re-init (survives reload via sessionStorage)
+            setPackClosing(true);
             closePack();
             resetPackState();
             window.location.reload();
@@ -191,6 +197,15 @@ export const MenuBar: React.FC = () => {
             <Square size={13} />
           ),
           action: () => setSimulateNoAssets(!simulateNoAssets),
+        },
+        {
+          label: 'Disable 3D view',
+          icon: disable3DView ? (
+            <CheckSquare size={13} style={{ color: 'var(--accent-primary, #8CEB1F)' }} />
+          ) : (
+            <Square size={13} />
+          ),
+          action: () => setDisable3DView(!disable3DView),
         },
       ],
     },

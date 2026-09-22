@@ -87,7 +87,7 @@ export const BlockWorkspace: React.FC = () => {
   const activeFilters = usePackStore((s) => s.activeFilters);
   const packFolders = usePackStore((s) => s.packFolders);
   const packAliases = usePackStore((s) => s.aliases ?? []);
-  const { editTexture, deleteTextureFile, deleteTextureEntries, openInExplorer } = useIpc();
+  const { editTexture, deleteTextureFile, deleteTextureEntries, deleteTextureVariation, openInExplorer, scaffoldTextureVariation } = useIpc();
 
   const hasTerrainTextureJson = useMemo(() => {
     function check(items: any[]): boolean {
@@ -114,6 +114,7 @@ export const BlockWorkspace: React.FC = () => {
   const [activeMenuKey, setActiveMenuKey] = useState<string | null>(null);
   const isListDrawerOpen = usePackStore((s) => s.isWorkspaceDrawerOpen);
   const setIsListDrawerOpen = usePackStore((s) => s.setIsWorkspaceDrawerOpen);
+  const disable3DView = usePackStore((s) => s.disable3DView);
   const [contextMenuTarget, setContextMenuTarget] = useState<{
     alias: TextureAliasDto;
     key: string;
@@ -458,6 +459,16 @@ export const BlockWorkspace: React.FC = () => {
     deleteTextureEntries(alias, 'block', relativePath ?? undefined);
   }, [deleteTextureEntries]);
 
+  const handleAddVariation = useCallback((leaf: CatalogLeafDto) => {
+    scaffoldTextureVariation(leaf.alias, leaf.blockVariantIndex ?? null, leaf.relativePath ?? null);
+  }, [scaffoldTextureVariation]);
+
+  const handleDeleteVariation = useCallback((leaf: CatalogLeafDto) => {
+    if (leaf.relativePath) {
+      deleteTextureVariation(leaf.alias, leaf.relativePath);
+    }
+  }, [deleteTextureVariation]);
+
   const tileZoom = usePackStore((s) => s.tileZoom);
   const selectedBlockDisplayName = selectedBlock?.displayName || selectedBlock?.blockId || '';
 
@@ -554,7 +565,7 @@ export const BlockWorkspace: React.FC = () => {
             </div>
           </div>
 
-          {selectedBlock.blockId !== 'uncategorized' && (
+          {selectedBlock.blockId !== 'uncategorized' && !disable3DView && (
             <div className={styles.previewSection}>
               <Block3DViewer
                 blockId={selectedBlock.blockId}
@@ -625,6 +636,8 @@ export const BlockWorkspace: React.FC = () => {
                                   onTileClick={handleTileClick}
                                   onDeleteTextureFile={handleDeleteTextureFile}
                                   onDeleteTextureEntries={handleDeleteTextureEntries}
+                                  onAddVariation={isDeclaredInTerrainTexture ? handleAddVariation : undefined}
+                                  onDeleteVariation={isDeclaredInTerrainTexture ? handleDeleteVariation : undefined}
                                 />
                               );
                             })}
@@ -646,6 +659,8 @@ export const BlockWorkspace: React.FC = () => {
                           onTileClick={handleTileClick}
                           onDeleteTextureFile={handleDeleteTextureFile}
                           onDeleteTextureEntries={handleDeleteTextureEntries}
+                          onAddVariation={isDeclaredInTerrainTexture ? handleAddVariation : undefined}
+                          onDeleteVariation={isDeclaredInTerrainTexture ? handleDeleteVariation : undefined}
                         />
                       ))}
                     </div>
@@ -686,6 +701,43 @@ export const BlockWorkspace: React.FC = () => {
           item={contextMenuTarget.alias}
           anchor={contextMenuTarget.anchor}
           onClose={() => setContextMenuTarget(null)}
+          onAddVariation={
+            hasTerrainTextureJson &&
+            packAliases.some(
+              (a: TextureAliasDto) =>
+                a.alias.toLowerCase() === contextMenuTarget.alias.alias.toLowerCase() &&
+                a.category === 'block' &&
+                a.status !== 'ORPHAN'
+            )
+              ? () => {
+                  setHoverMorphTarget(null);
+                  scaffoldTextureVariation(
+                    contextMenuTarget.alias.alias,
+                    contextMenuTarget.alias.blockVariantIndex ?? null,
+                    contextMenuTarget.alias.relativePath ?? null
+                  );
+                }
+              : undefined
+          }
+          onDeleteVariation={
+            hasTerrainTextureJson &&
+            contextMenuTarget.alias.textureVariantIndex != null &&
+            contextMenuTarget.alias.relativePath &&
+            packAliases.some(
+              (a: TextureAliasDto) =>
+                a.alias.toLowerCase() === contextMenuTarget.alias.alias.toLowerCase() &&
+                a.category === 'block' &&
+                a.status !== 'ORPHAN'
+            )
+              ? () => {
+                  setHoverMorphTarget(null);
+                  deleteTextureVariation(
+                    contextMenuTarget.alias.alias,
+                    contextMenuTarget.alias.relativePath!
+                  );
+                }
+              : undefined
+          }
           onEdit={(app?: OpenWithAppDto) => {
             setHoverMorphTarget(null);
             editTexture(contextMenuTarget.alias.alias, contextMenuTarget.alias.fullPath, contextMenuTarget.alias.status === 'GHOST', app?.exePath, false);
