@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useRef, useEffect, useCallback } from 'react';
 import { CatalogLeafDto, OpenWithAppDto, TextureAliasDto, TileDragData } from '../../types/ipc';
-import { usePackStore } from '../../store/packStore';
+import { usePackStore, packStoreActions } from '../../store/packStore';
 import { useIpc } from '../../hooks/useIpc';
 import { FlipbookThumbnail } from '../common/FlipbookThumbnail';
 import { TextureContextMenu } from '../common/TextureContextMenu';
@@ -117,19 +117,20 @@ export const WorkspaceTileCard: React.FC<WorkspaceTileCardProps> = React.memo(({
 
   const processImport = useCallback(
     (leaf: CatalogLeafDto, file: File) => {
+      const targetFullPath =
+        leaf.fullPath ||
+        (packRoot && leaf.relativePath
+          ? `${packRoot.replace(/[/\\]+$/, '')}\\textures\\${leaf.relativePath.replace(/^[/\\]+/, '')}`
+          : '');
+      if (!targetFullPath) return;
+      // optimistic BEFORE file read — instant tile flip even for large files
+      const previewUrl = URL.createObjectURL(file);
+      packStoreActions.updateTexture(leaf.alias, 'OK', targetFullPath, previewUrl, leaf.relativePath);
+
       const reader = new FileReader();
       reader.onload = () => {
         const base64Data = reader.result as string;
         if (!base64Data) return;
-
-        const targetFullPath =
-          leaf.fullPath ||
-          (packRoot && leaf.relativePath
-            ? `${packRoot.replace(/[/\\]+$/, '')}\\textures\\${leaf.relativePath.replace(/^[/\\]+/, '')}`
-            : '');
-
-        if (!targetFullPath) return;
-
         dropImportTexture({
           aliasKey: leaf.alias,
           fullPath: targetFullPath,
@@ -146,6 +147,8 @@ export const WorkspaceTileCard: React.FC<WorkspaceTileCardProps> = React.memo(({
 
   const executeTileCopy = useCallback(
     (leaf: CatalogLeafDto, sourceData: TileDragData, targetFullPath: string) => {
+      // optimistic immediately
+      packStoreActions.updateTexture(leaf.alias, 'OK', targetFullPath, sourceData.imageUrl || null, leaf.relativePath);
       if (sourceData.fullPath) {
         copyTextureFile({
           sourceFullPath: sourceData.fullPath,
@@ -358,6 +361,7 @@ export const WorkspaceTileCard: React.FC<WorkspaceTileCardProps> = React.memo(({
 
   const isCardDragOver = !hasTexVariants && dragSlotIndex === 0;
   const [isExiting, setIsExiting] = useState(false);
+  const [deletingSlotIndex, setDeletingSlotIndex] = useState<number | null>(null);
 
   const handleDeleteWithAnimation = useCallback((action: () => void) => {
     setIsExiting(true);
@@ -365,6 +369,15 @@ export const WorkspaceTileCard: React.FC<WorkspaceTileCardProps> = React.memo(({
       action();
     }, 180);
   }, []);
+
+  const handleDeleteTextureWithAnimation = useCallback((leaf: CatalogLeafDto, slotIdx: number) => {
+    if (!leaf.fullPath) return;
+    setDeletingSlotIndex(slotIdx);
+    setTimeout(() => {
+      onDeleteTextureFile(leaf.fullPath, leaf.alias);
+      setDeletingSlotIndex(null);
+    }, 160);
+  }, [onDeleteTextureFile]);
 
   return (
     <div
@@ -420,14 +433,17 @@ export const WorkspaceTileCard: React.FC<WorkspaceTileCardProps> = React.memo(({
             }
           }}
           onDeleteTexture={() => {
-            if (primary.fullPath) {
-              onDeleteTextureFile(primary.fullPath, primary.alias);
-            }
+            handleDeleteTextureWithAnimation(primary, 0);
           }}
           onDeleteEntries={() => {
-            handleDeleteWithAnimation(() => {
+            const hasPhysicalTexture = Boolean(primary.fullPath || primary.status === 'OK');
+            if (!hasPhysicalTexture) {
+              handleDeleteWithAnimation(() => {
+                onDeleteTextureEntries(primary.alias, primary.relativePath);
+              });
+            } else {
               onDeleteTextureEntries(primary.alias, primary.relativePath);
-            });
+            }
           }}
           onAddVariation={onAddVariation ? (count) => onAddVariation(primary, count) : undefined}
           onDeleteVariation={onDeleteVariation && primary.textureVariantIndex != null ? () => onDeleteVariation(primary) : undefined}
@@ -455,9 +471,8 @@ export const WorkspaceTileCard: React.FC<WorkspaceTileCardProps> = React.memo(({
             }
           }}
           onDeleteTexture={() => {
-            if (variationMenu.leaf.fullPath) {
-              onDeleteTextureFile(variationMenu.leaf.fullPath, variationMenu.leaf.alias);
-            }
+            const vIdx = leaves.findIndex((l) => l === variationMenu.leaf || l.relativePath === variationMenu.leaf.relativePath);
+            handleDeleteTextureWithAnimation(variationMenu.leaf, vIdx >= 0 ? vIdx : 0);
           }}
           onDeleteEntries={() => {
             onDeleteTextureEntries(variationMenu.leaf.alias, variationMenu.leaf.relativePath);
@@ -497,7 +512,8 @@ export const WorkspaceTileCard: React.FC<WorkspaceTileCardProps> = React.memo(({
                 onClick={(e) => {
                   if (Date.now() - lastMenuCloseRef.current < 300) return;
                   e.stopPropagation();
-                  onTileClick(e.currentTarget, leaf, `${cardKey}-${i}`, 'image');
+                  const targetEl = (!hasTexVariants && primaryThumbRef.current) ? primaryThumbRef.current : e.currentTarget;
+                  onTileClick(targetEl, leaf, `${cardKey}-${i}`, 'image');
                 }}
                 onContextMenu={
                   hasTexVariants
@@ -536,13 +552,13 @@ export const WorkspaceTileCard: React.FC<WorkspaceTileCardProps> = React.memo(({
                     }
                     alt={leafName}
                     aliasKey={leaf.alias}
-                    className={styles.leafThumb}
+                    className={`${styles.leafThumb} ${deletingSlotIndex === i ? styles.leafThumbDeleting : ''}`}
                     isFlipbook={leaf.isFlipbook || Boolean(leaf.hasAtlas)}
                     flipbook={leaf.flipbook}
                     loading="lazy"
                   />
                 ) : (
-                  <span className={styles.leafGhost}>?</span>
+                  <span key="ghost" className={styles.leafGhost}>?</span>
                 )}
               </div>
             </React.Fragment>

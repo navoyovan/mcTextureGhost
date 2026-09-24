@@ -1,7 +1,6 @@
-// frontend/src/components/workspace/EntityWorkspace.tsx
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
-import { PawPrint, ArrowRight, Shield } from 'lucide-react';
-import { usePackStore } from '../../store/packStore';
+import { PawPrint, ArrowRight, Shield, Box, ChevronDown } from 'lucide-react';
+import { usePackStore, packStoreActions } from '../../store/packStore';
 import { useIpc } from '../../hooks/useIpc';
 import { BlockGroupNodeDto, CatalogLeafDto, TextureAliasDto, OpenWithAppDto } from '../../types/ipc';
 import { Entity3DViewer, EntitySlotOption, EntitySlotVariationOption } from './Entity3DViewer';
@@ -102,6 +101,7 @@ export const EntityWorkspace: React.FC = () => {
   const isListDrawerOpen = usePackStore((s) => s.isWorkspaceDrawerOpen);
   const setIsListDrawerOpen = usePackStore((s) => s.setIsWorkspaceDrawerOpen);
   const disable3DView = usePackStore((s) => s.disable3DView);
+  const setDisable3DView = usePackStore((s) => s.setDisable3DView);
   const [hoverMorphTarget, setHoverMorphTarget] = useState<TileHoverMorphTarget | null>(null);
   const [contextMenuTarget, setContextMenuTarget] = useState<{
     alias: TextureAliasDto;
@@ -364,10 +364,12 @@ export const EntityWorkspace: React.FC = () => {
   }, []);
 
   const handleDeleteTextureFile = useCallback((path: string, alias: string) => {
+    packStoreActions.optimisticDeleteTexture(path, alias);
     deleteTextureFile(path, alias);
   }, [deleteTextureFile]);
 
   const handleDeleteTextureEntries = useCallback((alias: string, relativePath?: string | null) => {
+    packStoreActions.optimisticDeleteEntries(alias, 'entity', relativePath ?? undefined);
     deleteTextureEntries(alias, 'entity', relativePath ?? undefined);
   }, [deleteTextureEntries]);
 
@@ -478,7 +480,7 @@ export const EntityWorkspace: React.FC = () => {
             <div className={styles.detailHeaderActions}>
               {selectedEntity.isUserDefined === false && (
                 <Badge variant="fallback" size="sm" title="Using vanilla entity definition">
-                  Vanilla Fallback
+                  Fallback
                 </Badge>
               )}
               {selectedEntity.ghostCount > 0 && (
@@ -490,25 +492,57 @@ export const EntityWorkspace: React.FC = () => {
           </div>
 
           {/* 3D Entity Model Viewer */}
-          {!disable3DView && (
-            <div className={styles.previewSection}>
-              <Entity3DViewer
-                entityId={selectedEntity.blockId}
-                geometryId={primaryGeometryId}
-                textureUrl={activeTextureUrl}
-                isGhost={activeIsGhost}
-                isAttachable={isAttachableEntity}
-                slots={slotOptions}
-                activeSlotIndex={activeSlotIndex}
-                onSelectSlotIndex={(idx) => {
-                  setActiveSlotIndex(idx);
-                  setActiveVariationIndex(0);
-                }}
-                activeVariationIndex={activeVariationIndex}
-                onSelectVariationIndex={setActiveVariationIndex}
-              />
+          <div
+            className={`${styles.previewTreeContainer} ${disable3DView ? styles.previewTreeContainerCollapsed : ''}`}
+          >
+            <div
+              className={styles.previewTreeHeader}
+              onClick={() => setDisable3DView(!disable3DView)}
+              title={disable3DView ? 'Click to expand 3D preview' : 'Click to minimize 3D preview'}
+            >
+              <div className={styles.previewTreeHeaderLeft}>
+                <Box size={13} style={{ color: '#8CEB1F' }} />
+                <span className={styles.previewTreeHeaderTitle}>3D Preview</span>
+              </div>
+              <div className={styles.previewTreeHeaderActions}>
+                <button
+                  type="button"
+                  className={styles.previewTreeToggleBtn}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setDisable3DView(!disable3DView);
+                  }}
+                  title={disable3DView ? 'Expand 3D preview panel' : 'Minimize 3D preview panel'}
+                >
+                  <ChevronDown
+                    size={12}
+                    className={`${styles.previewTreeToggleChevron} ${!disable3DView ? styles.previewTreeToggleChevronExpanded : ''}`}
+                  />
+                  <span>{disable3DView ? 'Expand' : 'Minimize'}</span>
+                </button>
+              </div>
             </div>
-          )}
+
+            <div className={`${styles.previewTreeContentWrapper} ${disable3DView ? styles.previewTreeContentWrapperCollapsed : ''}`}>
+              <div className={styles.previewTreeContentInner}>
+                <Entity3DViewer
+                  entityId={selectedEntity.blockId}
+                  geometryId={primaryGeometryId}
+                  textureUrl={activeTextureUrl}
+                  isGhost={activeIsGhost}
+                  isAttachable={isAttachableEntity}
+                  slots={slotOptions}
+                  activeSlotIndex={activeSlotIndex}
+                  onSelectSlotIndex={(idx) => {
+                    setActiveSlotIndex(idx);
+                    setActiveVariationIndex(0);
+                  }}
+                  activeVariationIndex={activeVariationIndex}
+                  onSelectVariationIndex={setActiveVariationIndex}
+                />
+              </div>
+            </div>
+          </div>
 
           <EntityEntryTree
             entity={selectedEntity}
@@ -517,17 +551,22 @@ export const EntityWorkspace: React.FC = () => {
 
           {/* Slots & Texture Variations Hierarchy */}
           <div className={styles.hierarchySection} ref={menuRef}>
-            {selectedEntity.aliasGroups?.map((ag, agIndex) => (
-              <div key={`${selectedEntity.blockId}-${ag.alias}-${agIndex}`} className={styles.aliasGroupCard}>
-                <div className={styles.aliasHeader}>
-                  <PawPrint size={14} />
-                  <span>Slot: {ag.alias}</span>
-                  {selectedEntity.isUserDefined === false && (
-                    <Badge variant="fallback" size="sm" title="Using vanilla entity definition">
-                      Vanilla Fallback
-                    </Badge>
-                  )}
-                </div>
+            {selectedEntity.aliasGroups?.map((ag, agIndex) => {
+              const isVanillaFallback = selectedEntity.isUserDefined === false || ag.isUserDefined === false;
+              return (
+                <div
+                  key={`${selectedEntity.blockId}-${ag.alias}-${agIndex}`}
+                  className={`${styles.aliasGroupCard} ${isVanillaFallback ? styles.aliasGroupCardFallback : ''}`}
+                >
+                  <div className={styles.aliasHeader}>
+                    <PawPrint size={14} />
+                    <span>Slot: {ag.alias}</span>
+                    {isVanillaFallback && (
+                      <Badge variant="fallback" size="sm" title="Using vanilla entity definition">
+                        Fallback
+                      </Badge>
+                    )}
+                  </div>
 
                 <div className={styles.faceRow}>
                   {ag.geometryId && (
@@ -557,7 +596,8 @@ export const EntityWorkspace: React.FC = () => {
                   </div>
                 </div>
               </div>
-            ))}
+            );
+          })}
           </div>
         </section>
       ) : (

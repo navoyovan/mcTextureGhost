@@ -35,30 +35,32 @@
 .morphed {
   background: #18181f;
   border-color: rgba(255, 255, 255, 0.25);
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6),
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4),
               0 0 0 1px rgba(255, 255, 255, 0.08),
-              0 24px 64px rgba(0, 0, 0, 0.7);
+              0 4px 12px rgba(0, 0, 0, 0.25);
   border-radius: 0;
   padding: 0;
   overflow: visible;
 }
 
-.closing {
+.morphCard:not(.morphCardImageTarget).closing {
   border-color: rgba(255, 255, 255, 0.08) !important;
   box-shadow: none !important;
 }
 
-.morphCardImageTarget:not(.morphed) {
-  padding: 0;
-  border-radius: 0;
+.morphCardImageTarget:not(.morphed),
+.morphCardImageTarget.closing {
+  padding: 0 !important;
+  border-radius: 0 !important;
   background: #101014;
-  border-color: rgba(255, 255, 255, 0.04);
-  box-shadow: none;
+  border-color: rgba(255, 255, 255, 0.04) !important;
+  box-shadow: none !important;
 }
 
-.morphCardImageAdded:not(.morphed) {
-  background: transparent;
-  border-color: transparent;
+.morphCardImageAdded:not(.morphed),
+.morphCardImageAdded.closing {
+  background: transparent !important;
+  border-color: transparent !important;
 }
 
 /* Ghost ONLY — preserve dark rectangle during snap back to match idle tile */
@@ -67,6 +69,12 @@
   background: #101014 !important;
   border: 1px solid rgba(255, 255, 255, 0.04) !important;
   border-radius: 0 !important;
+}
+
+.morphCardImageAdded:not(.morphed) .thumbArea,
+.morphCardImageAdded.closing .thumbArea {
+  border-color: transparent !important;
+  background: transparent !important;
 }
 
 /* ── Thumbnail Container & Animated Checkerboard ──────────────────────────── */

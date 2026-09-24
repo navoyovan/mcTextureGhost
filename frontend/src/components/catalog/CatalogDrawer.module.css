@@ -641,6 +641,14 @@
   background: rgba(255, 255, 255, 0.06);
 }
 
+.chevronIcon {
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.chevronIconExpanded {
+  transform: rotate(90deg);
+}
+
 .blockTitleGroup {
   display: flex;
   align-items: baseline;
@@ -705,6 +713,24 @@
 }
 
 /* ─── 6. Tier 2: Alias Group Card ─── */
+.aliasGroupListWrapper {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.24s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease;
+  opacity: 0;
+  overflow: hidden;
+}
+
+.aliasGroupListWrapper.expanded {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+
+.aliasGroupListInner {
+  min-height: 0;
+  overflow: hidden;
+}
+
 .aliasGroupList {
   padding: 10px 14px 14px 14px;
   display: flex;

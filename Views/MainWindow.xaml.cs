@@ -555,16 +555,13 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         // 4b. TEXTURE:DELETE_FILE
         _ipcBridge.RegisterHandler<TextureDeleteFilePayload>(IpcMessageTypes.TextureDeleteFile, async (payload, corrId) =>
         {
-            await Dispatcher.InvokeAsync(async () =>
+            if (payload != null && !string.IsNullOrWhiteSpace(payload.FullPath))
             {
-                if (payload != null && !string.IsNullOrWhiteSpace(payload.FullPath))
+                try
                 {
-                    try
+                    await Task.Run(async () =>
                     {
                         ImagePathConverter.ClearCache();
-                        GC.Collect();
-                        GC.WaitForPendingFinalizers();
-
                         bool deleted = false;
                         Exception? lastEx = null;
                         for (int attempt = 0; attempt < 5; attempt++)
@@ -589,59 +586,56 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
                         {
                             throw lastEx;
                         }
+                    });
 
-                        await ViewModel.RescanAsync();
-                    }
-                    catch (Exception ex)
+                    await Dispatcher.InvokeAsync(async () =>
                     {
-                        _ipcBridge.PushError("Delete Texture File", $"Failed to delete texture: {ex.Message}", "warning");
-                    }
+                        await ViewModel.RescanAsync();
+                    });
                 }
-            });
+                catch (Exception ex)
+                {
+                    _ipcBridge.PushError("Delete Texture File", $"Failed to delete texture: {ex.Message}", "warning");
+                }
+            }
         });
 
         // 4c. TEXTURE:DELETE_ENTRIES
         _ipcBridge.RegisterHandler<TextureDeleteEntriesPayload>(IpcMessageTypes.TextureDeleteEntries, async (payload, corrId) =>
         {
-            await Dispatcher.InvokeAsync(async () =>
+            if (payload == null || string.IsNullOrWhiteSpace(payload.AliasKey)) return;
+            var packRoot = await Dispatcher.InvokeAsync(() => ViewModel.PackRootPath);
+            if (packRoot == null) return;
+            try
             {
-                if (payload != null && ViewModel.PackRootPath != null && !string.IsNullOrWhiteSpace(payload.AliasKey))
-                {
-                    try
-                    {
-                        JsonWriterService.DeleteTextureEntries(ViewModel.PackRootPath, payload.AliasKey, payload.Category, payload.RelativePath);
-                        await ViewModel.RescanAsync();
-                    }
-                    catch (Exception ex)
-                    {
-                        _ipcBridge.PushError("Delete JSON Entries", $"Failed to delete entries: {ex.Message}", "warning");
-                    }
-                }
-            });
+                await Task.Run(() => JsonWriterService.DeleteTextureEntries(packRoot, payload.AliasKey, payload.Category, payload.RelativePath));
+                await Dispatcher.InvokeAsync(async () => await ViewModel.RescanAsync());
+            }
+            catch (Exception ex)
+            {
+                _ipcBridge.PushError("Delete JSON Entries", $"Failed to delete entries: {ex.Message}", "warning");
+            }
         });
 
         // 4c2. TEXTURE:DELETE_VARIATION
         _ipcBridge.RegisterHandler<TextureDeleteVariationPayload>(IpcMessageTypes.TextureDeleteVariation, async (payload, corrId) =>
         {
-            await Dispatcher.InvokeAsync(async () =>
+            if (payload == null || string.IsNullOrWhiteSpace(payload.Alias)) return;
+            var packRoot = await Dispatcher.InvokeAsync(() => ViewModel.PackRootPath);
+            if (packRoot == null) return;
+            try
             {
-                if (payload != null && ViewModel.PackRootPath != null && !string.IsNullOrWhiteSpace(payload.Alias))
+                var removed = await Task.Run(() => JsonWriterService.DeleteTextureVariation(packRoot, payload.Alias, payload.RelativePath));
+                if (!removed)
                 {
-                    try
-                    {
-                        var removed = JsonWriterService.DeleteTextureVariation(ViewModel.PackRootPath, payload.Alias, payload.RelativePath);
-                        if (!removed)
-                        {
-                            _ipcBridge.PushError("Delete Variation", $"No matching variation entry found for '{payload.Alias}'.", "warning");
-                        }
-                        await ViewModel.RescanAsync();
-                    }
-                    catch (Exception ex)
-                    {
-                        _ipcBridge.PushError("Delete Variation", $"Failed to delete variation: {ex.Message}", "warning");
-                    }
+                    _ipcBridge.PushError("Delete Variation", $"No matching variation entry found for '{payload.Alias}'.", "warning");
                 }
-            });
+                await Dispatcher.InvokeAsync(async () => await ViewModel.RescanScopedAsync(TextureCategory.Block));
+            }
+            catch (Exception ex)
+            {
+                _ipcBridge.PushError("Delete Variation", $"Failed to delete variation: {ex.Message}", "warning");
+            }
         });
 
         // 4d. TEXTURE:DROP_IMPORT
@@ -778,7 +772,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
                 if (payload != null && ViewModel.PackRootPath != null)
                 {
                     JsonWriterService.AddPlainBlock(ViewModel.PackRootPath, payload.AliasName, payload.BlockId);
-                    await ViewModel.RescanAsync();
+                    await ViewModel.RescanScopedAsync(TextureCategory.Block);
                 }
             });
         });
@@ -791,7 +785,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
                 if (payload != null && ViewModel.PackRootPath != null)
                 {
                     JsonWriterService.AddPerFaceBlock(ViewModel.PackRootPath, payload.AliasName, payload.BlockId);
-                    await ViewModel.RescanAsync();
+                    await ViewModel.RescanScopedAsync(TextureCategory.Block);
                 }
             });
         });
@@ -804,7 +798,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
                 if (payload != null && ViewModel.PackRootPath != null)
                 {
                     JsonWriterService.AddFlipbookBlock(ViewModel.PackRootPath, payload.AliasName, payload.BlockId, payload.TicksPerFrame ?? 10);
-                    await ViewModel.RescanAsync();
+                    await ViewModel.RescanScopedAsync(TextureCategory.Block);
                 }
             });
         });
@@ -812,18 +806,15 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         // 7b. SCAFFOLD:TEXTURE_VARIATION
         _ipcBridge.RegisterHandler<ScaffoldTextureVariationPayload>(IpcMessageTypes.ScaffoldTextureVariation, async (payload, corrId) =>
         {
-            await Dispatcher.InvokeAsync(async () =>
+            if (payload == null || string.IsNullOrWhiteSpace(payload.Alias)) return;
+            var packRoot = await Dispatcher.InvokeAsync(() => ViewModel.PackRootPath);
+            if (packRoot == null) return;
+            var newPath = await Task.Run(() => JsonWriterService.AddTextureVariation(packRoot, payload.Alias, payload.BlockVariantIndex, payload.RelativePath));
+            if (newPath == null)
             {
-                if (payload != null && ViewModel.PackRootPath != null && !string.IsNullOrWhiteSpace(payload.Alias))
-                {
-                    var newPath = JsonWriterService.AddTextureVariation(ViewModel.PackRootPath, payload.Alias, payload.BlockVariantIndex, payload.RelativePath);
-                    if (newPath == null)
-                    {
-                        _ipcBridge.PushError("Variation Not Added", $"Alias '{payload.Alias}' has an unrecognized terrain_texture.json shape.", "warning");
-                    }
-                    await ViewModel.RescanAsync();
-                }
-            });
+                _ipcBridge.PushError("Variation Not Added", $"Alias '{payload.Alias}' has an unrecognized terrain_texture.json shape.", "warning");
+            }
+            await Dispatcher.InvokeAsync(async () => await ViewModel.RescanScopedAsync(TextureCategory.Block));
         });
 
         // 8. ORPHAN:REGISTER
@@ -835,7 +826,8 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
                     ? payload.Alias
                     : Path.GetFileNameWithoutExtension(payload.RelativePath);
 
-                if (string.Equals(payload.Category, "item", StringComparison.OrdinalIgnoreCase))
+                var isItem = string.Equals(payload.Category, "item", StringComparison.OrdinalIgnoreCase);
+                if (isItem)
                 {
                     JsonWriterService.RegisterItemOrphan(ViewModel.PackRootPath, alias, payload.RelativePath);
                 }
@@ -843,7 +835,8 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
                 {
                     JsonWriterService.RegisterOrphan(ViewModel.PackRootPath, alias, payload.RelativePath);
                 }
-                await Dispatcher.InvokeAsync(async () => await ViewModel.RescanAsync());
+                var cat = isItem ? TextureCategory.Item : TextureCategory.Block;
+                await Dispatcher.InvokeAsync(async () => await ViewModel.RescanScopedAsync(cat));
             }
         });
 
@@ -899,49 +892,55 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         // 12. VANILLA:ADD (Catalog Drawer -> scaffolds JSON schema definitions into pack; creates GHOSTS without needing PNGs or downloads)
         _ipcBridge.RegisterHandler<VanillaAddPayload>(IpcMessageTypes.VanillaAdd, async (payload, corrId) =>
         {
-            await Dispatcher.InvokeAsync(async () =>
+            if (payload == null) return;
+            var packRoot = await Dispatcher.InvokeAsync(() => ViewModel.PackRootPath);
+            if (packRoot == null) return;
+            var vData = await Dispatcher.InvokeAsync(() => ViewModel.VanillaData);
+            if (vData != null)
             {
-                if (payload != null && ViewModel.PackRootPath != null)
+                await Task.Run(() =>
                 {
-                    if (ViewModel.VanillaData != null)
+                    if (string.Equals(payload.Category, "entity", StringComparison.OrdinalIgnoreCase))
                     {
-                        if (string.Equals(payload.Category, "entity", StringComparison.OrdinalIgnoreCase))
+                        JsonWriterService.AddVanillaEntity(packRoot, payload.Id, vData);
+                    }
+                    else if (string.Equals(payload.Category, "item", StringComparison.OrdinalIgnoreCase))
+                    {
+                        JsonWriterService.AddVanillaItem(packRoot, payload.Id, vData);
+                    }
+                    else
+                    {
+                        // Explicit alias intent from catalog (e.g. glowing_obsidian alias vs glowingobsidian block)
+                        // fixes: alias "obsidian" equals blockId "obsidian" — must not add blocks.json when only terrain was requested
+                        if (!string.IsNullOrEmpty(payload.Alias))
                         {
-                            JsonWriterService.AddVanillaEntity(ViewModel.PackRootPath, payload.Id, ViewModel.VanillaData);
+                            JsonWriterService.AddVanillaBlockAlias(packRoot, payload.Alias, vData);
                         }
-                        else if (string.Equals(payload.Category, "item", StringComparison.OrdinalIgnoreCase))
+                        else if (vData.RawBlocksJson.ContainsKey(payload.Id))
                         {
-                            JsonWriterService.AddVanillaItem(ViewModel.PackRootPath, payload.Id, ViewModel.VanillaData);
+                            JsonWriterService.AddVanillaBlock(packRoot, payload.Id, vData);
+                        }
+                        else if (vData.RawTerrainTextureJson.ContainsKey(payload.Id))
+                        {
+                            // It's a specific alias (e.g. "door_upper" or "door_lower")
+                            JsonWriterService.AddVanillaBlockAlias(packRoot, payload.Id, vData);
                         }
                         else
                         {
-                            // Explicit alias intent from catalog (e.g. glowing_obsidian alias vs glowingobsidian block)
-                            // fixes: alias "obsidian" equals blockId "obsidian" — must not add blocks.json when only terrain was requested
-                            if (!string.IsNullOrEmpty(payload.Alias))
-                            {
-                                JsonWriterService.AddVanillaBlockAlias(ViewModel.PackRootPath, payload.Alias, ViewModel.VanillaData);
-                            }
-                            else if (ViewModel.VanillaData.RawBlocksJson.ContainsKey(payload.Id))
-                            {
-                                JsonWriterService.AddVanillaBlock(ViewModel.PackRootPath, payload.Id, ViewModel.VanillaData);
-                            }
-                            else if (ViewModel.VanillaData.RawTerrainTextureJson.ContainsKey(payload.Id))
-                            {
-                                // It's a specific alias (e.g. "door_upper" or "door_lower")
-                                JsonWriterService.AddVanillaBlockAlias(ViewModel.PackRootPath, payload.Id, ViewModel.VanillaData);
-                            }
-                            else
-                            {
-                                // Fallback
-                                JsonWriterService.AddVanillaBlock(ViewModel.PackRootPath, payload.Id, ViewModel.VanillaData);
-                            }
+                            // Fallback
+                            JsonWriterService.AddVanillaBlock(packRoot, payload.Id, vData);
                         }
                     }
+                });
+            }
 
-                    // Scaffolding JSON entries creates GHOSTS in the pack without needing PNG files or downloads
-                    await ViewModel.RescanAsync();
-                }
-            });
+            // Scaffolding JSON entries creates GHOSTS in the pack without needing PNG files or downloads
+            var cat = string.Equals(payload.Category, "entity", StringComparison.OrdinalIgnoreCase)
+                ? TextureCategory.Entity
+                : string.Equals(payload.Category, "item", StringComparison.OrdinalIgnoreCase)
+                    ? TextureCategory.Item
+                    : TextureCategory.Block;
+            await Dispatcher.InvokeAsync(async () => await ViewModel.RescanScopedAsync(cat));
         });
 
         // 12b. TEXTURE:EXTRACT_REFERENCE (Ghost Morph Tile -> copies authentic reference PNG into pack)
@@ -1527,7 +1526,15 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
             Dispatcher.Invoke(() =>
             {
                 _ipcBridge?.SetPackVirtualHost(ViewModel.PackRootPath);
-                _ipcBridge?.PushPackState(CreatePackStatePayload());
+                _ipcBridge?.PushPackState(CreatePackStatePayload(includeAllTrees: true));
+            });
+        };
+
+        ViewModel.PackStateScopedChanged += (category) =>
+        {
+            Dispatcher.Invoke(() =>
+            {
+                _ipcBridge?.PushPackState(CreatePackStatePayload(includeAllTrees: false, categoryScope: category));
             });
         };
 
@@ -1563,9 +1570,9 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         };
     }
 
-    private PackStatePayload CreatePackStatePayload()
+    private PackStatePayload CreatePackStatePayload(bool includeAllTrees = true, TextureCategory? categoryScope = null)
     {
-        var refProfiles = CatalogReferenceService.GetAllProfiles().Select(p => new ReferencePackProfileDto(
+        var refProfiles = includeAllTrees ? CatalogReferenceService.GetAllProfiles().Select(p => new ReferencePackProfileDto(
             Id: p.Id,
             Name: p.Name,
             Version: p.Version,
@@ -1573,7 +1580,10 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
             PackPath: p.PackPath,
             IconUrl: p.IconUrl,
             IsVanilla: p.IsVanilla
-        )).ToList();
+        )).ToList() : null;
+
+        bool includeBlocks = includeAllTrees || categoryScope == null || categoryScope == TextureCategory.Block;
+        bool includeEntities = includeAllTrees || categoryScope == null || categoryScope == TextureCategory.Entity;
 
         return new PackStatePayload(
             PackRoot: ViewModel.PackRootPath,
@@ -1583,14 +1593,14 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
             PackIconUrl: ViewModel.HasPackIcon ? IpcContractMapper.BuildVirtualTextureUrl("pack_icon.png", ViewModel.PackIconPath, ViewModel.PackRootPath) : null,
             Manifest: ViewModel.CurrentManifest?.ToDto(),
             Aliases: ViewModel.Aliases.Select(a => a.ToDto(ViewModel.PackRootPath)).ToList(),
-            BlockWorkspaceTree: ViewModel.BlockWorkspaceTree.Select(b => b.ToDto(ViewModel.PackRootPath)).ToList(),
-            PackFolders: ViewModel.PackFolders.Select(f => f.ToDto()).ToList(),
-            RecentPacks: ViewModel.RecentPacks.Select(r => r.ToDto(ViewModel.PackRootPath)).ToList(),
+            BlockWorkspaceTree: includeBlocks ? ViewModel.BlockWorkspaceTree.Select(b => b.ToDto(ViewModel.PackRootPath)).ToList() : null,
+            PackFolders: includeAllTrees ? ViewModel.PackFolders.Select(f => f.ToDto()).ToList() : null,
+            RecentPacks: includeAllTrees ? ViewModel.RecentPacks.Select(r => r.ToDto(ViewModel.PackRootPath)).ToList() : null,
             Stats: ViewModel.ExtractStats(),
-            CatalogTree: ViewModel.CatalogTree.Select(c => c.ToDto(ViewModel.PackRootPath)).ToList(),
+            CatalogTree: includeAllTrees ? ViewModel.CatalogTree.Select(c => c.ToDto(ViewModel.PackRootPath)).ToList() : null,
             ReferencePacks: refProfiles,
             ActiveReferenceId: CatalogReferenceService.ActiveReferenceId,
-            EntityWorkspaceTree: ViewModel.EntityWorkspaceTree.Select(e => e.ToDto(ViewModel.PackRootPath)).ToList(),
+            EntityWorkspaceTree: includeEntities ? ViewModel.EntityWorkspaceTree.Select(e => e.ToDto(ViewModel.PackRootPath)).ToList() : null,
             HasVanillaAssets: CatalogReferenceService.Has3DModelsInstalled()
         );
     }

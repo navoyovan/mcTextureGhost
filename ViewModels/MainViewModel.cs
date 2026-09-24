@@ -25,6 +25,7 @@ public enum TextureTab { All, Blocks, Items, Entities }
 public class MainViewModel : INotifyPropertyChanged
 {
     public event Action? PackStateChanged;
+    public event Action<TextureCategory>? PackStateScopedChanged;
     public event Action<TextureAlias>? TextureUpdated;
     public event Action<string, int, int, string>? ScanProgressChanged;
 
@@ -1307,6 +1308,26 @@ public class MainViewModel : INotifyPropertyChanged
         PackStateChanged?.Invoke();
     }
 
+    private void NotifyPackStateScoped(TextureCategory category)
+    {
+        OnPropertyChanged(nameof(TotalGhostCount));
+        OnPropertyChanged(nameof(TotalAddedCount));
+        OnPropertyChanged(nameof(TotalOrphanCount));
+        OnPropertyChanged(nameof(TotalAliasCount));
+        OnPropertyChanged(nameof(AllGhostCount));
+        OnPropertyChanged(nameof(AllAliasCount));
+        OnPropertyChanged(nameof(BlocksGhostCount));
+        OnPropertyChanged(nameof(ItemsGhostCount));
+        OnPropertyChanged(nameof(BlocksTotalCount));
+        OnPropertyChanged(nameof(ItemsTotalCount));
+        OnPropertyChanged(nameof(FilterStatusLabel));
+        OnPropertyChanged(nameof(IsFilterActive));
+        OnPropertyChanged(nameof(ShowCreatePanel));
+        OnPropertyChanged(nameof(WindowTitle));
+        FilteredAliases.Refresh();
+        PackStateScopedChanged?.Invoke(category);
+    }
+
     public async void Rescan(bool isInitialLoad = false)
     {
         await RescanAsync(isInitialLoad);
@@ -1414,6 +1435,77 @@ public class MainViewModel : INotifyPropertyChanged
                 {
                     ScanProgressChanged?.Invoke("scan_done", 5, 5, "Pack ready");
                 }
+                IsScanning = false;
+            }
+        }
+        finally
+        {
+            _rescanGate.Release();
+        }
+    }
+
+    /// <summary>
+    /// Performs a scoped rescan of the pack when a single category (Block, Item, Entity)
+    /// was mutated. Avoids rebuilding unaffected workspace trees, catalog trees, and folder structures.
+    /// </summary>
+    public async Task RescanScopedAsync(TextureCategory category)
+    {
+        if (_packRoot is null) return;
+
+        await _rescanGate.WaitAsync();
+
+        try
+        {
+            IsScanning = true;
+            StatusMessage = $"Updating {category.ToString().ToLowerInvariant()} textures...";
+
+            ImagePathConverter.ClearCache();
+            FlipbookAnimationManager.ClearCache();
+
+            var packRoot = _packRoot;
+
+            try
+            {
+                var results = await Task.Run(() => PackScanner.Scan(packRoot, _vanillaData));
+
+                Aliases.Clear();
+                foreach (var alias in results)
+                    Aliases.Add(alias);
+                ApplySearchFilter();
+
+                if (_vanillaData != null)
+                {
+                    if (category == TextureCategory.Block)
+                    {
+                        var ws = await Task.Run(() => PackScanner.BuildBlockWorkspaceTree(results, _vanillaData, packRoot));
+                        BlockWorkspaceTree.Clear();
+                        foreach (var node in ws)
+                            BlockWorkspaceTree.Add(node);
+                    }
+                    else if (category == TextureCategory.Entity)
+                    {
+                        var ent = await Task.Run(() => PackScanner.BuildEntityWorkspaceTree(results, _vanillaData, packRoot));
+                        EntityWorkspaceTree.Clear();
+                        foreach (var node in ent)
+                            EntityWorkspaceTree.Add(node);
+                    }
+                }
+
+                var blockCount = results.Count(a => a.Category == TextureCategory.Block);
+                var itemCount = results.Count(a => a.Category == TextureCategory.Item);
+                var ghostCount = results.Count(a => a.Status == TextureStatus.Ghost);
+                var orphanCount = results.Count(a => a.Status == TextureStatus.Orphan);
+                StatusMessage = orphanCount > 0
+                    ? $"{results.Count} textures found ({blockCount} blocks, {itemCount} items • {ghostCount} ghosts, {orphanCount} orphans)."
+                    : $"{results.Count} textures found ({blockCount} blocks, {itemCount} items • {ghostCount} ghosts).";
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = $"Scoped scan failed: {ex.Message}";
+            }
+            finally
+            {
+                NotifyPackStateScoped(category);
                 IsScanning = false;
             }
         }

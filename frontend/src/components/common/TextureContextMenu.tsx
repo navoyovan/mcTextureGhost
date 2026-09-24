@@ -469,6 +469,13 @@ export const TextureContextMenu: React.FC<TextureContextMenuProps> = ({
               <Shuffle size={13} className={styles.menuIcon} />
               <span className={styles.menuLabel}>Add variation</span>
               <div className={styles.varStepper}>
+                <button
+                  type="button"
+                  className={styles.varStepBtn}
+                  onClick={(e) => { e.stopPropagation(); setVarCount((n) => Math.max(1, n - 1)); }}
+                  tabIndex={-1}
+                  title="Decrease count"
+                >−</button>
                 <input
                   type="number"
                   className={styles.varCountInput}
@@ -485,22 +492,13 @@ export const TextureContextMenu: React.FC<TextureContextMenuProps> = ({
                     }
                   }}
                 />
-                <div className={styles.varStepBtns}>
-                  <button
-                    type="button"
-                    className={styles.varStepBtn}
-                    onClick={(e) => { e.stopPropagation(); setVarCount((n) => Math.max(1, n - 1)); }}
-                    tabIndex={-1}
-                    title="Decrease count"
-                  >−</button>
-                  <button
-                    type="button"
-                    className={styles.varStepBtn}
-                    onClick={(e) => { e.stopPropagation(); setVarCount((n) => Math.min(16, n + 1)); }}
-                    tabIndex={-1}
-                    title="Increase count"
-                  >+</button>
-                </div>
+                <button
+                  type="button"
+                  className={styles.varStepBtn}
+                  onClick={(e) => { e.stopPropagation(); setVarCount((n) => Math.min(16, n + 1)); }}
+                  tabIndex={-1}
+                  title="Increase count"
+                >+</button>
               </div>
               <button
                 type="button"

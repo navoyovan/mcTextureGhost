@@ -45,7 +45,7 @@
   transform: translateY(-2px);
   background: #202026;
   border-color: rgba(255, 255, 255, 0.25);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35), 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
 .tileCardExiting {
@@ -92,6 +92,24 @@
   image-rendering: pixelated;
   border-radius: 0;
   animation: textureMorphEnter 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.tileThumbnailDeleting {
+  animation: tileThumbnailDeleteExit 0.16s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+  pointer-events: none;
+}
+
+@keyframes tileThumbnailDeleteExit {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+    filter: brightness(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.75);
+    filter: brightness(0.6);
+  }
 }
 
 .placeholderGhost {

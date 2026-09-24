@@ -341,6 +341,7 @@ export interface AliasGroupNodeDto {
   notAddedCount: number;
   geometryId?: string | null;
   isAttachable?: boolean;
+  isUserDefined?: boolean;
 }
 
 export interface BlockGroupNodeDto {
@@ -422,11 +423,11 @@ export interface PackStatePayload {
   hasPackIcon: boolean;
   packIconUrl: string | null;
   manifest: ManifestModelDto | null;
-  aliases: TextureAliasDto[];
-  blockWorkspaceTree: BlockGroupNodeDto[];
-  packFolders: PackFolderItemDto[];
-  recentPacks: RecentPackItemDto[];
-  stats: PackStatsDto;
+  aliases?: TextureAliasDto[];
+  blockWorkspaceTree?: BlockGroupNodeDto[] | null;
+  packFolders?: PackFolderItemDto[] | null;
+  recentPacks?: RecentPackItemDto[] | null;
+  stats?: PackStatsDto;
   catalogTree?: BlockGroupNodeDto[] | null;
   referencePacks?: ReferencePackProfile[] | null;
   activeReferenceId?: string | null;

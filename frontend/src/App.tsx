@@ -64,6 +64,16 @@ export const App: React.FC = () => {
       } else if (e.key === 'Escape' && isComponentLibraryOpen) {
         e.preventDefault();
         setIsComponentLibraryOpen(false);
+      } else if (e.key.toLowerCase() === 'c' && !e.ctrlKey && !e.altKey && !e.metaKey) {
+        const target = e.target as HTMLElement;
+        const isInputField =
+          target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.isContentEditable;
+        if (!isInputField) {
+          e.preventDefault();
+          usePackStore.getState().toggleCatalog();
+        }
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b') {
         const target = e.target as HTMLElement;
         const isInputField =

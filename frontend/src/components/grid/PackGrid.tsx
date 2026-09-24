@@ -14,6 +14,7 @@ interface PackGridTileProps {
   alias: TextureAliasDto;
   uniqueKey: string;
   isExiting?: boolean;
+  isDeletingTexture?: boolean;
   onTileClick: (domEl: HTMLElement, alias: TextureAliasDto, key: string) => void;
   onContextMenu: (e: React.MouseEvent, alias: TextureAliasDto, key: string) => void;
 }
@@ -37,6 +38,7 @@ const PackGridTile = React.memo<PackGridTileProps>(({
   alias,
   uniqueKey,
   isExiting,
+  isDeletingTexture,
   onTileClick,
   onContextMenu,
 }) => {
@@ -68,19 +70,20 @@ const PackGridTile = React.memo<PackGridTileProps>(({
   // Process dropped file to base64 and dispatch IPC
   const processImport = useCallback(
     (file: File) => {
+      const targetFullPath =
+        alias.fullPath ||
+        (packRoot && alias.relativePath
+          ? `${packRoot.replace(/[/\\]+$/, '')}\\textures\\${alias.relativePath.replace(/^[/\\]+/, '')}`
+          : '');
+      if (!targetFullPath) return;
+      // optimistic BEFORE file read — instant tile flip
+      const previewUrl = URL.createObjectURL(file);
+      packStoreActions.updateTexture(alias.alias, 'OK', targetFullPath, previewUrl, alias.relativePath);
+
       const reader = new FileReader();
       reader.onload = () => {
         const base64Data = reader.result as string;
         if (!base64Data) return;
-
-        const targetFullPath =
-          alias.fullPath ||
-          (packRoot && alias.relativePath
-            ? `${packRoot.replace(/[/\\]+$/, '')}\\textures\\${alias.relativePath.replace(/^[/\\]+/, '')}`
-            : '');
-
-        if (!targetFullPath) return;
-
         dropImportTexture({
           aliasKey: alias.alias,
           fullPath: targetFullPath,
@@ -98,6 +101,7 @@ const PackGridTile = React.memo<PackGridTileProps>(({
   // Process copying texture from another tile
   const executeTileCopy = useCallback(
     (sourceData: TileDragData, targetFullPath: string) => {
+      packStoreActions.updateTexture(alias.alias, 'OK', targetFullPath, sourceData.imageUrl || null, alias.relativePath);
       if (sourceData.fullPath) {
         copyTextureFile({
           sourceFullPath: sourceData.fullPath,
@@ -336,13 +340,13 @@ const PackGridTile = React.memo<PackGridTileProps>(({
             }
             alt={alias.alias}
             aliasKey={alias.alias}
-            className={styles.tileThumbnail}
+            className={`${styles.tileThumbnail} ${isDeletingTexture ? styles.tileThumbnailDeleting : ''}`}
             isFlipbook={alias.isFlipbook || Boolean(alias.hasAtlas)}
             flipbook={alias.flipbook}
             loading="lazy"
           />
         ) : (
-          <span className={styles.placeholderGhost}>?</span>
+          <span key="ghost" className={styles.placeholderGhost}>?</span>
         )}
       </div>
 
@@ -430,6 +434,8 @@ export const PackGrid: React.FC = () => {
 
   // Set of tile keys currently playing their exit shrink animation
   const [exitingTileKeys, setExitingTileKeys] = useState<Set<string>>(new Set());
+  // Set of tile keys currently playing their texture deletion morph animation
+  const [deletingTextureKeys, setDeletingTextureKeys] = useState<Set<string>>(new Set());
 
   // Morphing Portal target (opened on tile click)
   const [hoverMorphTarget, setHoverMorphTarget] = useState<TileHoverMorphTarget | null>(null);
@@ -561,6 +567,7 @@ export const PackGrid: React.FC = () => {
           {filteredAliases.map((alias, index) => {
             const uniqueKey = `${alias.category}:${alias.alias}:${alias.relativePath || ''}:${alias.textureVariantIndex ?? ''}:${alias.blockVariantIndex ?? ''}:${index}`;
             const isExiting = exitingTileKeys.has(uniqueKey) || exitingTileKeys.has(alias.alias);
+            const isDeletingTexture = deletingTextureKeys.has(uniqueKey) || deletingTextureKeys.has(alias.alias);
 
             return (
               <PackGridTile
@@ -568,6 +575,7 @@ export const PackGrid: React.FC = () => {
                 alias={alias}
                 uniqueKey={uniqueKey}
                 isExiting={isExiting}
+                isDeletingTexture={isDeletingTexture}
                 onTileClick={handleTileClick}
                 onContextMenu={handleContextMenu}
               />
@@ -600,8 +608,19 @@ export const PackGrid: React.FC = () => {
             if (contextMenuTarget.alias.fullPath) {
               const fullPath = contextMenuTarget.alias.fullPath;
               const aliasKey = contextMenuTarget.alias.alias;
-              packStoreActions.optimisticDeleteTexture(fullPath, aliasKey);
-              deleteTextureFile(fullPath, aliasKey);
+              const targetKey = contextMenuTarget.key;
+
+              setDeletingTextureKeys((prev) => new Set(prev).add(targetKey).add(aliasKey));
+              setTimeout(() => {
+                packStoreActions.optimisticDeleteTexture(fullPath, aliasKey);
+                deleteTextureFile(fullPath, aliasKey);
+                setDeletingTextureKeys((prev) => {
+                  const next = new Set(prev);
+                  next.delete(targetKey);
+                  next.delete(aliasKey);
+                  return next;
+                });
+              }, 160);
             }
           }}
           onDeleteEntries={() => {
@@ -611,17 +630,30 @@ export const PackGrid: React.FC = () => {
             const relPath = contextMenuTarget.alias.relativePath;
             const targetKey = contextMenuTarget.key;
 
-            setExitingTileKeys((prev) => new Set(prev).add(targetKey).add(aliasKey));
-            setTimeout(() => {
+            const hasPhysicalTexture = Boolean(
+              contextMenuTarget.alias.fullPath ||
+              contextMenuTarget.alias.status === 'OK' ||
+              contextMenuTarget.alias.exists
+            );
+
+            if (!hasPhysicalTexture) {
+              // Pure ghost entry — card will actually vanish from pack, play exit shrink animation
+              setExitingTileKeys((prev) => new Set(prev).add(targetKey).add(aliasKey));
+              setTimeout(() => {
+                packStoreActions.optimisticDeleteEntries(aliasKey, category, relPath);
+                deleteTextureEntries(aliasKey, category, relPath);
+                setExitingTileKeys((prev) => {
+                  const next = new Set(prev);
+                  next.delete(targetKey);
+                  next.delete(aliasKey);
+                  return next;
+                });
+              }, 180);
+            } else {
+              // Physical file exists on disk — card morphs in-place to ORPHAN, no shrink/exit animation!
               packStoreActions.optimisticDeleteEntries(aliasKey, category, relPath);
               deleteTextureEntries(aliasKey, category, relPath);
-              setExitingTileKeys((prev) => {
-                const next = new Set(prev);
-                next.delete(targetKey);
-                next.delete(aliasKey);
-                return next;
-              });
-            }, 180);
+            }
           }}
           onEditMers={() => {
             setHoverMorphTarget(null);

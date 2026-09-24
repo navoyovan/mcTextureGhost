@@ -205,6 +205,43 @@
   gap: 8px;
 }
 
+.toggle3DBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  padding: 0 9px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+  color: #a1a1aa;
+  font-family: var(--font-brand, 'Syne', sans-serif);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.toggle3DBtn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.22);
+  color: #f4f4f5;
+}
+
+.toggle3DBtnActive {
+  background: rgba(140, 235, 31, 0.12);
+  border-color: rgba(140, 235, 31, 0.4);
+  color: var(--accent-primary, #8CEB1F);
+}
+
+.toggle3DBtnActive:hover {
+  background: rgba(140, 235, 31, 0.18);
+  border-color: rgba(140, 235, 31, 0.6);
+  color: #a3f740;
+}
+
 .deleteEntityBtn {
   display: inline-flex;
   align-items: center;
@@ -247,6 +284,135 @@
   color: var(--text-muted, #71717a);
 }
 
+/* 3D Preview Collapsible Card Container */
+.previewTreeContainer {
+  background: #141418;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  height: 382px;
+  min-height: 382px;
+  max-height: 382px;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  font-family: var(--font-mono, monospace);
+  user-select: none;
+  position: relative;
+  transition: height 0.26s cubic-bezier(0.16, 1, 0.3, 1), min-height 0.26s cubic-bezier(0.16, 1, 0.3, 1), max-height 0.26s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.15s ease;
+}
+
+.previewTreeContainerCollapsed {
+  height: 38px !important;
+  min-height: 38px !important;
+  max-height: 38px !important;
+  flex-shrink: 0;
+}
+
+.previewTreeContainerCollapsed .previewTreeHeader {
+  border-bottom: none;
+  height: 36px;
+}
+
+.previewTreeHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 14px;
+  height: 38px;
+  min-height: 38px;
+  background: rgba(255, 255, 255, 0.03);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  flex-shrink: 0;
+  cursor: pointer;
+  box-sizing: border-box;
+  transition: background 0.15s ease;
+}
+
+.previewTreeHeader:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.previewTreeHeaderLeft {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.previewTreeHeaderTitle {
+  font-family: var(--font-brand, 'Syne', sans-serif);
+  font-size: 11px;
+  font-weight: 700;
+  color: #e4e4e7;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.previewTreeHeaderActions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.previewTreeToggleBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #d4d4d8;
+  font-size: 10px;
+  font-family: inherit;
+  padding: 3px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.previewTreeToggleBtn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.previewTreeToggleChevron {
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.previewTreeToggleChevronExpanded {
+  transform: rotate(180deg);
+}
+
+.previewTreeContentWrapper {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows 0.26s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease;
+  opacity: 1;
+  overflow: hidden;
+  flex: 1;
+  min-height: 0;
+}
+
+.previewTreeContentWrapperCollapsed {
+  grid-template-rows: 0fr;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.previewTreeContentInner {
+  min-height: 0;
+  height: 340px;
+  overflow: hidden;
+}
+
+.previewTreeContentInner :global(.viewerContainer),
+.previewTreeContentInner div[class*="viewerContainer"] {
+  border: none !important;
+  border-radius: 0 !important;
+  height: 100% !important;
+}
+
 .previewSection {
   width: 100%;
 }
@@ -265,6 +431,11 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+.aliasGroupCardFallback {
+  background: transparent;
+  border-color: rgba(255, 255, 255, 0.04);
 }
 
 .aliasHeader {
@@ -323,7 +494,8 @@
   display: flex;
   gap: 10px;
   overflow-x: auto;
-  padding: 4px 2px 8px 2px;
+  padding: 6px 6px 12px 6px;
+  margin: -2px -4px -4px -4px;
 }
 
 .leafCard {
@@ -351,7 +523,7 @@
   transform: translateY(-2px);
   background: #202026;
   border-color: rgba(255, 255, 255, 0.25);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35), 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
 .leafCardExiting {
@@ -610,6 +782,24 @@
     opacity: 1;
     transform: scale(1);
     filter: brightness(1);
+  }
+}
+
+.leafThumbDeleting {
+  animation: leafThumbDeleteExit 0.16s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+  pointer-events: none;
+}
+
+@keyframes leafThumbDeleteExit {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+    filter: brightness(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.75);
+    filter: brightness(0.6);
   }
 }
 

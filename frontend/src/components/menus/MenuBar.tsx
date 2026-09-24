@@ -55,8 +55,6 @@ export const MenuBar: React.FC = () => {
   const setTileZoom = usePackStore((s) => s.setTileZoom);
   const simulateNoAssets = usePackStore((s) => s.simulateNoAssets);
   const setSimulateNoAssets = usePackStore((s) => s.setSimulateNoAssets);
-  const disable3DView = usePackStore((s) => s.disable3DView);
-  const setDisable3DView = usePackStore((s) => s.setDisable3DView);
 
   const isPackLoaded = Boolean(packRoot);
   const zoomPresets = [
@@ -197,15 +195,6 @@ export const MenuBar: React.FC = () => {
             <Square size={13} />
           ),
           action: () => setSimulateNoAssets(!simulateNoAssets),
-        },
-        {
-          label: 'Disable 3D view',
-          icon: disable3DView ? (
-            <CheckSquare size={13} style={{ color: 'var(--accent-primary, #8CEB1F)' }} />
-          ) : (
-            <Square size={13} />
-          ),
-          action: () => setDisable3DView(!disable3DView),
         },
       ],
     },

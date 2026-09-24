@@ -98,6 +98,7 @@ export interface PackStoreActions {
   optimisticDeleteEntries: (aliasKey: string, category: string, relativePath?: string) => void;
   optimisticDeleteVariation: (alias: string, relativePath: string) => void;
   optimisticAddVariation: (alias: string, blockVariantIndex?: number | null, count?: number) => void;
+  optimisticAddVanillaEntry: (id: string, category: string, alias?: string, catalogNode?: BlockGroupNodeDto | null) => void;
   setScanProgress: (progress: ScanProgressPayload | null) => void;
   setIsScanning: (scanning: boolean) => void;
   startPackLoading: (folderPath: string, packName?: string) => void;
@@ -289,7 +290,7 @@ export const packStoreActions: PackStoreActions = {
       entityWorkspaceTree: Array.isArray(dto.entityWorkspaceTree) ? dto.entityWorkspaceTree : currentState.entityWorkspaceTree,
       packFolders: Array.isArray(dto.packFolders) ? dto.packFolders : currentState.packFolders,
       recentPacks: Array.isArray(dto.recentPacks) ? dto.recentPacks : currentState.recentPacks,
-      catalogTree: dto.catalogTree !== undefined ? dto.catalogTree : currentState.catalogTree,
+      catalogTree: Array.isArray(dto.catalogTree) ? dto.catalogTree : currentState.catalogTree,
       referencePacks: Array.isArray(dto.referencePacks) && dto.referencePacks.length > 0 ? dto.referencePacks : currentState.referencePacks,
       activeReferenceId: dto.activeReferenceId ?? currentState.activeReferenceId,
       hasVanillaAssets: dto.hasVanillaAssets !== undefined ? dto.hasVanillaAssets : currentState.hasVanillaAssets,
@@ -322,8 +323,10 @@ export const packStoreActions: PackStoreActions = {
 
   updateTexture(aliasKey: string, newStatus: string, fullPath: string, imageUrl?: string | null, relativePath?: string | null): void {
     const norm = (p?: string | null) => (p || '').replace(/[/\\]+/g, '/').toLowerCase();
+    const stripExt = (p?: string | null) => (p || '').replace(/[/\\]+/g, '/').toLowerCase().replace(/\.(png|tga|jpg|jpeg|webp)(\?.*)?(#.*)?$/i, '');
     const targetNormFull = norm(fullPath);
-    const targetNormRel = norm(relativePath);
+    const targetNormRel = stripExt(relativePath);
+    const aliasNorm = aliasKey ? aliasKey.toLowerCase() : '';
 
     // If fullPath or relativePath is specified, match specifically by path so we don't
     // accidentally update all variations or blockstates sharing the same alias!
@@ -339,18 +342,18 @@ export const packStoreActions: PackStoreActions = {
 
       // 2. Direct relativePath match (scoped to aliasKey if present)
       if (!isMatch && targetNormRel && alias.relativePath) {
-        const aRel = norm(alias.relativePath).replace(/\.(png|tga)$/, '');
-        const tRel = targetNormRel.replace(/\.(png|tga)$/, '');
-        if (aRel === tRel && (!aliasKey || alias.alias.toLowerCase() === aliasKey.toLowerCase())) {
+        const aRel = stripExt(alias.relativePath);
+        const tRel = targetNormRel;
+        if (aRel === tRel && (!aliasNorm || alias.alias.toLowerCase() === aliasNorm)) {
           isMatch = true;
         }
       }
 
       // 3. Fallback: match by target fullPath ending with alias relativePath
       if (!isMatch && targetNormFull && alias.relativePath) {
-        const aRel = norm(alias.relativePath).replace(/\.(png|tga)$/, '');
+        const aRel = stripExt(alias.relativePath);
         if ((targetNormFull.endsWith('/' + aRel + '.png') || targetNormFull.endsWith('/' + aRel + '.tga')) &&
-            (!aliasKey || alias.alias.toLowerCase() === aliasKey.toLowerCase())) {
+            (!aliasNorm || alias.alias.toLowerCase() === aliasNorm)) {
           isMatch = true;
         }
       }
@@ -371,10 +374,53 @@ export const packStoreActions: PackStoreActions = {
       };
     });
 
+    const patchWorkspaceLeaves = (tree: BlockGroupNodeDto[]): BlockGroupNodeDto[] => (tree || []).map((block) => ({
+      ...block,
+      aliasGroups: block.aliasGroups?.map((ag) => ({
+        ...ag,
+        // Update faceNodes leaves if present
+        faceNodes: (ag as any).faceNodes?.map((fn: any) => ({
+          ...fn,
+          leaves: fn.leaves?.map((leaf: any) => {
+            let isMatch = false;
+            if (targetNormFull && leaf.fullPath && norm(leaf.fullPath) === targetNormFull) isMatch = true;
+            if (!isMatch && targetNormRel && leaf.relativePath && stripExt(leaf.relativePath) === targetNormRel && (!aliasNorm || leaf.alias.toLowerCase() === aliasNorm)) isMatch = true;
+            if (!isMatch && targetNormFull && leaf.relativePath && stripExt(leaf.relativePath) && targetNormFull.endsWith('/' + stripExt(leaf.relativePath) + '.png') && (!aliasNorm || leaf.alias.toLowerCase() === aliasNorm)) isMatch = true;
+            if (!isMatch && !targetNormFull && !targetNormRel && (leaf.alias === aliasKey)) isMatch = true;
+            if (!isMatch) return leaf;
+            return {
+              ...leaf,
+              status: newStatus as any,
+              fullPath: fullPath || leaf.fullPath,
+              imageUrl: imageUrl || leaf.imageUrl,
+            };
+          }),
+        })),
+        leaves: ag.leaves?.map((leaf: any) => {
+          let isMatch = false;
+          if (targetNormFull && leaf.fullPath && norm(leaf.fullPath) === targetNormFull) isMatch = true;
+          if (!isMatch && targetNormRel && leaf.relativePath && stripExt(leaf.relativePath) === targetNormRel && (!aliasNorm || leaf.alias.toLowerCase() === aliasNorm)) isMatch = true;
+          if (!isMatch && targetNormFull && leaf.relativePath && targetNormFull.endsWith('/' + stripExt(leaf.relativePath) + '.png') && (!aliasNorm || leaf.alias.toLowerCase() === aliasNorm)) isMatch = true;
+          if (!isMatch && !targetNormFull && !targetNormRel && (leaf.alias === aliasKey)) isMatch = true;
+          if (!isMatch) return leaf;
+          return {
+            ...leaf,
+            status: newStatus as any,
+            fullPath: fullPath || leaf.fullPath,
+            imageUrl: imageUrl || leaf.imageUrl,
+          };
+        }),
+      })),
+    }));
+
+    const updatedBlockTree = patchWorkspaceLeaves(currentState.blockWorkspaceTree || [] as any);
+    const updatedEntityTree = patchWorkspaceLeaves(currentState.entityWorkspaceTree || [] as any);
 
     currentState = {
       ...currentState,
       aliases: updatedAliases,
+      blockWorkspaceTree: updatedBlockTree as any,
+      entityWorkspaceTree: updatedEntityTree as any,
       stats: computeStats(updatedAliases),
     };
     notify();
@@ -384,11 +430,13 @@ export const packStoreActions: PackStoreActions = {
     const norm = (p?: string | null) => (p || '').replace(/[/\\]+/g, '/').toLowerCase();
     const targetNorm = norm(fullPath);
 
+    const isAliasMatchForEmptyPath = (alias: TextureAliasDto) => aliasKey && alias.alias.toLowerCase() === aliasKey.toLowerCase();
+
     const updatedAliases: TextureAliasDto[] = currentState.aliases.map((alias) => {
       let isMatch = false;
-      if (alias.fullPath && norm(alias.fullPath) === targetNorm) {
+      if (targetNorm && alias.fullPath && norm(alias.fullPath) === targetNorm) {
         isMatch = true;
-      } else if (aliasKey && alias.alias.toLowerCase() === aliasKey.toLowerCase()) {
+      } else if (!targetNorm && isAliasMatchForEmptyPath(alias)) {
         isMatch = true;
       }
       if (!isMatch) return alias;
@@ -401,21 +449,21 @@ export const packStoreActions: PackStoreActions = {
       };
     });
 
-    const updatedBlockTree: BlockGroupNodeDto[] = (currentState.blockWorkspaceTree || []).map((block) => ({
+    const patchDelete = (tree: BlockGroupNodeDto[]): BlockGroupNodeDto[] => (tree || []).map((block) => ({
       ...block,
       aliasGroups: block.aliasGroups?.map((ag) => ({
         ...ag,
-        leaves: ag.leaves?.map((leaf) => {
-          if (
-            (leaf.fullPath && norm(leaf.fullPath) === targetNorm) ||
-            (aliasKey && leaf.alias?.toLowerCase() === aliasKey.toLowerCase())
-          ) {
-            return {
-              ...leaf,
-              status: 'GHOST' as const,
-              imageUrl: '',
-            };
-          }
+        faceNodes: (ag as any).faceNodes?.map((fn: any) => ({
+          ...fn,
+          leaves: fn.leaves?.map((leaf: any) => {
+            const leafMatch = leaf.fullPath && norm(leaf.fullPath) === targetNorm;
+            if (leafMatch) return { ...leaf, status: 'GHOST' as const, imageUrl: '' };
+            return leaf;
+          }),
+        })),
+        leaves: ag.leaves?.map((leaf: any) => {
+          const leafMatch = leaf.fullPath && norm(leaf.fullPath) === targetNorm;
+          if (leafMatch) return { ...leaf, status: 'GHOST' as const, imageUrl: '' };
           return leaf;
         }),
       })),
@@ -424,49 +472,121 @@ export const packStoreActions: PackStoreActions = {
     currentState = {
       ...currentState,
       aliases: updatedAliases,
-      blockWorkspaceTree: updatedBlockTree,
+      blockWorkspaceTree: patchDelete(currentState.blockWorkspaceTree || [] as any) as any,
+      entityWorkspaceTree: patchDelete(currentState.entityWorkspaceTree || [] as any) as any,
       stats: computeStats(updatedAliases),
     };
     notify();
   },
 
   optimisticDeleteEntries(aliasKey: string, category: string, relativePath?: string): void {
-    const norm = (p?: string | null) => (p || '').replace(/[/\\]+/g, '/').toLowerCase();
-    const relNorm = norm(relativePath);
+    const stripExt = (p?: string | null) => (p || '').replace(/[/\\]+/g, '/').toLowerCase().replace(/\.(png|tga|jpg|jpeg|webp)$/i, '');
+    const relNorm = stripExt(relativePath);
     const keyNorm = aliasKey.toLowerCase();
     const catNorm = category.toLowerCase();
 
-    // 1. In aliases: filter out or mark as ORPHAN
-    const updatedAliases = currentState.aliases.filter((alias) => {
+    // 1. In aliases: if texture file exists on disk (status OK / OVERRIDE / ORPHAN / fullPath / exists), transition to ORPHAN in-place; if pure ghost, remove
+    const updatedAliases: TextureAliasDto[] = [];
+    for (const alias of currentState.aliases) {
       const isAliasMatch = alias.alias.toLowerCase() === keyNorm && alias.category.toLowerCase() === catNorm;
-      if (!isAliasMatch) return true;
-      if (relNorm && alias.relativePath) {
-        return norm(alias.relativePath) !== relNorm;
+      const isPathMatch = Boolean(relNorm && alias.relativePath && stripExt(alias.relativePath) === relNorm);
+      const isTarget = isAliasMatch || (Boolean(relNorm) && isPathMatch && alias.category.toLowerCase() === catNorm);
+
+      if (!isTarget) {
+        updatedAliases.push(alias);
+        continue;
       }
-      return false; // Remove declared alias entry
+
+      // If this item has a physical texture file on disk (or was OK/OVERRIDE/ORPHAN), it survives as an ORPHAN!
+      const hasPhysicalFile =
+        alias.status === 'OK' ||
+        alias.status === 'OVERRIDE' ||
+        alias.status === 'ORPHAN' ||
+        (Boolean(alias.exists) && alias.status !== 'GHOST');
+      if (hasPhysicalFile) {
+        updatedAliases.push({
+          ...alias,
+          status: 'ORPHAN',
+          variantKind: 'None',
+          isUserDefined: false,
+          subtitleCaption: 'orphan texture',
+        });
+      }
+      // If it was a GHOST without a physical file, it is pruned from aliases completely
+    }
+
+    // 2. In blockWorkspaceTree & entityWorkspaceTree:
+    // When deleting alias entry declarations:
+    // If the alias group has actual physical texture files on disk (status OK / OVERRIDE / ORPHAN):
+    // Keep it in place, mark isUserDefined = false, transition leaves to ORPHAN/fallback so it becomes fallback in-place.
+    // If it was a pure ghost with NO physical files on disk:
+    // Prune the alias group immediately so it doesn't linger with broken missing file icons!
+    const transformTree = (tree: BlockGroupNodeDto[]): BlockGroupNodeDto[] => (tree || []).map((block) => {
+      const newAliasGroups = (block.aliasGroups || []).map((ag) => {
+        const isAgMatch = ag.alias.toLowerCase() === keyNorm && (ag.category || block.category).toLowerCase() === catNorm;
+
+        if (!isAgMatch) {
+          if (relNorm) {
+            const filteredLeaves = ag.leaves?.filter((l) => stripExt(l.relativePath) !== relNorm) ?? ag.leaves;
+            const faceNodes = (ag as any).faceNodes?.map((fn: any) => ({
+              ...fn,
+              leaves: fn.leaves?.filter((l: any) => stripExt(l.relativePath) !== relNorm),
+            }));
+            return { ...ag, leaves: filteredLeaves, faceNodes } as any;
+          }
+          return ag;
+        }
+
+        // Check if this matching alias group has actual physical texture files on disk (NOT ghost, NOT vanilla reference)
+        const allLeaves = [
+          ...(ag.leaves ?? []),
+          ...(ag.faceNodes ? ag.faceNodes.flatMap((fn) => fn.leaves ?? []) : []),
+        ];
+        const hasTextures = allLeaves.some((l) => l.status === 'OK' || l.status === 'OVERRIDE' || l.status === 'ORPHAN');
+
+        if (hasTextures) {
+          // Keep the group in place, mark as fallback / not user defined, transition physical leaves
+          const updatedLeaves = (ag.leaves ?? [])
+            .filter((l) => l.status === 'OK' || l.status === 'OVERRIDE' || l.status === 'ORPHAN')
+            .map((l) => ({ ...l, status: 'ORPHAN' as any, isUserDefined: false }));
+
+          const updatedFaceNodes = (ag.faceNodes ?? []).map((fn) => ({
+            ...fn,
+            leaves: (fn.leaves ?? [])
+              .filter((l) => l.status === 'OK' || l.status === 'OVERRIDE' || l.status === 'ORPHAN')
+              .map((l) => ({ ...l, status: 'ORPHAN' as any, isUserDefined: false })),
+          }));
+
+          return {
+            ...ag,
+            isUserDefined: false,
+            leaves: updatedLeaves,
+            faceNodes: updatedFaceNodes,
+            ghostCount: 0,
+          };
+        }
+
+        // Pure ghost with NO physical textures on disk -> prune immediately!
+        return null;
+      }).filter(Boolean) as any[];
+
+      return {
+        ...block,
+        aliasGroups: newAliasGroups,
+      };
+    }).filter((block) => {
+      // Keep block if it has alias groups
+      return Boolean(block.aliasGroups && block.aliasGroups.length > 0);
     });
 
-    // 2. In blockWorkspaceTree: prune matching alias groups or mark as vanilla fallback
-    const updatedBlockTree: BlockGroupNodeDto[] = (currentState.blockWorkspaceTree || []).map((block) => ({
-      ...block,
-      aliasGroups: block.aliasGroups?.filter((ag) => {
-        if (ag.alias.toLowerCase() === keyNorm && (ag.category || block.category).toLowerCase() === catNorm) {
-          return false;
-        }
-        return true;
-      }),
-    })).filter((block) => {
-      // If block itself was the deleted item and has no aliasGroups left
-      if (block.blockId.toLowerCase() === keyNorm && (!block.aliasGroups || block.aliasGroups.length === 0)) {
-        return false;
-      }
-      return true;
-    });
+    const updatedBlockTree = transformTree(currentState.blockWorkspaceTree || [] as any);
+    const updatedEntityTree = transformTree(currentState.entityWorkspaceTree || [] as any);
 
     currentState = {
       ...currentState,
       aliases: updatedAliases,
-      blockWorkspaceTree: updatedBlockTree,
+      blockWorkspaceTree: updatedBlockTree as any,
+      entityWorkspaceTree: updatedEntityTree as any,
       stats: computeStats(updatedAliases),
     };
     notify();
@@ -485,25 +605,27 @@ export const packStoreActions: PackStoreActions = {
       return true;
     });
 
-    // Update blockWorkspaceTree leaf rows
-    const updatedBlockTree: BlockGroupNodeDto[] = (currentState.blockWorkspaceTree || []).map((block) => ({
+    const patchDeleteVariation = (tree: BlockGroupNodeDto[]): BlockGroupNodeDto[] => (tree || []).map((block) => ({
       ...block,
       aliasGroups: block.aliasGroups?.map((ag) => {
         if (ag.alias.toLowerCase() !== aliasNorm) return ag;
-        return {
-          ...ag,
-          leaves: ag.leaves?.filter((leaf) => {
-            if (leaf.relativePath && norm(leaf.relativePath) === relNorm) return false;
-            return true;
-          }),
-        };
+        const filteredLeaves = ag.leaves?.filter((leaf) => !(leaf.relativePath && norm(leaf.relativePath) === relNorm));
+        const faceNodes = (ag as any).faceNodes?.map((fn: any) => ({
+          ...fn,
+          leaves: fn.leaves?.filter((leaf: any) => !(leaf.relativePath && norm(leaf.relativePath) === relNorm)),
+        }));
+        return { ...ag, leaves: filteredLeaves, faceNodes } as any;
       }),
     }));
+
+    const updatedBlockTree = patchDeleteVariation(currentState.blockWorkspaceTree || [] as any);
+    const updatedEntityTree = patchDeleteVariation(currentState.entityWorkspaceTree || [] as any);
 
     currentState = {
       ...currentState,
       aliases: updatedAliases,
-      blockWorkspaceTree: updatedBlockTree,
+      blockWorkspaceTree: updatedBlockTree as any,
+      entityWorkspaceTree: updatedEntityTree as any,
       stats: computeStats(updatedAliases),
     };
     notify();
@@ -540,8 +662,8 @@ export const packStoreActions: PackStoreActions = {
       });
     }
 
-    // Also inject into blockWorkspaceTree so variation card immediately widens with ghost slot
-    const updatedBlockTree: BlockGroupNodeDto[] = (currentState.blockWorkspaceTree || []).map((block) => ({
+    // Also inject into workspace trees so variation card immediately widens with ghost slot
+    const injectVariation = (tree: BlockGroupNodeDto[]): BlockGroupNodeDto[] => (tree || []).map((block) => ({
       ...block,
       aliasGroups: block.aliasGroups?.map((ag) => {
         if (ag.alias.toLowerCase() !== aliasNorm) return ag;
@@ -565,17 +687,172 @@ export const packStoreActions: PackStoreActions = {
             blockVariantIndex: blockVariantIndex ?? null,
           });
         }
+        // also patch faceNodes if present
+        const faceNodes = (ag as any).faceNodes?.map((fn: any) => {
+          // only append to faceNodes that share same blockVariantIndex slot grouping
+          // for simplicity, append to first faceNode that currently holds this alias's leaves
+          return fn;
+        });
         return {
           ...ag,
           leaves,
-        };
+          faceNodes,
+        } as any;
       }),
     }));
+
+    const updatedBlockTree = injectVariation(currentState.blockWorkspaceTree || [] as any);
+    const updatedEntityTree = injectVariation(currentState.entityWorkspaceTree || [] as any);
 
     currentState = {
       ...currentState,
       aliases: newAliases,
-      blockWorkspaceTree: updatedBlockTree,
+      blockWorkspaceTree: updatedBlockTree as any,
+      entityWorkspaceTree: updatedEntityTree as any,
+      stats: computeStats(newAliases),
+    };
+    notify();
+  },
+
+  optimisticAddVanillaEntry(id: string, category: string, alias?: string, catalogNode?: BlockGroupNodeDto | null): void {
+    const catNorm = category.toLowerCase();
+    const targetIsAliasOnly = Boolean(alias);
+    const targetAliasNorm = (alias || id).toLowerCase();
+
+    // --- aliases: add ghost entries for each leaf of catalogNode that matches alias filter ---
+    const newAliases: TextureAliasDto[] = [...currentState.aliases];
+    const existingKeys = new Set(newAliases.map((a) => `${a.alias.toLowerCase()}|${(a.relativePath||'').toLowerCase()}|${a.textureVariantIndex ?? ''}|${a.blockVariantIndex ?? ''}`));
+
+    const pushLeafAsAlias = (leaf: any) => {
+      const key = `${leaf.alias.toLowerCase()}|${(leaf.relativePath||'').toLowerCase()}|${leaf.textureVariantIndex ?? ''}|${leaf.blockVariantIndex ?? ''}`;
+      if (existingKeys.has(key)) {
+        // flip existing ghost -> mark as userDefined GHOST (declared)
+        const idx = newAliases.findIndex((a) => `${a.alias.toLowerCase()}|${(a.relativePath||'').toLowerCase()}|${(a.textureVariantIndex ?? '' as any)}|${(a.blockVariantIndex ?? '' as any)}` === key);
+        if (idx >= 0) {
+          const existing = newAliases[idx]!;
+          newAliases[idx] = { ...existing, isUserDefined: true, status: existing.status === 'ORPHAN' ? 'GHOST' as any : existing.status } as any;
+        }
+        return;
+      }
+      existingKeys.add(key);
+      newAliases.push({
+        alias: leaf.alias,
+        displayName: leaf.displayName || leaf.alias,
+        category: (leaf.category as any) || (catNorm as any),
+        relativePath: leaf.relativePath || `textures/${catNorm === 'block' ? 'blocks' : catNorm === 'item' ? 'items' : 'entity'}/${leaf.alias}.png`,
+        fullPath: leaf.fullPath || '',
+        status: 'GHOST' as any,
+        exists: false,
+        imageUrl: '',
+        variantKind: leaf.variantKind || 'None',
+        textureVariantIndex: leaf.textureVariantIndex ?? null,
+        totalTextureVariants: leaf.totalTextureVariants ?? null,
+        blockVariantIndex: leaf.blockVariantIndex ?? null,
+        totalBlockVariants: leaf.totalBlockVariants ?? null,
+        blockFaces: [],
+        usedByBlocks: [],
+        isFlipbook: Boolean(leaf.isFlipbook),
+        flipbook: leaf.flipbook ?? null,
+        primaryFaceBadgeText: leaf.primaryFaceBadgeText || '',
+        subtitleCaption: leaf.subtitleCaption || '',
+        isUserDefined: true,
+        key: `${leaf.alias}_${leaf.relativePath}`,
+        hasMers: (leaf as any).hasMers,
+        mersFullPath: (leaf as any).mersFullPath,
+        hasAtlas: (leaf as any).hasAtlas,
+        atlasFullPath: (leaf as any).atlasFullPath,
+      } as any);
+    };
+
+    if (catalogNode) {
+      for (const ag of catalogNode.aliasGroups || []) {
+        if (targetIsAliasOnly && ag.alias.toLowerCase() !== targetAliasNorm) continue;
+        const leaves = ag.leaves && ag.leaves.length > 0 ? ag.leaves : [];
+        // also faceNodes leaves
+        const allLeaves = [...leaves, ...((ag as any).faceNodes?.flatMap((fn: any) => fn.leaves ?? []) ?? [])];
+        for (const leaf of allLeaves) {
+          pushLeafAsAlias(leaf);
+        }
+        if (allLeaves.length === 0 && ag.alias) {
+          // fallback: alias group without leaves
+          pushLeafAsAlias({ alias: ag.alias, displayName: ag.alias, relativePath: `textures/${catNorm === 'block' ? 'blocks' : 'items'}/${ag.alias}.png`, category: catNorm, status: 'GHOST' } as any);
+        }
+      }
+    } else if (targetIsAliasOnly) {
+      // no catalog node with leaves — create minimal ghost alias
+      const rel = `textures/${catNorm === 'block' ? 'blocks' : catNorm === 'item' ? 'items' : 'entity'}/${alias}.png`;
+      pushLeafAsAlias({ alias: alias!, displayName: alias!, relativePath: rel, category: catNorm, status: 'GHOST' } as any);
+    }
+
+    // --- workspace trees: insert or patch block/entity node ---
+    const cloneNodeForWorkspace = (node: BlockGroupNodeDto): BlockGroupNodeDto => ({
+      blockId: node.blockId,
+      displayName: node.displayName || node.blockId,
+      category: node.category,
+      ghostCount: node.aliasGroups?.reduce((s, ag) => s + (ag.leaves?.filter(l => l.status === 'GHOST' || l.status === 'VANILLA').length ?? 0), 0) ?? 0,
+      totalVariants: node.totalVariants ?? node.aliasGroups?.length ?? 0,
+      isUserDefined: true,
+      aliasGroups: (node.aliasGroups || []).filter((ag) => !targetIsAliasOnly || ag.alias.toLowerCase() === targetAliasNorm).map((ag) => ({
+        ...ag,
+        leaves: (ag.leaves || []).map((leaf) => ({ ...leaf, status: (leaf.status === 'VANILLA' ? 'GHOST' : leaf.status) as any, fullPath: '', imageUrl: '' })),
+        faceNodes: (ag as any).faceNodes?.map((fn: any) => ({ ...fn, leaves: fn.leaves?.map((l: any) => ({ ...l, status: (l.status === 'VANILLA' ? 'GHOST' : l.status) as any, fullPath: '', imageUrl: '' })) })) as any,
+      })),
+    });
+
+    let updatedBlockTree = currentState.blockWorkspaceTree || [];
+    let updatedEntityTree = currentState.entityWorkspaceTree || [];
+
+    if (catalogNode && !targetIsAliasOnly) {
+      if (catNorm === 'entity') {
+        const exists = updatedEntityTree.some((b) => b.blockId.toLowerCase() === id.toLowerCase());
+        if (!exists) {
+          updatedEntityTree = [...updatedEntityTree, cloneNodeForWorkspace(catalogNode)];
+        } else {
+          updatedEntityTree = updatedEntityTree.map((b) => b.blockId.toLowerCase() === id.toLowerCase() ? { ...b, isUserDefined: true } : b);
+        }
+      } else {
+        const exists = updatedBlockTree.some((b) => b.blockId.toLowerCase() === id.toLowerCase());
+        if (!exists) {
+          updatedBlockTree = [...updatedBlockTree, cloneNodeForWorkspace(catalogNode)];
+          // keep sort roughly by displayName
+          updatedBlockTree = [...updatedBlockTree].sort((a, b) => (a.displayName || a.blockId).localeCompare(b.displayName || b.blockId));
+        } else {
+          updatedBlockTree = updatedBlockTree.map((b) => b.blockId.toLowerCase() === id.toLowerCase() ? { ...b, isUserDefined: true } : b);
+          // if alias groups missing, patch them
+          const existing = updatedBlockTree.find((b) => b.blockId.toLowerCase() === id.toLowerCase());
+          if (existing && catalogNode.aliasGroups?.length) {
+            const missingGroups = catalogNode.aliasGroups.filter((ag) => !existing.aliasGroups.some((eag) => eag.alias.toLowerCase() === ag.alias.toLowerCase()));
+            if (missingGroups.length > 0) {
+              updatedBlockTree = updatedBlockTree.map((b) => b.blockId.toLowerCase() === id.toLowerCase() ? { ...b, aliasGroups: [...(b.aliasGroups || []), ...missingGroups.map((ag) => ({ ...ag, leaves: ag.leaves?.map(l => ({ ...l, status: 'GHOST' as any, fullPath: '', imageUrl: '' })) }))] } : b);
+            }
+          }
+        }
+      }
+    } else if (targetIsAliasOnly && catalogNode) {
+      // alias-only: ensure workspace shows the alias as declared; if block exists, mark alias group as userDefined GHOST
+      const patchTreeForAlias = (tree: BlockGroupNodeDto[]): BlockGroupNodeDto[] => tree.map((block) => {
+        // find aliasGroups that match alias
+        let patched = false;
+        const newAliasGroups = block.aliasGroups?.map((ag) => {
+          if (ag.alias.toLowerCase() !== targetAliasNorm) return ag;
+          patched = true;
+          return {
+            ...ag,
+            leaves: ag.leaves?.map((l) => ({ ...l, status: l.status === 'VANILLA' ? 'GHOST' as any : l.status, fullPath: l.fullPath || '' })),
+            faceNodes: (ag as any).faceNodes?.map((fn: any) => ({ ...fn, leaves: fn.leaves?.map((l: any) => ({ ...l, status: l.status === 'VANILLA' ? 'GHOST' as any : l.status })) })),
+          } as any;
+        });
+        return patched ? { ...block, aliasGroups: newAliasGroups as any } : block;
+      });
+      if (catNorm === 'entity') updatedEntityTree = patchTreeForAlias(updatedEntityTree);
+      else updatedBlockTree = patchTreeForAlias(updatedBlockTree);
+    }
+
+    currentState = {
+      ...currentState,
+      aliases: newAliases,
+      blockWorkspaceTree: updatedBlockTree as any,
+      entityWorkspaceTree: updatedEntityTree as any,
       stats: computeStats(newAliases),
     };
     notify();

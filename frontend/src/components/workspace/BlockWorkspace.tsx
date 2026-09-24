@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
-import { Box, Layers, ArrowRight } from 'lucide-react';
+import { Box, Layers, ArrowRight, ChevronDown } from 'lucide-react';
 import { usePackStore, packStoreActions } from '../../store/packStore';
 import { useIpc } from '../../hooks/useIpc';
 import { BlockGroupNodeDto, CatalogLeafDto, TextureAliasDto, OpenWithAppDto } from '../../types/ipc';
@@ -118,6 +118,7 @@ export const BlockWorkspace: React.FC = () => {
   const isListDrawerOpen = usePackStore((s) => s.isWorkspaceDrawerOpen);
   const setIsListDrawerOpen = usePackStore((s) => s.setIsWorkspaceDrawerOpen);
   const disable3DView = usePackStore((s) => s.disable3DView);
+  const setDisable3DView = usePackStore((s) => s.setDisable3DView);
   const [contextMenuTarget, setContextMenuTarget] = useState<{
     alias: TextureAliasDto;
     key: string;
@@ -569,7 +570,7 @@ export const BlockWorkspace: React.FC = () => {
             <div className={styles.detailHeaderActions}>
               {selectedBlock.isUserDefined === false && selectedBlock.blockId !== 'uncategorized' && (
                 <Badge variant="fallback" size="sm" title="Using vanilla blocks.json definition">
-                  Vanilla Fallback
+                  Fallback
                 </Badge>
               )}
               {selectedBlock.ghostCount > 0 && (
@@ -578,28 +579,65 @@ export const BlockWorkspace: React.FC = () => {
             </div>
           </div>
 
-          {selectedBlock.blockId !== 'uncategorized' && !disable3DView && (
-            <div className={styles.previewSection}>
-              <Block3DViewer
-                blockId={selectedBlock.blockId}
-                faceTextures={faceTextures.textures}
-                faceFlipbooks={faceTextures.flipbooks}
-                blockStates={blockStates}
-                activeStateIndex={activeBlockStateIndex}
-                onSelectStateIndex={(idx) => {
-                  setActiveBlockStateIndex(idx);
-                  setActiveVariationIndex(0);
-                }}
-                activeVariationIndex={activeVariationIndex}
-                onSelectVariationIndex={setActiveVariationIndex}
-              />
+          {selectedBlock.blockId !== 'uncategorized' && (
+            <div
+              className={`${styles.previewTreeContainer} ${disable3DView ? styles.previewTreeContainerCollapsed : ''}`}
+            >
+              <div
+                className={styles.previewTreeHeader}
+                onClick={() => setDisable3DView(!disable3DView)}
+                title={disable3DView ? 'Click to expand 3D preview' : 'Click to minimize 3D preview'}
+              >
+                <div className={styles.previewTreeHeaderLeft}>
+                  <Box size={13} style={{ color: '#8CEB1F' }} />
+                  <span className={styles.previewTreeHeaderTitle}>3D Preview</span>
+                </div>
+                <div className={styles.previewTreeHeaderActions}>
+                  <button
+                    type="button"
+                    className={styles.previewTreeToggleBtn}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setDisable3DView(!disable3DView);
+                    }}
+                    title={disable3DView ? 'Expand 3D preview panel' : 'Minimize 3D preview panel'}
+                  >
+                    <ChevronDown
+                      size={12}
+                      className={`${styles.previewTreeToggleChevron} ${!disable3DView ? styles.previewTreeToggleChevronExpanded : ''}`}
+                    />
+                    <span>{disable3DView ? 'Expand' : 'Minimize'}</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className={`${styles.previewTreeContentWrapper} ${disable3DView ? styles.previewTreeContentWrapperCollapsed : ''}`}>
+                <div className={styles.previewTreeContentInner}>
+                  <Block3DViewer
+                    blockId={selectedBlock.blockId}
+                    faceTextures={faceTextures.textures}
+                    faceFlipbooks={faceTextures.flipbooks}
+                    blockStates={blockStates}
+                    activeStateIndex={activeBlockStateIndex}
+                    onSelectStateIndex={(idx) => {
+                      setActiveBlockStateIndex(idx);
+                      setActiveVariationIndex(0);
+                    }}
+                    activeVariationIndex={activeVariationIndex}
+                    onSelectVariationIndex={setActiveVariationIndex}
+                  />
+                </div>
+              </div>
             </div>
           )}
 
-          <BlockEntryTree
-            block={selectedBlock}
-            onTileClick={handleTileClick}
-          />
+          {/* (Uncategorized) holds true orphans with no blocks.json entry, so no JSON hierarchy applies */}
+          {selectedBlock.blockId !== 'uncategorized' && (
+            <BlockEntryTree
+              block={selectedBlock}
+              onTileClick={handleTileClick}
+            />
+          )}
 
           <div className={styles.hierarchySection}>
             {selectedBlock.aliasGroups?.map((ag) => {
@@ -612,15 +650,16 @@ export const BlockWorkspace: React.FC = () => {
                     a.status !== 'ORPHAN' &&
                     (a as any).isUserDefined !== false
                 );
+              const isVanillaFallback = !isDeclaredInTerrainTexture && selectedBlock.blockId !== 'uncategorized';
 
               return (
-                <div key={ag.alias} className={styles.aliasGroupCard}>
+                <div key={ag.alias} className={`${styles.aliasGroupCard} ${isVanillaFallback ? styles.aliasGroupCardFallback : ''}`}>
                   <div className={styles.aliasHeader}>
                     <Layers size={14} />
                     <span>Alias: {ag.alias}</span>
-                    {!isDeclaredInTerrainTexture && (
+                    {isVanillaFallback && (
                       <Badge variant="fallback" size="sm" title="Using vanilla terrain_texture.json definition">
-                        Vanilla Fallback
+                        Fallback
                       </Badge>
                     )}
                   </div>
@@ -725,6 +764,11 @@ export const BlockWorkspace: React.FC = () => {
             )
               ? async (count = 1) => {
                   setHoverMorphTarget(null);
+                  packStoreActions.optimisticAddVariation(
+                    contextMenuTarget.alias.alias,
+                    contextMenuTarget.alias.blockVariantIndex ?? null,
+                    count
+                  );
                   for (let i = 0; i < count; i++) {
                     await scaffoldTextureVariation(
                       contextMenuTarget.alias.alias,

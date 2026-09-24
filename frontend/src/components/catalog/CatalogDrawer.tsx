@@ -6,7 +6,6 @@ import {
   X,
   BookOpen,
   Search,
-  ChevronDown,
   ChevronRight,
   Zap,
   RotateCw,
@@ -20,7 +19,7 @@ import {
   Plus,
   Minus,
 } from 'lucide-react';
-import { usePackStore } from '../../store/packStore';
+import { usePackStore, packStoreActions } from '../../store/packStore';
 import { useIpc } from '../../hooks/useIpc';
 import {
   BlockGroupNodeDto,
@@ -353,7 +352,7 @@ const CatalogBlockGroup: React.FC<{
             }}
             aria-label={isExpanded ? 'Collapse item' : 'Expand item'}
           >
-            {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+            <ChevronRight size={14} className={`${styles.chevronIcon} ${isExpanded ? styles.chevronIconExpanded : ''}`} />
           </button>
 
           <div className={styles.blockTitleGroup}>
@@ -412,28 +411,32 @@ const CatalogBlockGroup: React.FC<{
         </div>
       </div>
 
-      {isExpanded && block.aliasGroups && block.aliasGroups.length > 0 && (
-        <div className={styles.aliasGroupList}>
-          {block.aliasGroups.map((aliasGroup, agIndex) => (
-            <CatalogAliasGroup
-              key={`${blockKey}:${aliasGroup.alias || agIndex}`}
-              aliasGroup={aliasGroup}
-              category={block.category}
-              blockDisplayName={block.displayName}
-              parentBlockId={block.blockId}
-              onAdd={(id, cat, alias) => {
-                if (isEntity) {
-                  onAdd(block.blockId, 'entity');
-                } else {
-                  onAdd(id, cat, alias ?? id);
-                }
-              }}
-              isAliasDeclaredInPack={isAliasDeclaredInPack}
-              isOptimisticAdded={Boolean(aliasGroup.alias && isOptimisticAliasAdded?.(aliasGroup.alias))}
-            />
-          ))}
+      <div className={`${styles.aliasGroupListWrapper} ${isExpanded ? styles.expanded : styles.collapsed}`}>
+        <div className={styles.aliasGroupListInner}>
+          {block.aliasGroups && block.aliasGroups.length > 0 && (
+            <div className={styles.aliasGroupList}>
+              {block.aliasGroups.map((aliasGroup, agIndex) => (
+                <CatalogAliasGroup
+                  key={`${blockKey}:${aliasGroup.alias || agIndex}`}
+                  aliasGroup={aliasGroup}
+                  category={block.category}
+                  blockDisplayName={block.displayName}
+                  parentBlockId={block.blockId}
+                  onAdd={(id, cat, alias) => {
+                    if (isEntity) {
+                      onAdd(block.blockId, 'entity');
+                    } else {
+                      onAdd(id, cat, alias ?? id);
+                    }
+                  }}
+                  isAliasDeclaredInPack={isAliasDeclaredInPack}
+                  isOptimisticAdded={Boolean(aliasGroup.alias && isOptimisticAliasAdded?.(aliasGroup.alias))}
+                />
+              ))}
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 };
@@ -775,15 +778,28 @@ export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose })
   const handleAdd = useCallback(
     (id: string, category: string, alias?: string) => {
       const cat = category.toLowerCase();
+      const blockNode = catalogTree?.find(
+        (b) => b.blockId.toLowerCase() === id.toLowerCase() && (b.category || '').toLowerCase() === cat
+      );
       setOptimisticAddedIds((prev) => {
         const next = new Set(prev);
         if (alias) {
           next.add(`alias:${alias.toLowerCase()}`);
         } else {
           next.add(`${cat}:${id.toLowerCase()}`);
+          // Also optimistically mark every alias inside this block as added so the
+          // inner “Add Alias” button flips to “Added” instantly together with “Add to Pack”.
+          blockNode?.aliasGroups?.forEach((ag) => {
+            if (ag.alias) next.add(`alias:${ag.alias.toLowerCase()}`);
+          });
         }
         return next;
       });
+
+      // Optimistic workspace + pack grid insert — shows new block/tile instantly without waiting for scan
+      try {
+        packStoreActions.optimisticAddVanillaEntry(id, category, alias, blockNode ?? null);
+      } catch {}
 
       postCommand('VANILLA:ADD', {
         id,
@@ -791,7 +807,7 @@ export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose })
         ...(alias ? { alias } : {}),
       });
     },
-    [postCommand]
+    [postCommand, catalogTree]
   );
 
   const handleManualSync = useCallback(() => {

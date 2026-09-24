@@ -20,21 +20,28 @@
 
 ### v1.1.0 (In Progress)
 **Improvements**
-- [ ] optimistic or loading state or background working on each texture interactable (like tiles/thumbnail/catalog)
-> the problem is adding stuff is so delayed
-- [ ] auto scaffold **variation** entry 
-> not yet weight editor
--
-> preset or add count
--
-> bug since pre release btw: adding variation in grid view adds to all variation under the same alias texture; its adding for a split second this behavior also affect when adding on that split second window and registered as replacing until the splitsecond is done it seems the replace modal trying to replace a missing/blank (bcs.. well... its already blank (splitsecond is done)) or **blockstates**? i forgor
-- [ ] deleting entries kicks user out of the workspace view/index they working on 
-- [X] animate in welcome layout 
-- [X] optional peformance optimizations: added option to disable 3d preview so my laptop fan doesnt fucking kicks off everytime i open workspace
+- [x] Optimistic UI updates across all texture interactables — instant feedback for additions, deletions, and variations without waiting for disk I/O
+- [x] Skeleton loading states and granular store flags for smoother, non-blocking background rescans
+- [x] Tile hover morph portal with smooth enter and exit shrink transitions
+- [x] Background catalog synchronization — offloaded vanilla catalog parsing and status checks from UI thread to background workers
+- [x] Scoped category rescans — block/entity/item additions and variations only rebuild affected workspace trees, omitting unchanged trees from IPC payloads
+- [x] Automatic variation scaffolding with alias stems (`_var{N}`) and shape-lifting across Bedrock JSON formats
+- [x] Configurable batch count presets when scaffolding texture variations
+- [x] In-place workspace state preservation — modifying or deleting entries no longer resets view selection or scroll position
+- [x] JSON hierarchy multi-tier rework with declared alias face mapping and texture status validation
+- [x] Smooth accordion collapse animations for JSON Hierarchy, 3D Preview, and Catalog Index trees
+- [x] Global keyboard shortcut ('C') to quickly toggle the reference catalog drawer
+- [x] Animated entrance transitions for the Welcome layout
+- [x] Toggleable 3D viewport preview option for reduced hardware usage during long editing sessions
+- [ ] Variation weight editor and custom label editing
 
 **Bug Fixes**
-- [x] vanilla fallback alias: for multiple block that defines same textures defaulted to the first index in the block workspace and terrain_texture.json entry are somehow "added" even after deletion and checked the terrain texture none. expected behavior: orphaned png should show all the vanilla fallback entries it shared even after its added 1 entry that uses this png bcs it currently doesnt and fix the "added badge" both in workspace and catalog
-- [x] clciking on stuff under the hidden catalog selector didn went thru to where it actually is
+- [x] Shared vanilla fallback aliases: fixed multiple blocks sharing the same texture defaulting only to the first block; now surfaces fallback entries across all sharing blocks
+- [x] Fixed phantom "Added" badge on `terrain_texture.json` entries persisting after deletion
+- [x] Corrected optimistic alias deletion logic to preserve blocks.json bindings when deleting individual texture aliases
+- [x] Unified and simplified fallback indicators across workspaces and hierarchy trees to standardized `FALLBACK` badges
+- [x] Fixed race condition where adding a variation in grid view affected sibling variations under the alias and briefly triggered a false replace modal
+- [x] Fixed click-through hit testing under the hidden catalog selector overlay
 ---
  
 ### v1.0.1 (Released — 2026-09-22)

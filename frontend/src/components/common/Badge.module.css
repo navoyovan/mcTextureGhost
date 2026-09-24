@@ -105,6 +105,13 @@
   color: #c084fc;
 }
 
+/* MISSING / UNDECLARED: Soft Rose/Red-Orange warning */
+.variant_missing {
+  background: rgba(244, 63, 94, 0.15);
+  border: 1px solid rgba(244, 63, 94, 0.5);
+  color: #fb7185;
+}
+
 /* ANIM: Flipbook texture animation (lime green) */
 .variant_anim {
   background: rgba(16, 26, 8, 0.92);

@@ -194,20 +194,20 @@ const TileHoverMorphCard: React.FC<TileHoverMorphPortalProps> = ({
 
   const processImport = useCallback(
     (file: File) => {
+      const targetFullPath =
+        alias.fullPath ||
+        (packRoot && alias.relativePath
+          ? `${packRoot.replace(/[/\\]+$/, '')}\\textures\\${alias.relativePath.replace(/^[/\\]+/, '')}`
+          : '');
+      if (!targetFullPath) return;
+      setLocalAdded(true);
+      const previewUrl = URL.createObjectURL(file);
+      packStoreActions.updateTexture(alias.alias, 'OK', targetFullPath, previewUrl, alias.relativePath);
+
       const reader = new FileReader();
       reader.onload = () => {
         const base64Data = reader.result as string;
         if (!base64Data) return;
-
-        const targetFullPath =
-          alias.fullPath ||
-          (packRoot && alias.relativePath
-            ? `${packRoot.replace(/[/\\]+$/, '')}\\textures\\${alias.relativePath.replace(/^[/\\]+/, '')}`
-            : '');
-
-        if (!targetFullPath) return;
-
-        setLocalAdded(true);
         dropImportTexture({
           aliasKey: alias.alias,
           fullPath: targetFullPath,
@@ -306,6 +306,10 @@ const TileHoverMorphCard: React.FC<TileHoverMorphPortalProps> = ({
   const resolveTargetElement = useCallback((rootEl: HTMLElement | null) => {
     if (!rootEl) return null;
     if (!isImageTarget) return rootEl;
+    const slotEl = rootEl.closest<HTMLElement>(
+      '[class*="leafThumbWrapper"], [class*="texVarThumbSlot"], [class*="tileThumbnailWrapper"]'
+    );
+    if (slotEl) return slotEl;
     if (
       rootEl.tagName.toLowerCase() === 'img' ||
       rootEl.tagName.toLowerCase() === 'canvas' ||
@@ -316,7 +320,7 @@ const TileHoverMorphCard: React.FC<TileHoverMorphPortalProps> = ({
       return rootEl;
     }
     const innerThumb = rootEl.querySelector<HTMLElement>(
-      '[class*="leafThumb"], [class*="texVarThumbSlot"], [class*="leafThumbWrapper"], [class*="tileThumbnailWrapper"], img, canvas'
+      '[class*="leafThumbWrapper"], [class*="texVarThumbSlot"], [class*="tileThumbnailWrapper"], [class*="leafThumb"], img, canvas'
     );
     return innerThumb || rootEl;
   }, [isImageTarget]);

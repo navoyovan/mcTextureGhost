@@ -784,6 +784,15 @@ public static class PackScanner
         CommentHandling = JsonCommentHandling.Skip
     };
 
+    /// <summary>
+    /// Opens a pack JSON file for reading with <see cref="FileShare.ReadWrite"/> so
+    /// background rescans never lock out concurrent <c>JsonWriterService</c> writes
+    /// (previously <c>File.OpenRead</c> denied writers, surfacing as
+    /// "used by another process" during rapid scaffold/delete bursts).
+    /// </summary>
+    private static FileStream OpenSharedRead(string path) =>
+        new(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+
     public record TextureSlotEntry(
         string RawPath,
         int? BlockVariantIndex = null,
@@ -800,7 +809,7 @@ public static class PackScanner
     /// </summary>
     public static Dictionary<string, ParsedAliasData> ParseTextureAtlasJson(string path)
     {
-        using var stream = File.OpenRead(path);
+        using var stream = OpenSharedRead(path);
         using var doc = JsonDocument.Parse(stream, ScanDocOptions);
         return ParseTextureAtlasJson(doc);
     }
@@ -986,7 +995,7 @@ public static class PackScanner
     /// </summary>
     public static Dictionary<string, List<BlockFaceUsage>> ParseBlocksJson(string path)
     {
-        using var stream = File.OpenRead(path);
+        using var stream = OpenSharedRead(path);
         using var doc = JsonDocument.Parse(stream, ScanDocOptions);
         return ParseBlocksJson(doc);
     }
@@ -1156,7 +1165,7 @@ public static class PackScanner
 
         try
         {
-            using var stream = File.OpenRead(path);
+            using var stream = OpenSharedRead(path);
             using var doc = JsonDocument.Parse(stream, ScanDocOptions);
             return ParseFlipbookTextures(doc);
         }
@@ -1275,7 +1284,7 @@ public static class PackScanner
 
         try
         {
-            using var stream = File.OpenRead(textureSetFilePath);
+            using var stream = OpenSharedRead(textureSetFilePath);
             using var doc = JsonDocument.Parse(stream, ScanDocOptions);
 
             if (!doc.RootElement.TryGetProperty("minecraft:texture_set", out var textureSet) ||
@@ -1372,7 +1381,7 @@ public static class PackScanner
         {
             try
             {
-                using var stream = File.OpenRead(userBlocksJsonPath);
+                using var stream = OpenSharedRead(userBlocksJsonPath);
                 using var doc = JsonDocument.Parse(stream, ScanDocOptions);
                 foreach (var entry in doc.RootElement.EnumerateObject())
                 {
@@ -1934,8 +1943,10 @@ public static class PackScanner
     /// Constructs the Block Workspace tree: a 4-tier hierarchy
     /// (Block → AliasGroup → FaceNode → CatalogLeaf) sourced exclusively from the
     /// user's pack. Vanilla-only blocks are excluded — the Catalog dialog covers those.
-    /// Uncategorized aliases (in terrain_texture.json but not claimed by any block) are
-    /// surfaced at the bottom with Orphan status so the user can see what needs wiring.
+    /// Terrain-declared aliases claimed by no block (neither user nor vanilla
+    /// blocks.json) get their own fallback block entries instead of pooling under
+    /// (Uncategorized); only true orphans (on disk, declared in no JSON) surface
+    /// under (Uncategorized) with Orphan status so the user can see what needs wiring.
     /// </summary>
     public static List<BlockGroupNode> BuildBlockWorkspaceTree(
         IList<TextureAlias> userAliases,
@@ -1959,7 +1970,7 @@ public static class PackScanner
         {
             try
             {
-                using var stream = File.OpenRead(userBlocksJsonPath);
+                using var stream = OpenSharedRead(userBlocksJsonPath);
                 using var doc = JsonDocument.Parse(stream, ScanDocOptions);
                 foreach (var entry in doc.RootElement.EnumerateObject())
                 {
@@ -2302,12 +2313,96 @@ public static class PackScanner
                 result.Add(blockNode);
             }
 
-            // ── 3. Remaining uncategorized aliases (not in user blocks.json OR vanilla blocks) ──
+            // ── 3. Declared-but-unclaimed aliases get their own fallback block
+            // entries; true orphans (on disk, not declared in any JSON) stay
+            // under (Uncategorized) ──
             var finalUntracked = remainingUntracked
                 .Where(a => !trackedAliases.Contains(a))
                 .ToList();
 
-            if (finalUntracked.Count > 0)
+            var takenBlockIds = new HashSet<string>(result.Select(b => b.BlockId), StringComparer.OrdinalIgnoreCase);
+            var fallbackGroups = new List<IGrouping<string, TextureAlias>>();
+            var orphanItems = new List<TextureAlias>();
+
+            foreach (var grp in finalUntracked.GroupBy(u => u.Alias, StringComparer.OrdinalIgnoreCase))
+            {
+                bool isDeclared = grp.Any(t => t.Status != TextureStatus.Orphan);
+                if (isDeclared && !takenBlockIds.Contains(grp.Key))
+                {
+                    fallbackGroups.Add(grp);
+                    takenBlockIds.Add(grp.Key);
+                }
+                else
+                {
+                    // True orphans, or declared aliases colliding with an
+                    // existing block id, fall through to (Uncategorized).
+                    orphanItems.AddRange(grp);
+                }
+            }
+
+            foreach (var grp in fallbackGroups.OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase))
+            {
+                var aliasName = grp.Key;
+                var fallbackFaces = vanilla.BlockUsage.TryGetValue(aliasName, out var fbFaces)
+                    ? fbFaces
+                    : new List<BlockFaceUsage>();
+
+                var fallbackNode = new BlockGroupNode
+                {
+                    BlockId = aliasName,
+                    DisplayName = vanilla.GetBlockDisplayName(aliasName),
+                    Category = TextureCategory.Block,
+                    IsUserDefined = false
+                };
+
+                var fallbackAliasNode = new AliasGroupNode
+                {
+                    Alias = aliasName,
+                    Category = TextureCategory.Block,
+                    ParentBlock = fallbackNode,
+                    FaceSummary = SummarizeFaces(fallbackFaces)
+                };
+
+                var fallbackFaceNode = new FaceNode { FaceLabel = "all", IsExpanded = true };
+                fallbackAliasNode.FaceNodes.Add(fallbackFaceNode);
+
+                foreach (var tile in grp)
+                {
+                    var fallbackLeaf = new CatalogLeaf
+                    {
+                        Alias = tile.Alias,
+                        DisplayName = tile.DisplayName,
+                        RelativePath = tile.RelativePath,
+                        FullPath = tile.FullPath,
+                        Category = TextureCategory.Block,
+                        Status = tile.Status switch
+                        {
+                            TextureStatus.Ok => CatalogEntryStatus.Ok,
+                            TextureStatus.Ghost => CatalogEntryStatus.Ghost,
+                            _ => CatalogEntryStatus.Orphan
+                        },
+                        TextureAlias = tile,
+                        VariantKind = tile.VariantKind,
+                        BlockVariantIndex = tile.BlockVariantIndex,
+                        TotalBlockVariants = tile.TotalBlockVariants,
+                        TextureVariantIndex = tile.TextureVariantIndex,
+                        TotalTextureVariants = tile.TotalTextureVariants,
+                        Weight = tile.Weight,
+                        SubtitleCaption = tile.SubtitleCaption,
+                        PrimaryFaceBadgeText = tile.PrimaryFaceBadgeText,
+                        Flipbook = tile.Flipbook
+                    };
+                    fallbackFaceNode.Leaves.Add(fallbackLeaf);
+                    fallbackAliasNode.Leaves.Add(fallbackLeaf);
+                }
+
+                fallbackAliasNode.NotifyCountsChanged();
+                fallbackNode.AliasGroups.Add(fallbackAliasNode);
+                fallbackNode.NotifyCountsChanged();
+                result.Add(fallbackNode);
+            }
+
+            if (orphanItems.Count > 0)
             {
                 var uncategorizedNode = new BlockGroupNode
                 {
@@ -2317,7 +2412,7 @@ public static class PackScanner
                     IsUserDefined = false
                 };
 
-                foreach (var grp in finalUntracked.GroupBy(u => u.Alias, StringComparer.OrdinalIgnoreCase))
+                foreach (var grp in orphanItems.GroupBy(u => u.Alias, StringComparer.OrdinalIgnoreCase))
                 {
                     var aliasNode = new AliasGroupNode
                     {
@@ -2546,7 +2641,7 @@ public static class PackScanner
 
         try
         {
-            using var stream = File.OpenRead(filePath);
+            using var stream = OpenSharedRead(filePath);
             using var doc = JsonDocument.Parse(stream, ScanDocOptions);
             return ParseClientEntityDetails(doc);
         }
