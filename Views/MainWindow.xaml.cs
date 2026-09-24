@@ -505,7 +505,13 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
             await Dispatcher.InvokeAsync(() =>
             {
                 if (payload == null) return;
-                var alias = ViewModel.Aliases.FirstOrDefault(a => a.Alias.Equals(payload.AliasKey, StringComparison.OrdinalIgnoreCase));
+                var alias = !string.IsNullOrEmpty(payload.FullPath)
+                    ? ViewModel.Aliases.FirstOrDefault(a => !string.IsNullOrEmpty(a.FullPath) && a.FullPath.Equals(payload.FullPath, StringComparison.OrdinalIgnoreCase))
+                    : null;
+                if (alias == null)
+                {
+                    alias = ViewModel.Aliases.FirstOrDefault(a => a.Alias.Equals(payload.AliasKey, StringComparison.OrdinalIgnoreCase));
+                }
                 if (payload.IsGhost || (alias != null && alias.Status == TextureStatus.Ghost) || !File.Exists(payload.FullPath))
                 {
                     var dir = Path.GetDirectoryName(payload.FullPath);
@@ -519,13 +525,17 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
                     {
                         alias.Status = TextureStatus.Ok;
                     }
+                    var relPath = alias?.RelativePath ?? Path.GetFileName(payload.FullPath);
                     _ipcBridge.PushTextureUpdated(
                         payload.AliasKey,
                         "OK",
                         payload.FullPath,
-                        IpcContractMapper.BuildVirtualTextureUrl(alias?.RelativePath ?? Path.GetFileName(payload.FullPath), payload.FullPath)
+                        IpcContractMapper.BuildVirtualTextureUrl(relPath, payload.FullPath),
+                        relPath
                     );
                 }
+
+
                 if (!payload.CreateOnly)
                 {
                     try
@@ -665,8 +675,13 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
 
                     ImagePathConverter.ClearCache();
 
-                    var alias = ViewModel.Aliases.FirstOrDefault(a => a.Alias.Equals(payload.AliasKey, StringComparison.OrdinalIgnoreCase) ||
-                        (!string.IsNullOrEmpty(a.FullPath) && a.FullPath.Equals(targetPath, StringComparison.OrdinalIgnoreCase)));
+                    var alias = ViewModel.Aliases.FirstOrDefault(a =>
+                        (!string.IsNullOrEmpty(a.FullPath) && a.FullPath.Equals(targetPath, StringComparison.OrdinalIgnoreCase)) ||
+                        (!string.IsNullOrEmpty(a.RelativePath) && !string.IsNullOrEmpty(payload.RelativePath) && a.RelativePath.Equals(payload.RelativePath, StringComparison.OrdinalIgnoreCase)));
+                    if (alias == null)
+                    {
+                        alias = ViewModel.Aliases.FirstOrDefault(a => a.Alias.Equals(payload.AliasKey, StringComparison.OrdinalIgnoreCase));
+                    }
 
                     if (alias != null)
                     {
@@ -674,13 +689,16 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
                         alias.FullPath = targetPath;
                     }
 
-                    var virtualUrl = IpcContractMapper.BuildVirtualTextureUrl(alias?.RelativePath ?? Path.GetFileName(targetPath), targetPath, ViewModel.PackRootPath);
+                    var relPath = alias?.RelativePath ?? payload.RelativePath ?? Path.GetFileName(targetPath);
+                    var virtualUrl = IpcContractMapper.BuildVirtualTextureUrl(relPath, targetPath, ViewModel.PackRootPath);
                     _ipcBridge.PushTextureUpdated(
                         payload.AliasKey,
                         "OK",
                         targetPath,
-                        $"{virtualUrl}?t={DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}"
+                        $"{virtualUrl}?t={DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}",
+                        relPath
                     );
+
                 }
                 catch (Exception ex)
                 {
@@ -719,8 +737,13 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
 
                     ImagePathConverter.ClearCache();
 
-                    var alias = ViewModel.Aliases.FirstOrDefault(a => a.Alias.Equals(payload.TargetAliasKey, StringComparison.OrdinalIgnoreCase) ||
-                        (!string.IsNullOrEmpty(a.FullPath) && a.FullPath.Equals(targetPath, StringComparison.OrdinalIgnoreCase)));
+                    var alias = ViewModel.Aliases.FirstOrDefault(a =>
+                        (!string.IsNullOrEmpty(a.FullPath) && a.FullPath.Equals(targetPath, StringComparison.OrdinalIgnoreCase)) ||
+                        (!string.IsNullOrEmpty(a.RelativePath) && !string.IsNullOrEmpty(payload.TargetRelativePath) && a.RelativePath.Equals(payload.TargetRelativePath, StringComparison.OrdinalIgnoreCase)));
+                    if (alias == null)
+                    {
+                        alias = ViewModel.Aliases.FirstOrDefault(a => a.Alias.Equals(payload.TargetAliasKey, StringComparison.OrdinalIgnoreCase));
+                    }
 
                     if (alias != null)
                     {
@@ -728,13 +751,16 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
                         alias.FullPath = targetPath;
                     }
 
-                    var virtualUrl = IpcContractMapper.BuildVirtualTextureUrl(alias?.RelativePath ?? Path.GetFileName(targetPath), targetPath, ViewModel.PackRootPath);
+                    var relPath = alias?.RelativePath ?? payload.TargetRelativePath ?? Path.GetFileName(targetPath);
+                    var virtualUrl = IpcContractMapper.BuildVirtualTextureUrl(relPath, targetPath, ViewModel.PackRootPath);
                     _ipcBridge.PushTextureUpdated(
                         payload.TargetAliasKey,
                         "OK",
                         targetPath,
-                        $"{virtualUrl}?t={DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}"
+                        $"{virtualUrl}?t={DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}",
+                        relPath
                     );
+
                 }
                 catch (Exception ex)
                 {
@@ -942,18 +968,27 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
 
                         ImagePathConverter.ClearCache();
 
-                        var matchedAlias = ViewModel.Aliases.FirstOrDefault(a => a.Alias.Equals(payload.AliasKey, StringComparison.OrdinalIgnoreCase));
+                        var matchedAlias = ViewModel.Aliases.FirstOrDefault(a =>
+                            (!string.IsNullOrEmpty(a.FullPath) && a.FullPath.Equals(payload.FullPath, StringComparison.OrdinalIgnoreCase)) ||
+                            (!string.IsNullOrEmpty(a.RelativePath) && !string.IsNullOrEmpty(payload.RelativePath) && a.RelativePath.Equals(payload.RelativePath, StringComparison.OrdinalIgnoreCase)));
+                        if (matchedAlias == null)
+                        {
+                            matchedAlias = ViewModel.Aliases.FirstOrDefault(a => a.Alias.Equals(payload.AliasKey, StringComparison.OrdinalIgnoreCase));
+                        }
                         if (matchedAlias != null)
                         {
                             matchedAlias.Status = TextureStatus.Ok;
                         }
 
+                        var relPath = matchedAlias?.RelativePath ?? payload.RelativePath ?? Path.GetFileName(payload.FullPath);
                         _ipcBridge.PushTextureUpdated(
                             payload.AliasKey,
                             "OK",
                             payload.FullPath,
-                            IpcContractMapper.BuildVirtualTextureUrl(payload.RelativePath ?? Path.GetFileName(payload.FullPath), payload.FullPath)
+                            IpcContractMapper.BuildVirtualTextureUrl(relPath, payload.FullPath),
+                            relPath
                         );
+
 
                         await ViewModel.RescanAsync();
                     }
@@ -1509,8 +1544,10 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
                     alias.Alias,
                     alias.StatusLabel,
                     alias.FullPath,
-                    IpcContractMapper.BuildVirtualTextureUrl(alias.RelativePath, alias.FullPath, ViewModel.PackRootPath)
+                    IpcContractMapper.BuildVirtualTextureUrl(alias.RelativePath, alias.FullPath, ViewModel.PackRootPath),
+                    alias.RelativePath
                 );
+
             });
         };
 

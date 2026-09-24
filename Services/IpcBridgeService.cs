@@ -69,7 +69,8 @@ public interface IIpcBridgeService : IDisposable
     void PushScanProgress(string stage, int current, int total, string message);
 
     /// <summary>Convenience: pushes single texture update to web.</summary>
-    void PushTextureUpdated(string aliasKey, string newStatus, string fullPath, string? imageUrl = null);
+    void PushTextureUpdated(string aliasKey, string newStatus, string fullPath, string? imageUrl = null, string? relativePath = null);
+
 
     /// <summary>Convenience: pushes app theme/debug configuration to web.</summary>
     void PushAppConfig(int tintOpacity, int tintBrightness, string tintHex, bool debugMode, string windowTitle = "McTextureGhost", List<OpenWithAppDto>? openWithApps = null);
@@ -477,8 +478,9 @@ public sealed class IpcBridgeService : IIpcBridgeService
     public void PushScanProgress(string stage, int current, int total, string message) =>
         PostMessage(IpcMessageTypes.ScanProgress, new ScanProgressPayload(stage, current, total, message));
 
-    public void PushTextureUpdated(string aliasKey, string newStatus, string fullPath, string? imageUrl = null) =>
-        PostMessage(IpcMessageTypes.TextureUpdated, new TextureUpdatedPayload(aliasKey, newStatus, fullPath, imageUrl));
+    public void PushTextureUpdated(string aliasKey, string newStatus, string fullPath, string? imageUrl = null, string? relativePath = null) =>
+        PostMessage(IpcMessageTypes.TextureUpdated, new TextureUpdatedPayload(aliasKey, newStatus, fullPath, imageUrl, relativePath));
+
 
     public void PushAppConfig(int tintOpacity, int tintBrightness, string tintHex, bool debugMode, string windowTitle = "McTextureGhost", List<OpenWithAppDto>? openWithApps = null) =>
         PostMessage(IpcMessageTypes.AppConfig, new AppConfigPayload(tintOpacity, tintBrightness, tintHex, debugMode, windowTitle, openWithApps ?? OpenWithService.GetOpenWithApps()));

@@ -24,7 +24,9 @@
 > the problem is adding stuff is so delayed
 - [ ] auto scaffold **variation** entry 
 > not yet weight editor
+-
 > preset or add count
+-
 > bug since pre release btw: adding variation in grid view adds to all variation under the same alias texture; its adding for a split second this behavior also affect when adding on that split second window and registered as replacing until the splitsecond is done it seems the replace modal trying to replace a missing/blank (bcs.. well... its already blank (splitsecond is done)) or **blockstates**? i forgor
 - [ ] deleting entries kicks user out of the workspace view/index they working on 
 - [X] animate in welcome layout 

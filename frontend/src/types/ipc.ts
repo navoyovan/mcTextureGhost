@@ -469,7 +469,16 @@ export interface Vanilla3DStatusPayload {
   referencePath?: string | null;
 }
 
+export interface TextureUpdatedPayload {
+  aliasKey: string;
+  newStatus: string;
+  fullPath: string;
+  imageUrl?: string | null;
+  relativePath?: string | null;
+}
+
 export interface DownloadProgressPayload {
+
   task: string;
   progress: number;
   message: string;

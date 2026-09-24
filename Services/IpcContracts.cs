@@ -443,8 +443,10 @@ public record TextureUpdatedPayload(
     [property: JsonPropertyName("aliasKey")] string AliasKey,
     [property: JsonPropertyName("newStatus")] string NewStatus,
     [property: JsonPropertyName("fullPath")] string FullPath,
-    [property: JsonPropertyName("imageUrl")] string? ImageUrl = null
+    [property: JsonPropertyName("imageUrl")] string? ImageUrl = null,
+    [property: JsonPropertyName("relativePath")] string? RelativePath = null
 );
+
 
 /// <summary>
 /// Payload for "APP:CONFIG". Pushed on initialization or settings change.

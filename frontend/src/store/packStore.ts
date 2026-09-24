@@ -90,7 +90,7 @@ export interface PackStoreState {
 export interface PackStoreActions {
   setPackState: (dto: Partial<PackStatePayload>) => void;
   resetPackState: () => void;
-  updateTexture: (aliasKey: string, newStatus: string, fullPath: string, imageUrl?: string | null) => void;
+  updateTexture: (aliasKey: string, newStatus: string, fullPath: string, imageUrl?: string | null, relativePath?: string | null) => void;
   setScanProgress: (progress: ScanProgressPayload | null) => void;
   setIsScanning: (scanning: boolean) => void;
   setActiveTab: (tab: 'all' | 'blocks' | 'items' | 'entities') => void;
@@ -303,12 +303,46 @@ export const packStoreActions: PackStoreActions = {
     notify();
   },
 
-  updateTexture(aliasKey: string, newStatus: string, fullPath: string, imageUrl?: string | null): void {
+  updateTexture(aliasKey: string, newStatus: string, fullPath: string, imageUrl?: string | null, relativePath?: string | null): void {
+    const norm = (p?: string | null) => (p || '').replace(/[/\\]+/g, '/').toLowerCase();
+    const targetNormFull = norm(fullPath);
+    const targetNormRel = norm(relativePath);
+
+    // If fullPath or relativePath is specified, match specifically by path so we don't
+    // accidentally update all variations or blockstates sharing the same alias!
     const updatedAliases = currentState.aliases.map((alias) => {
-      const isMatch =
-        alias.alias === aliasKey ||
-        alias.key === aliasKey ||
-        (!!fullPath && alias.fullPath === fullPath);
+      let isMatch = false;
+
+      // 1. Direct fullPath match
+      if (targetNormFull && alias.fullPath) {
+        if (norm(alias.fullPath) === targetNormFull) {
+          isMatch = true;
+        }
+      }
+
+      // 2. Direct relativePath match (scoped to aliasKey if present)
+      if (!isMatch && targetNormRel && alias.relativePath) {
+        const aRel = norm(alias.relativePath).replace(/\.(png|tga)$/, '');
+        const tRel = targetNormRel.replace(/\.(png|tga)$/, '');
+        if (aRel === tRel && (!aliasKey || alias.alias.toLowerCase() === aliasKey.toLowerCase())) {
+          isMatch = true;
+        }
+      }
+
+      // 3. Fallback: match by target fullPath ending with alias relativePath
+      if (!isMatch && targetNormFull && alias.relativePath) {
+        const aRel = norm(alias.relativePath).replace(/\.(png|tga)$/, '');
+        if ((targetNormFull.endsWith('/' + aRel + '.png') || targetNormFull.endsWith('/' + aRel + '.tga')) &&
+            (!aliasKey || alias.alias.toLowerCase() === aliasKey.toLowerCase())) {
+          isMatch = true;
+        }
+      }
+
+      // 4. Fallback ONLY if neither fullPath nor relativePath was supplied
+      if (!isMatch && !targetNormFull && !targetNormRel) {
+        isMatch = alias.alias === aliasKey || alias.key === aliasKey;
+      }
+
       if (!isMatch) return alias;
 
       return {
@@ -319,6 +353,7 @@ export const packStoreActions: PackStoreActions = {
         exists: newStatus === 'OK' || newStatus === 'OVERRIDE',
       };
     });
+
 
     currentState = {
       ...currentState,

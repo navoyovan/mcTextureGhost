@@ -127,8 +127,9 @@ export const App: React.FC = () => {
 
     // 3. TEXTURE:UPDATED
     const unsubTextureUpdated = subscribe(IpcMessageTypes.TextureUpdated, (payload) => {
-      updateTexture(payload.aliasKey, payload.newStatus, payload.fullPath, payload.imageUrl);
+      updateTexture(payload.aliasKey, payload.newStatus, payload.fullPath, payload.imageUrl, payload.relativePath);
     });
+
 
     // 4. APP:CONFIG
     const unsubAppConfig = subscribe(IpcMessageTypes.AppConfig, (payload) => {
