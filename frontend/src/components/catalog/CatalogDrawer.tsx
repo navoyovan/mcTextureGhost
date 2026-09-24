@@ -212,15 +212,16 @@ const CatalogAliasGroup: React.FC<{
   parentBlockId?: string;
   onAdd: (id: string, category: string, alias?: string) => void;
   isAliasDeclaredInPack: (alias: string, category: string, parentBlockId?: string) => boolean;
-}> = ({ aliasGroup, category, blockDisplayName, parentBlockId, onAdd, isAliasDeclaredInPack }) => {
+  isOptimisticAdded?: boolean;
+}> = ({ aliasGroup, category, blockDisplayName, parentBlockId, onAdd, isAliasDeclaredInPack, isOptimisticAdded }) => {
   const isEntity = (aliasGroup.category || category).toLowerCase() === 'entity';
   const slotName = aliasGroup.geometryId || aliasGroup.alias;
   const isAttachable = isEntity && (aliasGroup.isAttachable || aliasGroup.leaves?.some((l) => l.isAttachable));
   const hasNotAdded = aliasGroup.notAddedCount > 0 || Boolean(aliasGroup.leaves?.some((l) => l.status === 'VANILLA'));
   const allLeavesAreOrphan = Boolean(aliasGroup.leaves?.length && aliasGroup.leaves.every((l) => l.status === 'ORPHAN'));
-  const isAdded = isEntity
+  const isAdded = Boolean(isOptimisticAdded) || (isEntity
     ? false
-    : !hasNotAdded && !allLeavesAreOrphan && isAliasDeclaredInPack(aliasGroup.alias, aliasGroup.category || category, parentBlockId);
+    : !hasNotAdded && !allLeavesAreOrphan && isAliasDeclaredInPack(aliasGroup.alias, aliasGroup.category || category, parentBlockId));
 
   return (
     <div className={styles.aliasGroupCard} data-testid={`alias-group-${aliasGroup.alias}`}>
@@ -303,6 +304,8 @@ const CatalogBlockGroup: React.FC<{
   isBlockUserDefined: (blockId: string) => boolean;
   isEntityInWorkspace: (entityId: string) => boolean;
   isAliasDeclaredInPack: (alias: string, category: string, parentBlockId?: string) => boolean;
+  isOptimisticBlockAdded?: (blockId: string) => boolean;
+  isOptimisticAliasAdded?: (alias: string) => boolean;
 }> = ({
   block,
   blockKey,
@@ -312,16 +315,18 @@ const CatalogBlockGroup: React.FC<{
   isBlockUserDefined,
   isEntityInWorkspace,
   isAliasDeclaredInPack,
+  isOptimisticBlockAdded,
+  isOptimisticAliasAdded,
 }) => {
   const cat = (block.category || 'block').toLowerCase();
   const isItem = cat === 'item';
   const isEntity = cat === 'entity';
 
-  const isAdded = isEntity
+  const isAdded = Boolean(isOptimisticBlockAdded?.(block.blockId)) || (isEntity
     ? isEntityInWorkspace(block.blockId)
     : isItem
     ? isAliasDeclaredInPack(block.blockId, 'item')
-    : isBlockUserDefined(block.blockId);
+    : isBlockUserDefined(block.blockId));
 
   return (
     <div className={styles.blockGroupCard} data-testid={`block-group-${block.blockId}`}>
@@ -424,6 +429,7 @@ const CatalogBlockGroup: React.FC<{
                 }
               }}
               isAliasDeclaredInPack={isAliasDeclaredInPack}
+              isOptimisticAdded={Boolean(aliasGroup.alias && isOptimisticAliasAdded?.(aliasGroup.alias))}
             />
           ))}
         </div>
@@ -567,12 +573,28 @@ export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose })
   const [searchText, setSearchText] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<'all' | 'block' | 'item' | 'entity'>('all');
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const [optimisticAddedIds, setOptimisticAddedIds] = useState<Set<string>>(new Set());
   const [isMounted, setIsMounted] = useState(isOpen);
   const [isReferenceManagerOpen, setIsReferenceManagerOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const overlayRef = useRef<HTMLDivElement | null>(null);
   const drawerRef = useRef<HTMLElement | null>(null);
   const animationRef = useRef<gsap.core.Timeline | null>(null);
+
+  // Clear optimistic added overrides once actual pack store state updates
+  useEffect(() => {
+    setOptimisticAddedIds(new Set());
+  }, [aliases, blockWorkspaceTree, entityWorkspaceTree]);
+
+  const isOptimisticBlockAdded = useCallback((blockId: string): boolean => {
+    return optimisticAddedIds.has(`block:${blockId.toLowerCase()}`) ||
+      optimisticAddedIds.has(`item:${blockId.toLowerCase()}`) ||
+      optimisticAddedIds.has(`entity:${blockId.toLowerCase()}`);
+  }, [optimisticAddedIds]);
+
+  const isOptimisticAliasAdded = useCallback((alias: string): boolean => {
+    return optimisticAddedIds.has(`alias:${alias.toLowerCase()}`);
+  }, [optimisticAddedIds]);
 
   const activeReference = useMemo(() => {
     return referencePacks?.find((p) => p.id === activeReferenceId) || referencePacks?.[0] || {
@@ -752,9 +774,20 @@ export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose })
 
   const handleAdd = useCallback(
     (id: string, category: string, alias?: string) => {
+      const cat = category.toLowerCase();
+      setOptimisticAddedIds((prev) => {
+        const next = new Set(prev);
+        if (alias) {
+          next.add(`alias:${alias.toLowerCase()}`);
+        } else {
+          next.add(`${cat}:${id.toLowerCase()}`);
+        }
+        return next;
+      });
+
       postCommand('VANILLA:ADD', {
         id,
-        category: category.toLowerCase() as any,
+        category: cat as any,
         ...(alias ? { alias } : {}),
       });
     },
@@ -994,6 +1027,8 @@ export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose })
                     isBlockUserDefined={isBlockUserDefined}
                     isEntityInWorkspace={isEntityInWorkspace}
                     isAliasDeclaredInPack={isAliasDeclaredInPack}
+                    isOptimisticBlockAdded={isOptimisticBlockAdded}
+                    isOptimisticAliasAdded={isOptimisticAliasAdded}
                   />
                 );
               })}
