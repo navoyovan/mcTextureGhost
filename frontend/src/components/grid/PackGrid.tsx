@@ -13,6 +13,7 @@ import styles from './PackGrid.module.css';
 interface PackGridTileProps {
   alias: TextureAliasDto;
   uniqueKey: string;
+  isExiting?: boolean;
   onTileClick: (domEl: HTMLElement, alias: TextureAliasDto, key: string) => void;
   onContextMenu: (e: React.MouseEvent, alias: TextureAliasDto, key: string) => void;
 }
@@ -35,6 +36,7 @@ const getStatusDotClass = (status: string) => {
 const PackGridTile = React.memo<PackGridTileProps>(({
   alias,
   uniqueKey,
+  isExiting,
   onTileClick,
   onContextMenu,
 }) => {
@@ -279,7 +281,7 @@ const PackGridTile = React.memo<PackGridTileProps>(({
 
   return (
     <div
-      className={`${styles.tileCard} ${isDragOver ? styles.tileCardDragOver : ''}`}
+      className={`${styles.tileCard} ${isDragOver ? styles.tileCardDragOver : ''} ${isExiting ? styles.tileCardExiting : ''}`}
       draggable={isDraggable}
       onDragStart={handleDragStart}
       onClick={(e) => onTileClick(e.currentTarget, alias, uniqueKey)}
@@ -426,6 +428,9 @@ export const PackGrid: React.FC = () => {
     key: string;
   } | null>(null);
 
+  // Set of tile keys currently playing their exit shrink animation
+  const [exitingTileKeys, setExitingTileKeys] = useState<Set<string>>(new Set());
+
   // Morphing Portal target (opened on tile click)
   const [hoverMorphTarget, setHoverMorphTarget] = useState<TileHoverMorphTarget | null>(null);
 
@@ -555,12 +560,14 @@ export const PackGrid: React.FC = () => {
         >
           {filteredAliases.map((alias, index) => {
             const uniqueKey = `${alias.category}:${alias.alias}:${alias.relativePath || ''}:${alias.textureVariantIndex ?? ''}:${alias.blockVariantIndex ?? ''}:${index}`;
+            const isExiting = exitingTileKeys.has(uniqueKey) || exitingTileKeys.has(alias.alias);
 
             return (
               <PackGridTile
                 key={uniqueKey}
                 alias={alias}
                 uniqueKey={uniqueKey}
+                isExiting={isExiting}
                 onTileClick={handleTileClick}
                 onContextMenu={handleContextMenu}
               />
@@ -602,8 +609,19 @@ export const PackGrid: React.FC = () => {
             const aliasKey = contextMenuTarget.alias.alias;
             const category = contextMenuTarget.alias.category;
             const relPath = contextMenuTarget.alias.relativePath;
-            packStoreActions.optimisticDeleteEntries(aliasKey, category, relPath);
-            deleteTextureEntries(aliasKey, category, relPath);
+            const targetKey = contextMenuTarget.key;
+
+            setExitingTileKeys((prev) => new Set(prev).add(targetKey).add(aliasKey));
+            setTimeout(() => {
+              packStoreActions.optimisticDeleteEntries(aliasKey, category, relPath);
+              deleteTextureEntries(aliasKey, category, relPath);
+              setExitingTileKeys((prev) => {
+                const next = new Set(prev);
+                next.delete(targetKey);
+                next.delete(aliasKey);
+                return next;
+              });
+            }, 180);
           }}
           onEditMers={() => {
             setHoverMorphTarget(null);

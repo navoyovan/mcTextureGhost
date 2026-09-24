@@ -357,10 +357,18 @@ export const WorkspaceTileCard: React.FC<WorkspaceTileCardProps> = React.memo(({
   const primaryThumbRef = React.useRef<HTMLDivElement>(null);
 
   const isCardDragOver = !hasTexVariants && dragSlotIndex === 0;
+  const [isExiting, setIsExiting] = useState(false);
+
+  const handleDeleteWithAnimation = useCallback((action: () => void) => {
+    setIsExiting(true);
+    setTimeout(() => {
+      action();
+    }, 180);
+  }, []);
 
   return (
     <div
-      className={`${styles.leafCard} ${hasTexVariants ? styles.leafCardWithVariants : ''} ${isCardDragOver ? styles.leafCardDragOver : ''}`}
+      className={`${styles.leafCard} ${hasTexVariants ? styles.leafCardWithVariants : ''} ${isCardDragOver ? styles.leafCardDragOver : ''} ${isExiting ? styles.leafCardExiting : ''}`}
       style={cardStyle}
       title={tooltipTitle}
       onClick={
@@ -417,7 +425,9 @@ export const WorkspaceTileCard: React.FC<WorkspaceTileCardProps> = React.memo(({
             }
           }}
           onDeleteEntries={() => {
-            onDeleteTextureEntries(primary.alias, primary.relativePath);
+            handleDeleteWithAnimation(() => {
+              onDeleteTextureEntries(primary.alias, primary.relativePath);
+            });
           }}
           onAddVariation={onAddVariation ? (count) => onAddVariation(primary, count) : undefined}
           onDeleteVariation={onDeleteVariation && primary.textureVariantIndex != null ? () => onDeleteVariation(primary) : undefined}
