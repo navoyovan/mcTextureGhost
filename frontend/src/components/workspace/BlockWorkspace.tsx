@@ -8,6 +8,7 @@ import { BlockEntryTree } from './BlockEntryTree';
 import { WorkspaceTileCard, VariantTileGroup } from './WorkspaceTileCard';
 import { TileHoverMorphPortal, TileHoverMorphTarget } from '../grid/TileHoverMorphPortal';
 import { TextureContextMenu } from '../common/TextureContextMenu';
+import { WorkspaceSkeleton } from './WorkspaceSkeleton';
 import { Badge } from '../common/Badge';
 import styles from './BlockWorkspace.module.css';
 
@@ -82,6 +83,8 @@ function groupLeavesByVariantSlot(leaves: CatalogLeafDto[]): VariantTileGroup[] 
 
 export const BlockWorkspace: React.FC = () => {
   const blockWorkspaceTree = usePackStore((s) => s.blockWorkspaceTree);
+  const isScanning = usePackStore((s) => s.isScanning);
+  const isWorkspaceLoading = usePackStore((s) => s.isWorkspaceLoading);
   const searchQuery = usePackStore((s) => s.searchQuery);
   const statusFilter = usePackStore((s) => s.statusFilter);
   const activeFilters = usePackStore((s) => s.activeFilters);
@@ -473,6 +476,10 @@ export const BlockWorkspace: React.FC = () => {
 
   const tileZoom = usePackStore((s) => s.tileZoom);
   const selectedBlockDisplayName = selectedBlock?.displayName || selectedBlock?.blockId || '';
+
+  if (isWorkspaceLoading || (isScanning && (!blockWorkspaceTree || blockWorkspaceTree.length === 0))) {
+    return <WorkspaceSkeleton />;
+  }
 
   if (!blockWorkspaceTree || blockWorkspaceTree.length === 0) {
     return (

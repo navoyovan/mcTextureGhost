@@ -31,8 +31,11 @@ export interface PackStoreState {
   recentPacks: RecentPackItemDto[];
   stats: PackStatsDto;
 
-  // Scan State
+  // Scan & Domain Loading State
   isScanning: boolean;
+  isGridLoading: boolean;
+  isWorkspaceLoading: boolean;
+  isCatalogLoading: boolean;
   scanProgress: ScanProgressPayload | null;
 
   // UI & Filter State
@@ -93,6 +96,10 @@ export interface PackStoreActions {
   updateTexture: (aliasKey: string, newStatus: string, fullPath: string, imageUrl?: string | null, relativePath?: string | null) => void;
   setScanProgress: (progress: ScanProgressPayload | null) => void;
   setIsScanning: (scanning: boolean) => void;
+  startPackLoading: (folderPath: string, packName?: string) => void;
+  setIsGridLoading: (loading: boolean) => void;
+  setIsWorkspaceLoading: (loading: boolean) => void;
+  setIsCatalogLoading: (loading: boolean) => void;
   setActiveTab: (tab: 'all' | 'blocks' | 'items' | 'entities') => void;
   setSearchQuery: (query: string) => void;
   setStatusFilter: (filter: 'all' | 'ghosts' | 'added' | 'orphans' | 'mers' | 'atlas' | 'flipbook' | 'variations' | 'blockstates' | 'variation') => void;
@@ -166,6 +173,9 @@ const initialState: PackStoreState = {
   stats: initialStats,
 
   isScanning: false,
+  isGridLoading: false,
+  isWorkspaceLoading: false,
+  isCatalogLoading: false,
   scanProgress: null,
 
   activeTab: 'all',
@@ -282,6 +292,9 @@ export const packStoreActions: PackStoreActions = {
       selectedFolderPath: dto.packRoot !== undefined && dto.packRoot !== currentState.packRoot ? null : currentState.selectedFolderPath,
       stats,
       isScanning: false,
+      isGridLoading: false,
+      isWorkspaceLoading: false,
+      isCatalogLoading: false,
       scanProgress: null,
     };
     notify();
@@ -363,11 +376,50 @@ export const packStoreActions: PackStoreActions = {
     notify();
   },
 
-  setScanProgress(progress: ScanProgressPayload | null): void {
+  startPackLoading(folderPath: string, packName?: string): void {
+    const derivedName = packName || folderPath.split(/[\\/]/).filter(Boolean).pop() || 'Resource Pack';
     currentState = {
       ...currentState,
-      isScanning: progress !== null && progress.stage !== 'scan_done',
-      scanProgress: progress,
+      packRoot: folderPath,
+      packName: derivedName,
+      isScanning: true,
+      isGridLoading: true,
+      isWorkspaceLoading: true,
+      isCatalogLoading: true,
+      scanProgress: {
+        stage: 'scan_start',
+        current: 1,
+        total: 5,
+        message: `Opening ${derivedName}...`,
+      },
+    };
+    notify();
+  },
+
+  setIsGridLoading(loading: boolean): void {
+    currentState = { ...currentState, isGridLoading: loading };
+    notify();
+  },
+
+  setIsWorkspaceLoading(loading: boolean): void {
+    currentState = { ...currentState, isWorkspaceLoading: loading };
+    notify();
+  },
+
+  setIsCatalogLoading(loading: boolean): void {
+    currentState = { ...currentState, isCatalogLoading: loading };
+    notify();
+  },
+
+  setScanProgress(progress: ScanProgressPayload | null): void {
+    const isDone = progress === null || progress.stage === 'scan_done';
+    currentState = {
+      ...currentState,
+      isScanning: !isDone,
+      isGridLoading: !isDone && (progress?.stage === 'scan_start' || progress?.stage === 'scanning'),
+      isWorkspaceLoading: !isDone && progress?.stage !== 'scan_done',
+      isCatalogLoading: !isDone && progress?.stage !== 'scan_done',
+      scanProgress: isDone ? null : progress,
     };
     notify();
   },
@@ -376,6 +428,9 @@ export const packStoreActions: PackStoreActions = {
     currentState = {
       ...currentState,
       isScanning: scanning,
+      isGridLoading: scanning,
+      isWorkspaceLoading: scanning,
+      isCatalogLoading: scanning,
       scanProgress: scanning ? currentState.scanProgress : null,
     };
     notify();

@@ -38,12 +38,7 @@ export const WelcomeView: React.FC<WelcomeViewProps> = ({ onOpenNewPackDialog })
 
   const handleOpenRecent = (pack: RecentPackItemDto) => {
     if (pack.folderPath) {
-      usePackStore.getState().setScanProgress({
-        stage: 'scan_start',
-        current: 1,
-        total: 5,
-        message: `Opening ${pack.packName || 'pack'}...`,
-      });
+      usePackStore.getState().startPackLoading(pack.folderPath, pack.packName || undefined);
       openPackFolder(pack.folderPath);
     }
   };

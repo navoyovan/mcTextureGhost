@@ -6,6 +6,7 @@ import { FlipbookThumbnail } from '../common/FlipbookThumbnail';
 import { TextureContextMenu } from '../common/TextureContextMenu';
 import { TileHoverMorphPortal, TileHoverMorphTarget } from './TileHoverMorphPortal';
 import { TextureDropConfirm } from './TextureDropConfirm';
+import { PackGridSkeleton } from './PackGridSkeleton';
 import { Badge } from '../common/Badge';
 import styles from './PackGrid.module.css';
 
@@ -392,6 +393,8 @@ PackGridTile.displayName = 'PackGridTile';
 
 export const PackGrid: React.FC = () => {
   const aliases = usePackStore((s) => s.aliases);
+  const isScanning = usePackStore((s) => s.isScanning);
+  const isGridLoading = usePackStore((s) => s.isGridLoading);
   const activeTab = usePackStore((s) => s.activeTab);
   const searchQuery = usePackStore((s) => s.searchQuery);
   const statusFilter = usePackStore((s) => s.statusFilter);
@@ -535,7 +538,9 @@ export const PackGrid: React.FC = () => {
 
   return (
     <div className={styles.gridContainer}>
-      {filteredAliases.length === 0 ? (
+      {isGridLoading || (isScanning && filteredAliases.length === 0) ? (
+        <PackGridSkeleton tileZoom={tileZoom} />
+      ) : filteredAliases.length === 0 ? (
         <div className={styles.emptyState}>
           <span className={styles.emptyIcon}>🔍</span>
           <span className={styles.emptyText}>No textures match the current filter</span>

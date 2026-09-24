@@ -9,6 +9,7 @@ import { EntityEntryTree } from './EntityEntryTree';
 import { WorkspaceTileCard, VariantTileGroup } from './WorkspaceTileCard';
 import { TileHoverMorphPortal, TileHoverMorphTarget } from '../grid/TileHoverMorphPortal';
 import { TextureContextMenu } from '../common/TextureContextMenu';
+import { WorkspaceSkeleton } from './WorkspaceSkeleton';
 import { Badge } from '../common/Badge';
 import styles from './BlockWorkspace.module.css';
 
@@ -81,6 +82,8 @@ function groupLeavesByVariantSlot(leaves: CatalogLeafDto[]): VariantTileGroup[] 
 
 export const EntityWorkspace: React.FC = () => {
   const entityWorkspaceTree = usePackStore((s) => s.entityWorkspaceTree);
+  const isScanning = usePackStore((s) => s.isScanning);
+  const isWorkspaceLoading = usePackStore((s) => s.isWorkspaceLoading);
   const searchQuery = usePackStore((s) => s.searchQuery);
   const statusFilter = usePackStore((s) => s.statusFilter);
   const activeFilters = usePackStore((s) => s.activeFilters);
@@ -369,6 +372,10 @@ export const EntityWorkspace: React.FC = () => {
   }, [deleteTextureEntries]);
 
   const selectedEntityDisplayName = selectedEntity?.displayName || selectedEntity?.blockId || '';
+
+  if (isWorkspaceLoading || (isScanning && (!entityWorkspaceTree || entityWorkspaceTree.length === 0))) {
+    return <WorkspaceSkeleton isEntity />;
+  }
 
   if (!entityWorkspaceTree || entityWorkspaceTree.length === 0) {
     return (
