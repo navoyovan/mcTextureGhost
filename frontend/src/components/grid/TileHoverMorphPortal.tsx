@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { createPortal } from 'react-dom';
 import { Edit3, MoreVertical, Layers, Plus } from 'lucide-react';
 import { TextureAliasDto, IpcMessageTypes } from '../../types/ipc';
-import { usePackStore } from '../../store/packStore';
+import { usePackStore, packStoreActions } from '../../store/packStore';
 import { useIpc } from '../../hooks/useIpc';
 import { FlipbookThumbnail } from '../common/FlipbookThumbnail';
 import { Badge } from '../common/Badge';
@@ -584,6 +584,8 @@ const TileHoverMorphCard: React.FC<TileHoverMorphPortalProps> = ({
     };
   }, [coords, isClosing, isMenuOpen, triggerSnapBack, clearLeaveTimer, scheduleSnapBack]);
 
+  const [isMorphingToAdded, setIsMorphingToAdded] = useState(false);
+
   const handleEditClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     triggerSnapBack();
@@ -592,7 +594,9 @@ const TileHoverMorphCard: React.FC<TileHoverMorphPortalProps> = ({
 
   const handleCreateStub = (e: React.MouseEvent) => {
     e.stopPropagation();
+    setIsMorphingToAdded(true);
     setLocalAdded(true);
+    packStoreActions.updateTexture(alias.alias, 'OK', alias.fullPath || '', null, alias.relativePath);
     postCommand(IpcMessageTypes.TextureEdit, {
       aliasKey: alias.alias,
       fullPath: alias.fullPath,
@@ -603,7 +607,9 @@ const TileHoverMorphCard: React.FC<TileHoverMorphPortalProps> = ({
 
   const handleExtractReference = (e: React.MouseEvent) => {
     e.stopPropagation();
+    setIsMorphingToAdded(true);
     setLocalAdded(true);
+    packStoreActions.updateTexture(alias.alias, 'OK', alias.fullPath || '', null, alias.relativePath);
     postCommand(IpcMessageTypes.TextureExtractReference, {
       aliasKey: alias.alias,
       fullPath: alias.fullPath,
@@ -796,6 +802,37 @@ const TileHoverMorphCard: React.FC<TileHoverMorphPortalProps> = ({
                       <span>CREATE STUB</span>
                     </button>
                   )}
+                </div>
+              ) : isMorphingToAdded ? (
+                <div className={styles.ghostActionsGroup}>
+                  <button
+                    type="button"
+                    className={`${styles.primaryActionBtn} ${styles.editBtnMorphExpand}`}
+                    onClick={handleEditClick}
+                    title="Edit texture in default editor"
+                  >
+                    <Edit3 size={13} />
+                    <span>Edit</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    className={`${styles.stubSquareBtn} ${styles.stubSquareBtnExiting}`}
+                    aria-hidden="true"
+                    tabIndex={-1}
+                  >
+                    <svg
+                      viewBox="0 0 16 16"
+                      className={styles.stubSvgFull}
+                      preserveAspectRatio="none"
+                      aria-hidden="true"
+                    >
+                      <rect x="0" y="0" width="8" height="8" fill="#000000" />
+                      <rect x="8" y="0" width="8" height="8" fill="var(--accent-primary, #8CEB1F)" />
+                      <rect x="0" y="8" width="8" height="8" fill="var(--accent-primary, #8CEB1F)" />
+                      <rect x="8" y="8" width="8" height="8" fill="#000000" />
+                    </svg>
+                  </button>
                 </div>
               ) : (
                 <button

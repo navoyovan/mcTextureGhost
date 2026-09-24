@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { Box, Layers, ArrowRight } from 'lucide-react';
-import { usePackStore } from '../../store/packStore';
+import { usePackStore, packStoreActions } from '../../store/packStore';
 import { useIpc } from '../../hooks/useIpc';
 import { BlockGroupNodeDto, CatalogLeafDto, TextureAliasDto, OpenWithAppDto } from '../../types/ipc';
 import { Block3DViewer } from './Block3DViewer';
@@ -455,14 +455,17 @@ export const BlockWorkspace: React.FC = () => {
   }, []);
 
   const handleDeleteTextureFile = useCallback((path: string, alias: string) => {
+    packStoreActions.optimisticDeleteTexture(path, alias);
     deleteTextureFile(path, alias);
   }, [deleteTextureFile]);
 
   const handleDeleteTextureEntries = useCallback((alias: string, relativePath?: string | null) => {
+    packStoreActions.optimisticDeleteEntries(alias, 'block', relativePath ?? undefined);
     deleteTextureEntries(alias, 'block', relativePath ?? undefined);
   }, [deleteTextureEntries]);
 
   const handleAddVariation = useCallback(async (leaf: CatalogLeafDto, count = 1) => {
+    packStoreActions.optimisticAddVariation(leaf.alias, leaf.blockVariantIndex ?? null, count);
     for (let i = 0; i < count; i++) {
       await scaffoldTextureVariation(leaf.alias, leaf.blockVariantIndex ?? null, leaf.relativePath ?? null);
     }
@@ -470,6 +473,7 @@ export const BlockWorkspace: React.FC = () => {
 
   const handleDeleteVariation = useCallback((leaf: CatalogLeafDto) => {
     if (leaf.relativePath) {
+      packStoreActions.optimisticDeleteVariation(leaf.alias, leaf.relativePath);
       deleteTextureVariation(leaf.alias, leaf.relativePath);
     }
   }, [deleteTextureVariation]);
@@ -743,6 +747,10 @@ export const BlockWorkspace: React.FC = () => {
             )
               ? () => {
                   setHoverMorphTarget(null);
+                  packStoreActions.optimisticDeleteVariation(
+                    contextMenuTarget.alias.alias,
+                    contextMenuTarget.alias.relativePath!
+                  );
                   deleteTextureVariation(
                     contextMenuTarget.alias.alias,
                     contextMenuTarget.alias.relativePath!
@@ -765,11 +773,18 @@ export const BlockWorkspace: React.FC = () => {
           }}
           onDeleteTexture={() => {
             if (contextMenuTarget.alias.fullPath) {
-              deleteTextureFile(contextMenuTarget.alias.fullPath);
+              const fullPath = contextMenuTarget.alias.fullPath;
+              const aliasKey = contextMenuTarget.alias.alias;
+              packStoreActions.optimisticDeleteTexture(fullPath, aliasKey);
+              deleteTextureFile(fullPath, aliasKey);
             }
           }}
           onDeleteEntries={() => {
-            deleteTextureEntries(contextMenuTarget.alias.alias, contextMenuTarget.alias.category || 'block');
+            const aliasKey = contextMenuTarget.alias.alias;
+            const cat = contextMenuTarget.alias.category || 'block';
+            const relPath = contextMenuTarget.alias.relativePath;
+            packStoreActions.optimisticDeleteEntries(aliasKey, cat, relPath);
+            deleteTextureEntries(aliasKey, cat, relPath);
           }}
           onEditMers={() => {
             if (contextMenuTarget.alias.mersFullPath) {

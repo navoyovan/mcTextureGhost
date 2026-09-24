@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useRef, useEffect, useCallback } from 'react';
-import { usePackStore, pathMatchesFolder } from '../../store/packStore';
+import { usePackStore, packStoreActions, pathMatchesFolder } from '../../store/packStore';
 import { useIpc } from '../../hooks/useIpc';
 import { TextureAliasDto, OpenWithAppDto, TileDragData } from '../../types/ipc';
 import { FlipbookThumbnail } from '../common/FlipbookThumbnail';
@@ -591,12 +591,19 @@ export const PackGrid: React.FC = () => {
           onDeleteTexture={() => {
             setHoverMorphTarget(null);
             if (contextMenuTarget.alias.fullPath) {
-              deleteTextureFile(contextMenuTarget.alias.fullPath, contextMenuTarget.alias.alias);
+              const fullPath = contextMenuTarget.alias.fullPath;
+              const aliasKey = contextMenuTarget.alias.alias;
+              packStoreActions.optimisticDeleteTexture(fullPath, aliasKey);
+              deleteTextureFile(fullPath, aliasKey);
             }
           }}
           onDeleteEntries={() => {
             setHoverMorphTarget(null);
-            deleteTextureEntries(contextMenuTarget.alias.alias, contextMenuTarget.alias.category, contextMenuTarget.alias.relativePath);
+            const aliasKey = contextMenuTarget.alias.alias;
+            const category = contextMenuTarget.alias.category;
+            const relPath = contextMenuTarget.alias.relativePath;
+            packStoreActions.optimisticDeleteEntries(aliasKey, category, relPath);
+            deleteTextureEntries(aliasKey, category, relPath);
           }}
           onEditMers={() => {
             setHoverMorphTarget(null);
@@ -622,6 +629,11 @@ export const PackGrid: React.FC = () => {
             )
               ? async (count = 1) => {
                   setHoverMorphTarget(null);
+                  packStoreActions.optimisticAddVariation(
+                    contextMenuTarget.alias.alias,
+                    contextMenuTarget.alias.blockVariantIndex ?? null,
+                    count
+                  );
                   for (let i = 0; i < count; i++) {
                     await scaffoldTextureVariation(
                       contextMenuTarget.alias.alias,
@@ -639,6 +651,10 @@ export const PackGrid: React.FC = () => {
             contextMenuTarget.alias.relativePath
               ? () => {
                   setHoverMorphTarget(null);
+                  packStoreActions.optimisticDeleteVariation(
+                    contextMenuTarget.alias.alias,
+                    contextMenuTarget.alias.relativePath!
+                  );
                   deleteTextureVariation(contextMenuTarget.alias.alias, contextMenuTarget.alias.relativePath!);
                 }
               : undefined

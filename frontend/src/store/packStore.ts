@@ -94,6 +94,10 @@ export interface PackStoreActions {
   setPackState: (dto: Partial<PackStatePayload>) => void;
   resetPackState: () => void;
   updateTexture: (aliasKey: string, newStatus: string, fullPath: string, imageUrl?: string | null, relativePath?: string | null) => void;
+  optimisticDeleteTexture: (fullPath: string, aliasKey?: string) => void;
+  optimisticDeleteEntries: (aliasKey: string, category: string, relativePath?: string) => void;
+  optimisticDeleteVariation: (alias: string, relativePath: string) => void;
+  optimisticAddVariation: (alias: string, blockVariantIndex?: number | null, count?: number) => void;
   setScanProgress: (progress: ScanProgressPayload | null) => void;
   setIsScanning: (scanning: boolean) => void;
   startPackLoading: (folderPath: string, packName?: string) => void;
@@ -372,6 +376,207 @@ export const packStoreActions: PackStoreActions = {
       ...currentState,
       aliases: updatedAliases,
       stats: computeStats(updatedAliases),
+    };
+    notify();
+  },
+
+  optimisticDeleteTexture(fullPath: string, aliasKey?: string): void {
+    const norm = (p?: string | null) => (p || '').replace(/[/\\]+/g, '/').toLowerCase();
+    const targetNorm = norm(fullPath);
+
+    const updatedAliases: TextureAliasDto[] = currentState.aliases.map((alias) => {
+      let isMatch = false;
+      if (alias.fullPath && norm(alias.fullPath) === targetNorm) {
+        isMatch = true;
+      } else if (aliasKey && alias.alias.toLowerCase() === aliasKey.toLowerCase()) {
+        isMatch = true;
+      }
+      if (!isMatch) return alias;
+
+      return {
+        ...alias,
+        status: 'GHOST' as const,
+        exists: false,
+        imageUrl: '',
+      };
+    });
+
+    const updatedBlockTree: BlockGroupNodeDto[] = (currentState.blockWorkspaceTree || []).map((block) => ({
+      ...block,
+      aliasGroups: block.aliasGroups?.map((ag) => ({
+        ...ag,
+        leaves: ag.leaves?.map((leaf) => {
+          if (
+            (leaf.fullPath && norm(leaf.fullPath) === targetNorm) ||
+            (aliasKey && leaf.alias?.toLowerCase() === aliasKey.toLowerCase())
+          ) {
+            return {
+              ...leaf,
+              status: 'GHOST' as const,
+              imageUrl: '',
+            };
+          }
+          return leaf;
+        }),
+      })),
+    }));
+
+    currentState = {
+      ...currentState,
+      aliases: updatedAliases,
+      blockWorkspaceTree: updatedBlockTree,
+      stats: computeStats(updatedAliases),
+    };
+    notify();
+  },
+
+  optimisticDeleteEntries(aliasKey: string, category: string, relativePath?: string): void {
+    const norm = (p?: string | null) => (p || '').replace(/[/\\]+/g, '/').toLowerCase();
+    const relNorm = norm(relativePath);
+    const keyNorm = aliasKey.toLowerCase();
+    const catNorm = category.toLowerCase();
+
+    // 1. In aliases: filter out or mark as ORPHAN
+    const updatedAliases = currentState.aliases.filter((alias) => {
+      const isAliasMatch = alias.alias.toLowerCase() === keyNorm && alias.category.toLowerCase() === catNorm;
+      if (!isAliasMatch) return true;
+      if (relNorm && alias.relativePath) {
+        return norm(alias.relativePath) !== relNorm;
+      }
+      return false; // Remove declared alias entry
+    });
+
+    // 2. In blockWorkspaceTree: prune matching alias groups or mark as vanilla fallback
+    const updatedBlockTree: BlockGroupNodeDto[] = (currentState.blockWorkspaceTree || []).map((block) => ({
+      ...block,
+      aliasGroups: block.aliasGroups?.filter((ag) => {
+        if (ag.alias.toLowerCase() === keyNorm && (ag.category || block.category).toLowerCase() === catNorm) {
+          return false;
+        }
+        return true;
+      }),
+    })).filter((block) => {
+      // If block itself was the deleted item and has no aliasGroups left
+      if (block.blockId.toLowerCase() === keyNorm && (!block.aliasGroups || block.aliasGroups.length === 0)) {
+        return false;
+      }
+      return true;
+    });
+
+    currentState = {
+      ...currentState,
+      aliases: updatedAliases,
+      blockWorkspaceTree: updatedBlockTree,
+      stats: computeStats(updatedAliases),
+    };
+    notify();
+  },
+
+  optimisticDeleteVariation(alias: string, relativePath: string): void {
+    const norm = (p?: string | null) => (p || '').replace(/[/\\]+/g, '/').toLowerCase();
+    const relNorm = norm(relativePath);
+    const aliasNorm = alias.toLowerCase();
+
+    // Remove the specific variation from aliases
+    const updatedAliases = currentState.aliases.filter((a) => {
+      if (a.alias.toLowerCase() === aliasNorm && a.relativePath && norm(a.relativePath) === relNorm) {
+        return false;
+      }
+      return true;
+    });
+
+    // Update blockWorkspaceTree leaf rows
+    const updatedBlockTree: BlockGroupNodeDto[] = (currentState.blockWorkspaceTree || []).map((block) => ({
+      ...block,
+      aliasGroups: block.aliasGroups?.map((ag) => {
+        if (ag.alias.toLowerCase() !== aliasNorm) return ag;
+        return {
+          ...ag,
+          leaves: ag.leaves?.filter((leaf) => {
+            if (leaf.relativePath && norm(leaf.relativePath) === relNorm) return false;
+            return true;
+          }),
+        };
+      }),
+    }));
+
+    currentState = {
+      ...currentState,
+      aliases: updatedAliases,
+      blockWorkspaceTree: updatedBlockTree,
+      stats: computeStats(updatedAliases),
+    };
+    notify();
+  },
+
+  optimisticAddVariation(alias: string, blockVariantIndex?: number | null, count = 1): void {
+    const aliasNorm = alias.toLowerCase();
+    const existing = currentState.aliases.filter((a) => a.alias.toLowerCase() === aliasNorm);
+    const nextIndex = existing.length > 0 ? Math.max(...existing.map((e) => e.textureVariantIndex ?? 0)) + 1 : 1;
+
+    const newAliases: TextureAliasDto[] = [...currentState.aliases];
+    for (let i = 0; i < count; i++) {
+      const varIndex = nextIndex + i;
+      const stubRelativePath = `textures/blocks/${alias}_var${varIndex}.png`;
+      newAliases.push({
+        alias,
+        displayName: `${alias} #${varIndex}`,
+        category: 'block',
+        relativePath: stubRelativePath,
+        fullPath: '',
+        status: 'GHOST',
+        exists: false,
+        imageUrl: '',
+        variantKind: 'TextureVariant',
+        textureVariantIndex: varIndex,
+        totalTextureVariants: nextIndex + count,
+        blockVariantIndex: blockVariantIndex ?? null,
+        blockFaces: [],
+        usedByBlocks: [],
+        isFlipbook: false,
+        primaryFaceBadgeText: '',
+        subtitleCaption: '',
+        key: `${alias}_var${varIndex}`,
+      });
+    }
+
+    // Also inject into blockWorkspaceTree so variation card immediately widens with ghost slot
+    const updatedBlockTree: BlockGroupNodeDto[] = (currentState.blockWorkspaceTree || []).map((block) => ({
+      ...block,
+      aliasGroups: block.aliasGroups?.map((ag) => {
+        if (ag.alias.toLowerCase() !== aliasNorm) return ag;
+        const leaves = [...(ag.leaves || [])];
+        for (let i = 0; i < count; i++) {
+          const varIndex = nextIndex + i;
+          leaves.push({
+            alias,
+            displayName: `${alias} #${varIndex}`,
+            category: 'block',
+            relativePath: `textures/blocks/${alias}_var${varIndex}.png`,
+            fullPath: '',
+            status: 'GHOST',
+            imageUrl: '',
+            subtitleCaption: '',
+            primaryFaceBadgeText: '',
+            isFlipbook: false,
+            variantKind: 'TextureVariant',
+            textureVariantIndex: varIndex,
+            totalTextureVariants: nextIndex + count,
+            blockVariantIndex: blockVariantIndex ?? null,
+          });
+        }
+        return {
+          ...ag,
+          leaves,
+        };
+      }),
+    }));
+
+    currentState = {
+      ...currentState,
+      aliases: newAliases,
+      blockWorkspaceTree: updatedBlockTree,
+      stats: computeStats(newAliases),
     };
     notify();
   },
