@@ -185,8 +185,6 @@ export const App: React.FC = () => {
     // Notify host that frontend is mounted and ready to receive state
     postCommand('APP:READY', {});
     postCommand(IpcMessageTypes.OpenWithGetApps, {});
-    postCommand(IpcMessageTypes.VanillaGet3DStatus, {});
-    postCommand(IpcMessageTypes.CatalogGetDetailedStatus, {});
 
     return () => {
       unsubPackState();

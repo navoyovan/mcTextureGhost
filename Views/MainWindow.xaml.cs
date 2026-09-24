@@ -368,7 +368,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         if (_ipcBridge == null) return;
 
         // 0. APP:READY (Frontend mounted & ready to receive initial state)
-        _ipcBridge.RegisterHandler("APP:READY", (payload, corrId) =>
+        _ipcBridge.RegisterHandler("APP:READY", async (payload, corrId) =>
         {
             Dispatcher.Invoke(() =>
             {
@@ -382,9 +382,10 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
 
                 bool has3D = CatalogReferenceService.Has3DModelsInstalled();
                 _ipcBridge.PostMessage(IpcMessageTypes.Vanilla3DStatus, new Vanilla3DStatusPayload(has3D, CatalogReferenceService.VanillaReferencePackDirectory));
-                _ipcBridge.PostMessage(IpcMessageTypes.CatalogDetailedStatus, CatalogReferenceService.GetDetailedStatus());
             });
-            return Task.CompletedTask;
+
+            var detailedStatus = await CatalogReferenceService.GetDetailedStatusAsync();
+            _ipcBridge.PostMessage(IpcMessageTypes.CatalogDetailedStatus, detailedStatus);
         });
 
         // 1. PACK:OPEN_FOLDER
@@ -1031,46 +1032,40 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
 
                     bool has3D = CatalogReferenceService.Has3DModelsInstalled();
                     _ipcBridge.PostMessage(IpcMessageTypes.Vanilla3DStatus, new Vanilla3DStatusPayload(has3D, CatalogReferenceService.VanillaReferencePackDirectory));
-                    _ipcBridge.PostMessage(IpcMessageTypes.CatalogDetailedStatus, CatalogReferenceService.GetDetailedStatus());
                 });
+
+                var detailedStatus = await CatalogReferenceService.GetDetailedStatusAsync();
+                _ipcBridge.PostMessage(IpcMessageTypes.CatalogDetailedStatus, detailedStatus);
             });
         });
 
         // 12d. CATALOG:GET_DETAILED_STATUS
-        _ipcBridge.RegisterHandler(IpcMessageTypes.CatalogGetDetailedStatus, (payload, corrId) =>
+        _ipcBridge.RegisterHandler(IpcMessageTypes.CatalogGetDetailedStatus, async (payload, corrId) =>
         {
-            Dispatcher.Invoke(() =>
-            {
-                var detailedStatus = CatalogReferenceService.GetDetailedStatus();
-                _ipcBridge.PostMessage(IpcMessageTypes.CatalogDetailedStatus, detailedStatus);
-            });
-            return Task.CompletedTask;
+            var detailedStatus = await CatalogReferenceService.GetDetailedStatusAsync();
+            _ipcBridge.PostMessage(IpcMessageTypes.CatalogDetailedStatus, detailedStatus);
         });
 
         // 12e. CATALOG:PURGE_TEMP_ARCHIVE
-        _ipcBridge.RegisterHandler(IpcMessageTypes.CatalogPurgeTempArchive, (payload, corrId) =>
+        _ipcBridge.RegisterHandler(IpcMessageTypes.CatalogPurgeTempArchive, async (payload, corrId) =>
         {
-            Dispatcher.Invoke(() =>
-            {
-                CatalogReferenceService.PurgeTempArchive();
-                var detailedStatus = CatalogReferenceService.GetDetailedStatus();
-                _ipcBridge.PostMessage(IpcMessageTypes.CatalogDetailedStatus, detailedStatus);
-            });
-            return Task.CompletedTask;
+            await Task.Run(() => CatalogReferenceService.PurgeTempArchive());
+            var detailedStatus = await CatalogReferenceService.GetDetailedStatusAsync();
+            _ipcBridge.PostMessage(IpcMessageTypes.CatalogDetailedStatus, detailedStatus);
         });
 
         // 12f. CATALOG:PURGE_EXTRACTED_DATA
         _ipcBridge.RegisterHandler(IpcMessageTypes.CatalogPurgeExtractedData, async (payload, corrId) =>
         {
+            await Task.Run(() => CatalogReferenceService.PurgeExtractedData());
             await Dispatcher.InvokeAsync(async () =>
             {
-                CatalogReferenceService.PurgeExtractedData();
                 await ViewModel.RescanAsync();
-                var detailedStatus = CatalogReferenceService.GetDetailedStatus();
-                _ipcBridge.PostMessage(IpcMessageTypes.CatalogDetailedStatus, detailedStatus);
                 bool has3D = CatalogReferenceService.Has3DModelsInstalled();
                 _ipcBridge.PostMessage(IpcMessageTypes.Vanilla3DStatus, new Vanilla3DStatusPayload(has3D, CatalogReferenceService.VanillaReferencePackDirectory));
             });
+            var detailedStatus = await CatalogReferenceService.GetDetailedStatusAsync();
+            _ipcBridge.PostMessage(IpcMessageTypes.CatalogDetailedStatus, detailedStatus);
         });
 
         // 13. OPEN_IN_EXPLORER & PACK:OPEN_EXPLORER
@@ -1622,23 +1617,6 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
 
         if (devServerReachable)
         {
-            WebView.NavigationCompleted += (s, e) =>
-            {
-                if (e.IsSuccess && _ipcBridge != null)
-                {
-                    _ipcBridge.PushPackState(CreatePackStatePayload());
-                    _ipcBridge.PushAppConfig(
-                        ViewModel.TintOpacityPercent,
-                        ViewModel.TintBrightness,
-                        ViewModel.TintHexCode,
-                        IsDebugMode,
-                        ViewModel.WindowTitle);
-
-                    bool has3D = CatalogReferenceService.Has3DModelsInstalled();
-                    _ipcBridge.PostMessage(IpcMessageTypes.Vanilla3DStatus, new Vanilla3DStatusPayload(has3D, CatalogReferenceService.VanillaReferencePackDirectory));
-                    _ipcBridge.PostMessage(IpcMessageTypes.CatalogDetailedStatus, CatalogReferenceService.GetDetailedStatus());
-                }
-            };
             WebView.CoreWebView2.Navigate("http://localhost:5188/");
         }
         else
@@ -1750,23 +1728,6 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         if (Directory.Exists(distDir) && File.Exists(Path.Combine(distDir, "index.html")))
         {
             _ipcBridge?.SetAppVirtualHost(distDir);
-            WebView.NavigationCompleted += (s, e) =>
-            {
-                if (e.IsSuccess && _ipcBridge != null)
-                {
-                    _ipcBridge.PushPackState(CreatePackStatePayload());
-                    _ipcBridge.PushAppConfig(
-                        ViewModel.TintOpacityPercent,
-                        ViewModel.TintBrightness,
-                        ViewModel.TintHexCode,
-                        IsDebugMode,
-                        ViewModel.WindowTitle);
-
-                    bool has3D = CatalogReferenceService.Has3DModelsInstalled();
-                    _ipcBridge.PostMessage(IpcMessageTypes.Vanilla3DStatus, new Vanilla3DStatusPayload(has3D, CatalogReferenceService.VanillaReferencePackDirectory));
-                    _ipcBridge.PostMessage(IpcMessageTypes.CatalogDetailedStatus, CatalogReferenceService.GetDetailedStatus());
-                }
-            };
             WebView.CoreWebView2.Navigate("https://app.local/index.html");
         }
         else

@@ -2084,10 +2084,10 @@ public class MainViewModel : INotifyPropertyChanged
 
         try
         {
-            var data = await VanillaDataService.LoadAsync(forceRefresh: false, progress =>
+            var data = await Task.Run(() => VanillaDataService.LoadAsync(forceRefresh: false, progress =>
             {
                 App.Current?.Dispatcher?.Invoke(() => VanillaDataStatusLabel = progress);
-            });
+            }));
 
             _vanillaData = data;
             if (data != null)
@@ -2123,10 +2123,10 @@ public class MainViewModel : INotifyPropertyChanged
 
         try
         {
-            var data = await VanillaDataService.LoadAsync(forceRefresh: true, progress =>
+            var data = await Task.Run(() => VanillaDataService.LoadAsync(forceRefresh: true, progress =>
             {
                 App.Current?.Dispatcher?.Invoke(() => VanillaDataStatusLabel = progress);
-            });
+            }));
 
             _vanillaData = data;
             if (data != null)
