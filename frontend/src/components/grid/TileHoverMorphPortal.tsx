@@ -8,6 +8,7 @@ import { FlipbookThumbnail } from '../common/FlipbookThumbnail';
 import { Badge } from '../common/Badge';
 import { ContextMenuAnchor } from '../common/TextureContextMenu';
 import { TextureDropConfirm } from './TextureDropConfirm';
+import { normalizePath, getFileName } from '../../utils/pathUtils';
 import styles from './TileHoverMorphPortal.module.css';
 
 const GHOST_ROLLING_TIPS = [
@@ -396,11 +397,11 @@ const TileHoverMorphCard: React.FC<TileHoverMorphPortalProps> = ({
     if (!alias.mersFullPath) return null;
     const packRoot = usePackStore.getState().packRoot;
     if (packRoot && alias.mersFullPath.startsWith(packRoot)) {
-      const rel = alias.mersFullPath.slice(packRoot.length).replace(/^[/\\]+/, '').replace(/\\/g, '/');
+      const rel = normalizePath(alias.mersFullPath.slice(packRoot.length).replace(/^[/\\]+/, ''));
       return `https://pack.local/${rel}`;
     }
     if (alias.imageUrl) {
-      const mersFileName = alias.mersFullPath.split(/[/\\]/).pop();
+      const mersFileName = getFileName(alias.mersFullPath);
       if (mersFileName) {
         return alias.imageUrl.replace(/[^/?#]+(\?.*)?$/, `${mersFileName}$1`);
       }
@@ -413,11 +414,11 @@ const TileHoverMorphCard: React.FC<TileHoverMorphPortalProps> = ({
     if (!alias.atlasFullPath) return null;
     const packRoot = usePackStore.getState().packRoot;
     if (packRoot && alias.atlasFullPath.startsWith(packRoot)) {
-      const rel = alias.atlasFullPath.slice(packRoot.length).replace(/^[/\\]+/, '').replace(/\\/g, '/');
+      const rel = normalizePath(alias.atlasFullPath.slice(packRoot.length).replace(/^[/\\]+/, ''));
       return `https://pack.local/${rel}`;
     }
     if (alias.imageUrl) {
-      const atlasFileName = alias.atlasFullPath.split(/[/\\]/).pop();
+      const atlasFileName = getFileName(alias.atlasFullPath);
       if (atlasFileName) {
         return alias.imageUrl.replace(/[^/?#]+(\?.*)?$/, `${atlasFileName}$1`);
       }

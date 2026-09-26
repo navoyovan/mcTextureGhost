@@ -8,6 +8,7 @@ import { TileHoverMorphPortal, TileHoverMorphTarget } from './TileHoverMorphPort
 import { TextureDropConfirm } from './TextureDropConfirm';
 import { PackGridSkeleton } from './PackGridSkeleton';
 import { Badge } from '../common/Badge';
+import { normalizePath, getFileName } from '../../utils/pathUtils';
 import styles from './PackGrid.module.css';
 
 interface PackGridTileProps {
@@ -334,8 +335,8 @@ const PackGridTile = React.memo<PackGridTileProps>(({
             atlasSrc={
               alias.atlasFullPath
                 ? packRoot && alias.atlasFullPath.startsWith(packRoot)
-                  ? `https://pack.local/${alias.atlasFullPath.slice(packRoot.length).replace(/^[/\\]+/, '').replace(/\\/g, '/')}`
-                  : alias.imageUrl.replace(/[^/?#]+(\?.*)?$/, `${alias.atlasFullPath.split(/[/\\]/).pop()}$1`)
+                  ? `https://pack.local/${normalizePath(alias.atlasFullPath.slice(packRoot.length).replace(/^[/\\]+/, ''))}`
+                  : alias.imageUrl.replace(/[^/?#]+(\?.*)?$/, `${getFileName(alias.atlasFullPath)}$1`)
                 : null
             }
             alt={alias.alias}

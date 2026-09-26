@@ -5,6 +5,7 @@ import { useIpc } from '../../hooks/useIpc';
 import { FlipbookThumbnail } from '../common/FlipbookThumbnail';
 import { TextureContextMenu } from '../common/TextureContextMenu';
 import { TextureDropConfirm } from '../grid/TextureDropConfirm';
+import { normalizePath, getFileName } from '../../utils/pathUtils';
 import styles from './BlockWorkspace.module.css';
 
 export interface VariantTileGroup {
@@ -554,8 +555,8 @@ export const WorkspaceTileCard: React.FC<WorkspaceTileCardProps> = React.memo(({
                     atlasSrc={
                       leaf.atlasFullPath
                         ? packRoot && leaf.atlasFullPath.startsWith(packRoot)
-                          ? `https://pack.local/${leaf.atlasFullPath.slice(packRoot.length).replace(/^[/\\]+/, '').replace(/\\/g, '/')}`
-                          : leaf.imageUrl.replace(/[^/?#]+(\?.*)?$/, `${leaf.atlasFullPath.split(/[/\\]/).pop()}$1`)
+                          ? `https://pack.local/${normalizePath(leaf.atlasFullPath.slice(packRoot.length).replace(/^[/\\]+/, ''))}`
+                          : leaf.imageUrl.replace(/[^/?#]+(\?.*)?$/, `${getFileName(leaf.atlasFullPath)}$1`)
                         : null
                     }
                     alt={leafName}
