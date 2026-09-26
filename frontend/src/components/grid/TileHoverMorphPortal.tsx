@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { Edit3, MoreVertical, Layers, Plus } from 'lucide-react';
 import { TextureAliasDto, IpcMessageTypes } from '../../types/ipc';
 import { usePackStore, packStoreActions } from '../../store/packStore';
 import { useIpc } from '../../hooks/useIpc';
@@ -9,6 +8,8 @@ import { Badge } from '../common/Badge';
 import { ContextMenuAnchor } from '../common/TextureContextMenu';
 import { TextureDropConfirm } from './TextureDropConfirm';
 import { normalizePath, getFileName } from '../../utils/pathUtils';
+import { computeMorphCoords, MorphCoords as Coords } from './useMorphCoordinates';
+import { MorphActionsBar } from './MorphActionsBar';
 import styles from './TileHoverMorphPortal.module.css';
 
 const GHOST_ROLLING_TIPS = [
@@ -32,93 +33,6 @@ interface TileHoverMorphPortalProps {
   onEdit: (alias: TextureAliasDto) => void;
   onOpenContextMenu: (alias: TextureAliasDto, anchor: ContextMenuAnchor) => void;
 }
-
-interface Coords {
-  left: number;
-  top: number;
-  width: number;
-  thumbHeight: number;
-  totalHeight: number;
-  originalRect: {
-    left: number;
-    top: number;
-    width: number;
-    height: number;
-  };
-}
-
-// Helper to compute morph target coordinates
-const computeMorphCoords = (
-  rect: DOMRect,
-  imgDimensions: { width: number; height: number } | null,
-  isFlipbook: boolean
-): Coords => {
-  const viewportWidth = window.innerWidth;
-  const viewportHeight = window.innerHeight;
-  const margin = 16;
-
-  const baseTexWidth = imgDimensions?.width ?? 16;
-  const rawTexHeight = imgDimensions?.height ?? 16;
-  const isSpriteSheet = Boolean(isFlipbook || (rawTexHeight >= baseTexWidth * 2));
-  const effectiveTexHeight = isSpriteSheet ? baseTexWidth : rawTexHeight;
-
-  // Available space inside viewport for the card
-  const metaAndActionsHeight = 116;
-  const maxAreaW = Math.min(viewportWidth - 2 * margin - 28, 700);
-  const maxAreaH = Math.min(viewportHeight - 2 * margin - metaAndActionsHeight - 24, 520);
-  const maxThumbDimension = Math.min(maxAreaW, maxAreaH);
-
-  // Compute pixel scale: textures < 32px scale up to match 32x32 baseline (at least ~256px sprite)
-  const maxTexDim = Math.max(baseTexWidth, effectiveTexHeight);
-  const minScaleForSmall = Math.floor(256 / maxTexDim);
-  const maxScaleCap = Math.max(10, minScaleForSmall);
-  const maxScale = (maxThumbDimension - 28) / maxTexDim;
-  const idealScale = Math.min(maxScaleCap, maxScale);
-  const finalScale = idealScale >= 1 ? Math.floor(idealScale) : idealScale;
-
-  const idealSpriteSize = Math.max(
-    Math.round(baseTexWidth * finalScale),
-    Math.round(effectiveTexHeight * finalScale)
-  );
-
-  // Make thumbnail container perfectly square (1:1) so it matches the tile aspect ratio
-  const thumbDimension = Math.min(maxThumbDimension, Math.max(260, idealSpriteSize + 24));
-  const expandedWidth = thumbDimension;
-  const thumbHeight = thumbDimension;
-  const totalHeight = thumbHeight + metaAndActionsHeight;
-
-  const originalCenterX = rect.left + rect.width / 2;
-  let left = originalCenterX - expandedWidth / 2;
-
-  if (left < margin) {
-    left = margin;
-  } else if (left + expandedWidth > viewportWidth - margin) {
-    left = viewportWidth - margin - expandedWidth;
-  }
-
-  const topMargin = 36;
-  let top = rect.top - 20;
-  if (top + totalHeight > viewportHeight - margin) {
-    top = viewportHeight - margin - totalHeight;
-  }
-  if (top < topMargin) {
-    top = topMargin;
-  }
-
-  return {
-    left,
-    top,
-    width: expandedWidth,
-    thumbHeight,
-    totalHeight,
-    originalRect: {
-      left: rect.left,
-      top: rect.top,
-      width: rect.width,
-      height: rect.height,
-    },
-  };
-};
 
 export const TileHoverMorphPortal: React.FC<TileHoverMorphPortalProps> = (props) => (
   // Each target owns its animation state and timers; switching cancels the old close.
@@ -793,131 +707,19 @@ const TileHoverMorphCard: React.FC<TileHoverMorphPortalProps> = ({
             </div>
 
             {/* Quick Action Buttons Toolbar */}
-            <div className={styles.actionsBar}>
-              {isGhost ? (
-                <div className={styles.ghostActionsGroup}>
-                  {isInstalled ? (
-                    <>
-                      <button
-                        type="button"
-                        className={styles.primaryActionBtn}
-                        onClick={handleExtractReference}
-                        title="Add authentic vanilla texture to pack"
-                      >
-                        <Plus size={13} />
-                        <span>ADD</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        className={styles.stubSquareBtn}
-                        onClick={handleCreateStub}
-                        title="Create stub PNG file"
-                        aria-label="Create stub PNG"
-                      >
-                        <svg
-                          viewBox="0 0 16 16"
-                          className={styles.stubSvgFull}
-                          preserveAspectRatio="none"
-                          aria-hidden="true"
-                        >
-                          <rect x="0" y="0" width="8" height="8" fill="#000000" />
-                          <rect x="8" y="0" width="8" height="8" fill="var(--accent-primary, #8CEB1F)" />
-                          <rect x="0" y="8" width="8" height="8" fill="var(--accent-primary, #8CEB1F)" />
-                          <rect x="8" y="8" width="8" height="8" fill="#000000" />
-                        </svg>
-                      </button>
-                    </>
-                  ) : (
-                    <button
-                      type="button"
-                      className={styles.primaryActionBtn}
-                      onClick={handleCreateStub}
-                      title="Create stub PNG texture file"
-                    >
-                      <Plus size={13} />
-                      <span>CREATE STUB</span>
-                    </button>
-                  )}
-                </div>
-              ) : isMorphingToAdded ? (
-                <div className={styles.ghostActionsGroup}>
-                  <button
-                    type="button"
-                    className={`${styles.primaryActionBtn} ${styles.editBtnMorphExpand}`}
-                    onClick={handleEditClick}
-                    title="Edit texture in default editor"
-                  >
-                    <Edit3 size={13} />
-                    <span>Edit</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    className={`${styles.stubSquareBtn} ${styles.stubSquareBtnExiting}`}
-                    aria-hidden="true"
-                    tabIndex={-1}
-                  >
-                    <svg
-                      viewBox="0 0 16 16"
-                      className={styles.stubSvgFull}
-                      preserveAspectRatio="none"
-                      aria-hidden="true"
-                    >
-                      <rect x="0" y="0" width="8" height="8" fill="#000000" />
-                      <rect x="8" y="0" width="8" height="8" fill="var(--accent-primary, #8CEB1F)" />
-                      <rect x="0" y="8" width="8" height="8" fill="var(--accent-primary, #8CEB1F)" />
-                      <rect x="8" y="8" width="8" height="8" fill="#000000" />
-                    </svg>
-                  </button>
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  className={`${styles.primaryActionBtn} ${styles.editBtnAnimIn}`}
-                  onClick={handleEditClick}
-                  title="Edit texture in default editor"
-                >
-                  <Edit3 size={13} />
-                  <span>Edit</span>
-                </button>
-              )}
-
-              {/* Hold to Peek MERS PBR Map Button */}
-              {!isGhost && alias.hasMers && mersUrl && (
-                <button
-                  type="button"
-                  className={`${styles.mersHoldBtn} ${isPeekingMers ? styles.mersHoldBtnActive : ''}`}
-                  onPointerDown={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setIsPeekingMers(true);
-                  }}
-                  onPointerUp={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setIsPeekingMers(false);
-                  }}
-                  onPointerLeave={() => setIsPeekingMers(false)}
-                  onPointerCancel={() => setIsPeekingMers(false)}
-                  title="Hold to peek companion MERS PBR map"
-                  aria-label="Hold to peek companion MERS PBR map"
-                >
-                  <Layers size={13} />
-                  <span>MERS</span>
-                </button>
-              )}
-
-              <button
-                type="button"
-                className={styles.iconActionBtn}
-                onClick={handleOpenContextMenuClick}
-                title="Texture options"
-                aria-label="Texture options"
-              >
-                <MoreVertical size={14} />
-              </button>
-            </div>
+            <MorphActionsBar
+              isGhost={isGhost}
+              isInstalled={isInstalled}
+              isMorphingToAdded={isMorphingToAdded}
+              hasMers={Boolean(alias.hasMers)}
+              mersUrl={mersUrl}
+              isPeekingMers={isPeekingMers}
+              setIsPeekingMers={setIsPeekingMers}
+              onExtractReference={handleExtractReference}
+              onCreateStub={handleCreateStub}
+              onEditClick={handleEditClick}
+              onOpenContextMenuClick={handleOpenContextMenuClick}
+            />
           </>
         ) : (
           !isImageTarget && <div className={styles.bottomSectionUnmorphed} />
