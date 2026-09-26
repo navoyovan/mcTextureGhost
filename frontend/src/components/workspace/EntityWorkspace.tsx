@@ -5,79 +5,13 @@ import { useIpc } from '../../hooks/useIpc';
 import { BlockGroupNodeDto, CatalogLeafDto, TextureAliasDto, OpenWithAppDto } from '../../types/ipc';
 import { Entity3DViewer, EntitySlotOption, EntitySlotVariationOption } from './Entity3DViewer';
 import { EntityEntryTree } from './EntityEntryTree';
-import { WorkspaceTileCard, VariantTileGroup } from './WorkspaceTileCard';
+import { WorkspaceTileCard } from './WorkspaceTileCard';
 import { TileHoverMorphPortal, TileHoverMorphTarget } from '../grid/TileHoverMorphPortal';
 import { TextureContextMenu } from '../common/TextureContextMenu';
 import { WorkspaceSkeleton } from './WorkspaceSkeleton';
 import { Badge } from '../common/Badge';
+import { leafToAliasDto, groupLeavesByVariantSlot } from '../../utils/leafTransforms';
 import styles from './BlockWorkspace.module.css';
-
-function leafToAliasDto(leaf: CatalogLeafDto): TextureAliasDto {
-  return {
-    alias: leaf.alias,
-    displayName: leaf.displayName,
-    relativePath: leaf.relativePath,
-    fullPath: leaf.fullPath,
-    category: (leaf.category as any) || 'entity',
-    entityId: leaf.entityId,
-    textureKey: leaf.textureKey,
-    geometryId: leaf.geometryId,
-    isAttachable: leaf.isAttachable,
-    status: (leaf.status === 'VANILLA' ? 'OK' : leaf.status) as any,
-    exists: leaf.status !== 'GHOST',
-    imageUrl: leaf.imageUrl,
-    blockFaces: [],
-    usedByBlocks: [],
-    variantKind: leaf.variantKind || 'None',
-    blockVariantIndex: leaf.blockVariantIndex,
-    totalBlockVariants: leaf.totalBlockVariants,
-    textureVariantIndex: leaf.textureVariantIndex,
-    totalTextureVariants: leaf.totalTextureVariants,
-    weight: leaf.weight,
-    isFlipbook: leaf.isFlipbook,
-    flipbook: leaf.flipbook,
-    primaryFaceBadgeText: leaf.primaryFaceBadgeText || '',
-    subtitleCaption: leaf.subtitleCaption || '',
-    hasMers: (leaf as any).hasMers,
-    mersFullPath: (leaf as any).mersFullPath,
-    key: leaf.alias,
-  };
-}
-
-// Group entity leaves by alias slot
-function groupLeavesByVariantSlot(leaves: CatalogLeafDto[]): VariantTileGroup[] {
-  const map = new Map<string, VariantTileGroup>();
-  for (const leaf of leaves) {
-    const isTexVar = Boolean(
-      (leaf.totalTextureVariants && leaf.totalTextureVariants > 1) ||
-      leaf.variantKind === 'TextureVariant' ||
-      leaf.variantKind === 'NestedVariant'
-    );
-
-    const slotKey = isTexVar
-      ? `${leaf.alias}__bv_${leaf.blockVariantIndex ?? 'none'}`
-      : `${leaf.alias}__bv_${leaf.blockVariantIndex ?? 'none'}__rp_${leaf.relativePath || 'def'}`;
-
-    const existing = map.get(slotKey);
-    if (existing) {
-      const exists = existing.leaves.some(
-        (l) =>
-          l.relativePath === leaf.relativePath &&
-          l.textureVariantIndex === leaf.textureVariantIndex
-      );
-      if (!exists) {
-        existing.leaves.push(leaf);
-      }
-    } else {
-      map.set(slotKey, {
-        key: slotKey,
-        alias: leaf.alias,
-        leaves: [leaf],
-      });
-    }
-  }
-  return Array.from(map.values());
-}
 
 export const EntityWorkspace: React.FC = () => {
   const entityWorkspaceTree = usePackStore((s) => s.entityWorkspaceTree);
@@ -351,7 +285,7 @@ export const EntityWorkspace: React.FC = () => {
     setActiveLeafKey(`${leaf.alias}-${leaf.relativePath}`);
     const rect = domEl.getBoundingClientRect();
     setHoverMorphTarget({
-      alias: leafToAliasDto(leaf),
+      alias: leafToAliasDto(leaf, 'entity'),
       key,
       originRect: rect,
       domElement: domEl,

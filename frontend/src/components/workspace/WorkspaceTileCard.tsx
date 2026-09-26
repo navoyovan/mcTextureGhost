@@ -1,18 +1,15 @@
 import React, { useMemo, useState, useRef, useEffect, useCallback } from 'react';
-import { CatalogLeafDto, OpenWithAppDto, TextureAliasDto, TileDragData } from '../../types/ipc';
+import { CatalogLeafDto, OpenWithAppDto, TileDragData } from '../../types/ipc';
 import { usePackStore, packStoreActions } from '../../store/packStore';
 import { useIpc } from '../../hooks/useIpc';
 import { FlipbookThumbnail } from '../common/FlipbookThumbnail';
 import { TextureContextMenu } from '../common/TextureContextMenu';
 import { TextureDropConfirm } from '../grid/TextureDropConfirm';
 import { normalizePath, getFileName } from '../../utils/pathUtils';
+import { leafToAliasDto, VariantTileGroup } from '../../utils/leafTransforms';
 import styles from './BlockWorkspace.module.css';
 
-export interface VariantTileGroup {
-  key: string;
-  alias: string;
-  leaves: CatalogLeafDto[];
-}
+export type { VariantTileGroup };
 
 interface WorkspaceTileCardProps {
   grp: VariantTileGroup;
@@ -27,38 +24,6 @@ interface WorkspaceTileCardProps {
   onAddVariation?: (leaf: CatalogLeafDto, count?: number) => void;
 
   onDeleteVariation?: (leaf: CatalogLeafDto) => void;
-}
-
-function leafToAliasDto(leaf: CatalogLeafDto): TextureAliasDto {
-  return {
-    alias: leaf.alias,
-    displayName: leaf.displayName,
-    relativePath: leaf.relativePath,
-    fullPath: leaf.fullPath,
-    category: (leaf.category as any) || 'block',
-    entityId: leaf.entityId,
-    textureKey: leaf.textureKey,
-    geometryId: leaf.geometryId,
-    isAttachable: leaf.isAttachable,
-    status: (leaf.status === 'VANILLA' ? 'OK' : leaf.status) as any,
-    exists: leaf.status !== 'GHOST',
-    imageUrl: leaf.imageUrl,
-    blockFaces: [],
-    usedByBlocks: [],
-    variantKind: leaf.variantKind || 'None',
-    blockVariantIndex: leaf.blockVariantIndex,
-    totalBlockVariants: leaf.totalBlockVariants,
-    textureVariantIndex: leaf.textureVariantIndex,
-    totalTextureVariants: leaf.totalTextureVariants,
-    weight: leaf.weight,
-    isFlipbook: leaf.isFlipbook,
-    flipbook: leaf.flipbook,
-    primaryFaceBadgeText: leaf.primaryFaceBadgeText || '',
-    subtitleCaption: leaf.subtitleCaption || '',
-    hasMers: (leaf as any).hasMers,
-    mersFullPath: (leaf as any).mersFullPath,
-    key: leaf.alias,
-  };
 }
 
 function getStatusDotClass(status: string): string {

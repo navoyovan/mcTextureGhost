@@ -5,82 +5,14 @@ import { useIpc } from '../../hooks/useIpc';
 import { BlockGroupNodeDto, CatalogLeafDto, TextureAliasDto, OpenWithAppDto } from '../../types/ipc';
 import { Block3DViewer } from './Block3DViewer';
 import { BlockEntryTree } from './BlockEntryTree';
-import { WorkspaceTileCard, VariantTileGroup } from './WorkspaceTileCard';
+import { WorkspaceTileCard } from './WorkspaceTileCard';
 import { TileHoverMorphPortal, TileHoverMorphTarget } from '../grid/TileHoverMorphPortal';
 import { TextureContextMenu } from '../common/TextureContextMenu';
 import { WorkspaceSkeleton } from './WorkspaceSkeleton';
 import { Badge } from '../common/Badge';
 import { hasTerrainTextureJson as checkTerrainTextureJson } from '../../utils/packFileUtils';
+import { leafToAliasDto, groupLeavesByVariantSlot } from '../../utils/leafTransforms';
 import styles from './BlockWorkspace.module.css';
-
-function leafToAliasDto(leaf: CatalogLeafDto): TextureAliasDto {
-  return {
-    alias: leaf.alias,
-    displayName: leaf.displayName,
-    relativePath: leaf.relativePath,
-    fullPath: leaf.fullPath,
-    category: (leaf.category as any) || 'block',
-    entityId: leaf.entityId,
-    textureKey: leaf.textureKey,
-    geometryId: leaf.geometryId,
-    isAttachable: leaf.isAttachable,
-    status: (leaf.status === 'VANILLA' ? 'OK' : leaf.status) as any,
-    exists: leaf.status !== 'GHOST',
-    imageUrl: leaf.imageUrl,
-    blockFaces: [],
-    usedByBlocks: [],
-    variantKind: leaf.variantKind || 'None',
-    blockVariantIndex: leaf.blockVariantIndex,
-    totalBlockVariants: leaf.totalBlockVariants,
-    textureVariantIndex: leaf.textureVariantIndex,
-    totalTextureVariants: leaf.totalTextureVariants,
-    weight: leaf.weight,
-    isFlipbook: leaf.isFlipbook,
-    flipbook: leaf.flipbook,
-    primaryFaceBadgeText: leaf.primaryFaceBadgeText || '',
-    subtitleCaption: leaf.subtitleCaption || '',
-    hasMers: (leaf as any).hasMers,
-    mersFullPath: (leaf as any).mersFullPath,
-    key: leaf.alias,
-  };
-}
-
-// Group a flat leaf array by alias + block variant slot.
-// Leaves in the same group are texture variations ("variations": [ ... ]) of the same block state slot.
-// Distinct block variants ("textures": [ ... ]) have different blockVariantIndex and form separate tiles.
-function groupLeavesByVariantSlot(leaves: CatalogLeafDto[]): VariantTileGroup[] {
-  const map = new Map<string, VariantTileGroup>();
-  for (const leaf of leaves) {
-    const isTexVar = Boolean(
-      (leaf.totalTextureVariants && leaf.totalTextureVariants > 1) ||
-      leaf.variantKind === 'TextureVariant' ||
-      leaf.variantKind === 'NestedVariant'
-    );
-
-    const slotKey = isTexVar
-      ? `${leaf.alias}__bv_${leaf.blockVariantIndex ?? 'none'}`
-      : `${leaf.alias}__bv_${leaf.blockVariantIndex ?? 'none'}__rp_${leaf.relativePath || 'def'}`;
-
-    const existing = map.get(slotKey);
-    if (existing) {
-      const exists = existing.leaves.some(
-        (l) =>
-          l.relativePath === leaf.relativePath &&
-          l.textureVariantIndex === leaf.textureVariantIndex
-      );
-      if (!exists) {
-        existing.leaves.push(leaf);
-      }
-    } else {
-      map.set(slotKey, {
-        key: slotKey,
-        alias: leaf.alias,
-        leaves: [leaf],
-      });
-    }
-  }
-  return Array.from(map.values());
-}
 
 export const BlockWorkspace: React.FC = () => {
   const blockWorkspaceTree = usePackStore((s) => s.blockWorkspaceTree);
