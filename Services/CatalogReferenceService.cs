@@ -4,6 +4,7 @@ using System.IO.Compression;
 using System.Net.Http;
 using System.Text.Json;
 using McTextureGhost.Models;
+using McTextureGhost.Services.Scanning;
 
 namespace McTextureGhost.Services;
 
@@ -460,12 +461,12 @@ public static class CatalogReferenceService
         }
 
         var customTerrainTextures = File.Exists(terrainPath)
-            ? PackScanner.ParseTextureAtlasJson(terrainPath)
+            ? TextureAtlasParser.ParseTextureAtlasJson(terrainPath)
             : null;
 
         var terrainTextures = defaultVanilla != null
-            ? new Dictionary<string, PackScanner.ParsedAliasData>(defaultVanilla.TerrainTextures, StringComparer.OrdinalIgnoreCase)
-            : new Dictionary<string, PackScanner.ParsedAliasData>(StringComparer.OrdinalIgnoreCase);
+            ? new Dictionary<string, ParsedAliasData>(defaultVanilla.TerrainTextures, StringComparer.OrdinalIgnoreCase)
+            : new Dictionary<string, ParsedAliasData>(StringComparer.OrdinalIgnoreCase);
 
         if (customTerrainTextures != null)
         {
@@ -484,7 +485,7 @@ public static class CatalogReferenceService
         if (File.Exists(terrainPath))
         {
             using var stream = File.OpenRead(terrainPath);
-            using var doc = JsonDocument.Parse(stream, PackScanner.ScanDocOptions);
+            using var doc = JsonDocument.Parse(stream, ScanningJsonUtils.ScanDocOptions);
             if (doc.RootElement.TryGetProperty("texture_data", out var td))
             {
                 foreach (var prop in td.EnumerateObject())
@@ -505,12 +506,12 @@ public static class CatalogReferenceService
         }
 
         var customItemTextures = File.Exists(itemPath)
-            ? PackScanner.ParseTextureAtlasJson(itemPath)
+            ? TextureAtlasParser.ParseTextureAtlasJson(itemPath)
             : null;
 
         var itemTextures = defaultVanilla != null
-            ? new Dictionary<string, PackScanner.ParsedAliasData>(defaultVanilla.ItemTextures, StringComparer.OrdinalIgnoreCase)
-            : new Dictionary<string, PackScanner.ParsedAliasData>(StringComparer.OrdinalIgnoreCase);
+            ? new Dictionary<string, ParsedAliasData>(defaultVanilla.ItemTextures, StringComparer.OrdinalIgnoreCase)
+            : new Dictionary<string, ParsedAliasData>(StringComparer.OrdinalIgnoreCase);
 
         if (customItemTextures != null)
         {
@@ -529,7 +530,7 @@ public static class CatalogReferenceService
         if (File.Exists(itemPath))
         {
             using var stream = File.OpenRead(itemPath);
-            using var doc = JsonDocument.Parse(stream, PackScanner.ScanDocOptions);
+            using var doc = JsonDocument.Parse(stream, ScanningJsonUtils.ScanDocOptions);
             if (doc.RootElement.TryGetProperty("texture_data", out var td))
             {
                 foreach (var prop in td.EnumerateObject())
@@ -550,8 +551,8 @@ public static class CatalogReferenceService
         }
 
         var flipbooks = File.Exists(flipbookPath)
-            ? PackScanner.ParseFlipbookTextures(flipbookPath)
-            : (defaultVanilla?.Flipbooks ?? new PackScanner.FlipbookCatalog());
+            ? TextureAtlasParser.ParseFlipbookTextures(flipbookPath)
+            : (defaultVanilla?.Flipbooks ?? new FlipbookCatalog());
 
         var rawFlipbooks = defaultVanilla != null
             ? new Dictionary<string, string>(defaultVanilla.RawFlipbookJson, StringComparer.OrdinalIgnoreCase)
