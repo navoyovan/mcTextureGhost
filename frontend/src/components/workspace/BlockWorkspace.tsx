@@ -1,11 +1,12 @@
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
-import { Box, Layers, ArrowRight, ChevronDown } from 'lucide-react';
+import { Box, Layers, ArrowRight } from 'lucide-react';
 import { usePackStore, packStoreActions } from '../../store/packStore';
 import { useIpc } from '../../hooks/useIpc';
 import { BlockGroupNodeDto, CatalogLeafDto, TextureAliasDto, OpenWithAppDto } from '../../types/ipc';
 import { Block3DViewer } from './Block3DViewer';
 import { BlockEntryTree } from './BlockEntryTree';
 import { WorkspaceTileCard } from './WorkspaceTileCard';
+import { WorkspaceShell } from './WorkspaceShell';
 import { TileHoverMorphPortal, TileHoverMorphTarget } from '../grid/TileHoverMorphPortal';
 import { TextureContextMenu } from '../common/TextureContextMenu';
 import { WorkspaceSkeleton } from './WorkspaceSkeleton';
@@ -28,10 +29,7 @@ export const BlockWorkspace: React.FC = () => {
   const hasTerrainTextureJson = useMemo(() => checkTerrainTextureJson(packFolders), [packFolders]);
 
   const [activeMenuKey, setActiveMenuKey] = useState<string | null>(null);
-  const isListDrawerOpen = usePackStore((s) => s.isWorkspaceDrawerOpen);
   const setIsListDrawerOpen = usePackStore((s) => s.setIsWorkspaceDrawerOpen);
-  const disable3DView = usePackStore((s) => s.disable3DView);
-  const setDisable3DView = usePackStore((s) => s.setDisable3DView);
   const [contextMenuTarget, setContextMenuTarget] = useState<{
     alias: TextureAliasDto;
     key: string;
@@ -410,77 +408,66 @@ export const BlockWorkspace: React.FC = () => {
   }
 
   return (
-    <div className={styles.workspaceContainer}>
-      {/* Backdrop for compact viewports */}
-      {isListDrawerOpen && (
-        <div
-          className={styles.blockListBackdrop}
-          onClick={() => setIsListDrawerOpen(false)}
-          aria-hidden="true"
-        />
-      )}
-
-      {/* Left List */}
-      <aside
-        className={`${styles.blockListPane} ${isListDrawerOpen ? styles.blockListPaneOpen : ''}`}
-        aria-label="Blocks List"
-      >
-        <div className={styles.blockListHeader}>
-          Pack Blocks ({filteredBlockWorkspaceTree.length}
-          {filteredBlockWorkspaceTree.length !== blockWorkspaceTree.length ? ` / ${blockWorkspaceTree.length}` : ''})
-        </div>
-        {filteredBlockWorkspaceTree.length > 0 ? (
-          filteredBlockWorkspaceTree.map((block) => {
-            const isActive = selectedBlock?.blockId === block.blockId;
-            const isCustom = block.isUserDefined !== false;
-            return (
-              <button
-                key={block.blockId}
-                data-block-id={block.blockId}
-                type="button"
-                className={`${styles.blockItem} ${isActive ? styles.blockItemActive : ''} ${!isCustom ? styles.blockItemVanilla : ''}`}
-                onClick={() => {
-                  setSelectedBlockId(block.blockId);
-                  setIsListDrawerOpen(false);
-                }}
-              >
-                <div className={styles.blockItemLeft}>
-                  <Box size={14} className={!isCustom ? styles.blockIconMuted : undefined} />
-                  <span className={styles.blockItemName}>{block.displayName || block.blockId}</span>
-                </div>
-                <div className={styles.blockItemBadges}>
-                  {!isCustom && block.blockId !== 'uncategorized' && (
-                    <Badge variant="fallback" size="sm" title="Inferred from vanilla blocks.json">fallback</Badge>
-                  )}
-                  {block.ghostCount > 0 && (
-                    <Badge variant="ghost" size="counter">{block.ghostCount}</Badge>
-                  )}
-                </div>
-              </button>
-            );
-          })
-        ) : (
-          <div className={styles.noMatches}>
-            <span>No blocks match your search or filter</span>
-          </div>
-        )}
-      </aside>
-
-      {/* Right Detail Pane */}
-      {selectedBlock ? (
-        <section className={styles.detailPane} aria-label="Block Hierarchy & 3D Preview">
-          <div className={styles.detailHeader}>
-            <div className={styles.blockTitleGroup}>
-              <div className={styles.blockHeaderTitleRow}>
-                <h2 className={styles.blockDisplayName}>{selectedBlock.displayName}</h2>
-              </div>
-              <span className={styles.blockIdSub}>
-                {selectedBlock.blockId === 'uncategorized' || selectedBlock.blockId.includes(':')
-                  ? selectedBlock.blockId
-                  : `minecraft:${selectedBlock.blockId}`}
-              </span>
+    <>
+      <WorkspaceShell
+        listAriaLabel="Blocks List"
+        listHeader={
+          <>
+            Pack Blocks ({filteredBlockWorkspaceTree.length}
+            {filteredBlockWorkspaceTree.length !== blockWorkspaceTree.length ? ` / ${blockWorkspaceTree.length}` : ''})
+          </>
+        }
+        sidebarContent={
+          filteredBlockWorkspaceTree.length > 0 ? (
+            filteredBlockWorkspaceTree.map((block) => {
+              const isActive = selectedBlock?.blockId === block.blockId;
+              const isCustom = block.isUserDefined !== false;
+              return (
+                <button
+                  key={block.blockId}
+                  data-block-id={block.blockId}
+                  type="button"
+                  className={`${styles.blockItem} ${isActive ? styles.blockItemActive : ''} ${!isCustom ? styles.blockItemVanilla : ''}`}
+                  onClick={() => {
+                    setSelectedBlockId(block.blockId);
+                    setIsListDrawerOpen(false);
+                  }}
+                >
+                  <div className={styles.blockItemLeft}>
+                    <Box size={14} className={!isCustom ? styles.blockIconMuted : undefined} />
+                    <span className={styles.blockItemName}>{block.displayName || block.blockId}</span>
+                  </div>
+                  <div className={styles.blockItemBadges}>
+                    {!isCustom && block.blockId !== 'uncategorized' && (
+                      <Badge variant="fallback" size="sm" title="Inferred from vanilla blocks.json">fallback</Badge>
+                    )}
+                    {block.ghostCount > 0 && (
+                      <Badge variant="ghost" size="counter">{block.ghostCount}</Badge>
+                    )}
+                  </div>
+                </button>
+              );
+            })
+          ) : (
+            <div className={styles.noMatches}>
+              <span>No blocks match your search or filter</span>
             </div>
-            <div className={styles.detailHeaderActions}>
+          )
+        }
+        hasSelection={Boolean(selectedBlock)}
+        emptySelectionText="Select a block to inspect"
+        detailAriaLabel="Block Hierarchy & 3D Preview"
+        title={selectedBlock?.displayName}
+        subtitle={
+          selectedBlock
+            ? (selectedBlock.blockId === 'uncategorized' || selectedBlock.blockId.includes(':')
+                ? selectedBlock.blockId
+                : `minecraft:${selectedBlock.blockId}`)
+            : undefined
+        }
+        headerActions={
+          selectedBlock && (
+            <>
               {selectedBlock.isUserDefined === false && selectedBlock.blockId !== 'uncategorized' && (
                 <Badge variant="fallback" size="sm" title="Using vanilla blocks.json definition">
                   Fallback
@@ -489,69 +476,38 @@ export const BlockWorkspace: React.FC = () => {
               {selectedBlock.ghostCount > 0 && (
                 <Badge variant="ghost" size="sm">{selectedBlock.ghostCount} ghosts</Badge>
               )}
-            </div>
-          </div>
-
-          {selectedBlock.blockId !== 'uncategorized' && (
-            <div
-              className={`${styles.previewTreeContainer} ${disable3DView ? styles.previewTreeContainerCollapsed : ''}`}
-            >
-              <div
-                className={styles.previewTreeHeader}
-                onClick={() => setDisable3DView(!disable3DView)}
-                title={disable3DView ? 'Click to expand 3D preview' : 'Click to minimize 3D preview'}
-              >
-                <div className={styles.previewTreeHeaderLeft}>
-                  <Box size={13} style={{ color: '#8CEB1F' }} />
-                  <span className={styles.previewTreeHeaderTitle}>3D Preview</span>
-                </div>
-                <div className={styles.previewTreeHeaderActions}>
-                  <button
-                    type="button"
-                    className={styles.previewTreeToggleBtn}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setDisable3DView(!disable3DView);
-                    }}
-                    title={disable3DView ? 'Expand 3D preview panel' : 'Minimize 3D preview panel'}
-                  >
-                    <ChevronDown
-                      size={12}
-                      className={`${styles.previewTreeToggleChevron} ${!disable3DView ? styles.previewTreeToggleChevronExpanded : ''}`}
-                    />
-                    <span>{disable3DView ? 'Expand' : 'Minimize'}</span>
-                  </button>
-                </div>
-              </div>
-
-              <div className={`${styles.previewTreeContentWrapper} ${disable3DView ? styles.previewTreeContentWrapperCollapsed : ''}`}>
-                <div className={styles.previewTreeContentInner}>
-                  <Block3DViewer
-                    blockId={selectedBlock.blockId}
-                    faceTextures={faceTextures.textures}
-                    faceFlipbooks={faceTextures.flipbooks}
-                    blockStates={blockStates}
-                    activeStateIndex={activeBlockStateIndex}
-                    onSelectStateIndex={(idx) => {
-                      setActiveBlockStateIndex(idx);
-                      setActiveVariationIndex(0);
-                    }}
-                    activeVariationIndex={activeVariationIndex}
-                    onSelectVariationIndex={setActiveVariationIndex}
-                  />
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* (Uncategorized) holds true orphans with no blocks.json entry, so no JSON hierarchy applies */}
-          {selectedBlock.blockId !== 'uncategorized' && (
-            <BlockEntryTree
-              block={selectedBlock}
-              onTileClick={handleTileClick}
+            </>
+          )
+        }
+        show3DPreview={Boolean(selectedBlock && selectedBlock.blockId !== 'uncategorized')}
+        previewTitle="3D Preview"
+        previewContent={
+          selectedBlock && selectedBlock.blockId !== 'uncategorized' ? (
+            <Block3DViewer
+              blockId={selectedBlock.blockId}
+              faceTextures={faceTextures.textures}
+              faceFlipbooks={faceTextures.flipbooks}
+              blockStates={blockStates}
+              activeStateIndex={activeBlockStateIndex}
+              onSelectStateIndex={(idx) => {
+                setActiveBlockStateIndex(idx);
+                setActiveVariationIndex(0);
+              }}
+              activeVariationIndex={activeVariationIndex}
+              onSelectVariationIndex={setActiveVariationIndex}
             />
-          )}
+          ) : null
+        }
+      >
+        {/* (Uncategorized) holds true orphans with no blocks.json entry, so no JSON hierarchy applies */}
+        {selectedBlock && selectedBlock.blockId !== 'uncategorized' && (
+          <BlockEntryTree
+            block={selectedBlock}
+            onTileClick={handleTileClick}
+          />
+        )}
 
+        {selectedBlock && (
           <div className={styles.hierarchySection}>
             {(!selectedBlock.aliasGroups || selectedBlock.aliasGroups.length === 0) ? (
               <div className={styles.emptySelection} style={{ padding: '32px 16px', color: '#71717a' }}>
@@ -641,10 +597,8 @@ export const BlockWorkspace: React.FC = () => {
             );
           }))}
           </div>
-        </section>
-      ) : (
-        <div className={styles.emptySelection}>Select a block to inspect</div>
-      )}
+        )}
+      </WorkspaceShell>
 
       {/* Morphing Portal Preview (opened on tile click) */}
       {hoverMorphTarget && (
@@ -766,6 +720,6 @@ export const BlockWorkspace: React.FC = () => {
           }}
         />
       )}
-    </div>
+    </>
   );
 };

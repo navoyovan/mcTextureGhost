@@ -1,11 +1,12 @@
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
-import { PawPrint, ArrowRight, Shield, Box, ChevronDown } from 'lucide-react';
+import { PawPrint, ArrowRight, Shield } from 'lucide-react';
 import { usePackStore, packStoreActions } from '../../store/packStore';
 import { useIpc } from '../../hooks/useIpc';
 import { BlockGroupNodeDto, CatalogLeafDto, TextureAliasDto, OpenWithAppDto } from '../../types/ipc';
 import { Entity3DViewer, EntitySlotOption, EntitySlotVariationOption } from './Entity3DViewer';
 import { EntityEntryTree } from './EntityEntryTree';
 import { WorkspaceTileCard } from './WorkspaceTileCard';
+import { WorkspaceShell } from './WorkspaceShell';
 import { TileHoverMorphPortal, TileHoverMorphTarget } from '../grid/TileHoverMorphPortal';
 import { TextureContextMenu } from '../common/TextureContextMenu';
 import { WorkspaceSkeleton } from './WorkspaceSkeleton';
@@ -32,10 +33,7 @@ export const EntityWorkspace: React.FC = () => {
   const activeVariationIndex = usePackStore((s) => s.entityWorkspaceActiveVariationIndex);
   const setActiveVariationIndex = usePackStore((s) => s.setEntityWorkspaceActiveVariationIndex);
   const [activeMenuKey, setActiveMenuKey] = useState<string | null>(null);
-  const isListDrawerOpen = usePackStore((s) => s.isWorkspaceDrawerOpen);
   const setIsListDrawerOpen = usePackStore((s) => s.setIsWorkspaceDrawerOpen);
-  const disable3DView = usePackStore((s) => s.disable3DView);
-  const setDisable3DView = usePackStore((s) => s.setDisable3DView);
   const [hoverMorphTarget, setHoverMorphTarget] = useState<TileHoverMorphTarget | null>(null);
   const [contextMenuTarget, setContextMenuTarget] = useState<{
     alias: TextureAliasDto;
@@ -324,94 +322,76 @@ export const EntityWorkspace: React.FC = () => {
   }
 
   return (
-    <div className={styles.workspaceContainer}>
-      {/* Backdrop for compact viewports */}
-      {isListDrawerOpen && (
-        <div
-          className={styles.blockListBackdrop}
-          onClick={() => setIsListDrawerOpen(false)}
-          aria-hidden="true"
-        />
-      )}
+    <>
+      <WorkspaceShell
+        listAriaLabel="Entities List"
+        listHeader={
+          <>
+            Pack Entities ({filteredEntityWorkspaceTree.length}
+            {filteredEntityWorkspaceTree.length !== entityWorkspaceTree.length ? ` / ${entityWorkspaceTree.length}` : ''})
+          </>
+        }
+        sidebarContent={
+          filteredEntityWorkspaceTree.length > 0 ? (
+            filteredEntityWorkspaceTree.map((entity) => {
+              const isActive = selectedEntity?.blockId === entity.blockId;
+              const isCustom = entity.isUserDefined !== false;
+              const isAttachable = entity.aliasGroups?.some((ag) => ag.isAttachable || ag.leaves?.some((l) => l.isAttachable));
 
-      {/* Left List */}
-      <aside
-        className={`${styles.blockListPane} ${isListDrawerOpen ? styles.blockListPaneOpen : ''}`}
-        aria-label="Entities List"
-      >
-        <div className={styles.blockListHeader}>
-          Pack Entities ({filteredEntityWorkspaceTree.length}
-          {filteredEntityWorkspaceTree.length !== entityWorkspaceTree.length ? ` / ${entityWorkspaceTree.length}` : ''})
-        </div>
-
-        {filteredEntityWorkspaceTree.length > 0 ? (
-          filteredEntityWorkspaceTree.map((entity) => {
-            const isActive = selectedEntity?.blockId === entity.blockId;
-            const isCustom = entity.isUserDefined !== false;
-            const isAttachable = entity.aliasGroups?.some((ag) => ag.isAttachable || ag.leaves?.some((l) => l.isAttachable));
-
-            return (
-              <button
-                key={entity.blockId}
-                data-entity-id={entity.blockId}
-                type="button"
-                className={`${styles.blockItem} ${isActive ? styles.blockItemActive : ''} ${!isCustom ? styles.blockItemVanilla : ''}`}
-                onClick={() => {
-                  setSelectedEntityId(entity.blockId);
-                  setIsListDrawerOpen(false);
-                }}
-              >
-                <div className={styles.blockItemLeft}>
-                  {isAttachable ? (
-                    <Shield size={14} className={!isCustom ? styles.blockIconMuted : undefined} />
-                  ) : (
-                    <PawPrint size={14} className={!isCustom ? styles.blockIconMuted : undefined} />
-                  )}
-                  <span className={styles.blockItemName}>{entity.displayName || entity.blockId}</span>
-                </div>
-                <div className={styles.blockItemBadges}>
-                  {isAttachable && (
-                    <Badge variant="category-attachable" size="sm">attachable</Badge>
-                  )}
-                  {!isCustom && (
-                    <Badge variant="fallback" size="sm" title="Inferred from vanilla entity definition">fallback</Badge>
-                  )}
-                  {entity.ghostCount > 0 && (
-                    <Badge variant="ghost" size="counter">{entity.ghostCount}</Badge>
-                  )}
-                </div>
-              </button>
-            );
-          })
-        ) : (
-          <div className={styles.noMatches}>
-            <span>No entities match your search or filter</span>
-          </div>
-        )}
-      </aside>
-
-      {/* Right Detail Pane */}
-      {selectedEntity ? (
-        <section
-          key={selectedEntity.blockId}
-          className={styles.detailPane}
-          aria-label="Entity Hierarchy & 3D Preview"
-        >
-          <div className={styles.detailHeader}>
-            <div className={styles.blockTitleGroup}>
-              <div className={styles.blockHeaderTitleRow}>
-                <h2 className={styles.blockDisplayName}>{selectedEntity.displayName}</h2>
-                {isAttachableEntity && (
-                  <Badge variant="category-attachable" size="sm">
-                    Attachable / Armor
-                  </Badge>
-                )}
-              </div>
-              <span className={styles.blockIdSub}>
-                {selectedEntity.blockId}
-              </span>
+              return (
+                <button
+                  key={entity.blockId}
+                  data-entity-id={entity.blockId}
+                  type="button"
+                  className={`${styles.blockItem} ${isActive ? styles.blockItemActive : ''} ${!isCustom ? styles.blockItemVanilla : ''}`}
+                  onClick={() => {
+                    setSelectedEntityId(entity.blockId);
+                    setIsListDrawerOpen(false);
+                  }}
+                >
+                  <div className={styles.blockItemLeft}>
+                    {isAttachable ? (
+                      <Shield size={14} className={!isCustom ? styles.blockIconMuted : undefined} />
+                    ) : (
+                      <PawPrint size={14} className={!isCustom ? styles.blockIconMuted : undefined} />
+                    )}
+                    <span className={styles.blockItemName}>{entity.displayName || entity.blockId}</span>
+                  </div>
+                  <div className={styles.blockItemBadges}>
+                    {isAttachable && (
+                      <Badge variant="category-attachable" size="sm">attachable</Badge>
+                    )}
+                    {!isCustom && (
+                      <Badge variant="fallback" size="sm" title="Inferred from vanilla entity definition">fallback</Badge>
+                    )}
+                    {entity.ghostCount > 0 && (
+                      <Badge variant="ghost" size="counter">{entity.ghostCount}</Badge>
+                    )}
+                  </div>
+                </button>
+              );
+            })
+          ) : (
+            <div className={styles.noMatches}>
+              <span>No entities match your search or filter</span>
             </div>
-            <div className={styles.detailHeaderActions}>
+          )
+        }
+        hasSelection={Boolean(selectedEntity)}
+        emptySelectionText="Select an entity to inspect"
+        detailAriaLabel="Entity Hierarchy & 3D Preview"
+        title={selectedEntity?.displayName}
+        titleBadge={
+          isAttachableEntity && (
+            <Badge variant="category-attachable" size="sm">
+              Attachable / Armor
+            </Badge>
+          )
+        }
+        subtitle={selectedEntity?.blockId}
+        headerActions={
+          selectedEntity && (
+            <>
               {selectedEntity.isUserDefined === false && (
                 <Badge variant="fallback" size="sm" title="Using vanilla entity definition">
                   Fallback
@@ -422,68 +402,40 @@ export const EntityWorkspace: React.FC = () => {
                   {selectedEntity.ghostCount} {selectedEntity.ghostCount === 1 ? 'ghost' : 'ghosts'}
                 </Badge>
               )}
-            </div>
-          </div>
-
-          {/* 3D Entity Model Viewer */}
-          <div
-            className={`${styles.previewTreeContainer} ${disable3DView ? styles.previewTreeContainerCollapsed : ''}`}
-          >
-            <div
-              className={styles.previewTreeHeader}
-              onClick={() => setDisable3DView(!disable3DView)}
-              title={disable3DView ? 'Click to expand 3D preview' : 'Click to minimize 3D preview'}
-            >
-              <div className={styles.previewTreeHeaderLeft}>
-                <Box size={13} style={{ color: '#8CEB1F' }} />
-                <span className={styles.previewTreeHeaderTitle}>3D Preview</span>
-              </div>
-              <div className={styles.previewTreeHeaderActions}>
-                <button
-                  type="button"
-                  className={styles.previewTreeToggleBtn}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setDisable3DView(!disable3DView);
-                  }}
-                  title={disable3DView ? 'Expand 3D preview panel' : 'Minimize 3D preview panel'}
-                >
-                  <ChevronDown
-                    size={12}
-                    className={`${styles.previewTreeToggleChevron} ${!disable3DView ? styles.previewTreeToggleChevronExpanded : ''}`}
-                  />
-                  <span>{disable3DView ? 'Expand' : 'Minimize'}</span>
-                </button>
-              </div>
-            </div>
-
-            <div className={`${styles.previewTreeContentWrapper} ${disable3DView ? styles.previewTreeContentWrapperCollapsed : ''}`}>
-              <div className={styles.previewTreeContentInner}>
-                <Entity3DViewer
-                  entityId={selectedEntity.blockId}
-                  geometryId={primaryGeometryId}
-                  textureUrl={activeTextureUrl}
-                  isGhost={activeIsGhost}
-                  isAttachable={isAttachableEntity}
-                  slots={slotOptions}
-                  activeSlotIndex={activeSlotIndex}
-                  onSelectSlotIndex={(idx) => {
-                    setActiveSlotIndex(idx);
-                    setActiveVariationIndex(0);
-                  }}
-                  activeVariationIndex={activeVariationIndex}
-                  onSelectVariationIndex={setActiveVariationIndex}
-                />
-              </div>
-            </div>
-          </div>
-
+            </>
+          )
+        }
+        show3DPreview={Boolean(selectedEntity)}
+        previewTitle="3D Preview"
+        previewContent={
+          selectedEntity ? (
+            <Entity3DViewer
+              entityId={selectedEntity.blockId}
+              geometryId={primaryGeometryId}
+              textureUrl={activeTextureUrl}
+              isGhost={activeIsGhost}
+              isAttachable={isAttachableEntity}
+              slots={slotOptions}
+              activeSlotIndex={activeSlotIndex}
+              onSelectSlotIndex={(idx) => {
+                setActiveSlotIndex(idx);
+                setActiveVariationIndex(0);
+              }}
+              activeVariationIndex={activeVariationIndex}
+              onSelectVariationIndex={setActiveVariationIndex}
+            />
+          ) : null
+        }
+      >
+        {selectedEntity && (
           <EntityEntryTree
             entity={selectedEntity}
             onTileClick={handleTileClick}
           />
+        )}
 
-          {/* Slots & Texture Variations Hierarchy */}
+        {/* Slots & Texture Variations Hierarchy */}
+        {selectedEntity && (
           <div className={styles.hierarchySection} ref={menuRef}>
             {selectedEntity.aliasGroups?.map((ag, agIndex) => {
               const isVanillaFallback = selectedEntity.isUserDefined === false || ag.isUserDefined === false;
@@ -533,10 +485,8 @@ export const EntityWorkspace: React.FC = () => {
             );
           })}
           </div>
-        </section>
-      ) : (
-        <div className={styles.emptySelection}>Select an entity to inspect</div>
-      )}
+        )}
+      </WorkspaceShell>
 
       {/* Morphing Portal Preview (opened on tile click) */}
       {hoverMorphTarget && (
@@ -596,6 +546,6 @@ export const EntityWorkspace: React.FC = () => {
           }}
         />
       )}
-    </div>
+    </>
   );
 };
