@@ -620,7 +620,6 @@ public class MainViewModel : INotifyPropertyChanged
     public ObservableCollection<BlockGroupNode> CatalogTree { get; } = new();
     public ICollectionView FilteredCatalogTree { get; }
     public RelayCommand AddVanillaEntryCommand { get; }
-    public RelayCommand OpenCatalogDialogCommand { get; }
     public RelayCommand SetCatalogCategoryAllCommand { get; }
     public RelayCommand SetCatalogCategoryBlocksCommand { get; }
     public RelayCommand SetCatalogCategoryItemsCommand { get; }
@@ -736,7 +735,6 @@ public class MainViewModel : INotifyPropertyChanged
 
         FetchVanillaDataCommand    = new RelayCommand(_ => _ = RefreshVanillaDataAsync());
         AddVanillaEntryCommand     = new RelayCommand(param => AddVanillaEntry(param), _ => _packRoot != null && _vanillaData != null);
-        OpenCatalogDialogCommand        = new RelayCommand(_ => OpenCatalogDialog(), _ => _packRoot != null);
         SetCatalogCategoryAllCommand    = new RelayCommand(_ => SetCatalogCategory(null));
         SetCatalogCategoryBlocksCommand = new RelayCommand(_ => SetCatalogCategory(TextureCategory.Block));
         SetCatalogCategoryItemsCommand  = new RelayCommand(_ => SetCatalogCategory(TextureCategory.Item));
@@ -1030,16 +1028,6 @@ public class MainViewModel : INotifyPropertyChanged
         var manifestPath = Path.Combine(targetFolder, "manifest.json");
         var defaultManifest = ManifestModel.CreateDefault(packName, manifestPath);
 
-        var manifestDialog = new CreatePackManifestDialog(defaultManifest)
-        {
-            Owner = Application.Current?.MainWindow
-        };
-
-        if (manifestDialog.ShowDialog() != true)
-        {
-            return; // Cancelled
-        }
-
         try
         {
             Directory.CreateDirectory(targetFolder);
@@ -1049,10 +1037,7 @@ public class MainViewModel : INotifyPropertyChanged
             var itemsDir = Path.Combine(texturesDir, "items");
             Directory.CreateDirectory(itemsDir);
 
-            if (manifestDialog.ShouldGenerateManifest)
-            {
-                defaultManifest.SaveToFile(manifestPath);
-            }
+            defaultManifest.SaveToFile(manifestPath);
 
             var terrainPath = Path.Combine(texturesDir, "terrain_texture.json");
             if (!File.Exists(terrainPath))
@@ -1092,16 +1077,9 @@ public class MainViewModel : INotifyPropertyChanged
             Rescan(isInitialLoad: true);
             StartWatching();
 
-            if (manifestDialog.ShouldGenerateManifest)
-            {
-                StatusMessage = "Resource pack created with manifest.json.";
-                _recentPacksService.AddOrUpdatePack(targetFolder);
-                RefreshRecentPacks();
-            }
-            else
-            {
-                StatusMessage = "Resource pack created without manifest. Click manifest.json on the left to generate one anytime.";
-            }
+            StatusMessage = "Resource pack created with manifest.json.";
+            _recentPacksService.AddOrUpdatePack(targetFolder);
+            RefreshRecentPacks();
         }
         catch (Exception ex)
         {
@@ -2366,22 +2344,6 @@ public class MainViewModel : INotifyPropertyChanged
                 }
             }
         }
-    }
-
-    private void OpenCatalogDialog()
-    {
-        if (_packRoot == null) return;
-        if (!IsVanillaDataLoaded)
-        {
-            StatusMessage = "Vanilla catalog is still loading. Please wait...";
-            return;
-        }
-
-        var dialog = new Views.CatalogDialog(this)
-        {
-            Owner = Application.Current?.MainWindow
-        };
-        dialog.ShowDialog();
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
