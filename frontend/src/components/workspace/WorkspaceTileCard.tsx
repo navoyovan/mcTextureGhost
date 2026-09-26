@@ -71,6 +71,18 @@ export const WorkspaceTileCard: React.FC<WorkspaceTileCardProps> = React.memo(({
   const primary = leaves[0];
   const { editTexture, openInExplorer, dropImportTexture, copyTextureFile } = useIpc();
   const packRoot = usePackStore((s) => s.packRoot);
+  const packAliases = usePackStore((s) => s.aliases);
+
+  const findStoreAlias = useCallback((targetLeaf: CatalogLeafDto) => {
+    return packAliases.find((a) => {
+      if (a.status === 'ORPHAN') return false;
+      if (a.alias.toLowerCase() !== targetLeaf.alias.toLowerCase()) return false;
+      if (targetLeaf.textureVariantIndex != null && a.textureVariantIndex != null) {
+        return a.textureVariantIndex === targetLeaf.textureVariantIndex;
+      }
+      return true;
+    });
+  }, [packAliases]);
 
   // Drag and drop state
   const [dragSlotIndex, setDragSlotIndex] = useState<number | null>(null);
@@ -292,7 +304,8 @@ export const WorkspaceTileCard: React.FC<WorkspaceTileCardProps> = React.memo(({
 
   const numVariations = leaves.length;
   const hasTexVariants = numVariations > 1;
-  const isGhost = primary.status === 'GHOST';
+  const primaryStoreAlias = findStoreAlias(primary);
+  const isGhost = primaryStoreAlias ? primaryStoreAlias.status === 'GHOST' : primary.status === 'GHOST';
   const primaryFile = parseFileName(primary, alias);
 
   const cardWidth = useMemo(() => {
@@ -472,7 +485,16 @@ export const WorkspaceTileCard: React.FC<WorkspaceTileCardProps> = React.memo(({
 
         {leaves.map((leaf, i) => {
           const leafName = getLeafTitle(leaf, alias);
-          const isLeafGhost = leaf.status === 'GHOST';
+          const storeAlias = findStoreAlias(leaf);
+          const isLeafGhost = storeAlias ? storeAlias.status === 'GHOST' : leaf.status === 'GHOST';
+          const resolvedImgUrl =
+            leaf.imageUrl ||
+            storeAlias?.imageUrl ||
+            (packRoot && leaf.fullPath && leaf.fullPath.startsWith(packRoot)
+              ? `https://pack.local/${normalizePath(leaf.fullPath.slice(packRoot.length).replace(/^[/\\]+/, ''))}`
+              : packRoot && leaf.relativePath
+              ? `https://pack.local/${normalizePath(leaf.relativePath.replace(/^[/\\]+/, ''))}`
+              : '');
           const isSlotDragOver = hasTexVariants && dragSlotIndex === i;
 
           return (
@@ -481,7 +503,7 @@ export const WorkspaceTileCard: React.FC<WorkspaceTileCardProps> = React.memo(({
               <div
                 ref={hasTexVariants && i === 0 ? primaryThumbRef : undefined}
                 className={`${hasTexVariants ? styles.texVarThumbSlot : styles.leafThumbInner} ${!isLeafGhost ? styles.texVarThumbSlotAdded : ''} ${isSlotDragOver ? styles.texVarSlotDragOver : ''}`}
-                draggable={!isLeafGhost && Boolean(leaf.imageUrl || leaf.fullPath)}
+                draggable={!isLeafGhost && Boolean(resolvedImgUrl || leaf.fullPath)}
                 onDragStart={(e) => handleSlotDragStart(e, leaf)}
                 onClick={(e) => {
                   if (Date.now() - lastMenuCloseRef.current < 300) return;
@@ -514,14 +536,14 @@ export const WorkspaceTileCard: React.FC<WorkspaceTileCardProps> = React.memo(({
                   </div>
                 )}
 
-                {!isLeafGhost && leaf.imageUrl ? (
+                {!isLeafGhost && resolvedImgUrl ? (
                   <FlipbookThumbnail
-                    src={leaf.imageUrl}
+                    src={resolvedImgUrl}
                     atlasSrc={
                       leaf.atlasFullPath
                         ? packRoot && leaf.atlasFullPath.startsWith(packRoot)
                           ? `https://pack.local/${normalizePath(leaf.atlasFullPath.slice(packRoot.length).replace(/^[/\\]+/, ''))}`
-                          : leaf.imageUrl.replace(/[^/?#]+(\?.*)?$/, `${getFileName(leaf.atlasFullPath)}$1`)
+                          : resolvedImgUrl.replace(/[^/?#]+(\?.*)?$/, `${getFileName(leaf.atlasFullPath)}$1`)
                         : null
                     }
                     alt={leafName}

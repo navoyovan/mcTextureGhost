@@ -298,7 +298,15 @@ public static partial class WorkspaceTreeBuilder
                     foreach (var bId in blockIds)
                     {
                         if (!vanillaBlockGroups.TryGetValue(bId, out var aliasList))
+                        {
                             vanillaBlockGroups[bId] = aliasList = new List<string>();
+                            if (vanilla.BlockToAliases.TryGetValue(bId, out var allAliases))
+                            {
+                                foreach (var a in allAliases)
+                                    if (!aliasList.Contains(a, StringComparer.OrdinalIgnoreCase))
+                                        aliasList.Add(a);
+                            }
+                        }
                         if (!aliasList.Contains(aliasName, StringComparer.OrdinalIgnoreCase))
                             aliasList.Add(aliasName);
                     }
@@ -315,7 +323,15 @@ public static partial class WorkspaceTreeBuilder
                         foreach (var bId in matchingBlocks)
                         {
                             if (!vanillaBlockGroups.TryGetValue(bId, out var aliasList))
+                            {
                                 vanillaBlockGroups[bId] = aliasList = new List<string>();
+                                if (vanilla.BlockToAliases.TryGetValue(bId, out var allAliases))
+                                {
+                                    foreach (var a in allAliases)
+                                        if (!aliasList.Contains(a, StringComparer.OrdinalIgnoreCase))
+                                            aliasList.Add(a);
+                                }
+                            }
                             if (!aliasList.Contains(aliasName, StringComparer.OrdinalIgnoreCase))
                                 aliasList.Add(aliasName);
                         }
@@ -434,6 +450,112 @@ public static partial class WorkspaceTreeBuilder
                                 SubtitleCaption = tile.SubtitleCaption,
                                 PrimaryFaceBadgeText = tile.PrimaryFaceBadgeText,
                                 Flipbook = tile.Flipbook
+                            };
+                            aliasNode.Leaves.Add(aliasLeaf);
+                        }
+                    }
+                    else
+                    {
+                        // No user entry for this alias in terrain_texture.json → resolve from vanilla terrain_texture.json!
+                        if (vanilla.TerrainTextures.TryGetValue(alias, out var vData) && vData.Entries.Count > 0)
+                        {
+                            foreach (var vEntry in vData.Entries)
+                            {
+                                var rawPath = vEntry.RawPath;
+                                var fileName = Path.GetFileNameWithoutExtension(rawPath);
+                                var normRaw = VanillaDataService.NormalizeTexturePath(rawPath);
+                                var fullPath = packRoot != null
+                                    ? Path.Combine(packRoot, (normRaw + ".png").Replace('/', Path.DirectorySeparatorChar))
+                                    : normRaw;
+
+                                var caption = vEntry.TotalBlockVariants.HasValue
+                                    ? $"block state {vEntry.BlockVariantIndex}/{vEntry.TotalBlockVariants}"
+                                    : (vEntry.TotalTextureVariants.HasValue
+                                        ? $"tex {vEntry.TextureVariantIndex}/{vEntry.TotalTextureVariants}"
+                                        : "missing texture");
+
+                                foreach (var faceNode in aliasNode.FaceNodes)
+                                {
+                                    var faceLeaf = new CatalogLeaf
+                                    {
+                                        Alias        = alias,
+                                        DisplayName  = fileName,
+                                        RelativePath = normRaw,
+                                        FullPath     = fullPath,
+                                        Category     = TextureCategory.Block,
+                                        Status       = CatalogEntryStatus.Ghost,
+                                        TextureAlias = null,
+                                        VariantKind  = vEntry.TotalBlockVariants.HasValue ? VariantKind.BlockVariant : (vEntry.TotalTextureVariants.HasValue ? VariantKind.TextureVariant : VariantKind.None),
+                                        BlockVariantIndex = vEntry.BlockVariantIndex,
+                                        TotalBlockVariants = vEntry.TotalBlockVariants,
+                                        TextureVariantIndex = vEntry.TextureVariantIndex,
+                                        TotalTextureVariants = vEntry.TotalTextureVariants,
+                                        Weight       = vEntry.Weight,
+                                        SubtitleCaption      = caption,
+                                        PrimaryFaceBadgeText = faceNode.FaceLabel,
+                                        Flipbook     = vanilla.Flipbooks.Find(alias, rawPath, vEntry.BlockVariantIndex, vEntry.TextureVariantIndex)
+                                    };
+                                    faceNode.Leaves.Add(faceLeaf);
+                                }
+
+                                var aliasLeaf = new CatalogLeaf
+                                {
+                                    Alias        = alias,
+                                    DisplayName  = fileName,
+                                    RelativePath = normRaw,
+                                    FullPath     = fullPath,
+                                    Category     = TextureCategory.Block,
+                                    Status       = CatalogEntryStatus.Ghost,
+                                    TextureAlias = null,
+                                    VariantKind  = vEntry.TotalBlockVariants.HasValue ? VariantKind.BlockVariant : (vEntry.TotalTextureVariants.HasValue ? VariantKind.TextureVariant : VariantKind.None),
+                                    BlockVariantIndex = vEntry.BlockVariantIndex,
+                                    TotalBlockVariants = vEntry.TotalBlockVariants,
+                                    TextureVariantIndex = vEntry.TextureVariantIndex,
+                                    TotalTextureVariants = vEntry.TotalTextureVariants,
+                                    Weight       = vEntry.Weight,
+                                    SubtitleCaption      = caption,
+                                    PrimaryFaceBadgeText = aliasNode.FaceSummary,
+                                    Flipbook     = vanilla.Flipbooks.Find(alias, rawPath, vEntry.BlockVariantIndex, vEntry.TextureVariantIndex)
+                                };
+                                aliasNode.Leaves.Add(aliasLeaf);
+                            }
+                        }
+                        else
+                        {
+                            var caption = "missing texture";
+                            var rawPath = $"textures/blocks/{alias}";
+                            var fullPath = packRoot != null
+                                ? Path.Combine(packRoot, (rawPath + ".png").Replace('/', Path.DirectorySeparatorChar))
+                                : rawPath;
+
+                            foreach (var faceNode in aliasNode.FaceNodes)
+                            {
+                                var faceLeaf = new CatalogLeaf
+                                {
+                                    Alias        = alias,
+                                    DisplayName  = alias,
+                                    RelativePath = rawPath,
+                                    FullPath     = fullPath,
+                                    Category     = TextureCategory.Block,
+                                    Status       = CatalogEntryStatus.Ghost,
+                                    TextureAlias = null,
+                                    SubtitleCaption      = caption,
+                                    PrimaryFaceBadgeText = faceNode.FaceLabel
+                                };
+                                faceNode.Leaves.Add(faceLeaf);
+                            }
+
+                            var aliasLeaf = new CatalogLeaf
+                            {
+                                Alias        = alias,
+                                DisplayName  = alias,
+                                RelativePath = rawPath,
+                                FullPath     = fullPath,
+                                Category     = TextureCategory.Block,
+                                Status       = CatalogEntryStatus.Ghost,
+                                TextureAlias = null,
+                                SubtitleCaption      = caption,
+                                PrimaryFaceBadgeText = aliasNode.FaceSummary
                             };
                             aliasNode.Leaves.Add(aliasLeaf);
                         }
