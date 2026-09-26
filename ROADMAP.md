@@ -31,7 +31,7 @@
 - [x] Smooth accordion collapse animations for JSON Hierarchy, 3D Preview, and Catalog Index trees
 - [x] Animated entrance transitions for the Welcome layout
 - [x] Toggleable 3D viewport preview option for reduced hardware usage during long editing sessions
-- [ ] Variation weight editor and custom label editing
+- [x] Variation weight editor and custom label editing
 
 **Bug Fixes**
 - [x] Shared vanilla fallback aliases: fixed multiple blocks sharing the same texture defaulting only to the first block; now surfaces fallback entries across all sharing blocks

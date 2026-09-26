@@ -254,20 +254,44 @@ public static class OrphanResolver
                 TextureSlotEntry? matchedVanillaEntry = null;
 
                 // Only match against vanilla declared block paths if the file is actually located in blocks directory or declared in vanilla
+                // Prefer the most specific alias (exact filename match or single-variant) over a
+                // multi-variant alias that happens to contain the same file (e.g. blast_furnace_front_on.png
+                // should map to alias "blast_furnace_front_on", not to alias "blast_furnace" which contains it as a variant).
                 if (isBlock && vanilla != null && vanilla.DeclaredBlockPaths.Contains(relNoExt))
                 {
+                    string? bestAlias = null;
+                    TextureSlotEntry? bestEntry = null;
+                    List<BlockFaceUsage>? bestFaces = null;
+                    int bestScore = int.MaxValue;
+
                     foreach (var (vAlias, vData) in vanilla.TerrainTextures)
                     {
                         var foundEntry = vData.Entries.FirstOrDefault(e => VanillaDataService.NormalizeTexturePath(e.RawPath).Equals(relNoExt, StringComparison.OrdinalIgnoreCase));
-                        if (foundEntry != null)
+                        if (foundEntry == null) continue;
+
+                        // Score: 0 = alias equals filename (most specific), 1 = single entry alias, 2 = variant alias
+                        int score = 2;
+                        if (vAlias.Equals(fileNameWithoutExt, StringComparison.OrdinalIgnoreCase))
+                            score = 0;
+                        else if (vData.Entries.Count == 1)
+                            score = 1;
+
+                        if (score < bestScore)
                         {
-                            vanillaBlockAlias = vAlias;
-                            matchedVanillaEntry = foundEntry;
+                            bestScore = score;
+                            bestAlias = vAlias;
+                            bestEntry = foundEntry;
                             if (vanilla.BlockUsage.TryGetValue(vAlias, out var u))
-                                vanillaBlockFaces = u;
-                            break;
+                                bestFaces = u;
+                            else
+                                bestFaces = null;
+                            if (score == 0) break; // exact match is optimal
                         }
                     }
+
+                    vanillaBlockAlias = bestAlias;
+                    matchedVanillaEntry = bestEntry;
+                    vanillaBlockFaces = bestFaces;
                 }
 
                 if (vanillaBlockAlias != null)

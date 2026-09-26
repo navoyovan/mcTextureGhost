@@ -377,7 +377,7 @@ export const BlockWorkspace: React.FC = () => {
   }, [deleteTextureEntries]);
 
   const handleAddVariation = useCallback(async (leaf: CatalogLeafDto, count = 1) => {
-    packStoreActions.optimisticAddVariation(leaf.alias, leaf.blockVariantIndex ?? null, count);
+    packStoreActions.optimisticAddVariation(leaf.alias, leaf.blockVariantIndex ?? null, count, leaf.relativePath ?? null);
     for (let i = 0; i < count; i++) {
       await scaffoldTextureVariation(leaf.alias, leaf.blockVariantIndex ?? null, leaf.relativePath ?? null);
     }

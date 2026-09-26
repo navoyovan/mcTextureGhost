@@ -131,8 +131,7 @@ export const BlockEntryTree: React.FC<BlockEntryTreeProps> = ({ block, onTileCli
 
       const isUsedByBlock =
         pa.usedByBlocks?.some((b) => b.toLowerCase() === block.blockId.toLowerCase()) ||
-        pa.blockFaces?.some((bf) => bf.blockId.toLowerCase() === block.blockId.toLowerCase()) ||
-        pa.alias.toLowerCase().startsWith(block.blockId.toLowerCase());
+        pa.blockFaces?.some((bf) => bf.blockId.toLowerCase() === block.blockId.toLowerCase());
 
       if (isUsedByBlock) {
         processedAliasKeys.add(aliasKey);

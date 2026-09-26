@@ -289,25 +289,147 @@ export function applyOptimisticDeleteVariation(
   };
 }
 
+export function applyOptimisticSetVariationWeight(
+  aliases: TextureAliasDto[],
+  blockTree: BlockGroupNodeDto[],
+  entityTree: BlockGroupNodeDto[],
+  alias: string,
+  relativePath: string,
+  weight: number
+): TreeMutationResult {
+  const relNorm = normalizePath(relativePath, true);
+  const aliasNorm = alias.toLowerCase();
+
+  const updatedAliases = aliases.map((a) => {
+    if (a.alias.toLowerCase() === aliasNorm && a.relativePath && normalizePath(a.relativePath, true) === relNorm) {
+      return { ...a, weight };
+    }
+    return a;
+  });
+
+  const patchWeight = (tree: BlockGroupNodeDto[]): BlockGroupNodeDto[] =>
+    (tree || []).map((block) => ({
+      ...block,
+      aliasGroups: block.aliasGroups?.map((ag) => {
+        if (ag.alias.toLowerCase() !== aliasNorm) return ag;
+        const updatedLeaves = ag.leaves?.map((leaf) => {
+          if (leaf.relativePath && normalizePath(leaf.relativePath, true) === relNorm) {
+            return { ...leaf, weight };
+          }
+          return leaf;
+        });
+        const faceNodes = (ag as any).faceNodes?.map((fn: any) => ({
+          ...fn,
+          leaves: fn.leaves?.map((leaf: any) => {
+            if (leaf.relativePath && normalizePath(leaf.relativePath, true) === relNorm) {
+              return { ...leaf, weight };
+            }
+            return leaf;
+          }),
+        }));
+        return { ...ag, leaves: updatedLeaves, faceNodes } as any;
+      }),
+    }));
+
+  return {
+    aliases: updatedAliases,
+    blockWorkspaceTree: patchWeight(blockTree),
+    entityWorkspaceTree: patchWeight(entityTree),
+    stats: computeStats(updatedAliases),
+  };
+}
+
+export function applyOptimisticRenameVariation(
+  aliases: TextureAliasDto[],
+  blockTree: BlockGroupNodeDto[],
+  entityTree: BlockGroupNodeDto[],
+  alias: string,
+  oldRelativePath: string,
+  newRelativePath: string
+): TreeMutationResult {
+  const oldNorm = normalizePath(oldRelativePath, true);
+  const aliasNorm = alias.toLowerCase();
+  const fileStem = newRelativePath.split(/[/\\]/).pop()?.replace(/\.(png|tga)$/i, '') || newRelativePath;
+
+  const updatedAliases = aliases.map((a) => {
+    if (a.alias.toLowerCase() === aliasNorm && a.relativePath && normalizePath(a.relativePath, true) === oldNorm) {
+      return {
+        ...a,
+        relativePath: newRelativePath,
+        displayName: fileStem,
+      };
+    }
+    return a;
+  });
+
+  const patchRename = (tree: BlockGroupNodeDto[]): BlockGroupNodeDto[] =>
+    (tree || []).map((block) => ({
+      ...block,
+      aliasGroups: block.aliasGroups?.map((ag) => {
+        if (ag.alias.toLowerCase() !== aliasNorm) return ag;
+        const updatedLeaves = ag.leaves?.map((leaf) => {
+          if (leaf.relativePath && normalizePath(leaf.relativePath, true) === oldNorm) {
+            return {
+              ...leaf,
+              relativePath: newRelativePath,
+              displayName: fileStem,
+            };
+          }
+          return leaf;
+        });
+        const faceNodes = (ag as any).faceNodes?.map((fn: any) => ({
+          ...fn,
+          leaves: fn.leaves?.map((leaf: any) => {
+            if (leaf.relativePath && normalizePath(leaf.relativePath, true) === oldNorm) {
+              return {
+                ...leaf,
+                relativePath: newRelativePath,
+                displayName: fileStem,
+              };
+            }
+            return leaf;
+          }),
+        }));
+        return { ...ag, leaves: updatedLeaves, faceNodes } as any;
+      }),
+    }));
+
+  return {
+    aliases: updatedAliases,
+    blockWorkspaceTree: patchRename(blockTree),
+    entityWorkspaceTree: patchRename(entityTree),
+    stats: computeStats(updatedAliases),
+  };
+}
+
 export function applyOptimisticAddVariation(
   aliases: TextureAliasDto[],
   blockTree: BlockGroupNodeDto[],
   entityTree: BlockGroupNodeDto[],
   alias: string,
   blockVariantIndex?: number | null,
-  count = 1
+  count = 1,
+  sourceRelativePath?: string | null
 ): TreeMutationResult {
   const aliasNorm = alias.toLowerCase();
   const existing = aliases.filter((a) => a.alias.toLowerCase() === aliasNorm);
   const nextIndex = existing.length > 0 ? Math.max(...existing.map((e) => e.textureVariantIndex ?? 0)) + 1 : 1;
 
+  let stem = alias.toLowerCase();
+  if (sourceRelativePath) {
+    const rawFile = sourceRelativePath.split(/[/\\]/).pop() || '';
+    const clean = rawFile.replace(/\.(png|tga)$/i, '');
+    const stripped = clean.replace(/_var\d+$/i, '');
+    if (stripped) stem = stripped;
+  }
+
   const newAliases: TextureAliasDto[] = [...aliases];
   for (let i = 0; i < count; i++) {
     const varIndex = nextIndex + i;
-    const stubRelativePath = `textures/blocks/${alias}_var${varIndex}.png`;
+    const stubRelativePath = `textures/blocks/${stem}_var${varIndex}.png`;
     newAliases.push({
       alias,
-      displayName: `${alias} #${varIndex}`,
+      displayName: `${stem} #${varIndex}`,
       category: 'block',
       relativePath: stubRelativePath,
       fullPath: '',
@@ -323,7 +445,7 @@ export function applyOptimisticAddVariation(
       isFlipbook: false,
       primaryFaceBadgeText: '',
       subtitleCaption: '',
-      key: `${alias}_var${varIndex}`,
+      key: `${stem}_var${varIndex}`,
     });
   }
 
@@ -337,9 +459,9 @@ export function applyOptimisticAddVariation(
           const varIndex = nextIndex + i;
           leaves.push({
             alias,
-            displayName: `${alias} #${varIndex}`,
+            displayName: `${stem} #${varIndex}`,
             category: 'block',
-            relativePath: `textures/blocks/${alias}_var${varIndex}.png`,
+            relativePath: `textures/blocks/${stem}_var${varIndex}.png`,
             fullPath: '',
             status: 'GHOST',
             imageUrl: '',

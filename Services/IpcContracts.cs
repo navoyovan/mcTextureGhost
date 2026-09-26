@@ -71,6 +71,8 @@ public static class IpcMessageTypes
     public const string TextureDeleteFile = "TEXTURE:DELETE_FILE";
     public const string TextureDeleteEntries = "TEXTURE:DELETE_ENTRIES";
     public const string TextureDeleteVariation = "TEXTURE:DELETE_VARIATION";
+    public const string TextureSetVariationWeight = "TEXTURE:SET_VARIATION_WEIGHT";
+    public const string TextureRenameVariation = "TEXTURE:RENAME_VARIATION";
     public const string TextureDropImport = "TEXTURE:DROP_IMPORT";
     public const string TextureCopyFile  = "TEXTURE:COPY_FILE";
     public const string GeometryGet      = "GEOMETRY:GET";
@@ -182,6 +184,24 @@ public record TextureDeleteEntriesPayload(
 public record TextureDeleteVariationPayload(
     [property: JsonPropertyName("alias")] string Alias,
     [property: JsonPropertyName("relativePath")] string RelativePath
+);
+
+/// <summary>
+/// Payload for "TEXTURE:SET_VARIATION_WEIGHT". Updates the weight of a texture variation in terrain_texture.json.
+/// </summary>
+public record TextureSetVariationWeightPayload(
+    [property: JsonPropertyName("alias")] string Alias,
+    [property: JsonPropertyName("relativePath")] string RelativePath,
+    [property: JsonPropertyName("weight")] int Weight
+);
+
+/// <summary>
+/// Payload for "TEXTURE:RENAME_VARIATION". Updates the path/label of a variation in terrain_texture.json and renames disk file.
+/// </summary>
+public record TextureRenameVariationPayload(
+    [property: JsonPropertyName("alias")] string Alias,
+    [property: JsonPropertyName("oldRelativePath")] string OldRelativePath,
+    [property: JsonPropertyName("newLabelOrPath")] string NewLabelOrPath
 );
 
 /// <summary>

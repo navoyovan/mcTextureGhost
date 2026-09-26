@@ -39,3 +39,28 @@ export function hasExtension(path: string, ...extensions: string[]): boolean {
     return lowerPath.endsWith(formattedExt);
   });
 }
+
+/**
+ * Resolves the absolute on-disk path for a texture target.
+ * Ensures relativePath (e.g. 'textures/blocks/door_jungle_lower.png') is never duplicated
+ * with an extra 'textures' prefix.
+ */
+export function resolveTextureFullPath(
+  packRoot: string | null | undefined,
+  fullPath?: string | null,
+  relativePath?: string | null
+): string {
+  if (fullPath && fullPath.trim().length > 0) {
+    return fullPath;
+  }
+  if (!packRoot || !relativePath) {
+    return '';
+  }
+  const cleanRel = relativePath.replace(/^[/\\]+/, '').replace(/\//g, '\\');
+  const basePack = packRoot.replace(/[/\\]+$/, '');
+  const cleanRelLower = cleanRel.toLowerCase();
+  if (cleanRelLower.startsWith('textures\\') || cleanRelLower.startsWith('textures/')) {
+    return `${basePack}\\${cleanRel}`;
+  }
+  return `${basePack}\\textures\\${cleanRel}`;
+}

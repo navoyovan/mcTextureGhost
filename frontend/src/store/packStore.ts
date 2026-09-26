@@ -18,6 +18,8 @@ import {
   applyOptimisticDeleteTexture,
   applyOptimisticDeleteEntries,
   applyOptimisticDeleteVariation,
+  applyOptimisticSetVariationWeight,
+  applyOptimisticRenameVariation,
   applyOptimisticAddVariation,
   applyOptimisticAddVanillaEntry,
 } from './mutations/workspaceTreeMutations';
@@ -105,7 +107,9 @@ export interface PackStoreActions {
   optimisticDeleteTexture: (fullPath: string, aliasKey?: string) => void;
   optimisticDeleteEntries: (aliasKey: string, category: string, relativePath?: string) => void;
   optimisticDeleteVariation: (alias: string, relativePath: string) => void;
-  optimisticAddVariation: (alias: string, blockVariantIndex?: number | null, count?: number) => void;
+  optimisticSetVariationWeight: (alias: string, relativePath: string, weight: number) => void;
+  optimisticRenameVariation: (alias: string, oldRelativePath: string, newRelativePath: string) => void;
+  optimisticAddVariation: (alias: string, blockVariantIndex?: number | null, count?: number, sourceRelativePath?: string | null) => void;
   optimisticAddVanillaEntry: (id: string, category: string, alias?: string, catalogNode?: BlockGroupNodeDto | null) => void;
   setScanProgress: (progress: ScanProgressPayload | null) => void;
   setIsScanning: (scanning: boolean) => void;
@@ -330,12 +334,18 @@ export const packStoreActions: PackStoreActions = {
         }
       }
 
-      // 3. Fallback: match by target fullPath ending with alias relativePath
+      // 3. Fallback: match by target fullPath ending with exact alias relativePath
       if (!isMatch && targetNormFull && alias.relativePath) {
         const aRel = stripExt(alias.relativePath);
-        if ((targetNormFull.endsWith('/' + aRel + '.png') || targetNormFull.endsWith('/' + aRel + '.tga')) &&
+        if ((targetNormFull.endsWith('/' + aRel + '.png') || targetNormFull.endsWith('/' + aRel + '.tga') || targetNormFull.endsWith('\\' + aRel + '.png')) &&
             (!aliasNorm || alias.alias.toLowerCase() === aliasNorm)) {
-          isMatch = true;
+          // Guard: if targetNormFull is e.g. door_jungle_lower_var1.png, do not match door_jungle_lower.png
+          const targetFile = targetNormFull.split(/[/\\]/).pop() || '';
+          const targetFileBase = targetFile.replace(/\.(png|tga)$/i, '');
+          const aliasFile = aRel.split(/[/\\]/).pop() || '';
+          if (targetFileBase === aliasFile) {
+            isMatch = true;
+          }
         }
       }
 
@@ -366,7 +376,15 @@ export const packStoreActions: PackStoreActions = {
             let isMatch = false;
             if (targetNormFull && leaf.fullPath && norm(leaf.fullPath) === targetNormFull) isMatch = true;
             if (!isMatch && targetNormRel && leaf.relativePath && stripExt(leaf.relativePath) === targetNormRel && (!aliasNorm || leaf.alias.toLowerCase() === aliasNorm)) isMatch = true;
-            if (!isMatch && targetNormFull && leaf.relativePath && stripExt(leaf.relativePath) && targetNormFull.endsWith('/' + stripExt(leaf.relativePath) + '.png') && (!aliasNorm || leaf.alias.toLowerCase() === aliasNorm)) isMatch = true;
+            if (!isMatch && targetNormFull && leaf.relativePath) {
+              const lRel = stripExt(leaf.relativePath);
+              const targetFile = targetNormFull.split(/[/\\]/).pop() || '';
+              const targetFileBase = targetFile.replace(/\.(png|tga)$/i, '');
+              const leafFile = lRel.split(/[/\\]/).pop() || '';
+              if (targetFileBase === leafFile && (!aliasNorm || leaf.alias.toLowerCase() === aliasNorm)) {
+                isMatch = true;
+              }
+            }
             if (!isMatch && !targetNormFull && !targetNormRel && (leaf.alias === aliasKey)) isMatch = true;
             if (!isMatch) return leaf;
             return {
@@ -381,7 +399,15 @@ export const packStoreActions: PackStoreActions = {
           let isMatch = false;
           if (targetNormFull && leaf.fullPath && norm(leaf.fullPath) === targetNormFull) isMatch = true;
           if (!isMatch && targetNormRel && leaf.relativePath && stripExt(leaf.relativePath) === targetNormRel && (!aliasNorm || leaf.alias.toLowerCase() === aliasNorm)) isMatch = true;
-          if (!isMatch && targetNormFull && leaf.relativePath && targetNormFull.endsWith('/' + stripExt(leaf.relativePath) + '.png') && (!aliasNorm || leaf.alias.toLowerCase() === aliasNorm)) isMatch = true;
+          if (!isMatch && targetNormFull && leaf.relativePath) {
+            const lRel = stripExt(leaf.relativePath);
+            const targetFile = targetNormFull.split(/[/\\]/).pop() || '';
+            const targetFileBase = targetFile.replace(/\.(png|tga)$/i, '');
+            const leafFile = lRel.split(/[/\\]/).pop() || '';
+            if (targetFileBase === leafFile && (!aliasNorm || leaf.alias.toLowerCase() === aliasNorm)) {
+              isMatch = true;
+            }
+          }
           if (!isMatch && !targetNormFull && !targetNormRel && (leaf.alias === aliasKey)) isMatch = true;
           if (!isMatch) return leaf;
           return {
@@ -464,14 +490,53 @@ export const packStoreActions: PackStoreActions = {
     notify();
   },
 
-  optimisticAddVariation(alias: string, blockVariantIndex?: number | null, count = 1): void {
+  optimisticSetVariationWeight(alias: string, relativePath: string, weight: number): void {
+    const result = applyOptimisticSetVariationWeight(
+      currentState.aliases,
+      currentState.blockWorkspaceTree || [],
+      currentState.entityWorkspaceTree || [],
+      alias,
+      relativePath,
+      weight
+    );
+    currentState = {
+      ...currentState,
+      aliases: result.aliases,
+      blockWorkspaceTree: result.blockWorkspaceTree as any,
+      entityWorkspaceTree: result.entityWorkspaceTree as any,
+      stats: result.stats,
+    };
+    notify();
+  },
+
+  optimisticRenameVariation(alias: string, oldRelativePath: string, newRelativePath: string): void {
+    const result = applyOptimisticRenameVariation(
+      currentState.aliases,
+      currentState.blockWorkspaceTree || [],
+      currentState.entityWorkspaceTree || [],
+      alias,
+      oldRelativePath,
+      newRelativePath
+    );
+    currentState = {
+      ...currentState,
+      aliases: result.aliases,
+      blockWorkspaceTree: result.blockWorkspaceTree as any,
+      entityWorkspaceTree: result.entityWorkspaceTree as any,
+      stats: result.stats,
+    };
+    notify();
+  },
+
+  optimisticAddVariation(alias: string, blockVariantIndex?: number | null, count = 1, sourceRelativePath?: string | null): void {
     const result = applyOptimisticAddVariation(
       currentState.aliases,
       currentState.blockWorkspaceTree || [],
       currentState.entityWorkspaceTree || [],
       alias,
       blockVariantIndex,
-      count
+      count,
+      sourceRelativePath
     );
     currentState = {
       ...currentState,

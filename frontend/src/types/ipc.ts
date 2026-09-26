@@ -36,6 +36,8 @@ export const IpcMessageTypes = {
   TextureDeleteFile: 'TEXTURE:DELETE_FILE',
   TextureDeleteEntries: 'TEXTURE:DELETE_ENTRIES',
   TextureDeleteVariation: 'TEXTURE:DELETE_VARIATION',
+  TextureSetVariationWeight: 'TEXTURE:SET_VARIATION_WEIGHT',
+  TextureRenameVariation: 'TEXTURE:RENAME_VARIATION',
   TextureDropImport: 'TEXTURE:DROP_IMPORT',
   TextureCopyFile: 'TEXTURE:COPY_FILE',
   GeometryGet: 'GEOMETRY:GET',
@@ -128,6 +130,18 @@ export interface TextureDeleteEntriesPayload {
 export interface TextureDeleteVariationPayload {
   alias: string;
   relativePath: string;
+}
+
+export interface TextureSetVariationWeightPayload {
+  alias: string;
+  relativePath: string;
+  weight: number;
+}
+
+export interface TextureRenameVariationPayload {
+  alias: string;
+  oldRelativePath: string;
+  newLabelOrPath: string;
 }
 
 export interface TextureDropImportPayload {

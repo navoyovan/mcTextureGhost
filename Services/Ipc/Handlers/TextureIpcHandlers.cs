@@ -161,6 +161,48 @@ public static class TextureIpcHandlers
             }
         });
 
+        // 4b. TEXTURE:SET_VARIATION_WEIGHT
+        bridge.RegisterHandler<TextureSetVariationWeightPayload>(IpcMessageTypes.TextureSetVariationWeight, async (payload, corrId) =>
+        {
+            if (payload == null || string.IsNullOrWhiteSpace(payload.Alias)) return;
+            var packRoot = await dispatcher.InvokeAsync(() => vm.PackRootPath);
+            if (packRoot == null) return;
+            try
+            {
+                var updated = await Task.Run(() => JsonWriterService.SetTextureVariationWeight(packRoot, payload.Alias, payload.RelativePath, payload.Weight));
+                if (!updated)
+                {
+                    bridge.PushError("Set Variation Weight", $"No matching variation found for '{payload.Alias}'.", "warning");
+                }
+                await dispatcher.InvokeAsync(async () => await vm.RescanScopedAsync(TextureCategory.Block));
+            }
+            catch (Exception ex)
+            {
+                bridge.PushError("Set Variation Weight", $"Failed to update weight: {ex.Message}", "warning");
+            }
+        });
+
+        // 4c. TEXTURE:RENAME_VARIATION
+        bridge.RegisterHandler<TextureRenameVariationPayload>(IpcMessageTypes.TextureRenameVariation, async (payload, corrId) =>
+        {
+            if (payload == null || string.IsNullOrWhiteSpace(payload.Alias) || string.IsNullOrWhiteSpace(payload.NewLabelOrPath)) return;
+            var packRoot = await dispatcher.InvokeAsync(() => vm.PackRootPath);
+            if (packRoot == null) return;
+            try
+            {
+                var (success, _, message) = await Task.Run(() => JsonWriterService.RenameTextureVariation(packRoot, payload.Alias, payload.OldRelativePath, payload.NewLabelOrPath));
+                if (!success)
+                {
+                    bridge.PushError("Rename Variation", message ?? $"Failed to rename variation for '{payload.Alias}'.", "warning");
+                }
+                await dispatcher.InvokeAsync(async () => await vm.RescanScopedAsync(TextureCategory.Block));
+            }
+            catch (Exception ex)
+            {
+                bridge.PushError("Rename Variation", $"Failed to rename variation: {ex.Message}", "warning");
+            }
+        });
+
         // 5. TEXTURE:DROP_IMPORT
         bridge.RegisterHandler<TextureDropImportPayload>(IpcMessageTypes.TextureDropImport, async (payload, corrId) =>
         {
@@ -337,6 +379,48 @@ public static class TextureIpcHandlers
             {
                 bridge.PushError("Variation Not Added", $"Alias '{payload.Alias}' has an unrecognized terrain_texture.json shape.", "warning");
             }
+            else
+            {
+                // Ensure the variation has an actual physical texture on disk
+                var targetFile = Path.Combine(packRoot, newPath.Replace('/', '\\') + ".png");
+                var targetDir = Path.GetDirectoryName(targetFile);
+                if (!string.IsNullOrEmpty(targetDir) && !Directory.Exists(targetDir))
+                {
+                    Directory.CreateDirectory(targetDir);
+                }
+
+                if (!File.Exists(targetFile))
+                {
+                    // If source file exists, copy it as the starting variation texture
+                    string? sourceFile = null;
+                    if (!string.IsNullOrWhiteSpace(payload.RelativePath))
+                    {
+                        var candidate = Path.Combine(packRoot, payload.RelativePath.Replace('/', '\\'));
+                        if (File.Exists(candidate)) sourceFile = candidate;
+                        else if (File.Exists(candidate + ".png")) sourceFile = candidate + ".png";
+                    }
+
+                    if (sourceFile != null && File.Exists(sourceFile))
+                    {
+                        File.Copy(sourceFile, targetFile, overwrite: true);
+                    }
+                    else
+                    {
+                        // Fallback: extract from vanilla reference or create a clean stub
+                        var refDir = CatalogReferenceService.GetActiveProfile()?.PackPath ?? CatalogReferenceService.VanillaReferencePackDirectory;
+                        var vanillaSrc = PackArchiveUtility.ResolveReferenceTexturePath(refDir, targetFile, payload.RelativePath ?? newPath, payload.Alias, "block", packRoot);
+                        if (!string.IsNullOrEmpty(vanillaSrc) && File.Exists(vanillaSrc))
+                        {
+                            File.Copy(vanillaSrc, targetFile, overwrite: true);
+                        }
+                        else
+                        {
+                            PlaceholderImageFactory.CreateStub(targetFile, 16);
+                        }
+                    }
+                    ImagePathConverter.ClearCache();
+                }
+            }
             await dispatcher.InvokeAsync(async () => await vm.RescanScopedAsync(TextureCategory.Block));
         });
 
@@ -405,11 +489,15 @@ public static class TextureIpcHandlers
                             payload.AliasKey,
                             "OK",
                             payload.FullPath,
-                            IpcContractMapper.BuildVirtualTextureUrl(relPath, payload.FullPath),
+                            IpcContractMapper.BuildVirtualTextureUrl(relPath, payload.FullPath, vm.PackRootPath),
                             relPath
                         );
 
                         await vm.RescanAsync();
+                    }
+                    else
+                    {
+                        bridge.PushError("Vanilla Extraction Failed", $"Could not find vanilla texture for '{payload.AliasKey}' ({payload.RelativePath ?? payload.FullPath}) in reference pack.", "error");
                     }
                 }
             });

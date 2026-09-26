@@ -190,16 +190,17 @@ public static partial class WorkspaceTreeBuilder
                                     ? $"tex {vEntry.TextureVariantIndex}/{vEntry.TotalTextureVariants}"
                                     : "missing texture");
 
+                            var ghostStatus = (packRoot != null && File.Exists(fullPath)) ? CatalogEntryStatus.Ok : CatalogEntryStatus.Ghost;
                             foreach (var faceNode in aliasNode.FaceNodes)
                             {
                                 var faceLeaf = new CatalogLeaf
                                 {
                                     Alias        = alias,
-                                    DisplayName  = fileName,
+                                    DisplayName  = fileName + ".png",
                                     RelativePath = normRaw,
                                     FullPath     = fullPath,
                                     Category     = TextureCategory.Block,
-                                    Status       = CatalogEntryStatus.Ghost,
+                                    Status       = ghostStatus,
                                     TextureAlias = null,
                                     VariantKind  = vEntry.TotalBlockVariants.HasValue ? VariantKind.BlockVariant : (vEntry.TotalTextureVariants.HasValue ? VariantKind.TextureVariant : VariantKind.None),
                                     BlockVariantIndex = vEntry.BlockVariantIndex,
@@ -217,11 +218,11 @@ public static partial class WorkspaceTreeBuilder
                             var aliasLeaf = new CatalogLeaf
                             {
                                 Alias        = alias,
-                                DisplayName  = fileName,
+                                DisplayName  = fileName + ".png",
                                 RelativePath = normRaw,
                                 FullPath     = fullPath,
                                 Category     = TextureCategory.Block,
-                                Status       = CatalogEntryStatus.Ghost,
+                                Status       = ghostStatus,
                                 TextureAlias = null,
                                 VariantKind  = vEntry.TotalBlockVariants.HasValue ? VariantKind.BlockVariant : (vEntry.TotalTextureVariants.HasValue ? VariantKind.TextureVariant : VariantKind.None),
                                 BlockVariantIndex = vEntry.BlockVariantIndex,
@@ -238,19 +239,21 @@ public static partial class WorkspaceTreeBuilder
                     }
                     else
                     {
-                        // Custom alias not declared in vanilla terrain_texture.json
+                        var fullPath = packRoot != null
+                            ? Path.Combine(packRoot, "textures", "blocks", $"{alias}.png")
+                            : $"textures/blocks/{alias}.png";
+
+                        var ghostStatus2 = (packRoot != null && File.Exists(fullPath)) ? CatalogEntryStatus.Ok : CatalogEntryStatus.Ghost;
                         foreach (var faceNode in aliasNode.FaceNodes)
                         {
                             var leaf = new CatalogLeaf
                             {
                                 Alias        = alias,
-                                DisplayName  = alias,
+                                DisplayName  = alias + ".png",
                                 RelativePath = $"textures/blocks/{alias}",
-                                FullPath     = packRoot != null
-                                    ? Path.Combine(packRoot, "textures", "blocks", $"{alias}.png")
-                                    : alias,
+                                FullPath     = fullPath,
                                 Category     = TextureCategory.Block,
-                                Status       = CatalogEntryStatus.Ghost,
+                                Status       = ghostStatus2,
                                 TextureAlias = null,
                                 SubtitleCaption      = "missing declaration",
                                 PrimaryFaceBadgeText = faceNode.FaceLabel
@@ -283,13 +286,8 @@ public static partial class WorkspaceTreeBuilder
 
             foreach (var aliasItem in untracked)
             {
-                // Orphan files on disk are not declared in terrain_texture.json;
-                // do not match them against vanilla blocks simply by filename.
-                if (aliasItem.Status == TextureStatus.Orphan)
-                {
-                    remainingUntracked.Add(aliasItem);
-                    continue;
-                }
+                // We allow orphan files to match against vanilla blocks by alias
+                // instead of dumping them straight to (Uncategorized).
 
                 var aliasName = aliasItem.Alias;
                 if (vanilla.BlockUsage.TryGetValue(aliasName, out var vFaces) && vFaces.Count > 0)
@@ -298,15 +296,7 @@ public static partial class WorkspaceTreeBuilder
                     foreach (var bId in blockIds)
                     {
                         if (!vanillaBlockGroups.TryGetValue(bId, out var aliasList))
-                        {
                             vanillaBlockGroups[bId] = aliasList = new List<string>();
-                            if (vanilla.BlockToAliases.TryGetValue(bId, out var allAliases))
-                            {
-                                foreach (var a in allAliases)
-                                    if (!aliasList.Contains(a, StringComparer.OrdinalIgnoreCase))
-                                        aliasList.Add(a);
-                            }
-                        }
                         if (!aliasList.Contains(aliasName, StringComparer.OrdinalIgnoreCase))
                             aliasList.Add(aliasName);
                     }
@@ -323,15 +313,7 @@ public static partial class WorkspaceTreeBuilder
                         foreach (var bId in matchingBlocks)
                         {
                             if (!vanillaBlockGroups.TryGetValue(bId, out var aliasList))
-                            {
-                                vanillaBlockGroups[bId] = aliasList = new List<string>();
-                                if (vanilla.BlockToAliases.TryGetValue(bId, out var allAliases))
-                                {
-                                    foreach (var a in allAliases)
-                                        if (!aliasList.Contains(a, StringComparer.OrdinalIgnoreCase))
-                                            aliasList.Add(a);
-                                }
-                            }
+                            vanillaBlockGroups[bId] = aliasList = new List<string>();
                             if (!aliasList.Contains(aliasName, StringComparer.OrdinalIgnoreCase))
                                 aliasList.Add(aliasName);
                         }
@@ -474,16 +456,17 @@ public static partial class WorkspaceTreeBuilder
                                         ? $"tex {vEntry.TextureVariantIndex}/{vEntry.TotalTextureVariants}"
                                         : "missing texture");
 
+                                var ghostStatus = (packRoot != null && File.Exists(fullPath)) ? CatalogEntryStatus.Ok : CatalogEntryStatus.Ghost;
                                 foreach (var faceNode in aliasNode.FaceNodes)
                                 {
                                     var faceLeaf = new CatalogLeaf
                                     {
                                         Alias        = alias,
-                                        DisplayName  = fileName,
+                                        DisplayName  = fileName + ".png",
                                         RelativePath = normRaw,
                                         FullPath     = fullPath,
                                         Category     = TextureCategory.Block,
-                                        Status       = CatalogEntryStatus.Ghost,
+                                        Status       = ghostStatus,
                                         TextureAlias = null,
                                         VariantKind  = vEntry.TotalBlockVariants.HasValue ? VariantKind.BlockVariant : (vEntry.TotalTextureVariants.HasValue ? VariantKind.TextureVariant : VariantKind.None),
                                         BlockVariantIndex = vEntry.BlockVariantIndex,
@@ -501,11 +484,11 @@ public static partial class WorkspaceTreeBuilder
                                 var aliasLeaf = new CatalogLeaf
                                 {
                                     Alias        = alias,
-                                    DisplayName  = fileName,
+                                    DisplayName  = fileName + ".png",
                                     RelativePath = normRaw,
                                     FullPath     = fullPath,
                                     Category     = TextureCategory.Block,
-                                    Status       = CatalogEntryStatus.Ghost,
+                                    Status       = ghostStatus,
                                     TextureAlias = null,
                                     VariantKind  = vEntry.TotalBlockVariants.HasValue ? VariantKind.BlockVariant : (vEntry.TotalTextureVariants.HasValue ? VariantKind.TextureVariant : VariantKind.None),
                                     BlockVariantIndex = vEntry.BlockVariantIndex,
@@ -528,16 +511,17 @@ public static partial class WorkspaceTreeBuilder
                                 ? Path.Combine(packRoot, (rawPath + ".png").Replace('/', Path.DirectorySeparatorChar))
                                 : rawPath;
 
+                            var ghostStatus = (packRoot != null && File.Exists(fullPath)) ? CatalogEntryStatus.Ok : CatalogEntryStatus.Ghost;
                             foreach (var faceNode in aliasNode.FaceNodes)
                             {
                                 var faceLeaf = new CatalogLeaf
                                 {
                                     Alias        = alias,
-                                    DisplayName  = alias,
+                                    DisplayName  = alias + ".png",
                                     RelativePath = rawPath,
                                     FullPath     = fullPath,
                                     Category     = TextureCategory.Block,
-                                    Status       = CatalogEntryStatus.Ghost,
+                                    Status       = ghostStatus,
                                     TextureAlias = null,
                                     SubtitleCaption      = caption,
                                     PrimaryFaceBadgeText = faceNode.FaceLabel
@@ -548,11 +532,11 @@ public static partial class WorkspaceTreeBuilder
                             var aliasLeaf = new CatalogLeaf
                             {
                                 Alias        = alias,
-                                DisplayName  = alias,
+                                DisplayName  = alias + ".png",
                                 RelativePath = rawPath,
                                 FullPath     = fullPath,
                                 Category     = TextureCategory.Block,
-                                Status       = CatalogEntryStatus.Ghost,
+                                Status       = ghostStatus,
                                 TextureAlias = null,
                                 SubtitleCaption      = caption,
                                 PrimaryFaceBadgeText = aliasNode.FaceSummary
@@ -583,15 +567,19 @@ public static partial class WorkspaceTreeBuilder
             foreach (var grp in finalUntracked.GroupBy(u => u.Alias, StringComparer.OrdinalIgnoreCase))
             {
                 bool isDeclared = grp.Any(t => t.Status != TextureStatus.Orphan);
-                if (isDeclared && !takenBlockIds.Contains(grp.Key))
+                if (isDeclared)
                 {
+                    // Declared aliases (Ok/Ghost) become fallback blocks even if the
+                    // alias name collides with an existing blockId (e.g. blast_furnace
+                    // texture alias vs blast_furnace block). Colliding fallbacks are
+                    // kept as distinct nodes so they don't pollute (Uncategorized).
                     fallbackGroups.Add(grp);
                     takenBlockIds.Add(grp.Key);
                 }
                 else
                 {
-                    // True orphans, or declared aliases colliding with an
-                    // existing block id, fall through to (Uncategorized).
+                    // True orphans (on disk, not declared in any JSON) stay
+                    // under (Uncategorized).
                     orphanItems.AddRange(grp);
                 }
             }
@@ -603,9 +591,16 @@ public static partial class WorkspaceTreeBuilder
                     ? fbFaces
                     : new List<BlockFaceUsage>();
 
+                // Disambiguate fallback BlockId when it collides with an existing user block (e.g. blast_furnace)
+                var fallbackBlockId = aliasName;
+                if (result.Any(b => b.BlockId.Equals(aliasName, StringComparison.OrdinalIgnoreCase)))
+                {
+                    fallbackBlockId = $"{aliasName}__fallback";
+                }
+
                 var fallbackNode = new BlockGroupNode
                 {
-                    BlockId = aliasName,
+                    BlockId = fallbackBlockId,
                     DisplayName = vanilla.GetBlockDisplayName(aliasName),
                     Category = TextureCategory.Block,
                     IsUserDefined = false
@@ -634,8 +629,8 @@ public static partial class WorkspaceTreeBuilder
                         Status = tile.Status switch
                         {
                             TextureStatus.Ok => CatalogEntryStatus.Ok,
-                            TextureStatus.Ghost => CatalogEntryStatus.Ghost,
-                            _ => CatalogEntryStatus.Orphan
+                            TextureStatus.Ghost => (packRoot != null && File.Exists(tile.FullPath)) ? CatalogEntryStatus.Ok : CatalogEntryStatus.Ghost,
+                            _ => (packRoot != null && File.Exists(tile.FullPath)) ? CatalogEntryStatus.Ok : CatalogEntryStatus.Orphan
                         },
                         TextureAlias = tile,
                         VariantKind = tile.VariantKind,
@@ -690,12 +685,7 @@ public static partial class WorkspaceTreeBuilder
                             RelativePath = tile.RelativePath,
                             FullPath = tile.FullPath,
                             Category = TextureCategory.Block,
-                            Status = tile.Status switch
-                            {
-                                TextureStatus.Ok => CatalogEntryStatus.Ok,
-                                TextureStatus.Ghost => CatalogEntryStatus.Ghost,
-                                _ => CatalogEntryStatus.Orphan
-                            },
+                            Status = CatalogEntryStatus.Orphan,
                             TextureAlias = tile,
                             SubtitleCaption = tile.SubtitleCaption,
                             PrimaryFaceBadgeText = tile.PrimaryFaceBadgeText,

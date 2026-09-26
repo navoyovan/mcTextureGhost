@@ -253,17 +253,48 @@ public static class JsonWriterService
             }
         }
 
-        // New path reuses the alias name with a _var{N} postfix in the sibling directory
-        var firstExisting = CollectPaths(existing).FirstOrDefault();
-        var firstNorm = NormPath(firstExisting);
-        var slash = firstNorm.LastIndexOf('/');
-        var baseDir = "textures/blocks";
-        if (!string.IsNullOrWhiteSpace(firstExisting) && slash > 0)
+        // Target the source texture path to derive the variation stem name from
+        string targetSourcePath = "";
+        if (!string.IsNullOrWhiteSpace(relativePath))
         {
-            baseDir = firstExisting.Replace('\\', '/').TrimStart('/').Substring(0, slash);
+            targetSourcePath = NormPath(relativePath);
         }
-        var stem = alias.ToLowerInvariant();
-        if (string.IsNullOrWhiteSpace(stem)) stem = NormPath(alias);
+        else if (slotArray != null && slotIdx >= 0 && slotIdx < slotArray.Count)
+        {
+            targetSourcePath = SlotFirstPath(slotArray[slotIdx]) ?? "";
+        }
+        if (string.IsNullOrWhiteSpace(targetSourcePath))
+        {
+            targetSourcePath = NormPath(alias);
+        }
+
+        var slash = targetSourcePath.LastIndexOf('/');
+        var baseDir = "textures/blocks";
+        string stem = "";
+        if (slash >= 0)
+        {
+            baseDir = targetSourcePath.Substring(0, slash);
+            stem = targetSourcePath.Substring(slash + 1);
+        }
+        else if (!string.IsNullOrWhiteSpace(targetSourcePath))
+        {
+            stem = targetSourcePath;
+        }
+
+        if (stem.EndsWith(".png", StringComparison.OrdinalIgnoreCase))
+            stem = stem.Substring(0, stem.Length - 4);
+        if (stem.EndsWith(".tga", StringComparison.OrdinalIgnoreCase))
+            stem = stem.Substring(0, stem.Length - 4);
+
+        // If stem already has a _var{N} suffix, strip it so subsequent variations follow the root stem:
+        // e.g. door_wood_lower_var1 -> door_wood_lower -> candidates: door_wood_lower_var2, door_wood_lower_var3
+        var varMatch = System.Text.RegularExpressions.Regex.Match(stem, @"^(.*)_var\d+$", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        if (varMatch.Success)
+        {
+            stem = varMatch.Groups[1].Value;
+        }
+
+        if (string.IsNullOrWhiteSpace(stem)) stem = alias.ToLowerInvariant();
 
         string newPath = "";
         for (int n = 1; ; n++)
@@ -488,6 +519,215 @@ public static class JsonWriterService
 
         if (changed) SaveTerrainTexture(packRoot, terrain);
         return changed;
+    }
+
+    /// <summary>
+    /// Updates the weight of a texture variation in terrain_texture.json.
+    /// Finds the variation matching relativePath under the given alias and sets its "weight" property.
+    /// Clamps weight between 1 and 999.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public static bool SetTextureVariationWeight(string packRoot, string alias, string? relativePath, int weight)
+    {
+        if (string.IsNullOrWhiteSpace(relativePath)) return false;
+        var target = NormPath(relativePath);
+        weight = Math.Clamp(weight, 1, 999);
+
+        var terrain = LoadOrCreateTerrainTexture(packRoot);
+        var textureData = GetTextureData(terrain);
+        if (!textureData.TryGetPropertyValue(alias, out var aliasNode) || aliasNode is null) return false;
+
+        static bool UpdateWeightInArray(JsonArray va, string target, int weight)
+        {
+            for (int i = 0; i < va.Count; i++)
+            {
+                var item = va[i];
+                if (item is JsonObject jo)
+                {
+                    if (jo.TryGetPropertyValue("path", out var p) && p is JsonValue pjv && pjv.TryGetValue<string>(out var ps))
+                    {
+                        if (string.Equals(NormPath(ps), target, StringComparison.OrdinalIgnoreCase))
+                        {
+                            jo["weight"] = weight;
+                            return true;
+                        }
+                    }
+                }
+                else if (item is JsonValue jv && jv.TryGetValue<string>(out var s))
+                {
+                    if (string.Equals(NormPath(s), target, StringComparison.OrdinalIgnoreCase))
+                    {
+                        va[i] = new JsonObject { ["path"] = s, ["weight"] = weight };
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        bool updated = false;
+
+        void SearchAndSet(JsonNode? node)
+        {
+            if (updated || node is null) return;
+            if (node is JsonObject jo)
+            {
+                if (jo.TryGetPropertyValue("variations", out var vs) && vs is JsonArray va)
+                {
+                    if (UpdateWeightInArray(va, target, weight))
+                    {
+                        updated = true;
+                        return;
+                    }
+                }
+                if (jo.TryGetPropertyValue("textures", out var t))
+                {
+                    SearchAndSet(t);
+                }
+            }
+            else if (node is JsonArray ja)
+            {
+                foreach (var el in ja)
+                {
+                    SearchAndSet(el);
+                    if (updated) return;
+                }
+            }
+        }
+
+        SearchAndSet(aliasNode);
+
+        if (updated)
+        {
+            SaveTerrainTexture(packRoot, terrain);
+        }
+        return updated;
+    }
+
+    /// <summary>
+    /// Renames a texture variation's path in terrain_texture.json and renames the physical
+    /// PNG file on disk if it exists.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public static (bool success, string newRelativePath, string? message) RenameTextureVariation(
+        string packRoot, string alias, string? oldRelativePath, string newLabelOrPath)
+    {
+        if (string.IsNullOrWhiteSpace(oldRelativePath) || string.IsNullOrWhiteSpace(newLabelOrPath))
+            return (false, "", "Path or label cannot be empty.");
+
+        var oldTargetNorm = NormPath(oldRelativePath);
+
+        // Sanitize newLabelOrPath into a relative path stem
+        var cleanInput = newLabelOrPath.Trim().Replace('\\', '/');
+        if (cleanInput.EndsWith(".png", StringComparison.OrdinalIgnoreCase))
+            cleanInput = cleanInput.Substring(0, cleanInput.Length - 4);
+        if (cleanInput.EndsWith(".tga", StringComparison.OrdinalIgnoreCase))
+            cleanInput = cleanInput.Substring(0, cleanInput.Length - 4);
+
+        string newTargetNorm;
+        if (cleanInput.Contains('/'))
+        {
+            newTargetNorm = NormPath(cleanInput);
+        }
+        else
+        {
+            var oldSlash = oldTargetNorm.LastIndexOf('/');
+            var baseDir = oldSlash > 0 ? oldTargetNorm.Substring(0, oldSlash) : "textures/blocks";
+            newTargetNorm = $"{baseDir}/{cleanInput}";
+        }
+
+        var terrain = LoadOrCreateTerrainTexture(packRoot);
+        var textureData = GetTextureData(terrain);
+        if (!textureData.TryGetPropertyValue(alias, out var aliasNode) || aliasNode is null)
+            return (false, "", $"Alias '{alias}' not found in terrain_texture.json.");
+
+        static bool UpdatePathInArray(JsonArray va, string oldTarget, string newTarget)
+        {
+            for (int i = 0; i < va.Count; i++)
+            {
+                var item = va[i];
+                if (item is JsonObject jo)
+                {
+                    if (jo.TryGetPropertyValue("path", out var p) && p is JsonValue pjv && pjv.TryGetValue<string>(out var ps))
+                    {
+                        if (string.Equals(NormPath(ps), oldTarget, StringComparison.OrdinalIgnoreCase))
+                        {
+                            jo["path"] = newTarget;
+                            return true;
+                        }
+                    }
+                }
+                else if (item is JsonValue jv && jv.TryGetValue<string>(out var s))
+                {
+                    if (string.Equals(NormPath(s), oldTarget, StringComparison.OrdinalIgnoreCase))
+                    {
+                        va[i] = newTarget;
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        bool updated = false;
+
+        void SearchAndRename(JsonNode? node)
+        {
+            if (updated || node is null) return;
+            if (node is JsonObject jo)
+            {
+                if (jo.TryGetPropertyValue("variations", out var vs) && vs is JsonArray va)
+                {
+                    if (UpdatePathInArray(va, oldTargetNorm, newTargetNorm))
+                    {
+                        updated = true;
+                        return;
+                    }
+                }
+                if (jo.TryGetPropertyValue("textures", out var t))
+                {
+                    SearchAndRename(t);
+                }
+            }
+            else if (node is JsonArray ja)
+            {
+                foreach (var el in ja)
+                {
+                    SearchAndRename(el);
+                    if (updated) return;
+                }
+            }
+        }
+
+        SearchAndRename(aliasNode);
+
+        if (!updated)
+            return (false, "", $"Variation matching '{oldRelativePath}' not found.");
+
+        SaveTerrainTexture(packRoot, terrain);
+
+        // Rename physical file on disk if it exists
+        try
+        {
+            var oldFullPng = Path.Combine(packRoot, oldTargetNorm.Replace('/', Path.DirectorySeparatorChar) + ".png");
+            var newFullPng = Path.Combine(packRoot, newTargetNorm.Replace('/', Path.DirectorySeparatorChar) + ".png");
+
+            if (File.Exists(oldFullPng) && !File.Exists(newFullPng))
+            {
+                var newDir = Path.GetDirectoryName(newFullPng);
+                if (!string.IsNullOrEmpty(newDir) && !Directory.Exists(newDir))
+                {
+                    Directory.CreateDirectory(newDir);
+                }
+                File.Move(oldFullPng, newFullPng);
+            }
+        }
+        catch
+        {
+            // If disk file rename fails, JSON was already updated
+        }
+
+        return (true, newTargetNorm, null);
     }
 
     /// <summary>Registers an existing orphan texture file into terrain_texture.json.</summary>

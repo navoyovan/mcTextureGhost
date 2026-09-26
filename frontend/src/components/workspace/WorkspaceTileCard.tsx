@@ -5,7 +5,7 @@ import { useIpc } from '../../hooks/useIpc';
 import { FlipbookThumbnail } from '../common/FlipbookThumbnail';
 import { TextureContextMenu } from '../common/TextureContextMenu';
 import { TextureDropConfirm } from '../grid/TextureDropConfirm';
-import { normalizePath, getFileName } from '../../utils/pathUtils';
+import { normalizePath, getFileName, resolveTextureFullPath } from '../../utils/pathUtils';
 import { leafToAliasDto, VariantTileGroup } from '../../utils/leafTransforms';
 import styles from './BlockWorkspace.module.css';
 
@@ -69,17 +69,52 @@ export const WorkspaceTileCard: React.FC<WorkspaceTileCardProps> = React.memo(({
 }) => {
   const { alias, leaves } = grp;
   const primary = leaves[0];
-  const { editTexture, openInExplorer, dropImportTexture, copyTextureFile } = useIpc();
+  const { editTexture, openInExplorer, dropImportTexture, copyTextureFile, setVariationWeight, renameVariation } = useIpc();
   const packRoot = usePackStore((s) => s.packRoot);
   const packAliases = usePackStore((s) => s.aliases);
 
+  const handleUpdateWeight = useCallback((leaf: CatalogLeafDto, weight: number) => {
+    if (!leaf.relativePath) return;
+    packStoreActions.optimisticSetVariationWeight(leaf.alias, leaf.relativePath, weight);
+    setVariationWeight(leaf.alias, leaf.relativePath, weight);
+  }, [setVariationWeight]);
+
+  const handleRenameVariation = useCallback((leaf: CatalogLeafDto, newLabel: string) => {
+    if (!leaf.relativePath) return;
+    const oldSlash = leaf.relativePath.lastIndexOf('/');
+    const baseDir = oldSlash > 0 ? leaf.relativePath.substring(0, oldSlash) : 'textures/blocks';
+    const cleanLabel = newLabel.replace(/\.(png|tga)$/i, '');
+    const newRelativePath = `${baseDir}/${cleanLabel}.png`;
+    packStoreActions.optimisticRenameVariation(leaf.alias, leaf.relativePath, newRelativePath);
+    renameVariation(leaf.alias, leaf.relativePath, newLabel);
+  }, [renameVariation]);
+
   const findStoreAlias = useCallback((targetLeaf: CatalogLeafDto) => {
+    const targetRel = (targetLeaf.relativePath || '').replace(/\\/g, '/').toLowerCase().replace(/\.(png|tga)$/i, '');
+    const targetAlias = targetLeaf.alias.toLowerCase();
+
     return packAliases.find((a) => {
       if (a.status === 'ORPHAN') return false;
-      if (a.alias.toLowerCase() !== targetLeaf.alias.toLowerCase()) return false;
-      if (targetLeaf.textureVariantIndex != null && a.textureVariantIndex != null) {
-        return a.textureVariantIndex === targetLeaf.textureVariantIndex;
+      if (a.alias.toLowerCase() !== targetAlias) return false;
+
+      // 1. If both declare relativePath, match strictly by relative path
+      if (targetRel && a.relativePath) {
+        const aRel = a.relativePath.replace(/\\/g, '/').toLowerCase().replace(/\.(png|tga)$/i, '');
+        if (aRel !== targetRel) return false;
       }
+
+      // 2. If both declare blockVariantIndex, match strictly by blockVariantIndex
+      if (targetLeaf.blockVariantIndex != null && a.blockVariantIndex != null) {
+        if (a.blockVariantIndex !== targetLeaf.blockVariantIndex) return false;
+      }
+
+      // 3. If both declare textureVariantIndex, match strictly by textureVariantIndex
+      if (targetLeaf.textureVariantIndex != null && a.textureVariantIndex != null) {
+        if (a.textureVariantIndex !== targetLeaf.textureVariantIndex) return false;
+      } else if (targetLeaf.textureVariantIndex != null || a.textureVariantIndex != null) {
+        return false;
+      }
+
       return true;
     });
   }, [packAliases]);
@@ -95,11 +130,7 @@ export const WorkspaceTileCard: React.FC<WorkspaceTileCardProps> = React.memo(({
 
   const processImport = useCallback(
     (leaf: CatalogLeafDto, file: File) => {
-      const targetFullPath =
-        leaf.fullPath ||
-        (packRoot && leaf.relativePath
-          ? `${packRoot.replace(/[/\\]+$/, '')}\\textures\\${leaf.relativePath.replace(/^[/\\]+/, '')}`
-          : '');
+      const targetFullPath = resolveTextureFullPath(packRoot, leaf.fullPath, leaf.relativePath);
       if (!targetFullPath) return;
       // optimistic BEFORE file read — instant tile flip even for large files
       const previewUrl = URL.createObjectURL(file);
@@ -215,11 +246,7 @@ export const WorkspaceTileCard: React.FC<WorkspaceTileCardProps> = React.memo(({
     setDragSlotIndex(null);
     dragCounterMap.current.clear();
 
-    const targetFullPath =
-      leaf.fullPath ||
-      (packRoot && leaf.relativePath
-        ? `${packRoot.replace(/[/\\]+$/, '')}\\textures\\${leaf.relativePath.replace(/^[/\\]+/, '')}`
-        : '');
+    const targetFullPath = resolveTextureFullPath(packRoot, leaf.fullPath, leaf.relativePath);
 
     if (!targetFullPath) return;
 
@@ -271,11 +298,7 @@ export const WorkspaceTileCard: React.FC<WorkspaceTileCardProps> = React.memo(({
       processImport(leaf, file);
       URL.revokeObjectURL(objectUrl);
     } else if (pendingDrop.type === 'tile') {
-      const targetFullPath =
-        pendingDrop.leaf.fullPath ||
-        (packRoot && pendingDrop.leaf.relativePath
-          ? `${packRoot.replace(/[/\\]+$/, '')}\\textures\\${pendingDrop.leaf.relativePath.replace(/^[/\\]+/, '')}`
-          : '');
+      const targetFullPath = resolveTextureFullPath(packRoot, pendingDrop.leaf.fullPath, pendingDrop.leaf.relativePath);
       if (targetFullPath) {
         executeTileCopy(pendingDrop.leaf, pendingDrop.source, targetFullPath);
       }
@@ -305,7 +328,7 @@ export const WorkspaceTileCard: React.FC<WorkspaceTileCardProps> = React.memo(({
   const numVariations = leaves.length;
   const hasTexVariants = numVariations > 1;
   const primaryStoreAlias = findStoreAlias(primary);
-  const isGhost = primaryStoreAlias ? primaryStoreAlias.status === 'GHOST' : primary.status === 'GHOST';
+  const isGhost = primaryStoreAlias ? (primaryStoreAlias.status === 'GHOST' || !primaryStoreAlias.exists) : (primary.status === 'GHOST' || (!primary.fullPath && primary.status !== 'OK' && primary.status !== 'OVERRIDE'));
   const primaryFile = parseFileName(primary, alias);
 
   const cardWidth = useMemo(() => {
@@ -430,6 +453,8 @@ export const WorkspaceTileCard: React.FC<WorkspaceTileCardProps> = React.memo(({
           }
           onAddVariation={onAddVariation ? (count) => onAddVariation(primary, count) : undefined}
           onDeleteVariation={onDeleteVariation && primary.textureVariantIndex != null ? () => onDeleteVariation(primary) : undefined}
+          onUpdateWeight={hasTexVariants || primary.textureVariantIndex != null ? (weight) => handleUpdateWeight(primary, weight) : undefined}
+          onRenameVariation={hasTexVariants || primary.textureVariantIndex != null ? (newLabel) => handleRenameVariation(primary, newLabel) : undefined}
         />
       )}
 
@@ -466,6 +491,8 @@ export const WorkspaceTileCard: React.FC<WorkspaceTileCardProps> = React.memo(({
           }
           onAddVariation={onAddVariation ? (count) => onAddVariation(variationMenu.leaf, count) : undefined}
           onDeleteVariation={onDeleteVariation && variationMenu.leaf.textureVariantIndex != null ? () => onDeleteVariation(variationMenu.leaf) : undefined}
+          onUpdateWeight={(weight) => handleUpdateWeight(variationMenu.leaf, weight)}
+          onRenameVariation={(newLabel) => handleRenameVariation(variationMenu.leaf, newLabel)}
         />
       )}
 
@@ -486,15 +513,19 @@ export const WorkspaceTileCard: React.FC<WorkspaceTileCardProps> = React.memo(({
         {leaves.map((leaf, i) => {
           const leafName = getLeafTitle(leaf, alias);
           const storeAlias = findStoreAlias(leaf);
-          const isLeafGhost = storeAlias ? storeAlias.status === 'GHOST' : leaf.status === 'GHOST';
-          const resolvedImgUrl =
-            leaf.imageUrl ||
-            storeAlias?.imageUrl ||
-            (packRoot && leaf.fullPath && leaf.fullPath.startsWith(packRoot)
-              ? `https://pack.local/${normalizePath(leaf.fullPath.slice(packRoot.length).replace(/^[/\\]+/, ''))}`
-              : packRoot && leaf.relativePath
-              ? `https://pack.local/${normalizePath(leaf.relativePath.replace(/^[/\\]+/, ''))}`
-              : '');
+          const isLeafGhost = storeAlias
+            ? storeAlias.status === 'GHOST' || !storeAlias.exists
+            : leaf.status === 'GHOST' || (!leaf.fullPath && leaf.status !== 'OK' && leaf.status !== 'OVERRIDE');
+          const baseImgUrl = isLeafGhost ? '' : (leaf.imageUrl || storeAlias?.imageUrl || '');
+          const resolvedImgUrl = isLeafGhost
+            ? ''
+            : (baseImgUrl || (packRoot
+              ? (leaf.fullPath && leaf.fullPath.startsWith(packRoot)
+                ? `https://pack.local/${normalizePath(leaf.fullPath.slice(packRoot.length).replace(/^[/\\]+/, ''))}`
+                : leaf.relativePath
+                ? `https://pack.local/${normalizePath(leaf.relativePath.replace(/^[/\\]+/, ''))}`
+                : '')
+              : ''));
           const isSlotDragOver = hasTexVariants && dragSlotIndex === i;
 
           return (

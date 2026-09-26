@@ -109,6 +109,19 @@ public static class PackArchiveUtility
                 candidates.Add(Path.Combine(searchDir, "textures", "items", fileName));
                 candidates.Add(Path.Combine(searchDir, "textures", "entity", fileName));
                 candidates.Add(Path.Combine(searchDir, "textures", fileName));
+
+                // If fileName is a variation (e.g. door_jungle_lower_var1.png), also search for base file (door_jungle_lower.png)
+                var stemWithoutVar = System.Text.RegularExpressions.Regex.Replace(Path.GetFileNameWithoutExtension(fileName), @"_var\d+$", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                var ext = Path.GetExtension(fileName);
+                if (string.IsNullOrEmpty(ext)) ext = ".png";
+                var baseFileName = $"{stemWithoutVar}{ext}";
+                if (!string.Equals(baseFileName, fileName, StringComparison.OrdinalIgnoreCase))
+                {
+                    candidates.Add(Path.Combine(searchDir, "textures", "blocks", baseFileName));
+                    candidates.Add(Path.Combine(searchDir, "textures", "items", baseFileName));
+                    candidates.Add(Path.Combine(searchDir, "textures", "entity", baseFileName));
+                    candidates.Add(Path.Combine(searchDir, "textures", baseFileName));
+                }
             }
 
             if (!string.IsNullOrEmpty(aliasKey))
@@ -133,11 +146,31 @@ public static class PackArchiveUtility
                 var texturesDir = Path.Combine(searchDir, "textures");
                 if (Directory.Exists(texturesDir))
                 {
-                    var searchPattern = !string.IsNullOrEmpty(fileName) ? fileName : $"{aliasKey}.png";
-                    var match = Directory.EnumerateFiles(texturesDir, searchPattern, SearchOption.AllDirectories).FirstOrDefault();
-                    if (match != null && File.Exists(match))
+                    var patterns = new List<string>();
+                    if (!string.IsNullOrEmpty(fileName))
                     {
-                        return match;
+                        patterns.Add(fileName);
+                        var stemWithoutVar = System.Text.RegularExpressions.Regex.Replace(Path.GetFileNameWithoutExtension(fileName), @"_var\d+$", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                        var ext = Path.GetExtension(fileName);
+                        if (string.IsNullOrEmpty(ext)) ext = ".png";
+                        var baseFileName = $"{stemWithoutVar}{ext}";
+                        if (!string.Equals(baseFileName, fileName, StringComparison.OrdinalIgnoreCase))
+                        {
+                            patterns.Add(baseFileName);
+                        }
+                    }
+                    if (!string.IsNullOrEmpty(aliasKey))
+                    {
+                        patterns.Add($"{aliasKey}.png");
+                    }
+
+                    foreach (var pattern in patterns)
+                    {
+                        var match = Directory.EnumerateFiles(texturesDir, pattern, SearchOption.AllDirectories).FirstOrDefault();
+                        if (match != null && File.Exists(match))
+                        {
+                            return match;
+                        }
                     }
                 }
             }

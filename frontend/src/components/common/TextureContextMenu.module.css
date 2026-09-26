@@ -173,6 +173,7 @@
 
 /* ─── Add Variation inline stepper row ─── */
 .addVariationRow {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -269,6 +270,16 @@
 
 .varConfirmBtn:hover {
   background: rgba(34, 197, 94, 0.35);
+}
+
+.floatingSaveBtn {
+  position: absolute;
+  left: calc(100% + 8px);
+}
+
+.floatingSaveBtnLeft {
+  left: auto;
+  right: calc(100% + 8px);
 }
 
 /* ─── Submenu Flyout ─── */

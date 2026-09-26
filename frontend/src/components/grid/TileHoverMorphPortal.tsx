@@ -7,7 +7,7 @@ import { FlipbookThumbnail } from '../common/FlipbookThumbnail';
 import { Badge } from '../common/Badge';
 import { ContextMenuAnchor } from '../common/TextureContextMenu';
 import { TextureDropConfirm } from './TextureDropConfirm';
-import { normalizePath, getFileName } from '../../utils/pathUtils';
+import { normalizePath, getFileName, resolveTextureFullPath } from '../../utils/pathUtils';
 import { computeMorphCoords, MorphCoords as Coords } from './useMorphCoordinates';
 import { MorphActionsBar } from './MorphActionsBar';
 import styles from './TileHoverMorphPortal.module.css';
@@ -141,11 +141,7 @@ const TileHoverMorphCard: React.FC<TileHoverMorphPortalProps> = ({
 
   const processImport = useCallback(
     (file: File) => {
-      const targetFullPath =
-        alias.fullPath ||
-        (packRoot && alias.relativePath
-          ? `${packRoot.replace(/[/\\]+$/, '')}\\textures\\${alias.relativePath.replace(/^[/\\]+/, '')}`
-          : '');
+      const targetFullPath = resolveTextureFullPath(packRoot, alias.fullPath, alias.relativePath);
       if (!targetFullPath) return;
       setLocalAdded(true);
       const previewUrl = URL.createObjectURL(file);
@@ -545,12 +541,13 @@ const TileHoverMorphCard: React.FC<TileHoverMorphPortalProps> = ({
 
   const handleCreateStub = (e: React.MouseEvent) => {
     e.stopPropagation();
+    const targetFullPath = resolveTextureFullPath(packRoot, alias.fullPath, alias.relativePath);
     setIsMorphingToAdded(true);
     setLocalAdded(true);
-    packStoreActions.updateTexture(alias.alias, 'OK', alias.fullPath || '', null, alias.relativePath);
+    packStoreActions.updateTexture(alias.alias, 'OK', targetFullPath, null, alias.relativePath);
     postCommand(IpcMessageTypes.TextureEdit, {
       aliasKey: alias.alias,
-      fullPath: alias.fullPath,
+      fullPath: targetFullPath,
       isGhost: true,
       createOnly: true,
     });
@@ -558,12 +555,13 @@ const TileHoverMorphCard: React.FC<TileHoverMorphPortalProps> = ({
 
   const handleExtractReference = (e: React.MouseEvent) => {
     e.stopPropagation();
+    const targetFullPath = resolveTextureFullPath(packRoot, alias.fullPath, alias.relativePath);
     setIsMorphingToAdded(true);
     setLocalAdded(true);
-    packStoreActions.updateTexture(alias.alias, 'OK', alias.fullPath || '', null, alias.relativePath);
+    packStoreActions.updateTexture(alias.alias, 'OK', targetFullPath, null, alias.relativePath);
     postCommand(IpcMessageTypes.TextureExtractReference, {
       aliasKey: alias.alias,
-      fullPath: alias.fullPath,
+      fullPath: targetFullPath,
       relativePath: alias.relativePath,
       category: (alias.category || 'block').toLowerCase(),
     });

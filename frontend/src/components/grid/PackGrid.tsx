@@ -8,7 +8,7 @@ import { TileHoverMorphPortal, TileHoverMorphTarget } from './TileHoverMorphPort
 import { TextureDropConfirm } from './TextureDropConfirm';
 import { PackGridSkeleton } from './PackGridSkeleton';
 import { Badge } from '../common/Badge';
-import { normalizePath, getFileName } from '../../utils/pathUtils';
+import { normalizePath, getFileName, resolveTextureFullPath } from '../../utils/pathUtils';
 import { hasTerrainTextureJson as checkTerrainTextureJson } from '../../utils/packFileUtils';
 import styles from './PackGrid.module.css';
 
@@ -72,11 +72,7 @@ const PackGridTile = React.memo<PackGridTileProps>(({
   // Process dropped file to base64 and dispatch IPC
   const processImport = useCallback(
     (file: File) => {
-      const targetFullPath =
-        alias.fullPath ||
-        (packRoot && alias.relativePath
-          ? `${packRoot.replace(/[/\\]+$/, '')}\\textures\\${alias.relativePath.replace(/^[/\\]+/, '')}`
-          : '');
+      const targetFullPath = resolveTextureFullPath(packRoot, alias.fullPath, alias.relativePath);
       if (!targetFullPath) return;
       // optimistic BEFORE file read — instant tile flip
       const previewUrl = URL.createObjectURL(file);
@@ -202,11 +198,7 @@ const PackGridTile = React.memo<PackGridTileProps>(({
           return;
         }
 
-        const targetFullPath =
-          alias.fullPath ||
-          (packRoot && alias.relativePath
-            ? `${packRoot.replace(/[/\\]+$/, '')}\\textures\\${alias.relativePath.replace(/^[/\\]+/, '')}`
-            : '');
+        const targetFullPath = resolveTextureFullPath(packRoot, alias.fullPath, alias.relativePath);
 
         if (!targetFullPath) return;
 
@@ -253,11 +245,7 @@ const PackGridTile = React.memo<PackGridTileProps>(({
       processImport(file);
       URL.revokeObjectURL(objectUrl);
     } else if (pendingDrop.type === 'tile') {
-      const targetFullPath =
-        alias.fullPath ||
-        (packRoot && alias.relativePath
-          ? `${packRoot.replace(/[/\\]+$/, '')}\\textures\\${alias.relativePath.replace(/^[/\\]+/, '')}`
-          : '');
+      const targetFullPath = resolveTextureFullPath(packRoot, alias.fullPath, alias.relativePath);
       if (targetFullPath) {
         executeTileCopy(pendingDrop.source, targetFullPath);
       }
@@ -411,7 +399,7 @@ export const PackGrid: React.FC = () => {
   const tileZoom = usePackStore((s) => s.tileZoom);
   const packAliases = usePackStore((s) => s.aliases);
   const packFolders = usePackStore((s) => s.packFolders);
-  const { editTexture, deleteTextureFile, deleteTextureEntries, openInExplorer, scaffoldTextureVariation, deleteTextureVariation } = useIpc();
+  const { editTexture, deleteTextureFile, deleteTextureEntries, openInExplorer, scaffoldTextureVariation, deleteTextureVariation, setVariationWeight, renameVariation } = useIpc();
 
   const hasTerrainTextureJson = React.useMemo(() => checkTerrainTextureJson(packFolders), [packFolders]);
 
@@ -673,7 +661,8 @@ export const PackGrid: React.FC = () => {
                   packStoreActions.optimisticAddVariation(
                     contextMenuTarget.alias.alias,
                     contextMenuTarget.alias.blockVariantIndex ?? null,
-                    count
+                    count,
+                    contextMenuTarget.alias.relativePath ?? null
                   );
                   for (let i = 0; i < count; i++) {
                     await scaffoldTextureVariation(
@@ -697,6 +686,41 @@ export const PackGrid: React.FC = () => {
                     contextMenuTarget.alias.relativePath!
                   );
                   deleteTextureVariation(contextMenuTarget.alias.alias, contextMenuTarget.alias.relativePath!);
+                }
+              : undefined
+          }
+          onUpdateWeight={
+            contextMenuTarget.alias.category === 'block' &&
+            contextMenuTarget.alias.textureVariantIndex != null &&
+            contextMenuTarget.alias.relativePath
+              ? (weight: number) => {
+                  setHoverMorphTarget(null);
+                  packStoreActions.optimisticSetVariationWeight(
+                    contextMenuTarget.alias.alias,
+                    contextMenuTarget.alias.relativePath!,
+                    weight
+                  );
+                  setVariationWeight(contextMenuTarget.alias.alias, contextMenuTarget.alias.relativePath!, weight);
+                }
+              : undefined
+          }
+          onRenameVariation={
+            contextMenuTarget.alias.category === 'block' &&
+            contextMenuTarget.alias.textureVariantIndex != null &&
+            contextMenuTarget.alias.relativePath
+              ? (newLabel: string) => {
+                  setHoverMorphTarget(null);
+                  const oldRel = contextMenuTarget.alias.relativePath!;
+                  const oldSlash = oldRel.lastIndexOf('/');
+                  const baseDir = oldSlash > 0 ? oldRel.substring(0, oldSlash) : 'textures/blocks';
+                  const cleanLabel = newLabel.replace(/\.(png|tga)$/i, '');
+                  const newRel = `${baseDir}/${cleanLabel}.png`;
+                  packStoreActions.optimisticRenameVariation(
+                    contextMenuTarget.alias.alias,
+                    oldRel,
+                    newRel
+                  );
+                  renameVariation(contextMenuTarget.alias.alias, oldRel, newLabel);
                 }
               : undefined
           }
