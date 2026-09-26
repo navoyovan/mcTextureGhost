@@ -31,6 +31,11 @@ import { FlipbookThumbnail } from '../common/FlipbookThumbnail';
 import { SearchInput } from '../common/SearchInput';
 import { Badge } from '../common/Badge';
 import { ReferencePackManagerModal } from './ReferencePackManagerModal';
+import {
+  hasTerrainTextureJson as checkTerrainTextureJson,
+  hasItemTextureJson as checkItemTextureJson,
+  hasBlocksJson as checkBlocksJson,
+} from '../../utils/packFileUtils';
 import styles from './CatalogDrawer.module.css';
 
 export interface CatalogDrawerProps {
@@ -456,66 +461,9 @@ export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose })
   const simulateNoAssets = usePackStore((s) => s.simulateNoAssets);
   const { postCommand, loadCatalog } = useIpc();
 
-  const hasTerrainTextureJson = useMemo(() => {
-    function check(items: any[]): boolean {
-      if (!items) return false;
-      for (const item of items) {
-        const p = (item.relativePath || item.name || '').replace(/\\/g, '/').toLowerCase();
-        if (
-          (p === 'textures/terrain_texture.json' ||
-           p.endsWith('/terrain_texture.json') ||
-           p === 'terrain_texture.json') &&
-          !item.isMissing
-        ) {
-          return true;
-        }
-        if (item.subFolders && item.subFolders.length > 0) {
-          if (check(item.subFolders)) return true;
-        }
-      }
-      return false;
-    }
-    return check(packFolders || []);
-  }, [packFolders]);
-
-  const hasItemTextureJson = useMemo(() => {
-    function check(items: any[]): boolean {
-      if (!items) return false;
-      for (const item of items) {
-        const p = (item.relativePath || item.name || '').replace(/\\/g, '/').toLowerCase();
-        if (
-          (p === 'textures/item_texture.json' ||
-           p.endsWith('/item_texture.json') ||
-           p === 'item_texture.json') &&
-          !item.isMissing
-        ) {
-          return true;
-        }
-        if (item.subFolders && item.subFolders.length > 0) {
-          if (check(item.subFolders)) return true;
-        }
-      }
-      return false;
-    }
-    return check(packFolders || []);
-  }, [packFolders]);
-
-  const hasBlocksJson = useMemo(() => {
-    function check(items: any[]): boolean {
-      if (!items) return false;
-      for (const item of items) {
-        const p = (item.relativePath || item.name || '').replace(/\\/g, '/').toLowerCase();
-        if ((p === 'blocks.json' || p.endsWith('/blocks.json')) && !item.isMissing) {
-          return true;
-        }
-        if (item.subFolders && item.subFolders.length > 0) {
-          if (check(item.subFolders)) return true;
-        }
-      }
-      return false;
-    }
-    return check(packFolders || []);
-  }, [packFolders]);
+  const hasTerrainTextureJson = useMemo(() => checkTerrainTextureJson(packFolders), [packFolders]);
+  const hasItemTextureJson = useMemo(() => checkItemTextureJson(packFolders), [packFolders]);
+  const hasBlocksJson = useMemo(() => checkBlocksJson(packFolders), [packFolders]);
 
   const isBlockUserDefined = useCallback(
     (blockId: string): boolean => {

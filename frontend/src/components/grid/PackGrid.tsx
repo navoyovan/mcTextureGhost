@@ -9,6 +9,7 @@ import { TextureDropConfirm } from './TextureDropConfirm';
 import { PackGridSkeleton } from './PackGridSkeleton';
 import { Badge } from '../common/Badge';
 import { normalizePath, getFileName } from '../../utils/pathUtils';
+import { hasTerrainTextureJson as checkTerrainTextureJson } from '../../utils/packFileUtils';
 import styles from './PackGrid.module.css';
 
 interface PackGridTileProps {
@@ -412,18 +413,7 @@ export const PackGrid: React.FC = () => {
   const packFolders = usePackStore((s) => s.packFolders);
   const { editTexture, deleteTextureFile, deleteTextureEntries, openInExplorer, scaffoldTextureVariation, deleteTextureVariation } = useIpc();
 
-  const hasTerrainTextureJson = React.useMemo(() => {
-    function check(items: any[]): boolean {
-      if (!items) return false;
-      for (const item of items) {
-        const p = (item.relativePath || item.name || '').replace(/[/\\]+/g, '/').toLowerCase();
-        if ((p === 'textures/terrain_texture.json' || p.endsWith('/terrain_texture.json') || p === 'terrain_texture.json') && !item.isMissing) return true;
-        if (item.subFolders?.length && check(item.subFolders)) return true;
-      }
-      return false;
-    }
-    return check(packFolders || []);
-  }, [packFolders]);
+  const hasTerrainTextureJson = React.useMemo(() => checkTerrainTextureJson(packFolders), [packFolders]);
 
 
   // Single active context menu target (prevents full-grid re-renders on menu toggle)

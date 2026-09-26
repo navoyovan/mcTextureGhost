@@ -10,6 +10,7 @@ import { TileHoverMorphPortal, TileHoverMorphTarget } from '../grid/TileHoverMor
 import { TextureContextMenu } from '../common/TextureContextMenu';
 import { WorkspaceSkeleton } from './WorkspaceSkeleton';
 import { Badge } from '../common/Badge';
+import { hasTerrainTextureJson as checkTerrainTextureJson } from '../../utils/packFileUtils';
 import styles from './BlockWorkspace.module.css';
 
 function leafToAliasDto(leaf: CatalogLeafDto): TextureAliasDto {
@@ -92,27 +93,7 @@ export const BlockWorkspace: React.FC = () => {
   const packAliases = usePackStore((s) => s.aliases ?? []);
   const { editTexture, deleteTextureFile, deleteTextureEntries, deleteTextureVariation, openInExplorer, scaffoldTextureVariation } = useIpc();
 
-  const hasTerrainTextureJson = useMemo(() => {
-    function check(items: any[]): boolean {
-      if (!items) return false;
-      for (const item of items) {
-        const p = (item.relativePath || item.name || '').replace(/\\/g, '/').toLowerCase();
-        if (
-          (p === 'textures/terrain_texture.json' ||
-           p.endsWith('/terrain_texture.json') ||
-           p === 'terrain_texture.json') &&
-          !item.isMissing
-        ) {
-          return true;
-        }
-        if (item.subFolders && item.subFolders.length > 0) {
-          if (check(item.subFolders)) return true;
-        }
-      }
-      return false;
-    }
-    return check(packFolders || []);
-  }, [packFolders]);
+  const hasTerrainTextureJson = useMemo(() => checkTerrainTextureJson(packFolders), [packFolders]);
 
   const [activeMenuKey, setActiveMenuKey] = useState<string | null>(null);
   const isListDrawerOpen = usePackStore((s) => s.isWorkspaceDrawerOpen);
