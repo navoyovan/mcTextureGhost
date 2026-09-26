@@ -584,11 +584,7 @@ export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose })
   const drawerRef = useRef<HTMLElement | null>(null);
   const animationRef = useRef<gsap.core.Timeline | null>(null);
 
-  // Clear optimistic added overrides once actual pack store state updates
-  useEffect(() => {
-    setOptimisticAddedIds(new Set());
-  }, [aliases, blockWorkspaceTree, entityWorkspaceTree]);
-
+  // Optimistic added IDs persist during drawer session so UI transitions smoothly
   const isOptimisticBlockAdded = useCallback((blockId: string): boolean => {
     return optimisticAddedIds.has(`block:${blockId.toLowerCase()}`) ||
       optimisticAddedIds.has(`item:${blockId.toLowerCase()}`) ||
@@ -598,6 +594,38 @@ export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose })
   const isOptimisticAliasAdded = useCallback((alias: string): boolean => {
     return optimisticAddedIds.has(`alias:${alias.toLowerCase()}`);
   }, [optimisticAddedIds]);
+
+  // Sync optimistic added IDs when pack aliases update so deleted entries reset their Add button
+  useEffect(() => {
+    setOptimisticAddedIds((prev) => {
+      if (prev.size === 0) return prev;
+      const next = new Set<string>();
+      for (const id of prev) {
+        if (id.startsWith('alias:')) {
+          const aliasKey = id.slice(6);
+          const stillExists = aliases.some(
+            (a) => a.alias.toLowerCase() === aliasKey && a.status !== 'ORPHAN' && a.isUserDefined !== false
+          );
+          if (stillExists) next.add(id);
+        } else if (id.startsWith('block:')) {
+          const blockId = id.slice(6);
+          const stillExists = isBlockUserDefined(blockId);
+          if (stillExists) next.add(id);
+        } else if (id.startsWith('item:')) {
+          const itemId = id.slice(5);
+          const stillExists = aliases.some(
+            (a) => a.alias.toLowerCase() === itemId && a.category === 'item' && a.status !== 'ORPHAN'
+          );
+          if (stillExists) next.add(id);
+        } else if (id.startsWith('entity:')) {
+          const entityId = id.slice(7);
+          const stillExists = isEntityInWorkspace(entityId);
+          if (stillExists) next.add(id);
+        }
+      }
+      return next.size === prev.size ? prev : next;
+    });
+  }, [aliases, isBlockUserDefined, isEntityInWorkspace]);
 
   const activeReference = useMemo(() => {
     return referencePacks?.find((p) => p.id === activeReferenceId) || referencePacks?.[0] || {

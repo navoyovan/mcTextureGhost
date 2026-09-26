@@ -22,7 +22,31 @@ export const BlockEntryTree: React.FC<BlockEntryTreeProps> = ({ block, onTileCli
     setIsMinimized((prev) => !prev);
   };
 
+  const packAliases = usePackStore((s) => s.aliases);
   const packFolders = usePackStore((s) => s.packFolders);
+  const catalogTree = usePackStore((s) => s.catalogTree);
+
+  const hasTerrainTextureJson = useMemo(() => {
+    function check(items: any[]): boolean {
+      if (!items) return false;
+      for (const item of items) {
+        const p = (item.relativePath || item.name || '').replace(/\\/g, '/').toLowerCase();
+        if (
+          (p === 'textures/terrain_texture.json' ||
+           p.endsWith('/terrain_texture.json') ||
+           p === 'terrain_texture.json') &&
+          !item.isMissing
+        ) {
+          return true;
+        }
+        if (item.subFolders && item.subFolders.length > 0) {
+          if (check(item.subFolders)) return true;
+        }
+      }
+      return false;
+    }
+    return check(packFolders || []);
+  }, [packFolders]);
 
   const hasBlocksJson = useMemo(() => {
     function check(items: any[]): boolean {
@@ -51,38 +75,141 @@ export const BlockEntryTree: React.FC<BlockEntryTreeProps> = ({ block, onTileCli
 
   const isBlockUserDefined = hasBlocksJson && block.isUserDefined !== false;
 
-  // Flatten and group alias mappings
-  const aliases = useMemo(() => {
+  // 1. Aliases declared in blocks.json
+  const declaredAliases = useMemo(() => {
     return block.aliasGroups || [];
   }, [block]);
+
+  // 2. All terrain_texture.json aliases relevant to this block
+  // (both declared in blocks.json AND any terrain aliases associated with this block)
+  const terrainAliases = useMemo(() => {
+    const list: Array<{
+      alias: string;
+      ag?: (typeof declaredAliases)[0];
+      leaves: CatalogLeafDto[];
+      isDeclaredInPackTerrain: boolean;
+      isDeclaredInVanillaTerrain: boolean;
+      isOrphan: boolean;
+    }> = [];
+
+    const processedAliasKeys = new Set<string>();
+
+    // Add declared aliases from blocks.json first
+    for (const ag of declaredAliases) {
+      const aliasKey = ag.alias.toLowerCase();
+      processedAliasKeys.add(aliasKey);
+
+      const isDeclaredInPackTerrain =
+        hasTerrainTextureJson &&
+        packAliases.some(
+          (a) =>
+            a.alias.toLowerCase() === aliasKey &&
+            a.category.toLowerCase() === 'block' &&
+            a.status !== 'ORPHAN' &&
+            a.isUserDefined !== false
+        );
+
+      // An alias is missing if any of its leaves explicitly indicate missing declaration
+      const hasMissingDeclarationLeaf = ag.leaves?.some(
+        (l) => l.subtitleCaption?.toLowerCase() === 'missing declaration'
+      ) || ag.faceNodes?.some((fn) =>
+        fn.leaves?.some((l) => l.subtitleCaption?.toLowerCase() === 'missing declaration')
+      );
+
+      // An alias is in vanilla terrain_texture.json if it exists in the vanilla catalog database or pack's vanilla-defined aliases
+      const isDeclaredInVanillaTerrain =
+        !isDeclaredInPackTerrain &&
+        !hasMissingDeclarationLeaf &&
+        (catalogTree && catalogTree.length > 0
+          ? catalogTree.some((cb) =>
+              cb.aliasGroups?.some((ca) => ca.alias.toLowerCase() === aliasKey && !ca.leaves?.some(l => l.subtitleCaption?.toLowerCase() === 'missing declaration'))
+            )
+          : packAliases.some(
+              (a) =>
+                a.alias.toLowerCase() === aliasKey &&
+                a.category.toLowerCase() === 'block' &&
+                (a as any).isUserDefined === false
+            ));
+
+      const rawLeaves = [
+        ...(ag.leaves ?? []),
+        ...(ag.faceNodes ? ag.faceNodes.flatMap((fn) => fn.leaves ?? []) : []),
+      ];
+      const seenLeaves = new Set<string>();
+      const uniqueLeaves: CatalogLeafDto[] = [];
+      for (const leaf of rawLeaves) {
+        const lKey = `${leaf.relativePath || leaf.alias}:${leaf.blockVariantIndex ?? ''}:${leaf.textureVariantIndex ?? ''}`;
+        if (!seenLeaves.has(lKey)) {
+          seenLeaves.add(lKey);
+          uniqueLeaves.push(leaf);
+        }
+      }
+
+      list.push({
+        alias: ag.alias,
+        ag,
+        leaves: uniqueLeaves,
+        isDeclaredInPackTerrain,
+        isDeclaredInVanillaTerrain,
+        isOrphan: false,
+      });
+    }
+
+    // Add any pack terrain aliases associated with this block that are NOT declared in current blocks.json (Orphans)
+    for (const pa of packAliases) {
+      if (pa.category.toLowerCase() !== 'block') continue;
+      const aliasKey = pa.alias.toLowerCase();
+      if (processedAliasKeys.has(aliasKey)) continue;
+
+      const isUsedByBlock =
+        pa.usedByBlocks?.some((b) => b.toLowerCase() === block.blockId.toLowerCase()) ||
+        pa.blockFaces?.some((bf) => bf.blockId.toLowerCase() === block.blockId.toLowerCase()) ||
+        pa.alias.toLowerCase().startsWith(block.blockId.toLowerCase());
+
+      if (isUsedByBlock) {
+        processedAliasKeys.add(aliasKey);
+        const orphanLeaf: CatalogLeafDto = {
+          alias: pa.alias,
+          displayName: pa.displayName || pa.alias,
+          relativePath: pa.relativePath || `textures/blocks/${pa.alias}`,
+          fullPath: pa.fullPath || '',
+          category: 'block',
+          status: (pa.status === 'NEW' ? 'OK' : pa.status) || (pa.exists ? 'OK' : 'GHOST'),
+          imageUrl: pa.imageUrl || '',
+          subtitleCaption: pa.subtitleCaption || '',
+          primaryFaceBadgeText: '',
+          isFlipbook: pa.isFlipbook || false,
+        };
+
+        list.push({
+          alias: pa.alias,
+          leaves: [orphanLeaf],
+          isDeclaredInPackTerrain: pa.isUserDefined !== false,
+          isDeclaredInVanillaTerrain: false,
+          isOrphan: true,
+        });
+      }
+    }
+
+    return list;
+  }, [declaredAliases, packAliases, hasTerrainTextureJson, catalogTree, block.blockId]);
 
   // Calculate total visible lines across blocks.json and terrain_texture.json
   const visibleLines = useMemo(() => {
     let count = 1; // Level 1: blocks.json
     if (!collapsedNodes['root_blocks_json']) {
-      count += aliases.length; // declared alias lines
+      count += declaredAliases.length; // declared alias lines
     }
     // terrain_texture.json nodes (parallel)
-    for (const ag of aliases) {
+    for (const item of terrainAliases) {
       count += 1; // terrain_texture.json line
-      const ttKey = `tt_${ag.alias}`;
+      const ttKey = `tt_${item.alias}`;
       if (!collapsedNodes[ttKey]) {
-        const seenLeaves = new Set<string>();
-        const rawLeaves = [
-          ...(ag.leaves ?? []),
-          ...(ag.faceNodes ? ag.faceNodes.flatMap((fn) => fn.leaves ?? []) : []),
-        ];
-        for (const leaf of rawLeaves) {
-          const leafKey = `${leaf.relativePath || leaf.alias}:${leaf.blockVariantIndex ?? ''}:${leaf.textureVariantIndex ?? ''}`;
-          if (!seenLeaves.has(leafKey)) {
-            seenLeaves.add(leafKey);
-            count += 1; // texture path line
-          }
-        }
+        count += item.leaves.length;
       }
     }
     return count;
-  }, [aliases, collapsedNodes]);
+  }, [declaredAliases, terrainAliases, collapsedNodes]);
 
   // Target lines = visibleLines + 1, with a minimum clamp of 5 lines (~200px) and max of 340px
   const autoHeight = useMemo(() => {
@@ -154,7 +281,7 @@ export const BlockEntryTree: React.FC<BlockEntryTreeProps> = ({ block, onTileCli
                 <div className={styles.treeChildrenInner}>
                   <div className={styles.treeChildren}>
                     {/* Level 2: Declared alias mappings from blocks.json */}
-                    {aliases.map((ag) => {
+                    {declaredAliases.map((ag) => {
                       return (
                         <div key={ag.alias} className={styles.treeNode}>
                           <div className={`${styles.treeRow} ${isBlockUserDefined ? styles.normalWeight : styles.dimmedWeight}`}>
@@ -176,37 +303,14 @@ export const BlockEntryTree: React.FC<BlockEntryTreeProps> = ({ block, onTileCli
             </div>
 
             {/* Level 1 (Parallel): terrain_texture.json Entries for each alias */}
-            {aliases.map((ag) => {
-              const ttKey = `tt_${ag.alias}`;
+            {terrainAliases.map((item) => {
+              const ttKey = `tt_${item.alias}`;
               const isTtCollapsed = Boolean(collapsedNodes[ttKey]);
 
-
-              // Deduplicate unique texture leaves for this alias
-              const seenLeaves = new Set<string>();
-              const uniqueLeaves: CatalogLeafDto[] = [];
-              const rawLeaves = [
-                ...(ag.leaves ?? []),
-                ...(ag.faceNodes ? ag.faceNodes.flatMap((fn) => fn.leaves ?? []) : []),
-              ];
-              for (const leaf of rawLeaves) {
-                const leafKey = `${leaf.relativePath || leaf.alias}:${leaf.blockVariantIndex ?? ''}:${leaf.textureVariantIndex ?? ''}`;
-                if (!seenLeaves.has(leafKey)) {
-                  seenLeaves.add(leafKey);
-                  uniqueLeaves.push(leaf);
-                }
-              }
-
-              // Determine terrain_texture.json status based on actual texture presence/definition:
-              // - ADDED (Blue): The texture file exists in the pack (OK/OVERRIDE)
-              // - FALLBACK: The texture is not in the pack and falls back to vanilla (GHOST/VANILLA)
-              // - MISSING ENTRY (Rose): No texture leaf or definition found
-              const hasAddedTexture = uniqueLeaves.some((l) => l.status === 'OK' || l.status === 'OVERRIDE');
-              const hasFallbackTexture = uniqueLeaves.some((l) => l.status === 'GHOST' || l.status === 'VANILLA');
-
               return (
-                <div key={`tt_node_${ag.alias}`} className={styles.treeNode}>
+                <div key={`tt_node_${item.alias}`} className={styles.treeNode}>
                   <div
-                    className={`${styles.treeRow} ${hasAddedTexture ? styles.normalWeight : styles.dimmedWeight}`}
+                    className={`${styles.treeRow} ${item.isDeclaredInPackTerrain ? styles.normalWeight : styles.dimmedWeight}`}
                     onClick={() => toggleNode(ttKey)}
                   >
                     <div className={styles.treeRowMain}>
@@ -221,19 +325,23 @@ export const BlockEntryTree: React.FC<BlockEntryTreeProps> = ({ block, onTileCli
                         />
                       </button>
                       <span className={styles.nodeKey}>terrain_texture.json</span>
-                      <span className={styles.nodeValue}>➔ &quot;{ag.alias}&quot;</span>
+                      <span className={styles.nodeValue}>➔ &quot;{item.alias}&quot;</span>
                     </div>
 
-                    {hasAddedTexture ? (
-                      <Badge variant="added" size="sm" title="Texture exists in pack">
+                    {item.isOrphan ? (
+                      <Badge variant="orphan" size="sm" title="Declared in terrain_texture.json but not referenced in blocks.json">
+                        orphan
+                      </Badge>
+                    ) : item.isDeclaredInPackTerrain ? (
+                      <Badge variant="added" size="sm" title="Declared in pack terrain_texture.json">
                         added
                       </Badge>
-                    ) : hasFallbackTexture ? (
-                      <Badge variant="fallback" size="sm" title="Texture not present in pack, using vanilla fallback">
+                    ) : item.isDeclaredInVanillaTerrain ? (
+                      <Badge variant="fallback" size="sm" title="Inferred from vanilla terrain_texture.json">
                         fallback
                       </Badge>
                     ) : (
-                      <Badge variant="missing" size="sm" title="No texture definition found">
+                      <Badge variant="missing" size="sm" title="Missing declaration in terrain_texture.json">
                         missing entry
                       </Badge>
                     )}
@@ -243,7 +351,7 @@ export const BlockEntryTree: React.FC<BlockEntryTreeProps> = ({ block, onTileCli
                   <div className={`${styles.treeChildrenWrapper} ${!isTtCollapsed ? styles.treeChildrenExpanded : ''}`}>
                     <div className={styles.treeChildrenInner}>
                       <div className={styles.treeChildren}>
-                        {uniqueLeaves.map((leaf, lIdx) => (
+                        {item.leaves.map((leaf, lIdx) => (
                           <TextureLeafRow
                             key={`${leaf.relativePath || leaf.alias}-${lIdx}`}
                             leaf={leaf}

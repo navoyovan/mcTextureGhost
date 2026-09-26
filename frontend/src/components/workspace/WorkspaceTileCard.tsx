@@ -22,7 +22,7 @@ interface WorkspaceTileCardProps {
   onToggleMenu: (key: string) => void;
   onTileClick: (domEl: HTMLElement, leaf: CatalogLeafDto, key: string, targetType?: 'card' | 'image') => void;
   onDeleteTextureFile: (path: string, alias: string) => void;
-  onDeleteTextureEntries: (alias: string, relativePath?: string | null) => void;
+  onDeleteTextureEntries?: (alias: string, relativePath?: string | null) => void;
   onAddVariation?: (leaf: CatalogLeafDto, count?: number) => void;
 
   onDeleteVariation?: (leaf: CatalogLeafDto) => void;
@@ -435,16 +435,20 @@ export const WorkspaceTileCard: React.FC<WorkspaceTileCardProps> = React.memo(({
           onDeleteTexture={() => {
             handleDeleteTextureWithAnimation(primary, 0);
           }}
-          onDeleteEntries={() => {
-            const hasPhysicalTexture = Boolean(primary.fullPath || primary.status === 'OK');
-            if (!hasPhysicalTexture) {
-              handleDeleteWithAnimation(() => {
-                onDeleteTextureEntries(primary.alias, primary.relativePath);
-              });
-            } else {
-              onDeleteTextureEntries(primary.alias, primary.relativePath);
-            }
-          }}
+          onDeleteEntries={
+            onDeleteTextureEntries
+              ? () => {
+                  const hasPhysicalTexture = Boolean(primary.fullPath || primary.status === 'OK');
+                  if (!hasPhysicalTexture) {
+                    handleDeleteWithAnimation(() => {
+                      onDeleteTextureEntries(primary.alias, primary.relativePath);
+                    });
+                  } else {
+                    onDeleteTextureEntries(primary.alias, primary.relativePath);
+                  }
+                }
+              : undefined
+          }
           onAddVariation={onAddVariation ? (count) => onAddVariation(primary, count) : undefined}
           onDeleteVariation={onDeleteVariation && primary.textureVariantIndex != null ? () => onDeleteVariation(primary) : undefined}
         />
@@ -474,9 +478,13 @@ export const WorkspaceTileCard: React.FC<WorkspaceTileCardProps> = React.memo(({
             const vIdx = leaves.findIndex((l) => l === variationMenu.leaf || l.relativePath === variationMenu.leaf.relativePath);
             handleDeleteTextureWithAnimation(variationMenu.leaf, vIdx >= 0 ? vIdx : 0);
           }}
-          onDeleteEntries={() => {
-            onDeleteTextureEntries(variationMenu.leaf.alias, variationMenu.leaf.relativePath);
-          }}
+          onDeleteEntries={
+            onDeleteTextureEntries
+              ? () => {
+                  onDeleteTextureEntries(variationMenu.leaf.alias, variationMenu.leaf.relativePath);
+                }
+              : undefined
+          }
           onAddVariation={onAddVariation ? (count) => onAddVariation(variationMenu.leaf, count) : undefined}
           onDeleteVariation={onDeleteVariation && variationMenu.leaf.textureVariantIndex != null ? () => onDeleteVariation(variationMenu.leaf) : undefined}
         />

@@ -574,19 +574,67 @@ export const packStoreActions: PackStoreActions = {
         ...block,
         aliasGroups: newAliasGroups,
       };
-    }).filter((block) => {
-      // Keep block if it has alias groups
-      return Boolean(block.aliasGroups && block.aliasGroups.length > 0);
     });
 
     const updatedBlockTree = transformTree(currentState.blockWorkspaceTree || [] as any);
     const updatedEntityTree = transformTree(currentState.entityWorkspaceTree || [] as any);
+
+    // 3. In catalogTree:
+    // Revert leaves of matching aliasGroup from GHOST back to VANILLA
+    const patchCatalogTree = (tree: BlockGroupNodeDto[]): BlockGroupNodeDto[] => (tree || []).map((block) => {
+      let blockNotAdded = 0;
+      let hasAgMatch = false;
+
+      const newAliasGroups = (block.aliasGroups || []).map((ag) => {
+        const isAgMatch = ag.alias.toLowerCase() === keyNorm && (ag.category || block.category || '').toLowerCase() === catNorm;
+        if (!isAgMatch) {
+          blockNotAdded += ag.notAddedCount ?? (ag.leaves?.filter((l) => l.status === 'VANILLA').length ?? 0);
+          return ag;
+        }
+        hasAgMatch = true;
+
+        const newLeaves = (ag.leaves || []).map((l) => {
+          const isLeafMatch = !relNorm || stripExt(l.relativePath) === relNorm;
+          if (!isLeafMatch) return l;
+
+          // Check if user still has physical file for this leaf
+          const hasPhysical = updatedAliases.some(
+            (a) => a.alias.toLowerCase() === keyNorm && (a.status === 'OK' || a.status === 'ORPHAN' || a.status === 'OVERRIDE')
+          );
+          if (hasPhysical) {
+            return { ...l, status: 'ORPHAN' as any };
+          }
+          return { ...l, status: 'VANILLA' as any };
+        });
+
+        const agNotAdded = newLeaves.filter((l) => l.status === 'VANILLA').length;
+        blockNotAdded += agNotAdded;
+
+        return {
+          ...ag,
+          leaves: newLeaves,
+          notAddedCount: agNotAdded,
+          ghostCount: newLeaves.filter((l) => l.status === 'GHOST').length,
+        };
+      });
+
+      if (!hasAgMatch) return block;
+
+      return {
+        ...block,
+        aliasGroups: newAliasGroups,
+        notAddedCount: blockNotAdded,
+      };
+    });
+
+    const updatedCatalogTree = patchCatalogTree(currentState.catalogTree || []);
 
     currentState = {
       ...currentState,
       aliases: updatedAliases,
       blockWorkspaceTree: updatedBlockTree as any,
       entityWorkspaceTree: updatedEntityTree as any,
+      catalogTree: updatedCatalogTree as any,
       stats: computeStats(updatedAliases),
     };
     notify();
@@ -779,9 +827,25 @@ export const packStoreActions: PackStoreActions = {
         }
       }
     } else if (targetIsAliasOnly) {
-      // no catalog node with leaves — create minimal ghost alias
-      const rel = `textures/${catNorm === 'block' ? 'blocks' : catNorm === 'item' ? 'items' : 'entity'}/${alias}.png`;
-      pushLeafAsAlias({ alias: alias!, displayName: alias!, relativePath: rel, category: catNorm, status: 'GHOST' } as any);
+      let matchedAg: any = null;
+      if (currentState.catalogTree) {
+        for (const b of currentState.catalogTree) {
+          const found = b.aliasGroups?.find((ag) => ag.alias.toLowerCase() === targetAliasNorm);
+          if (found && found.leaves && found.leaves.length > 0) {
+            matchedAg = found;
+            break;
+          }
+        }
+      }
+
+      if (matchedAg && matchedAg.leaves && matchedAg.leaves.length > 0) {
+        for (const leaf of matchedAg.leaves) {
+          pushLeafAsAlias(leaf);
+        }
+      } else {
+        const rel = `textures/${catNorm === 'block' ? 'blocks' : catNorm === 'item' ? 'items' : 'entity'}/${alias}.png`;
+        pushLeafAsAlias({ alias: alias!, displayName: alias!, relativePath: rel, category: catNorm, status: 'GHOST' } as any);
+      }
     }
 
     // --- workspace trees: insert or patch block/entity node ---
@@ -848,11 +912,47 @@ export const packStoreActions: PackStoreActions = {
       else updatedBlockTree = patchTreeForAlias(updatedBlockTree);
     }
 
+    // --- catalogTree: also optimistically patch leaves in catalogTree so notAddedCount / VANILLA status is marked as GHOST / added ---
+    const updatedCatalogTree = (currentState.catalogTree || []).map((cb) => {
+      const isTargetBlock = (!targetIsAliasOnly && cb.blockId.toLowerCase() === id.toLowerCase() && (cb.category || '').toLowerCase() === catNorm) ||
+        (targetIsAliasOnly && cb.aliasGroups?.some((ag) => ag.alias.toLowerCase() === targetAliasNorm));
+
+      if (!isTargetBlock) return cb;
+
+      const newAliasGroups = (cb.aliasGroups || []).map((ag) => {
+        if (targetIsAliasOnly && ag.alias.toLowerCase() !== targetAliasNorm) return ag;
+
+        const updatedLeaves = ag.leaves?.map((l) => (l.status === 'VANILLA' ? { ...l, status: 'GHOST' as const } : l));
+        const updatedFaceNodes = (ag as any).faceNodes?.map((fn: any) => ({
+          ...fn,
+          leaves: fn.leaves?.map((l: any) => (l.status === 'VANILLA' ? { ...l, status: 'GHOST' as const } : l)),
+        }));
+
+        const notAddedCount = 0;
+        const ghostCount = (updatedLeaves?.filter((l) => l.status === 'GHOST').length ?? 0) +
+          (updatedFaceNodes?.reduce((acc: number, fn: any) => acc + (fn.leaves?.filter((l: any) => l.status === 'GHOST').length ?? 0), 0) ?? 0);
+
+        return {
+          ...ag,
+          leaves: updatedLeaves,
+          faceNodes: updatedFaceNodes,
+          notAddedCount,
+          ghostCount: ghostCount > 0 ? ghostCount : ag.ghostCount,
+        } as any;
+      });
+
+      return {
+        ...cb,
+        aliasGroups: newAliasGroups,
+      };
+    });
+
     currentState = {
       ...currentState,
       aliases: newAliases,
       blockWorkspaceTree: updatedBlockTree as any,
       entityWorkspaceTree: updatedEntityTree as any,
+      catalogTree: updatedCatalogTree as any,
       stats: computeStats(newAliases),
     };
     notify();

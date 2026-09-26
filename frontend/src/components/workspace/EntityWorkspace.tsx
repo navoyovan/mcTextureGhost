@@ -589,7 +589,7 @@ export const EntityWorkspace: React.FC = () => {
                           onToggleMenu={handleToggleMenu}
                           onTileClick={handleTileClick}
                           onDeleteTextureFile={handleDeleteTextureFile}
-                          onDeleteTextureEntries={handleDeleteTextureEntries}
+                          onDeleteTextureEntries={!isVanillaFallback ? handleDeleteTextureEntries : undefined}
                         />
                       );
                     })}
@@ -648,9 +648,13 @@ export const EntityWorkspace: React.FC = () => {
               deleteTextureFile(contextMenuTarget.alias.fullPath);
             }
           }}
-          onDeleteEntries={() => {
-            deleteTextureEntries(contextMenuTarget.alias.alias, contextMenuTarget.alias.category || 'entity');
-          }}
+          onDeleteEntries={
+            (contextMenuTarget.alias as any).isUserDefined !== false
+              ? () => {
+                  deleteTextureEntries(contextMenuTarget.alias.alias, contextMenuTarget.alias.category || 'entity');
+                }
+              : undefined
+          }
           onEditMers={() => {
             if (contextMenuTarget.alias.mersFullPath) {
               editTexture(contextMenuTarget.alias.alias, contextMenuTarget.alias.mersFullPath, false);

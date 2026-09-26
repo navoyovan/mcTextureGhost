@@ -55,7 +55,7 @@ interface TextureContextMenuProps {
   onOpenWithDialog: () => void;
   onRevealInExplorer: () => void;
   onDeleteTexture: () => void;
-  onDeleteEntries: () => void;
+  onDeleteEntries?: () => void;
   onEditMers?: () => void;
   onEditAtlas?: () => void;
   /** Blocks-only: scaffold N new texture variation entries for this tile's blockstate slot */
@@ -546,19 +546,21 @@ export const TextureContextMenu: React.FC<TextureContextMenuProps> = ({
         </button>
 
         {/* 8. Delete Entries (danger) */}
-        <button
-          type="button"
-          className={`${styles.menuItem} ${styles.menuItemDanger}`}
-          disabled={isOrphan}
-          onClick={() => {
-            onClose();
-            onDeleteEntries();
-          }}
-          title={isOrphan ? 'Orphan has no JSON declarations' : 'Remove declarations from JSON schemas'}
-        >
-          <FileX size={13} className={styles.menuIcon} />
-          <span className={styles.menuLabel}>Delete Entries</span>
-        </button>
+        {onDeleteEntries && (
+          <button
+            type="button"
+            className={`${styles.menuItem} ${styles.menuItemDanger}`}
+            disabled={isOrphan}
+            onClick={() => {
+              onClose();
+              onDeleteEntries();
+            }}
+            title={isOrphan ? 'Orphan has no JSON declarations' : 'Remove declarations from JSON schemas'}
+          >
+            <FileX size={13} className={styles.menuIcon} />
+            <span className={styles.menuLabel}>Delete Entries</span>
+          </button>
+        )}
       </div>
     </div>,
     document.body

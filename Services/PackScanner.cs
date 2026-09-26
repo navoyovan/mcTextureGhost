@@ -2105,25 +2105,92 @@ public static class PackScanner
                 }
                 else
                 {
-                    // No user entry for this alias → show as Ghost leaf under each face.
-                    foreach (var faceNode in aliasNode.FaceNodes)
+                    // No user entry for this alias in terrain_texture.json → resolve from vanilla terrain_texture.json!
+                    if (vanilla.TerrainTextures.TryGetValue(alias, out var vData) && vData.Entries.Count > 0)
                     {
-                        var leaf = new CatalogLeaf
+                        foreach (var vEntry in vData.Entries)
                         {
-                            Alias        = alias,
-                            DisplayName  = alias,
-                            RelativePath = $"textures/blocks/{alias}",
-                            FullPath     = packRoot != null
-                                ? Path.Combine(packRoot, "textures", "blocks", $"{alias}.png")
-                                : alias,
-                            Category     = TextureCategory.Block,
-                            Status       = CatalogEntryStatus.Ghost,
-                            TextureAlias = null,
-                            SubtitleCaption      = "missing texture",
-                            PrimaryFaceBadgeText = faceNode.FaceLabel
-                        };
-                        faceNode.Leaves.Add(leaf);
-                        aliasNode.Leaves.Add(leaf);
+                            var rawPath = vEntry.RawPath;
+                            var fileName = Path.GetFileNameWithoutExtension(rawPath);
+                            var normRaw = VanillaDataService.NormalizeTexturePath(rawPath);
+                            var fullPath = packRoot != null
+                                ? Path.Combine(packRoot, (normRaw + ".png").Replace('/', Path.DirectorySeparatorChar))
+                                : normRaw;
+
+                            var caption = vEntry.TotalBlockVariants.HasValue
+                                ? $"block state {vEntry.BlockVariantIndex}/{vEntry.TotalBlockVariants}"
+                                : (vEntry.TotalTextureVariants.HasValue
+                                    ? $"tex {vEntry.TextureVariantIndex}/{vEntry.TotalTextureVariants}"
+                                    : "missing texture");
+
+                            foreach (var faceNode in aliasNode.FaceNodes)
+                            {
+                                var faceLeaf = new CatalogLeaf
+                                {
+                                    Alias        = alias,
+                                    DisplayName  = fileName,
+                                    RelativePath = normRaw,
+                                    FullPath     = fullPath,
+                                    Category     = TextureCategory.Block,
+                                    Status       = CatalogEntryStatus.Ghost,
+                                    TextureAlias = null,
+                                    VariantKind  = vEntry.TotalBlockVariants.HasValue ? VariantKind.BlockVariant : (vEntry.TotalTextureVariants.HasValue ? VariantKind.TextureVariant : VariantKind.None),
+                                    BlockVariantIndex = vEntry.BlockVariantIndex,
+                                    TotalBlockVariants = vEntry.TotalBlockVariants,
+                                    TextureVariantIndex = vEntry.TextureVariantIndex,
+                                    TotalTextureVariants = vEntry.TotalTextureVariants,
+                                    Weight       = vEntry.Weight,
+                                    SubtitleCaption      = caption,
+                                    PrimaryFaceBadgeText = faceNode.FaceLabel,
+                                    Flipbook     = vanilla.Flipbooks.Find(alias, rawPath, vEntry.BlockVariantIndex, vEntry.TextureVariantIndex)
+                                };
+                                faceNode.Leaves.Add(faceLeaf);
+                            }
+
+                            var aliasLeaf = new CatalogLeaf
+                            {
+                                Alias        = alias,
+                                DisplayName  = fileName,
+                                RelativePath = normRaw,
+                                FullPath     = fullPath,
+                                Category     = TextureCategory.Block,
+                                Status       = CatalogEntryStatus.Ghost,
+                                TextureAlias = null,
+                                VariantKind  = vEntry.TotalBlockVariants.HasValue ? VariantKind.BlockVariant : (vEntry.TotalTextureVariants.HasValue ? VariantKind.TextureVariant : VariantKind.None),
+                                BlockVariantIndex = vEntry.BlockVariantIndex,
+                                TotalBlockVariants = vEntry.TotalBlockVariants,
+                                TextureVariantIndex = vEntry.TextureVariantIndex,
+                                TotalTextureVariants = vEntry.TotalTextureVariants,
+                                Weight       = vEntry.Weight,
+                                SubtitleCaption      = caption,
+                                PrimaryFaceBadgeText = aliasNode.FaceSummary,
+                                Flipbook     = vanilla.Flipbooks.Find(alias, rawPath, vEntry.BlockVariantIndex, vEntry.TextureVariantIndex)
+                            };
+                            aliasNode.Leaves.Add(aliasLeaf);
+                        }
+                    }
+                    else
+                    {
+                        // Custom alias not declared in vanilla terrain_texture.json
+                        foreach (var faceNode in aliasNode.FaceNodes)
+                        {
+                            var leaf = new CatalogLeaf
+                            {
+                                Alias        = alias,
+                                DisplayName  = alias,
+                                RelativePath = $"textures/blocks/{alias}",
+                                FullPath     = packRoot != null
+                                    ? Path.Combine(packRoot, "textures", "blocks", $"{alias}.png")
+                                    : alias,
+                                Category     = TextureCategory.Block,
+                                Status       = CatalogEntryStatus.Ghost,
+                                TextureAlias = null,
+                                SubtitleCaption      = "missing declaration",
+                                PrimaryFaceBadgeText = faceNode.FaceLabel
+                            };
+                            faceNode.Leaves.Add(leaf);
+                            aliasNode.Leaves.Add(leaf);
+                        }
                     }
                 }
 

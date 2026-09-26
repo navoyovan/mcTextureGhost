@@ -149,17 +149,49 @@ const TileHoverMorphCard: React.FC<TileHoverMorphPortalProps> = ({
 
   const storeAlias = usePackStore((s) =>
     s.aliases.find((a) => {
-      if (target.alias.fullPath && a.fullPath && a.fullPath.toLowerCase() === target.alias.fullPath.toLowerCase()) {
+      const normalizePath = (p?: string | null) =>
+        (p || '').replace(/\\/g, '/').toLowerCase().replace(/\.(png|tga|jpg|jpeg|webp)$/, '');
+
+      // 1. If target is an ORPHAN, only match orphans by exact path
+      if (target.alias.status === 'ORPHAN') {
+        if (target.alias.fullPath && a.fullPath && normalizePath(a.fullPath) === normalizePath(target.alias.fullPath)) {
+          return true;
+        }
+        if (target.alias.relativePath && a.relativePath && normalizePath(a.relativePath) === normalizePath(target.alias.relativePath)) {
+          return true;
+        }
+        return false;
+      }
+
+      // 2. If target is declared or fallback, never match an orphan file from the store
+      if (a.status === 'ORPHAN') {
+        return false;
+      }
+
+      // 3. Category must match if both are specified
+      if (target.alias.category && a.category && a.category.toLowerCase() !== target.alias.category.toLowerCase()) {
+        return false;
+      }
+
+      // 4. Exact fullPath match
+      if (target.alias.fullPath && a.fullPath && normalizePath(a.fullPath) === normalizePath(target.alias.fullPath)) {
         return true;
       }
-      if (target.alias.relativePath && a.relativePath && a.relativePath.toLowerCase() === target.alias.relativePath.toLowerCase()) {
+
+      // 5. Exact relativePath match
+      if (target.alias.relativePath && a.relativePath && normalizePath(a.relativePath) === normalizePath(target.alias.relativePath)) {
         return true;
       }
+
+      // 6. Alias name match ONLY if relativePath is either absent or matching
       if (
         a.alias.toLowerCase() === target.alias.alias.toLowerCase() &&
         a.blockVariantIndex === target.alias.blockVariantIndex &&
         a.textureVariantIndex === target.alias.textureVariantIndex
       ) {
+        if (target.alias.relativePath && a.relativePath) {
+          return normalizePath(a.relativePath) === normalizePath(target.alias.relativePath);
+        }
         return true;
       }
       return false;

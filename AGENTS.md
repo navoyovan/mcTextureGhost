@@ -28,6 +28,7 @@ Consult these project specification files **only when relevant** to the task at 
   - Start with the most relevant file. Inspect related files when needed for cross-file contracts, verification, or changed source context.
   - Use content already in context for targeted edits; reread only when that context is missing, stale, or insufficient to verify the change.
   - When the user asks for a UI tweak, bug fix, or feature, immediately inspect the target code and apply the fix. Do not circle across unrequested documents.
+  - **Confidence Threshold**: As soon as confidence reaches ~75-80% on the buggy code path, stop research immediately. Do not conduct speculative forensic investigations into disk files, caches, or backend pipelines when the UI component flaw is already found.
   - Do NOT pause or generate formal planning artifacts (`implementation_plan.md`) unless the user explicitly asks for a plan or proposal first.
 - **Context Efficiency:** Never read `ARCHITECTURE.md` when `ARCHITECTURE_ESSENTIALS.md` has the answer.
 - **Single Source of Truth:** Tool-specific config files must only reference `AGENTS.md` and `.agents/rules/`.

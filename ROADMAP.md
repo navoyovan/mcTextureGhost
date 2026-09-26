@@ -22,7 +22,6 @@
 **Improvements**
 - [x] Optimistic UI updates across all texture interactables — instant feedback for additions, deletions, and variations without waiting for disk I/O
 - [x] Skeleton loading states and granular store flags for smoother, non-blocking background rescans
-- [x] Tile hover morph portal with smooth enter and exit shrink transitions
 - [x] Background catalog synchronization — offloaded vanilla catalog parsing and status checks from UI thread to background workers
 - [x] Scoped category rescans — block/entity/item additions and variations only rebuild affected workspace trees, omitting unchanged trees from IPC payloads
 - [x] Automatic variation scaffolding with alias stems (`_var{N}`) and shape-lifting across Bedrock JSON formats
@@ -30,7 +29,6 @@
 - [x] In-place workspace state preservation — modifying or deleting entries no longer resets view selection or scroll position
 - [x] JSON hierarchy multi-tier rework with declared alias face mapping and texture status validation
 - [x] Smooth accordion collapse animations for JSON Hierarchy, 3D Preview, and Catalog Index trees
-- [x] Global keyboard shortcut ('C') to quickly toggle the reference catalog drawer
 - [x] Animated entrance transitions for the Welcome layout
 - [x] Toggleable 3D viewport preview option for reduced hardware usage during long editing sessions
 - [ ] Variation weight editor and custom label editing

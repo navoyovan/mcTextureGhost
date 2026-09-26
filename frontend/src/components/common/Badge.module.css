@@ -105,11 +105,11 @@
   color: #c084fc;
 }
 
-/* MISSING / UNDECLARED: Soft Rose/Red-Orange warning */
+/* MISSING / UNDECLARED / ORPHAN: Amber warning */
 .variant_missing {
-  background: rgba(244, 63, 94, 0.15);
-  border: 1px solid rgba(244, 63, 94, 0.5);
-  color: #fb7185;
+  background: rgba(38, 20, 6, 0.92);
+  border: 1px solid rgba(245, 158, 11, 0.75);
+  color: #fbbf24;
 }
 
 /* ANIM: Flipbook texture animation (lime green) */

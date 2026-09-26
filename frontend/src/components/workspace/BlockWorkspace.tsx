@@ -640,7 +640,12 @@ export const BlockWorkspace: React.FC = () => {
           )}
 
           <div className={styles.hierarchySection}>
-            {selectedBlock.aliasGroups?.map((ag) => {
+            {(!selectedBlock.aliasGroups || selectedBlock.aliasGroups.length === 0) ? (
+              <div className={styles.emptySelection} style={{ padding: '32px 16px', color: '#71717a' }}>
+                No texture aliases configured for this block
+              </div>
+            ) : (
+              selectedBlock.aliasGroups.map((ag) => {
               const isDeclaredInTerrainTexture =
                 hasTerrainTextureJson &&
                 packAliases.some(
@@ -688,7 +693,7 @@ export const BlockWorkspace: React.FC = () => {
                                   onToggleMenu={handleToggleMenu}
                                   onTileClick={handleTileClick}
                                   onDeleteTextureFile={handleDeleteTextureFile}
-                                  onDeleteTextureEntries={handleDeleteTextureEntries}
+                                  onDeleteTextureEntries={isDeclaredInTerrainTexture ? handleDeleteTextureEntries : undefined}
                                   onAddVariation={isDeclaredInTerrainTexture ? handleAddVariation : undefined}
                                   onDeleteVariation={isDeclaredInTerrainTexture ? handleDeleteVariation : undefined}
                                 />
@@ -711,7 +716,7 @@ export const BlockWorkspace: React.FC = () => {
                           onToggleMenu={handleToggleMenu}
                           onTileClick={handleTileClick}
                           onDeleteTextureFile={handleDeleteTextureFile}
-                          onDeleteTextureEntries={handleDeleteTextureEntries}
+                          onDeleteTextureEntries={isDeclaredInTerrainTexture ? handleDeleteTextureEntries : undefined}
                           onAddVariation={isDeclaredInTerrainTexture ? handleAddVariation : undefined}
                           onDeleteVariation={isDeclaredInTerrainTexture ? handleDeleteVariation : undefined}
                         />
@@ -721,7 +726,7 @@ export const BlockWorkspace: React.FC = () => {
                 </div>
               </div>
             );
-          })}
+          }))}
           </div>
         </section>
       ) : (
@@ -823,13 +828,24 @@ export const BlockWorkspace: React.FC = () => {
               deleteTextureFile(fullPath, aliasKey);
             }
           }}
-          onDeleteEntries={() => {
-            const aliasKey = contextMenuTarget.alias.alias;
-            const cat = contextMenuTarget.alias.category || 'block';
-            const relPath = contextMenuTarget.alias.relativePath;
-            packStoreActions.optimisticDeleteEntries(aliasKey, cat, relPath);
-            deleteTextureEntries(aliasKey, cat, relPath);
-          }}
+          onDeleteEntries={
+            hasTerrainTextureJson &&
+            packAliases.some(
+              (a: TextureAliasDto) =>
+                a.alias.toLowerCase() === contextMenuTarget.alias.alias.toLowerCase() &&
+                a.category === (contextMenuTarget.alias.category || 'block') &&
+                a.status !== 'ORPHAN' &&
+                (a as any).isUserDefined !== false
+            )
+              ? () => {
+                  const aliasKey = contextMenuTarget.alias.alias;
+                  const cat = contextMenuTarget.alias.category || 'block';
+                  const relPath = contextMenuTarget.alias.relativePath;
+                  packStoreActions.optimisticDeleteEntries(aliasKey, cat, relPath);
+                  deleteTextureEntries(aliasKey, cat, relPath);
+                }
+              : undefined
+          }
           onEditMers={() => {
             if (contextMenuTarget.alias.mersFullPath) {
               editTexture(contextMenuTarget.alias.alias, contextMenuTarget.alias.mersFullPath, false);
