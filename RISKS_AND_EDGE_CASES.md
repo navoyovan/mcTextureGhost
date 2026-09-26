@@ -26,14 +26,17 @@ Review this document before implementing state changes, IPC bridges, or file sys
   - Keep payload schema versioned or strictly typed with fallback error handling to avoid white-screen crashes in WebView2.
 
 ## 4. Minecraft Bedrock JSON Schema Quirks
-- **Polymorphic Texture Declarations in `terrain_texture.json`:**
+- **Polymorphic Texture Declarations in `terrain_texture.json` & `item_texture.json`:**
   - Textures can be declared as:
     1. A single string path: `"textures/blocks/stone"`
     2. An array of paths: `["textures/blocks/dirt_1", "textures/blocks/dirt_2"]`
     3. An object with variations: `{"variations": [{"path": "textures/blocks/grass", "weight": 1}]}`
-  - The scanner and writer must handle all three shapes without throwing `JsonException`.
+  - Handled by `Services/Scanning/TextureAtlasParser.cs` (`ParseTextureAtlasJson`), converting polymorphic payloads to normalized `ParsedAliasData` with indexed variants without throwing `JsonException`.
+- **Block Face Bindings & Carried Faces in `blocks.json`:**
+  - Block textures can be declared as a simple string, a directional object (`up`, `down`, `north`, `south`, `east`, `west`), or a carried object (`carried_textures`).
+  - Handled by `Services/Scanning/BlockDefinitionParser.cs` (`ParseBlocksJson` & `ExtractAliasFaces`).
 - **Relative Path Conventions:**
-  - Bedrock schemas omit the `.png` extension in `terrain_texture.json` and `item_texture.json` (e.g. `textures/blocks/stone` points to `textures/blocks/stone.png`).
+  - Bedrock schemas omit the `.png` extension in `terrain_texture.json` and `item_texture.json` (e.g. `textures/blocks/stone` points to `textures/blocks/stone.png`). Resolved by `Services/PackScanner.cs` (`ResolveTexture`).
 
 ## 5. `activeView` Union Type Contract
 - **Risk:** Adding a new view string (e.g. `'manifest'`) to the `PackState` type or the `PackStore` interface without also updating the `setActiveView` method *implementation* signature in `packStore.ts` causes a **TypeScript contravariance error** at the assignment site.
