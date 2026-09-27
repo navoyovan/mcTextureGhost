@@ -1,4 +1,9 @@
 # mcTextureGhost
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://shieldcn.dev/views/user/navoyovan/repos.svg?variant=outline&font=geist" />
+  <img alt="repo views" src="https://shieldcn.dev/views/user/navoyovan/repos.svg?variant=outline&mode=light&font=geist" />
+</picture>
+<br/><br/>
 
 **Minecraft texture pack workspace for resource pack creators or to curate your own texture collection.**
 
