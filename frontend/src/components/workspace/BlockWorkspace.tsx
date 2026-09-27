@@ -11,7 +11,10 @@ import { TileHoverMorphPortal, TileHoverMorphTarget } from '../grid/TileHoverMor
 import { TextureContextMenu } from '../common/TextureContextMenu';
 import { WorkspaceSkeleton } from './WorkspaceSkeleton';
 import { Badge } from '../common/Badge';
-import { hasTerrainTextureJson as checkTerrainTextureJson } from '../../utils/packFileUtils';
+import {
+  hasTerrainTextureJson as checkTerrainTextureJson,
+  hasBlocksJson as checkBlocksJson,
+} from '../../utils/packFileUtils';
 import { leafToAliasDto, groupLeavesByVariantSlot } from '../../utils/leafTransforms';
 import styles from './BlockWorkspace.module.css';
 
@@ -24,9 +27,11 @@ export const BlockWorkspace: React.FC = () => {
   const activeFilters = usePackStore((s) => s.activeFilters);
   const packFolders = usePackStore((s) => s.packFolders);
   const packAliases = usePackStore((s) => s.aliases ?? []);
+  const catalogTree = usePackStore((s) => s.catalogTree);
   const { editTexture, deleteTextureFile, deleteTextureEntries, deleteTextureVariation, openInExplorer, scaffoldTextureVariation } = useIpc();
 
   const hasTerrainTextureJson = useMemo(() => checkTerrainTextureJson(packFolders), [packFolders]);
+  const hasBlocksJson = useMemo(() => checkBlocksJson(packFolders), [packFolders]);
 
   const [activeMenuKey, setActiveMenuKey] = useState<string | null>(null);
   const setIsListDrawerOpen = usePackStore((s) => s.setIsWorkspaceDrawerOpen);
@@ -515,38 +520,88 @@ export const BlockWorkspace: React.FC = () => {
               </div>
             ) : (
               selectedBlock.aliasGroups.map((ag) => {
-              const isDeclaredInTerrainTexture =
+              const isBlockUserDefined = hasBlocksJson && selectedBlock.isUserDefined !== false;
+              const aliasKey = ag.alias.toLowerCase();
+
+              const isDeclaredInPackTerrain =
                 hasTerrainTextureJson &&
                 packAliases.some(
                   (a: TextureAliasDto) =>
-                    a.alias.toLowerCase() === ag.alias.toLowerCase() &&
+                    a.alias.toLowerCase() === aliasKey &&
                     a.category === 'block' &&
                     a.status !== 'ORPHAN' &&
                     (a as any).isUserDefined !== false
                 );
-              const isVanillaFallback = !isDeclaredInTerrainTexture && selectedBlock.blockId !== 'uncategorized';
+
+              const hasMissingDeclarationLeaf = ag.leaves?.some(
+                (l) => l.subtitleCaption?.toLowerCase() === 'missing declaration'
+              ) || ag.faceNodes?.some((fn) =>
+                fn.leaves?.some((l) => l.subtitleCaption?.toLowerCase() === 'missing declaration')
+              );
+
+              const isDeclaredInVanillaTerrain =
+                !isDeclaredInPackTerrain &&
+                !hasMissingDeclarationLeaf &&
+                (catalogTree && catalogTree.length > 0
+                  ? catalogTree.some((cb) =>
+                      cb.aliasGroups?.some((ca) => ca.alias.toLowerCase() === aliasKey && !ca.leaves?.some(l => l.subtitleCaption?.toLowerCase() === 'missing declaration'))
+                    )
+                  : packAliases.some(
+                      (a) =>
+                        a.alias.toLowerCase() === aliasKey &&
+                        a.category === 'block' &&
+                        (a as any).isUserDefined === false
+                    ));
+
+              const isVanillaFallback = !isDeclaredInPackTerrain && selectedBlock.blockId !== 'uncategorized';
+
+              const isUncategorized = selectedBlock.blockId === 'uncategorized';
+              const isTrueOrphan = isUncategorized && !isDeclaredInPackTerrain;
 
               return (
                 <div key={ag.alias} className={`${styles.aliasGroupCard} ${isVanillaFallback ? styles.aliasGroupCardFallback : ''}`}>
                   <div className={styles.aliasHeader}>
                     <Layers size={14} />
-                    <span>Alias: {ag.alias}</span>
-                    {isVanillaFallback && (
-                      <Badge variant="fallback" size="sm" title="Using vanilla terrain_texture.json definition">
-                        Fallback
+                    <span>{isTrueOrphan ? '(No alias)' : `Alias: ${ag.alias}`}</span>
+                    {isTrueOrphan && (
+                      <Badge variant="orphan" size="sm" title="Texture file on disk not declared in any JSON">
+                        orphan
                       </Badge>
+                    )}
+                    {isVanillaFallback && (
+                      isDeclaredInVanillaTerrain ? (
+                        <Badge
+                          variant="fallback"
+                          size="sm"
+                          title={
+                            isBlockUserDefined
+                              ? "Vanilla fallback, missing in pack terrain_texture.json"
+                              : "Using vanilla terrain_texture.json definition"
+                          }
+                        >
+                          {isBlockUserDefined ? 'missing entry' : 'fallback'}
+                        </Badge>
+                      ) : (
+                        <Badge variant="missing" size="sm" title="Missing declaration in terrain_texture.json">
+                          missing entry
+                        </Badge>
+                      )
                     )}
                   </div>
 
                 <div className={styles.faceNodeGroup}>
                   {ag.faceNodes && ag.faceNodes.length > 0 ? (
                     ag.faceNodes.map((fn) => {
-                      const groups = groupLeavesByVariantSlot(fn.leaves ?? []);
+                      const effectiveLeaves = isVanillaFallback
+                        ? (fn.leaves ?? []).filter((l) => l.status === 'OK' || l.status === 'OVERRIDE')
+                        : (fn.leaves ?? []);
+                      if (isVanillaFallback && effectiveLeaves.length === 0) return null;
+                      const groups = groupLeavesByVariantSlot(effectiveLeaves);
                       return (
                         <div key={fn.faceLabel} className={styles.faceRow}>
                           <Badge variant="neutral" size="sm" icon={<ArrowRight size={10} />}>
                             Face: {fn.faceLabel}
-                            {fn.ghostCount > 0 && ` • ${fn.ghostCount}`}
+                            {!isVanillaFallback && fn.ghostCount > 0 && ` • ${fn.ghostCount}`}
                           </Badge>
                           <div className={styles.variantStrip}>
                             {groups.map((grp) => {
@@ -562,9 +617,9 @@ export const BlockWorkspace: React.FC = () => {
                                   onToggleMenu={handleToggleMenu}
                                   onTileClick={handleTileClick}
                                   onDeleteTextureFile={handleDeleteTextureFile}
-                                  onDeleteTextureEntries={isDeclaredInTerrainTexture ? handleDeleteTextureEntries : undefined}
-                                  onAddVariation={isDeclaredInTerrainTexture ? handleAddVariation : undefined}
-                                  onDeleteVariation={isDeclaredInTerrainTexture ? handleDeleteVariation : undefined}
+                                  onDeleteTextureEntries={isDeclaredInPackTerrain ? handleDeleteTextureEntries : undefined}
+                                  onAddVariation={isDeclaredInPackTerrain ? handleAddVariation : undefined}
+                                  onDeleteVariation={isDeclaredInPackTerrain ? handleDeleteVariation : undefined}
                                 />
                               );
                             })}
@@ -573,24 +628,32 @@ export const BlockWorkspace: React.FC = () => {
                       );
                     })
                   ) : (
-                    <div className={styles.variantStrip}>
-                      {groupLeavesByVariantSlot(ag.leaves ?? []).map((grp) => (
-                        <WorkspaceTileCard
-                          key={grp.key}
-                          grp={grp}
-                          cardKey={grp.key}
-                          tileZoom={tileZoom}
-                          selectedBlockName={selectedBlockDisplayName}
-                          isMenuOpen={activeMenuKey === grp.key}
-                          onToggleMenu={handleToggleMenu}
-                          onTileClick={handleTileClick}
-                          onDeleteTextureFile={handleDeleteTextureFile}
-                          onDeleteTextureEntries={isDeclaredInTerrainTexture ? handleDeleteTextureEntries : undefined}
-                          onAddVariation={isDeclaredInTerrainTexture ? handleAddVariation : undefined}
-                          onDeleteVariation={isDeclaredInTerrainTexture ? handleDeleteVariation : undefined}
-                        />
-                      ))}
-                    </div>
+                    (() => {
+                      const effectiveLeaves = isVanillaFallback
+                        ? (ag.leaves ?? []).filter((l) => l.status === 'OK' || l.status === 'OVERRIDE')
+                        : (ag.leaves ?? []);
+                      if (isVanillaFallback && effectiveLeaves.length === 0) return null;
+                      return (
+                        <div className={styles.variantStrip}>
+                          {groupLeavesByVariantSlot(effectiveLeaves).map((grp) => (
+                            <WorkspaceTileCard
+                              key={grp.key}
+                              grp={grp}
+                              cardKey={grp.key}
+                              tileZoom={tileZoom}
+                              selectedBlockName={selectedBlockDisplayName}
+                              isMenuOpen={activeMenuKey === grp.key}
+                              onToggleMenu={handleToggleMenu}
+                              onTileClick={handleTileClick}
+                              onDeleteTextureFile={handleDeleteTextureFile}
+                              onDeleteTextureEntries={isDeclaredInPackTerrain ? handleDeleteTextureEntries : undefined}
+                              onAddVariation={isDeclaredInPackTerrain ? handleAddVariation : undefined}
+                              onDeleteVariation={isDeclaredInPackTerrain ? handleDeleteVariation : undefined}
+                            />
+                          ))}
+                        </div>
+                      );
+                    })()
                   )}
                 </div>
               </div>

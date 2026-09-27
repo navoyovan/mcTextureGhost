@@ -113,10 +113,14 @@ export const BlockEntryTree: React.FC<BlockEntryTreeProps> = ({ block, onTileCli
         }
       }
 
+      const filteredLeaves = isDeclaredInVanillaTerrain
+        ? uniqueLeaves.filter((l) => l.status === 'OK' || l.status === 'OVERRIDE')
+        : uniqueLeaves;
+
       list.push({
         alias: ag.alias,
         ag,
-        leaves: uniqueLeaves,
+        leaves: filteredLeaves,
         isDeclaredInPackTerrain,
         isDeclaredInVanillaTerrain,
         isOrphan: false,
@@ -254,7 +258,6 @@ export const BlockEntryTree: React.FC<BlockEntryTreeProps> = ({ block, onTileCli
                           <div className={`${styles.treeRow} ${isBlockUserDefined ? styles.normalWeight : styles.dimmedWeight}`}>
                             <div className={styles.treeRowMain}>
                               <div className={styles.chevronPlaceholder} />
-                              <span className={styles.nodeKey}>textures{ag.faceSummary ? `.${ag.faceSummary}` : ''}</span>
                               <span className={styles.nodeValue}>➔ &quot;{ag.alias}&quot;</span>
                               {ag.faceSummary && (
                                 <span className={styles.nodeSub}>({ag.faceSummary})</span>
@@ -281,16 +284,20 @@ export const BlockEntryTree: React.FC<BlockEntryTreeProps> = ({ block, onTileCli
                     onClick={() => toggleNode(ttKey)}
                   >
                     <div className={styles.treeRowMain}>
-                      <button
-                        type="button"
-                        className={styles.chevronBtn}
-                        onClick={(e) => toggleNode(ttKey, e)}
-                      >
-                        <ChevronRight
-                          size={13}
-                          className={`${styles.chevronIcon} ${!isTtCollapsed ? styles.chevronIconExpanded : ''}`}
-                        />
-                      </button>
+                      {item.leaves.length > 0 ? (
+                        <button
+                          type="button"
+                          className={styles.chevronBtn}
+                          onClick={(e) => toggleNode(ttKey, e)}
+                        >
+                          <ChevronRight
+                            size={13}
+                            className={`${styles.chevronIcon} ${!isTtCollapsed ? styles.chevronIconExpanded : ''}`}
+                          />
+                        </button>
+                      ) : (
+                        <div className={styles.chevronPlaceholder} />
+                      )}
                       <span className={styles.nodeKey}>terrain_texture.json</span>
                       <span className={styles.nodeValue}>➔ &quot;{item.alias}&quot;</span>
                     </div>
@@ -304,8 +311,16 @@ export const BlockEntryTree: React.FC<BlockEntryTreeProps> = ({ block, onTileCli
                         added
                       </Badge>
                     ) : item.isDeclaredInVanillaTerrain ? (
-                      <Badge variant="fallback" size="sm" title="Inferred from vanilla terrain_texture.json">
-                        fallback
+                      <Badge
+                        variant="fallback"
+                        size="sm"
+                        title={
+                          isBlockUserDefined
+                            ? "Vanilla fallback, missing in pack terrain_texture.json"
+                            : "Inferred from vanilla terrain_texture.json"
+                        }
+                      >
+                        {isBlockUserDefined ? 'missing entry' : 'fallback'}
                       </Badge>
                     ) : (
                       <Badge variant="missing" size="sm" title="Missing declaration in terrain_texture.json">

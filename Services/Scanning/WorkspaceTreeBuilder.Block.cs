@@ -567,9 +567,13 @@ public static partial class WorkspaceTreeBuilder
             foreach (var grp in finalUntracked.GroupBy(u => u.Alias, StringComparer.OrdinalIgnoreCase))
             {
                 bool isDeclared = grp.Any(t => t.Status != TextureStatus.Orphan);
-                if (isDeclared)
+                bool isVanilla = vanilla.TerrainTextures.ContainsKey(grp.Key)
+                              || vanilla.BlockUsage.ContainsKey(grp.Key)
+                              || vanilla.BlockToAliases.Values.Any(list => list.Contains(grp.Key, StringComparer.OrdinalIgnoreCase));
+
+                if (isDeclared && isVanilla)
                 {
-                    // Declared aliases (Ok/Ghost) become fallback blocks even if the
+                    // Declared vanilla aliases (Ok/Ghost) become fallback blocks even if the
                     // alias name collides with an existing blockId (e.g. blast_furnace
                     // texture alias vs blast_furnace block). Colliding fallbacks are
                     // kept as distinct nodes so they don't pollute (Uncategorized).
@@ -578,8 +582,8 @@ public static partial class WorkspaceTreeBuilder
                 }
                 else
                 {
-                    // True orphans (on disk, not declared in any JSON) stay
-                    // under (Uncategorized).
+                    // True orphans (on disk, not declared in any JSON) or custom declared
+                    // aliases without any block bindings stay under (Uncategorized).
                     orphanItems.AddRange(grp);
                 }
             }
