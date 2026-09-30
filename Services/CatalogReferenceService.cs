@@ -4,6 +4,7 @@ using System.IO.Compression;
 using System.Net.Http;
 using System.Text.Json;
 using McTextureGhost.Models;
+using McTextureGhost.Services.Scanning;
 
 namespace McTextureGhost.Services;
 
@@ -38,6 +39,21 @@ public static class CatalogReferenceService
     private static readonly List<ReferencePackProfile> _customProfiles = new();
     private static string _activeReferenceId = "vanilla";
     private static readonly Dictionary<string, VanillaData> _dataCache = new(StringComparer.OrdinalIgnoreCase);
+    private static ReferencePackDetailedStatusPayload? _cachedDetailedStatus;
+    private static readonly object _statusCacheLock = new();
+
+    public static void InvalidateDetailedStatusCache()
+    {
+        lock (_statusCacheLock)
+        {
+            _cachedDetailedStatus = null;
+        }
+    }
+
+    public static Task<ReferencePackDetailedStatusPayload> GetDetailedStatusAsync()
+    {
+        return Task.Run(GetDetailedStatus);
+    }
 
     public static string ActiveReferenceId => _activeReferenceId;
 
@@ -121,6 +137,7 @@ public static class CatalogReferenceService
             try { File.Delete(tempZip); } catch { }
 
             _dataCache.Clear();
+            InvalidateDetailedStatusCache();
             onProgress?.Invoke(1.0, "Installed");
             return true;
         }
@@ -224,6 +241,7 @@ public static class CatalogReferenceService
         if (match != null)
         {
             _activeReferenceId = match.Id;
+            InvalidateDetailedStatusCache();
             return true;
         }
         return false;
@@ -239,6 +257,7 @@ public static class CatalogReferenceService
         if (existing != null)
         {
             _activeReferenceId = existing.Id;
+            InvalidateDetailedStatusCache();
             return existing;
         }
 
@@ -249,6 +268,7 @@ public static class CatalogReferenceService
             _customProfiles.Add(profile);
             _activeReferenceId = profile.Id;
             SaveProfiles();
+            InvalidateDetailedStatusCache();
             return profile;
         }
 
@@ -265,6 +285,7 @@ public static class CatalogReferenceService
                 _activeReferenceId = "vanilla";
             }
             SaveProfiles();
+            InvalidateDetailedStatusCache();
             return true;
         }
         return false;
@@ -273,6 +294,7 @@ public static class CatalogReferenceService
     public static void ClearCache()
     {
         _dataCache.Clear();
+        InvalidateDetailedStatusCache();
     }
 
     public static VanillaData? GetActiveData(VanillaData? defaultVanillaData)
@@ -439,12 +461,12 @@ public static class CatalogReferenceService
         }
 
         var customTerrainTextures = File.Exists(terrainPath)
-            ? PackScanner.ParseTextureAtlasJson(terrainPath)
+            ? TextureAtlasParser.ParseTextureAtlasJson(terrainPath)
             : null;
 
         var terrainTextures = defaultVanilla != null
-            ? new Dictionary<string, PackScanner.ParsedAliasData>(defaultVanilla.TerrainTextures, StringComparer.OrdinalIgnoreCase)
-            : new Dictionary<string, PackScanner.ParsedAliasData>(StringComparer.OrdinalIgnoreCase);
+            ? new Dictionary<string, ParsedAliasData>(defaultVanilla.TerrainTextures, StringComparer.OrdinalIgnoreCase)
+            : new Dictionary<string, ParsedAliasData>(StringComparer.OrdinalIgnoreCase);
 
         if (customTerrainTextures != null)
         {
@@ -463,7 +485,7 @@ public static class CatalogReferenceService
         if (File.Exists(terrainPath))
         {
             using var stream = File.OpenRead(terrainPath);
-            using var doc = JsonDocument.Parse(stream, PackScanner.ScanDocOptions);
+            using var doc = JsonDocument.Parse(stream, ScanningJsonUtils.ScanDocOptions);
             if (doc.RootElement.TryGetProperty("texture_data", out var td))
             {
                 foreach (var prop in td.EnumerateObject())
@@ -484,12 +506,12 @@ public static class CatalogReferenceService
         }
 
         var customItemTextures = File.Exists(itemPath)
-            ? PackScanner.ParseTextureAtlasJson(itemPath)
+            ? TextureAtlasParser.ParseTextureAtlasJson(itemPath)
             : null;
 
         var itemTextures = defaultVanilla != null
-            ? new Dictionary<string, PackScanner.ParsedAliasData>(defaultVanilla.ItemTextures, StringComparer.OrdinalIgnoreCase)
-            : new Dictionary<string, PackScanner.ParsedAliasData>(StringComparer.OrdinalIgnoreCase);
+            ? new Dictionary<string, ParsedAliasData>(defaultVanilla.ItemTextures, StringComparer.OrdinalIgnoreCase)
+            : new Dictionary<string, ParsedAliasData>(StringComparer.OrdinalIgnoreCase);
 
         if (customItemTextures != null)
         {
@@ -508,7 +530,7 @@ public static class CatalogReferenceService
         if (File.Exists(itemPath))
         {
             using var stream = File.OpenRead(itemPath);
-            using var doc = JsonDocument.Parse(stream, PackScanner.ScanDocOptions);
+            using var doc = JsonDocument.Parse(stream, ScanningJsonUtils.ScanDocOptions);
             if (doc.RootElement.TryGetProperty("texture_data", out var td))
             {
                 foreach (var prop in td.EnumerateObject())
@@ -529,8 +551,8 @@ public static class CatalogReferenceService
         }
 
         var flipbooks = File.Exists(flipbookPath)
-            ? PackScanner.ParseFlipbookTextures(flipbookPath)
-            : (defaultVanilla?.Flipbooks ?? new PackScanner.FlipbookCatalog());
+            ? TextureAtlasParser.ParseFlipbookTextures(flipbookPath)
+            : (defaultVanilla?.Flipbooks ?? new FlipbookCatalog());
 
         var rawFlipbooks = defaultVanilla != null
             ? new Dictionary<string, string>(defaultVanilla.RawFlipbookJson, StringComparer.OrdinalIgnoreCase)
@@ -621,6 +643,14 @@ public static class CatalogReferenceService
 
     public static ReferencePackDetailedStatusPayload GetDetailedStatus()
     {
+        lock (_statusCacheLock)
+        {
+            if (_cachedDetailedStatus != null)
+            {
+                return _cachedDetailedStatus;
+            }
+        }
+
         var active = GetActiveProfile();
         var targetDir = active?.IsVanilla == true
             ? VanillaReferencePackDirectory
@@ -640,24 +670,29 @@ public static class CatalogReferenceService
                 var dirInfo = new DirectoryInfo(targetDir);
                 lastModified = dirInfo.LastWriteTimeUtc;
 
-                var modelsDir = Path.Combine(targetDir, "models", "entity");
-                if (Directory.Exists(modelsDir))
-                {
-                    modelCount = Directory.EnumerateFiles(modelsDir, "*.json", SearchOption.AllDirectories).Count();
-                }
+                // Single-pass traversal of targetDir instead of 4 separate recursive scans
+                var targetDirFullPath = Path.GetFullPath(targetDir);
+                var modelsDirPrefix = Path.Combine(targetDirFullPath, "models", "entity") + Path.DirectorySeparatorChar;
+                var texturesDirPrefix = Path.Combine(targetDirFullPath, "textures") + Path.DirectorySeparatorChar;
 
-                var texturesDir = Path.Combine(targetDir, "textures");
-                if (Directory.Exists(texturesDir))
+                foreach (var fileInfo in dirInfo.EnumerateFiles("*", SearchOption.AllDirectories))
                 {
-                    textureCount = Directory.EnumerateFiles(texturesDir, "*.*", SearchOption.AllDirectories)
-                        .Count(f => f.EndsWith(".png", StringComparison.OrdinalIgnoreCase) || f.EndsWith(".tga", StringComparison.OrdinalIgnoreCase));
-                }
+                    totalBytes += fileInfo.Length;
+                    var path = fileInfo.FullName;
 
-                jsonCount = Directory.EnumerateFiles(targetDir, "*.json", SearchOption.AllDirectories).Count();
-
-                foreach (var file in Directory.EnumerateFiles(targetDir, "*.*", SearchOption.AllDirectories))
-                {
-                    try { totalBytes += new FileInfo(file).Length; } catch { }
+                    if (path.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
+                    {
+                        jsonCount++;
+                        if (path.StartsWith(modelsDirPrefix, StringComparison.OrdinalIgnoreCase))
+                        {
+                            modelCount++;
+                        }
+                    }
+                    else if ((path.EndsWith(".png", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".tga", StringComparison.OrdinalIgnoreCase)) &&
+                             path.StartsWith(texturesDirPrefix, StringComparison.OrdinalIgnoreCase))
+                    {
+                        textureCount++;
+                    }
                 }
             }
             catch (Exception ex)
@@ -689,7 +724,7 @@ public static class CatalogReferenceService
             }
         }
 
-        return new ReferencePackDetailedStatusPayload(
+        var result = new ReferencePackDetailedStatusPayload(
             ActiveId: active?.Id ?? "vanilla",
             ActiveName: active?.Name ?? "Vanilla Bedrock",
             ReferencePath: targetDir,
@@ -707,6 +742,13 @@ public static class CatalogReferenceService
             VersionTag: active?.Version ?? "1.21.x",
             LastModifiedUtc: lastModified?.ToString("o")
         );
+
+        lock (_statusCacheLock)
+        {
+            _cachedDetailedStatus = result;
+        }
+
+        return result;
     }
 
     public static bool PurgeTempArchive()
@@ -724,6 +766,11 @@ public static class CatalogReferenceService
             try { File.Delete(appDataZip); deleted = true; } catch { }
         }
 
+        if (deleted)
+        {
+            InvalidateDetailedStatusCache();
+        }
+
         return deleted;
     }
 
@@ -737,6 +784,7 @@ public static class CatalogReferenceService
                 Directory.Delete(targetDir, true);
             }
             _dataCache.Clear();
+            InvalidateDetailedStatusCache();
             return true;
         }
         catch (Exception ex)

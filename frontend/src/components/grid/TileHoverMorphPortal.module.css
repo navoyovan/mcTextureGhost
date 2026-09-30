@@ -35,30 +35,32 @@
 .morphed {
   background: #18181f;
   border-color: rgba(255, 255, 255, 0.25);
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6),
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4),
               0 0 0 1px rgba(255, 255, 255, 0.08),
-              0 24px 64px rgba(0, 0, 0, 0.7);
+              0 4px 12px rgba(0, 0, 0, 0.25);
   border-radius: 0;
   padding: 0;
   overflow: visible;
 }
 
-.closing {
+.morphCard:not(.morphCardImageTarget).closing {
   border-color: rgba(255, 255, 255, 0.08) !important;
   box-shadow: none !important;
 }
 
-.morphCardImageTarget:not(.morphed) {
-  padding: 0;
-  border-radius: 0;
+.morphCardImageTarget:not(.morphed),
+.morphCardImageTarget.closing {
+  padding: 0 !important;
+  border-radius: 0 !important;
   background: #101014;
-  border-color: rgba(255, 255, 255, 0.04);
-  box-shadow: none;
+  border-color: rgba(255, 255, 255, 0.04) !important;
+  box-shadow: none !important;
 }
 
-.morphCardImageAdded:not(.morphed) {
-  background: transparent;
-  border-color: transparent;
+.morphCardImageAdded:not(.morphed),
+.morphCardImageAdded.closing {
+  background: transparent !important;
+  border-color: transparent !important;
 }
 
 /* Ghost ONLY — preserve dark rectangle during snap back to match idle tile */
@@ -67,6 +69,12 @@
   background: #101014 !important;
   border: 1px solid rgba(255, 255, 255, 0.04) !important;
   border-radius: 0 !important;
+}
+
+.morphCardImageAdded:not(.morphed) .thumbArea,
+.morphCardImageAdded.closing .thumbArea {
+  border-color: transparent !important;
+  background: transparent !important;
 }
 
 /* ── Thumbnail Container & Animated Checkerboard ──────────────────────────── */
@@ -140,6 +148,21 @@
   object-fit: contain;
   image-rendering: pixelated;
   filter: none;
+  animation: spriteMorphEnter 0.26s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes spriteMorphEnter {
+  0% {
+    opacity: 0;
+    transform: scale(0.88);
+  }
+  60% {
+    transform: scale(1.03);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 .ghostWrapper {
@@ -150,6 +173,18 @@
   width: 100%;
   height: 100%;
   gap: 12px;
+  animation: ghostMorphEnter 0.24s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes ghostMorphEnter {
+  0% {
+    opacity: 0;
+    transform: scale(0.85);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 .ghostPlaceholder {
@@ -349,7 +384,7 @@
   letter-spacing: 0.04em;
   text-transform: uppercase;
   cursor: pointer;
-  transition: all 0.18s ease;
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
   box-sizing: border-box;
 }
 
@@ -375,7 +410,10 @@
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.2);
   cursor: pointer;
-  transition: all 0.18s ease;
+  transition: width 0.24s cubic-bezier(0.16, 1, 0.3, 1),
+              opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+              transform 0.24s cubic-bezier(0.16, 1, 0.3, 1),
+              margin 0.24s cubic-bezier(0.16, 1, 0.3, 1);
   box-sizing: border-box;
   flex-shrink: 0;
   padding: 0;
@@ -389,6 +427,22 @@
 
 .stubSquareBtn:active {
   transform: translateY(0);
+}
+
+/* Exit transition when converting stub to added texture */
+.stubSquareBtnExiting {
+  width: 0 !important;
+  opacity: 0 !important;
+  transform: scale(0.6) !important;
+  margin: 0 !important;
+  pointer-events: none !important;
+  border: none !important;
+}
+
+/* Edit button expanding to fill remaining width */
+.editBtnMorphExpand {
+  flex: 1 1 100% !important;
+  animation: editBtnEnter 0.26s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 .stubSvgFull {

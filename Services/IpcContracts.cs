@@ -71,6 +71,9 @@ public static class IpcMessageTypes
     public const string TextureDeleteFile = "TEXTURE:DELETE_FILE";
     public const string TextureDeleteEntries = "TEXTURE:DELETE_ENTRIES";
     public const string TextureDeleteVariation = "TEXTURE:DELETE_VARIATION";
+    public const string BlockDeleteEntry = "BLOCK:DELETE_ENTRY";
+    public const string TextureSetVariationWeight = "TEXTURE:SET_VARIATION_WEIGHT";
+    public const string TextureRenameVariation = "TEXTURE:RENAME_VARIATION";
     public const string TextureDropImport = "TEXTURE:DROP_IMPORT";
     public const string TextureCopyFile  = "TEXTURE:COPY_FILE";
     public const string GeometryGet      = "GEOMETRY:GET";
@@ -182,6 +185,31 @@ public record TextureDeleteEntriesPayload(
 public record TextureDeleteVariationPayload(
     [property: JsonPropertyName("alias")] string Alias,
     [property: JsonPropertyName("relativePath")] string RelativePath
+);
+
+/// <summary>
+/// Payload for "BLOCK:DELETE_ENTRY". Removes entry strictly from blocks.json.
+/// </summary>
+public record BlockDeleteEntryPayload(
+    [property: JsonPropertyName("blockId")] string BlockId
+);
+
+/// <summary>
+/// Payload for "TEXTURE:SET_VARIATION_WEIGHT". Updates the weight of a texture variation in terrain_texture.json.
+/// </summary>
+public record TextureSetVariationWeightPayload(
+    [property: JsonPropertyName("alias")] string Alias,
+    [property: JsonPropertyName("relativePath")] string RelativePath,
+    [property: JsonPropertyName("weight")] int Weight
+);
+
+/// <summary>
+/// Payload for "TEXTURE:RENAME_VARIATION". Updates the path/label of a variation in terrain_texture.json and renames disk file.
+/// </summary>
+public record TextureRenameVariationPayload(
+    [property: JsonPropertyName("alias")] string Alias,
+    [property: JsonPropertyName("oldRelativePath")] string OldRelativePath,
+    [property: JsonPropertyName("newLabelOrPath")] string NewLabelOrPath
 );
 
 /// <summary>
@@ -414,11 +442,11 @@ public record PackStatePayload(
     [property: JsonPropertyName("hasPackIcon")] bool HasPackIcon,
     [property: JsonPropertyName("packIconUrl")] string? PackIconUrl,
     [property: JsonPropertyName("manifest")] ManifestModelDto? Manifest,
-    [property: JsonPropertyName("aliases")] List<TextureAliasDto> Aliases,
-    [property: JsonPropertyName("blockWorkspaceTree")] List<BlockGroupNodeDto> BlockWorkspaceTree,
-    [property: JsonPropertyName("packFolders")] List<PackFolderItemDto> PackFolders,
-    [property: JsonPropertyName("recentPacks")] List<RecentPackItemDto> RecentPacks,
-    [property: JsonPropertyName("stats")] PackStatsDto Stats,
+    [property: JsonPropertyName("aliases")] List<TextureAliasDto>? Aliases = null,
+    [property: JsonPropertyName("blockWorkspaceTree")] List<BlockGroupNodeDto>? BlockWorkspaceTree = null,
+    [property: JsonPropertyName("packFolders")] List<PackFolderItemDto>? PackFolders = null,
+    [property: JsonPropertyName("recentPacks")] List<RecentPackItemDto>? RecentPacks = null,
+    [property: JsonPropertyName("stats")] PackStatsDto? Stats = null,
     [property: JsonPropertyName("catalogTree")] List<BlockGroupNodeDto>? CatalogTree = null,
     [property: JsonPropertyName("referencePacks")] List<ReferencePackProfileDto>? ReferencePacks = null,
     [property: JsonPropertyName("activeReferenceId")] string? ActiveReferenceId = null,

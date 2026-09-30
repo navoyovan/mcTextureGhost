@@ -8,6 +8,9 @@ import {
   TextureDropImportPayload,
   TextureCopyFilePayload,
   TextureDeleteVariationPayload,
+  BlockDeleteEntryPayload,
+  TextureSetVariationWeightPayload,
+  TextureRenameVariationPayload,
   ScaffoldTextureVariationPayload,
   WindowActionPayload,
   TintSetPayload,
@@ -240,6 +243,18 @@ export function useIpc() {
     return postCommand<TextureDeleteVariationPayload>(IpcMessageTypes.TextureDeleteVariation, { alias, relativePath });
   }, []);
 
+  const deleteBlockEntry = useCallback((blockId: string) => {
+    return postCommand<BlockDeleteEntryPayload>(IpcMessageTypes.BlockDeleteEntry, { blockId });
+  }, []);
+
+  const setVariationWeight = useCallback((alias: string, relativePath: string, weight: number) => {
+    return postCommand<TextureSetVariationWeightPayload>(IpcMessageTypes.TextureSetVariationWeight, { alias, relativePath, weight });
+  }, []);
+
+  const renameVariation = useCallback((alias: string, oldRelativePath: string, newLabelOrPath: string) => {
+    return postCommand<TextureRenameVariationPayload>(IpcMessageTypes.TextureRenameVariation, { alias, oldRelativePath, newLabelOrPath });
+  }, []);
+
   const dropImportTexture = useCallback((payload: TextureDropImportPayload) => {
     return postCommand<TextureDropImportPayload>(IpcMessageTypes.TextureDropImport, payload);
   }, []);
@@ -319,6 +334,9 @@ export function useIpc() {
     deleteTextureFile,
     deleteTextureEntries,
     deleteTextureVariation,
+    deleteBlockEntry,
+    setVariationWeight,
+    renameVariation,
     windowAction,
     setTint,
     openInExplorer,

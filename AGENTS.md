@@ -1,34 +1,14 @@
 # Agent Context & Workflow Rules
 
-## Project Bootstrapping Hierarchy (On-Demand Reference)
-Consult these project specification files **only when relevant** to the task at hand. Do NOT sequentially read all files on every turn or loop through them before taking action:
 
-1. **`ARCHITECTURE_ESSENTIALS.md`** (High-Level Cheat Sheet)
-   - **When to read:** First-stop quick reference for tech choices, file locations, IPC syntax, and build commands.
-2. **`PRD.md`** (Product Requirements)
-   - **When to read:** Only when designing new user-facing features or clarifying product intent.
-3. **`ARCHITECTURE.md`** (Full Technical Architecture)
-   - **When to read:** Only when building complex data pipelines, multi-model state schemas, or deep IPC refactors.
-4. **`RISKS_AND_EDGE_CASES.md`** (Failure Prevention)
-   - **When to read:** Only when handling file locks, DWM window hooks, or raw Bedrock polymorphic JSON.
-5. **`.agents/rules/entity-workspace.md`** (Entity & 3D Geometry Invariants)
-   - **When to read:** Only when modifying Bedrock `.geo.json` parsers, bone hierarchies, Three.js box UVs, or EntityWorkspace.
-6. **`.agents/rules/wpf-ui.md`** (WPF-UI & Native UI Invariants)
-   - **When to read:** Only when modifying WPF controls, caption buttons, native UI, or inspecting WPF-UI APIs.
-7. **`.agents/rules/graphify.md`** (Optional Codebase Navigation)
-   - **When to read:** For unfamiliar cross-file dependencies or architecture questions when a generated Graphify graph is available. Known-file edits should go directly to source.
-8. **`AGENTS.md`** (System Instructions & Workflow - THIS FILE)
-   - **Scope:** Execution rules, code style, build safety invariants.
-
----
 
 ## Execution Rules for Agents
-- **Strict Anti-Looping & Action Invariant:**
-  - Read the smallest relevant sections; do not loop through documentation or reread unchanged content already available in context.
-  - Start with the most relevant file. Inspect related files when needed for cross-file contracts, verification, or changed source context.
-  - Use content already in context for targeted edits; reread only when that context is missing, stale, or insufficient to verify the change.
-  - When the user asks for a UI tweak, bug fix, or feature, immediately inspect the target code and apply the fix. Do not circle across unrequested documents.
-  - Do NOT pause or generate formal planning artifacts (`implementation_plan.md`) unless the user explicitly asks for a plan or proposal first.
+- **STRICT ANTI-OVERANALYZING & IMMEDIATE ACTION INVARIANT (HARD ENFORCEMENT):**
+  - **Tool Call Hard Limit**: When investigating a bug or UI issue, you are allowed a MAXIMUM of 2-3 targeted `view_file` calls total before you MUST apply edits with `replace_file_content`. Wandering through 4+ files without editing is strictly forbidden.
+  - **Zero Exploratory Reading**: Never read architectural specs, mutation pipelines, stores, CSS, or backend handlers unless explicitly named or directly causing a syntax/runtime crash.
+  - **Single Read Invariant**: NEVER re-read or inspect the same file or line range multiple times. If context has the lines, use them immediately.
+  - **75% Confidence Trigger**: The instant a plausible cause or UI target line is located, STOP all analysis, apply the surgical edit immediately, run verification, and output results.
+  - Do NOT pause, generate explanations, or write speculative plans. Edit -> Verify -> Done.
 - **Context Efficiency:** Never read `ARCHITECTURE.md` when `ARCHITECTURE_ESSENTIALS.md` has the answer.
 - **Single Source of Truth:** Tool-specific config files must only reference `AGENTS.md` and `.agents/rules/`.
 

@@ -25,6 +25,7 @@ public enum TextureTab { All, Blocks, Items, Entities }
 public class MainViewModel : INotifyPropertyChanged
 {
     public event Action? PackStateChanged;
+    public event Action<TextureCategory>? PackStateScopedChanged;
     public event Action<TextureAlias>? TextureUpdated;
     public event Action<string, int, int, string>? ScanProgressChanged;
 
@@ -619,7 +620,6 @@ public class MainViewModel : INotifyPropertyChanged
     public ObservableCollection<BlockGroupNode> CatalogTree { get; } = new();
     public ICollectionView FilteredCatalogTree { get; }
     public RelayCommand AddVanillaEntryCommand { get; }
-    public RelayCommand OpenCatalogDialogCommand { get; }
     public RelayCommand SetCatalogCategoryAllCommand { get; }
     public RelayCommand SetCatalogCategoryBlocksCommand { get; }
     public RelayCommand SetCatalogCategoryItemsCommand { get; }
@@ -735,7 +735,6 @@ public class MainViewModel : INotifyPropertyChanged
 
         FetchVanillaDataCommand    = new RelayCommand(_ => _ = RefreshVanillaDataAsync());
         AddVanillaEntryCommand     = new RelayCommand(param => AddVanillaEntry(param), _ => _packRoot != null && _vanillaData != null);
-        OpenCatalogDialogCommand        = new RelayCommand(_ => OpenCatalogDialog(), _ => _packRoot != null);
         SetCatalogCategoryAllCommand    = new RelayCommand(_ => SetCatalogCategory(null));
         SetCatalogCategoryBlocksCommand = new RelayCommand(_ => SetCatalogCategory(TextureCategory.Block));
         SetCatalogCategoryItemsCommand  = new RelayCommand(_ => SetCatalogCategory(TextureCategory.Item));
@@ -1029,16 +1028,6 @@ public class MainViewModel : INotifyPropertyChanged
         var manifestPath = Path.Combine(targetFolder, "manifest.json");
         var defaultManifest = ManifestModel.CreateDefault(packName, manifestPath);
 
-        var manifestDialog = new CreatePackManifestDialog(defaultManifest)
-        {
-            Owner = Application.Current?.MainWindow
-        };
-
-        if (manifestDialog.ShowDialog() != true)
-        {
-            return; // Cancelled
-        }
-
         try
         {
             Directory.CreateDirectory(targetFolder);
@@ -1048,10 +1037,7 @@ public class MainViewModel : INotifyPropertyChanged
             var itemsDir = Path.Combine(texturesDir, "items");
             Directory.CreateDirectory(itemsDir);
 
-            if (manifestDialog.ShouldGenerateManifest)
-            {
-                defaultManifest.SaveToFile(manifestPath);
-            }
+            defaultManifest.SaveToFile(manifestPath);
 
             var terrainPath = Path.Combine(texturesDir, "terrain_texture.json");
             if (!File.Exists(terrainPath))
@@ -1091,16 +1077,9 @@ public class MainViewModel : INotifyPropertyChanged
             Rescan(isInitialLoad: true);
             StartWatching();
 
-            if (manifestDialog.ShouldGenerateManifest)
-            {
-                StatusMessage = "Resource pack created with manifest.json.";
-                _recentPacksService.AddOrUpdatePack(targetFolder);
-                RefreshRecentPacks();
-            }
-            else
-            {
-                StatusMessage = "Resource pack created without manifest. Click manifest.json on the left to generate one anytime.";
-            }
+            StatusMessage = "Resource pack created with manifest.json.";
+            _recentPacksService.AddOrUpdatePack(targetFolder);
+            RefreshRecentPacks();
         }
         catch (Exception ex)
         {
@@ -1307,6 +1286,26 @@ public class MainViewModel : INotifyPropertyChanged
         PackStateChanged?.Invoke();
     }
 
+    private void NotifyPackStateScoped(TextureCategory category)
+    {
+        OnPropertyChanged(nameof(TotalGhostCount));
+        OnPropertyChanged(nameof(TotalAddedCount));
+        OnPropertyChanged(nameof(TotalOrphanCount));
+        OnPropertyChanged(nameof(TotalAliasCount));
+        OnPropertyChanged(nameof(AllGhostCount));
+        OnPropertyChanged(nameof(AllAliasCount));
+        OnPropertyChanged(nameof(BlocksGhostCount));
+        OnPropertyChanged(nameof(ItemsGhostCount));
+        OnPropertyChanged(nameof(BlocksTotalCount));
+        OnPropertyChanged(nameof(ItemsTotalCount));
+        OnPropertyChanged(nameof(FilterStatusLabel));
+        OnPropertyChanged(nameof(IsFilterActive));
+        OnPropertyChanged(nameof(ShowCreatePanel));
+        OnPropertyChanged(nameof(WindowTitle));
+        FilteredAliases.Refresh();
+        PackStateScopedChanged?.Invoke(category);
+    }
+
     public async void Rescan(bool isInitialLoad = false)
     {
         await RescanAsync(isInitialLoad);
@@ -1414,6 +1413,77 @@ public class MainViewModel : INotifyPropertyChanged
                 {
                     ScanProgressChanged?.Invoke("scan_done", 5, 5, "Pack ready");
                 }
+                IsScanning = false;
+            }
+        }
+        finally
+        {
+            _rescanGate.Release();
+        }
+    }
+
+    /// <summary>
+    /// Performs a scoped rescan of the pack when a single category (Block, Item, Entity)
+    /// was mutated. Avoids rebuilding unaffected workspace trees, catalog trees, and folder structures.
+    /// </summary>
+    public async Task RescanScopedAsync(TextureCategory category)
+    {
+        if (_packRoot is null) return;
+
+        await _rescanGate.WaitAsync();
+
+        try
+        {
+            IsScanning = true;
+            StatusMessage = $"Updating {category.ToString().ToLowerInvariant()} textures...";
+
+            ImagePathConverter.ClearCache();
+            FlipbookAnimationManager.ClearCache();
+
+            var packRoot = _packRoot;
+
+            try
+            {
+                var results = await Task.Run(() => PackScanner.Scan(packRoot, _vanillaData));
+
+                Aliases.Clear();
+                foreach (var alias in results)
+                    Aliases.Add(alias);
+                ApplySearchFilter();
+
+                if (_vanillaData != null)
+                {
+                    if (category == TextureCategory.Block)
+                    {
+                        var ws = await Task.Run(() => PackScanner.BuildBlockWorkspaceTree(results, _vanillaData, packRoot));
+                        BlockWorkspaceTree.Clear();
+                        foreach (var node in ws)
+                            BlockWorkspaceTree.Add(node);
+                    }
+                    else if (category == TextureCategory.Entity)
+                    {
+                        var ent = await Task.Run(() => PackScanner.BuildEntityWorkspaceTree(results, _vanillaData, packRoot));
+                        EntityWorkspaceTree.Clear();
+                        foreach (var node in ent)
+                            EntityWorkspaceTree.Add(node);
+                    }
+                }
+
+                var blockCount = results.Count(a => a.Category == TextureCategory.Block);
+                var itemCount = results.Count(a => a.Category == TextureCategory.Item);
+                var ghostCount = results.Count(a => a.Status == TextureStatus.Ghost);
+                var orphanCount = results.Count(a => a.Status == TextureStatus.Orphan);
+                StatusMessage = orphanCount > 0
+                    ? $"{results.Count} textures found ({blockCount} blocks, {itemCount} items • {ghostCount} ghosts, {orphanCount} orphans)."
+                    : $"{results.Count} textures found ({blockCount} blocks, {itemCount} items • {ghostCount} ghosts).";
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = $"Scoped scan failed: {ex.Message}";
+            }
+            finally
+            {
+                NotifyPackStateScoped(category);
                 IsScanning = false;
             }
         }
@@ -2084,10 +2154,10 @@ public class MainViewModel : INotifyPropertyChanged
 
         try
         {
-            var data = await VanillaDataService.LoadAsync(forceRefresh: false, progress =>
+            var data = await Task.Run(() => VanillaDataService.LoadAsync(forceRefresh: false, progress =>
             {
                 App.Current?.Dispatcher?.Invoke(() => VanillaDataStatusLabel = progress);
-            });
+            }));
 
             _vanillaData = data;
             if (data != null)
@@ -2123,10 +2193,10 @@ public class MainViewModel : INotifyPropertyChanged
 
         try
         {
-            var data = await VanillaDataService.LoadAsync(forceRefresh: true, progress =>
+            var data = await Task.Run(() => VanillaDataService.LoadAsync(forceRefresh: true, progress =>
             {
                 App.Current?.Dispatcher?.Invoke(() => VanillaDataStatusLabel = progress);
-            });
+            }));
 
             _vanillaData = data;
             if (data != null)
@@ -2274,22 +2344,6 @@ public class MainViewModel : INotifyPropertyChanged
                 }
             }
         }
-    }
-
-    private void OpenCatalogDialog()
-    {
-        if (_packRoot == null) return;
-        if (!IsVanillaDataLoaded)
-        {
-            StatusMessage = "Vanilla catalog is still loading. Please wait...";
-            return;
-        }
-
-        var dialog = new Views.CatalogDialog(this)
-        {
-            Owner = Application.Current?.MainWindow
-        };
-        dialog.ShowDialog();
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;

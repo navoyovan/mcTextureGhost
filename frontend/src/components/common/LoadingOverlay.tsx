@@ -1,3 +1,4 @@
+// frontend/src/components/common/LoadingOverlay.tsx
 import React from 'react';
 import { usePackStore } from '../../store/packStore';
 import { SquareWaveLoader } from './SquareWaveLoader';
@@ -6,7 +7,7 @@ import styles from './LoadingOverlay.module.css';
 interface LoadingOverlayProps {
   /** Optional custom message override */
   message?: string;
-  /** Whether the overlay is in compact mode (e.g. within a panel) or full screen modal */
+  /** Whether the overlay is in compact mode (e.g. within a panel) */
   compact?: boolean;
 }
 
@@ -16,14 +17,9 @@ export const LoadingOverlay: React.FC<LoadingOverlayProps> = ({ message, compact
   const packName = usePackStore((s) => s.packName);
   const packRoot = usePackStore((s) => s.packRoot);
 
-  // Once a pack is already loaded in the workspace, background rescans (e.g. from file watcher)
-  // must never interrupt the user with a full-screen loading modal.
-  if (!isScanning) return null;
-  if (packRoot && scanProgress?.stage !== 'scan_start' && scanProgress?.stage !== 'scanning' && scanProgress?.stage !== 'building_trees') {
+  if (!isScanning || scanProgress?.stage === 'scan_done') {
     return null;
   }
-  // If the user already has a pack loaded and active in the workspace, suppress the modal overlay entirely
-  if (packRoot) return null;
 
   const currentStep = scanProgress?.current ?? 1;
   const totalSteps = scanProgress?.total ?? 5;
@@ -36,56 +32,47 @@ export const LoadingOverlay: React.FC<LoadingOverlayProps> = ({ message, compact
 
   const packLabel = packName || (packRoot ? packRoot.split(/[\\/]/).filter(Boolean).pop() : 'Resource Pack');
 
+  if (compact) {
+    return (
+      <div className={styles.compactOverlay} role="status" aria-live="polite">
+        <SquareWaveLoader count={4} color="var(--accent-primary, #8CEB1F)" size={8} gap={4} duration={1800} />
+        <span className={styles.statusMessage}>{displayMessage}</span>
+      </div>
+    );
+  }
+
   return (
-    <div
-      className={compact ? styles.compactOverlay : styles.fullOverlay}
-      data-testid="pack-loading-overlay"
-      role="dialog"
-      aria-modal="true"
+    <aside
+      className={styles.floatingIndicator}
+      data-testid="pack-loading-indicator"
+      role="status"
+      aria-live="polite"
       aria-label="Loading Resource Pack"
     >
-      <div className={styles.loadingCard}>
-        {/* Animated Square Wave Loader */}
-        <div className={styles.loaderContainer}>
-          <SquareWaveLoader
-            count={5}
-            color="var(--accent-primary, #8CEB1F)"
-            size={10}
-            gap={6}
-            duration={2100}
-          />
+      <div className={styles.indicatorLeft}>
+        <SquareWaveLoader
+          count={4}
+          color="var(--accent-primary, #8CEB1F)"
+          size={7}
+          gap={4}
+          duration={1800}
+        />
+      </div>
+      <div className={styles.indicatorContent}>
+        <div className={styles.indicatorTopRow}>
+          <span className={styles.indicatorTitle}>Loading {packLabel}</span>
+          <span className={styles.stepCounter}>
+            {currentStep}/{totalSteps}
+          </span>
         </div>
-
-        {/* Title and Pack Name */}
-        <div className={styles.textGroup}>
-          <h3 className={styles.title}>Loading Resource Pack</h3>
-          <p className={styles.packName} title={packRoot || undefined}>
-            {packLabel}
-          </p>
-        </div>
-
-        {/* Progress Bar Track */}
-        <div
-          className={styles.progressBarTrack}
-          role="progressbar"
-          aria-valuenow={percent}
-          aria-valuemin={0}
-          aria-valuemax={100}
-        >
+        <span className={styles.statusMessage}>{displayMessage}</span>
+        <div className={styles.progressBarTrack}>
           <div
             className={styles.progressBarFill}
             style={{ width: `${percent}%` }}
           />
         </div>
-
-        {/* Stage Status and Details */}
-        <div className={styles.statusRow}>
-          <span className={styles.statusMessage}>{displayMessage}</span>
-          <span className={styles.stepCounter}>
-            {currentStep}/{totalSteps}
-          </span>
-        </div>
       </div>
-    </div>
+    </aside>
   );
 };

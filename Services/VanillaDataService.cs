@@ -2,6 +2,7 @@ using System.IO;
 using System.Net.Http;
 using System.Text.Json;
 using McTextureGhost.Models;
+using McTextureGhost.Services.Scanning;
 
 namespace McTextureGhost.Services;
 
@@ -12,11 +13,11 @@ public record VanillaData(
     Dictionary<string, string> RawBlocksJson,
     Dictionary<string, List<BlockFaceUsage>> BlockUsage,
     Dictionary<string, List<string>> BlockToAliases,
-    Dictionary<string, PackScanner.ParsedAliasData> TerrainTextures,
+    Dictionary<string, ParsedAliasData> TerrainTextures,
     Dictionary<string, string> RawTerrainTextureJson,
-    Dictionary<string, PackScanner.ParsedAliasData> ItemTextures,
+    Dictionary<string, ParsedAliasData> ItemTextures,
     Dictionary<string, string> RawItemTextureJson,
-    PackScanner.FlipbookCatalog Flipbooks,
+    FlipbookCatalog Flipbooks,
     Dictionary<string, string> RawFlipbookJson,
     Dictionary<string, string> LangKeys,
     HashSet<string> DeclaredBlockPaths,
@@ -484,12 +485,12 @@ public static class VanillaDataService
         // 2. Terrain texture
         var rawTerrain = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var declaredBlockPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        Dictionary<string, PackScanner.ParsedAliasData> terrainTextures;
+        Dictionary<string, ParsedAliasData> terrainTextures;
 
         using (var stream = File.OpenRead(terrainPath))
-        using (var doc = JsonDocument.Parse(stream, PackScanner.ScanDocOptions))
+        using (var doc = JsonDocument.Parse(stream, ScanningJsonUtils.ScanDocOptions))
         {
-            terrainTextures = PackScanner.ParseTextureAtlasJson(doc);
+            terrainTextures = TextureAtlasParser.ParseTextureAtlasJson(doc);
             if (doc.RootElement.TryGetProperty("texture_data", out var td) && td.ValueKind == JsonValueKind.Object)
             {
                 foreach (var prop in td.EnumerateObject())
@@ -509,12 +510,12 @@ public static class VanillaDataService
         // 3. Item texture
         var rawItem = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var declaredItemPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        Dictionary<string, PackScanner.ParsedAliasData> itemTextures;
+        Dictionary<string, ParsedAliasData> itemTextures;
 
         using (var stream = File.OpenRead(itemPath))
-        using (var doc = JsonDocument.Parse(stream, PackScanner.ScanDocOptions))
+        using (var doc = JsonDocument.Parse(stream, ScanningJsonUtils.ScanDocOptions))
         {
-            itemTextures = PackScanner.ParseTextureAtlasJson(doc);
+            itemTextures = TextureAtlasParser.ParseTextureAtlasJson(doc);
             if (doc.RootElement.TryGetProperty("texture_data", out var td) && td.ValueKind == JsonValueKind.Object)
             {
                 foreach (var prop in td.EnumerateObject())
@@ -533,12 +534,12 @@ public static class VanillaDataService
 
         // 4. Flipbooks
         var rawFlipbooks = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        PackScanner.FlipbookCatalog flipbookCatalog;
+        FlipbookCatalog flipbookCatalog;
 
         using (var stream = File.OpenRead(flipbookPath))
-        using (var doc = JsonDocument.Parse(stream, PackScanner.ScanDocOptions))
+        using (var doc = JsonDocument.Parse(stream, ScanningJsonUtils.ScanDocOptions))
         {
-            flipbookCatalog = PackScanner.ParseFlipbookTextures(doc);
+            flipbookCatalog = TextureAtlasParser.ParseFlipbookTextures(doc);
             if (doc.RootElement.ValueKind == JsonValueKind.Array)
             {
                 foreach (var item in doc.RootElement.EnumerateArray())

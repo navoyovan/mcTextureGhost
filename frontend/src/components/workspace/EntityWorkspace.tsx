@@ -1,86 +1,23 @@
-// frontend/src/components/workspace/EntityWorkspace.tsx
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { PawPrint, ArrowRight, Shield } from 'lucide-react';
-import { usePackStore } from '../../store/packStore';
+import { usePackStore, packStoreActions } from '../../store/packStore';
 import { useIpc } from '../../hooks/useIpc';
 import { BlockGroupNodeDto, CatalogLeafDto, TextureAliasDto, OpenWithAppDto } from '../../types/ipc';
 import { Entity3DViewer, EntitySlotOption, EntitySlotVariationOption } from './Entity3DViewer';
 import { EntityEntryTree } from './EntityEntryTree';
-import { WorkspaceTileCard, VariantTileGroup } from './WorkspaceTileCard';
+import { WorkspaceTileCard } from './WorkspaceTileCard';
+import { WorkspaceShell } from './WorkspaceShell';
 import { TileHoverMorphPortal, TileHoverMorphTarget } from '../grid/TileHoverMorphPortal';
 import { TextureContextMenu } from '../common/TextureContextMenu';
+import { WorkspaceSkeleton } from './WorkspaceSkeleton';
 import { Badge } from '../common/Badge';
+import { leafToAliasDto, groupLeavesByVariantSlot } from '../../utils/leafTransforms';
 import styles from './BlockWorkspace.module.css';
-
-function leafToAliasDto(leaf: CatalogLeafDto): TextureAliasDto {
-  return {
-    alias: leaf.alias,
-    displayName: leaf.displayName,
-    relativePath: leaf.relativePath,
-    fullPath: leaf.fullPath,
-    category: (leaf.category as any) || 'entity',
-    entityId: leaf.entityId,
-    textureKey: leaf.textureKey,
-    geometryId: leaf.geometryId,
-    isAttachable: leaf.isAttachable,
-    status: (leaf.status === 'VANILLA' ? 'OK' : leaf.status) as any,
-    exists: leaf.status !== 'GHOST',
-    imageUrl: leaf.imageUrl,
-    blockFaces: [],
-    usedByBlocks: [],
-    variantKind: leaf.variantKind || 'None',
-    blockVariantIndex: leaf.blockVariantIndex,
-    totalBlockVariants: leaf.totalBlockVariants,
-    textureVariantIndex: leaf.textureVariantIndex,
-    totalTextureVariants: leaf.totalTextureVariants,
-    weight: leaf.weight,
-    isFlipbook: leaf.isFlipbook,
-    flipbook: leaf.flipbook,
-    primaryFaceBadgeText: leaf.primaryFaceBadgeText || '',
-    subtitleCaption: leaf.subtitleCaption || '',
-    hasMers: (leaf as any).hasMers,
-    mersFullPath: (leaf as any).mersFullPath,
-    key: leaf.alias,
-  };
-}
-
-// Group entity leaves by alias slot
-function groupLeavesByVariantSlot(leaves: CatalogLeafDto[]): VariantTileGroup[] {
-  const map = new Map<string, VariantTileGroup>();
-  for (const leaf of leaves) {
-    const isTexVar = Boolean(
-      (leaf.totalTextureVariants && leaf.totalTextureVariants > 1) ||
-      leaf.variantKind === 'TextureVariant' ||
-      leaf.variantKind === 'NestedVariant'
-    );
-
-    const slotKey = isTexVar
-      ? `${leaf.alias}__bv_${leaf.blockVariantIndex ?? 'none'}`
-      : `${leaf.alias}__bv_${leaf.blockVariantIndex ?? 'none'}__rp_${leaf.relativePath || 'def'}`;
-
-    const existing = map.get(slotKey);
-    if (existing) {
-      const exists = existing.leaves.some(
-        (l) =>
-          l.relativePath === leaf.relativePath &&
-          l.textureVariantIndex === leaf.textureVariantIndex
-      );
-      if (!exists) {
-        existing.leaves.push(leaf);
-      }
-    } else {
-      map.set(slotKey, {
-        key: slotKey,
-        alias: leaf.alias,
-        leaves: [leaf],
-      });
-    }
-  }
-  return Array.from(map.values());
-}
 
 export const EntityWorkspace: React.FC = () => {
   const entityWorkspaceTree = usePackStore((s) => s.entityWorkspaceTree);
+  const isScanning = usePackStore((s) => s.isScanning);
+  const isWorkspaceLoading = usePackStore((s) => s.isWorkspaceLoading);
   const searchQuery = usePackStore((s) => s.searchQuery);
   const statusFilter = usePackStore((s) => s.statusFilter);
   const activeFilters = usePackStore((s) => s.activeFilters);
@@ -96,9 +33,7 @@ export const EntityWorkspace: React.FC = () => {
   const activeVariationIndex = usePackStore((s) => s.entityWorkspaceActiveVariationIndex);
   const setActiveVariationIndex = usePackStore((s) => s.setEntityWorkspaceActiveVariationIndex);
   const [activeMenuKey, setActiveMenuKey] = useState<string | null>(null);
-  const isListDrawerOpen = usePackStore((s) => s.isWorkspaceDrawerOpen);
   const setIsListDrawerOpen = usePackStore((s) => s.setIsWorkspaceDrawerOpen);
-  const disable3DView = usePackStore((s) => s.disable3DView);
   const [hoverMorphTarget, setHoverMorphTarget] = useState<TileHoverMorphTarget | null>(null);
   const [contextMenuTarget, setContextMenuTarget] = useState<{
     alias: TextureAliasDto;
@@ -348,7 +283,7 @@ export const EntityWorkspace: React.FC = () => {
     setActiveLeafKey(`${leaf.alias}-${leaf.relativePath}`);
     const rect = domEl.getBoundingClientRect();
     setHoverMorphTarget({
-      alias: leafToAliasDto(leaf),
+      alias: leafToAliasDto(leaf, 'entity'),
       key,
       originRect: rect,
       domElement: domEl,
@@ -361,14 +296,20 @@ export const EntityWorkspace: React.FC = () => {
   }, []);
 
   const handleDeleteTextureFile = useCallback((path: string, alias: string) => {
+    packStoreActions.optimisticDeleteTexture(path, alias);
     deleteTextureFile(path, alias);
   }, [deleteTextureFile]);
 
   const handleDeleteTextureEntries = useCallback((alias: string, relativePath?: string | null) => {
+    packStoreActions.optimisticDeleteEntries(alias, 'entity', relativePath ?? undefined);
     deleteTextureEntries(alias, 'entity', relativePath ?? undefined);
   }, [deleteTextureEntries]);
 
   const selectedEntityDisplayName = selectedEntity?.displayName || selectedEntity?.blockId || '';
+
+  if (isWorkspaceLoading || (isScanning && (!entityWorkspaceTree || entityWorkspaceTree.length === 0))) {
+    return <WorkspaceSkeleton isEntity />;
+  }
 
   if (!entityWorkspaceTree || entityWorkspaceTree.length === 0) {
     return (
@@ -381,97 +322,79 @@ export const EntityWorkspace: React.FC = () => {
   }
 
   return (
-    <div className={styles.workspaceContainer}>
-      {/* Backdrop for compact viewports */}
-      {isListDrawerOpen && (
-        <div
-          className={styles.blockListBackdrop}
-          onClick={() => setIsListDrawerOpen(false)}
-          aria-hidden="true"
-        />
-      )}
+    <>
+      <WorkspaceShell
+        listAriaLabel="Entities List"
+        listHeader={
+          <>
+            Pack Entities ({filteredEntityWorkspaceTree.length}
+            {filteredEntityWorkspaceTree.length !== entityWorkspaceTree.length ? ` / ${entityWorkspaceTree.length}` : ''})
+          </>
+        }
+        sidebarContent={
+          filteredEntityWorkspaceTree.length > 0 ? (
+            filteredEntityWorkspaceTree.map((entity) => {
+              const isActive = selectedEntity?.blockId === entity.blockId;
+              const isCustom = entity.isUserDefined !== false;
+              const isAttachable = entity.aliasGroups?.some((ag) => ag.isAttachable || ag.leaves?.some((l) => l.isAttachable));
 
-      {/* Left List */}
-      <aside
-        className={`${styles.blockListPane} ${isListDrawerOpen ? styles.blockListPaneOpen : ''}`}
-        aria-label="Entities List"
-      >
-        <div className={styles.blockListHeader}>
-          Pack Entities ({filteredEntityWorkspaceTree.length}
-          {filteredEntityWorkspaceTree.length !== entityWorkspaceTree.length ? ` / ${entityWorkspaceTree.length}` : ''})
-        </div>
-
-        {filteredEntityWorkspaceTree.length > 0 ? (
-          filteredEntityWorkspaceTree.map((entity) => {
-            const isActive = selectedEntity?.blockId === entity.blockId;
-            const isCustom = entity.isUserDefined !== false;
-            const isAttachable = entity.aliasGroups?.some((ag) => ag.isAttachable || ag.leaves?.some((l) => l.isAttachable));
-
-            return (
-              <button
-                key={entity.blockId}
-                data-entity-id={entity.blockId}
-                type="button"
-                className={`${styles.blockItem} ${isActive ? styles.blockItemActive : ''} ${!isCustom ? styles.blockItemVanilla : ''}`}
-                onClick={() => {
-                  setSelectedEntityId(entity.blockId);
-                  setIsListDrawerOpen(false);
-                }}
-              >
-                <div className={styles.blockItemLeft}>
-                  {isAttachable ? (
-                    <Shield size={14} className={!isCustom ? styles.blockIconMuted : undefined} />
-                  ) : (
-                    <PawPrint size={14} className={!isCustom ? styles.blockIconMuted : undefined} />
-                  )}
-                  <span className={styles.blockItemName}>{entity.displayName || entity.blockId}</span>
-                </div>
-                <div className={styles.blockItemBadges}>
-                  {isAttachable && (
-                    <Badge variant="category-attachable" size="sm">attachable</Badge>
-                  )}
-                  {!isCustom && (
-                    <Badge variant="fallback" size="sm" title="Inferred from vanilla entity definition">fallback</Badge>
-                  )}
-                  {entity.ghostCount > 0 && (
-                    <Badge variant="ghost" size="counter">{entity.ghostCount}</Badge>
-                  )}
-                </div>
-              </button>
-            );
-          })
-        ) : (
-          <div className={styles.noMatches}>
-            <span>No entities match your search or filter</span>
-          </div>
-        )}
-      </aside>
-
-      {/* Right Detail Pane */}
-      {selectedEntity ? (
-        <section
-          key={selectedEntity.blockId}
-          className={styles.detailPane}
-          aria-label="Entity Hierarchy & 3D Preview"
-        >
-          <div className={styles.detailHeader}>
-            <div className={styles.blockTitleGroup}>
-              <div className={styles.blockHeaderTitleRow}>
-                <h2 className={styles.blockDisplayName}>{selectedEntity.displayName}</h2>
-                {isAttachableEntity && (
-                  <Badge variant="category-attachable" size="sm">
-                    Attachable / Armor
-                  </Badge>
-                )}
-              </div>
-              <span className={styles.blockIdSub}>
-                {selectedEntity.blockId}
-              </span>
+              return (
+                <button
+                  key={entity.blockId}
+                  data-entity-id={entity.blockId}
+                  type="button"
+                  className={`${styles.blockItem} ${isActive ? styles.blockItemActive : ''} ${!isCustom ? styles.blockItemVanilla : ''}`}
+                  onClick={() => {
+                    setSelectedEntityId(entity.blockId);
+                    setIsListDrawerOpen(false);
+                  }}
+                >
+                  <div className={styles.blockItemLeft}>
+                    {isAttachable ? (
+                      <Shield size={14} className={!isCustom ? styles.blockIconMuted : undefined} />
+                    ) : (
+                      <PawPrint size={14} className={!isCustom ? styles.blockIconMuted : undefined} />
+                    )}
+                    <span className={styles.blockItemName}>{entity.displayName || entity.blockId}</span>
+                  </div>
+                  <div className={styles.blockItemBadges}>
+                    {isAttachable && (
+                      <Badge variant="category-attachable" size="sm">attachable</Badge>
+                    )}
+                    {!isCustom && (
+                      <Badge variant="fallback" size="sm" title="Inferred from vanilla entity definition">fallback</Badge>
+                    )}
+                    {entity.ghostCount > 0 && (
+                      <Badge variant="ghost" size="counter">{entity.ghostCount}</Badge>
+                    )}
+                  </div>
+                </button>
+              );
+            })
+          ) : (
+            <div className={styles.noMatches}>
+              <span>No entities match your search or filter</span>
             </div>
-            <div className={styles.detailHeaderActions}>
+          )
+        }
+        hasSelection={Boolean(selectedEntity)}
+        emptySelectionText="Select an entity to inspect"
+        detailAriaLabel="Entity Hierarchy & 3D Preview"
+        title={selectedEntity?.displayName}
+        titleBadge={
+          isAttachableEntity && (
+            <Badge variant="category-attachable" size="sm">
+              Attachable / Armor
+            </Badge>
+          )
+        }
+        subtitle={selectedEntity?.blockId}
+        headerActions={
+          selectedEntity && (
+            <>
               {selectedEntity.isUserDefined === false && (
                 <Badge variant="fallback" size="sm" title="Using vanilla entity definition">
-                  Vanilla Fallback
+                  Fallback
                 </Badge>
               )}
               {selectedEntity.ghostCount > 0 && (
@@ -479,48 +402,57 @@ export const EntityWorkspace: React.FC = () => {
                   {selectedEntity.ghostCount} {selectedEntity.ghostCount === 1 ? 'ghost' : 'ghosts'}
                 </Badge>
               )}
-            </div>
-          </div>
-
-          {/* 3D Entity Model Viewer */}
-          {!disable3DView && (
-            <div className={styles.previewSection}>
-              <Entity3DViewer
-                entityId={selectedEntity.blockId}
-                geometryId={primaryGeometryId}
-                textureUrl={activeTextureUrl}
-                isGhost={activeIsGhost}
-                isAttachable={isAttachableEntity}
-                slots={slotOptions}
-                activeSlotIndex={activeSlotIndex}
-                onSelectSlotIndex={(idx) => {
-                  setActiveSlotIndex(idx);
-                  setActiveVariationIndex(0);
-                }}
-                activeVariationIndex={activeVariationIndex}
-                onSelectVariationIndex={setActiveVariationIndex}
-              />
-            </div>
-          )}
-
+            </>
+          )
+        }
+        show3DPreview={Boolean(selectedEntity)}
+        previewTitle="3D Preview"
+        previewContent={
+          selectedEntity ? (
+            <Entity3DViewer
+              entityId={selectedEntity.blockId}
+              geometryId={primaryGeometryId}
+              textureUrl={activeTextureUrl}
+              isGhost={activeIsGhost}
+              isAttachable={isAttachableEntity}
+              slots={slotOptions}
+              activeSlotIndex={activeSlotIndex}
+              onSelectSlotIndex={(idx) => {
+                setActiveSlotIndex(idx);
+                setActiveVariationIndex(0);
+              }}
+              activeVariationIndex={activeVariationIndex}
+              onSelectVariationIndex={setActiveVariationIndex}
+            />
+          ) : null
+        }
+      >
+        {selectedEntity && (
           <EntityEntryTree
             entity={selectedEntity}
             onTileClick={handleTileClick}
           />
+        )}
 
-          {/* Slots & Texture Variations Hierarchy */}
+        {/* Slots & Texture Variations Hierarchy */}
+        {selectedEntity && (
           <div className={styles.hierarchySection} ref={menuRef}>
-            {selectedEntity.aliasGroups?.map((ag, agIndex) => (
-              <div key={`${selectedEntity.blockId}-${ag.alias}-${agIndex}`} className={styles.aliasGroupCard}>
-                <div className={styles.aliasHeader}>
-                  <PawPrint size={14} />
-                  <span>Slot: {ag.alias}</span>
-                  {selectedEntity.isUserDefined === false && (
-                    <Badge variant="fallback" size="sm" title="Using vanilla entity definition">
-                      Vanilla Fallback
-                    </Badge>
-                  )}
-                </div>
+            {selectedEntity.aliasGroups?.map((ag, agIndex) => {
+              const isVanillaFallback = selectedEntity.isUserDefined === false || ag.isUserDefined === false;
+              return (
+                <div
+                  key={`${selectedEntity.blockId}-${ag.alias}-${agIndex}`}
+                  className={`${styles.aliasGroupCard} ${isVanillaFallback ? styles.aliasGroupCardFallback : ''}`}
+                >
+                  <div className={styles.aliasHeader}>
+                    <PawPrint size={14} />
+                    <span>Slot: {ag.alias}</span>
+                    {isVanillaFallback && (
+                      <Badge variant="fallback" size="sm" title="Using vanilla entity definition">
+                        Fallback
+                      </Badge>
+                    )}
+                  </div>
 
                 <div className={styles.faceRow}>
                   {ag.geometryId && (
@@ -543,19 +475,18 @@ export const EntityWorkspace: React.FC = () => {
                           onToggleMenu={handleToggleMenu}
                           onTileClick={handleTileClick}
                           onDeleteTextureFile={handleDeleteTextureFile}
-                          onDeleteTextureEntries={handleDeleteTextureEntries}
+                          onDeleteTextureEntries={!isVanillaFallback ? handleDeleteTextureEntries : undefined}
                         />
                       );
                     })}
                   </div>
                 </div>
               </div>
-            ))}
+            );
+          })}
           </div>
-        </section>
-      ) : (
-        <div className={styles.emptySelection}>Select an entity to inspect</div>
-      )}
+        )}
+      </WorkspaceShell>
 
       {/* Morphing Portal Preview (opened on tile click) */}
       {hoverMorphTarget && (
@@ -601,9 +532,13 @@ export const EntityWorkspace: React.FC = () => {
               deleteTextureFile(contextMenuTarget.alias.fullPath);
             }
           }}
-          onDeleteEntries={() => {
-            deleteTextureEntries(contextMenuTarget.alias.alias, contextMenuTarget.alias.category || 'entity');
-          }}
+          onDeleteEntries={
+            (contextMenuTarget.alias as any).isUserDefined !== false
+              ? () => {
+                  deleteTextureEntries(contextMenuTarget.alias.alias, contextMenuTarget.alias.category || 'entity');
+                }
+              : undefined
+          }
           onEditMers={() => {
             if (contextMenuTarget.alias.mersFullPath) {
               editTexture(contextMenuTarget.alias.alias, contextMenuTarget.alias.mersFullPath, false);
@@ -611,6 +546,6 @@ export const EntityWorkspace: React.FC = () => {
           }}
         />
       )}
-    </div>
+    </>
   );
 };

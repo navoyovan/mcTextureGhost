@@ -2,7 +2,6 @@ import React, { useState, useMemo } from 'react';
 import {
   ChevronRight,
   ChevronDown,
-  ChevronUp,
 } from 'lucide-react';
 import { usePackStore } from '../../store/packStore';
 import { BlockGroupNodeDto, CatalogLeafDto } from '../../types/ipc';
@@ -126,125 +125,123 @@ export const EntityEntryTree: React.FC<EntityEntryTreeProps> = ({ entity, onTile
             onClick={toggleMinimize}
             title={isMinimized ? 'Expand tree panel' : 'Minimize tree panel'}
           >
-            {isMinimized ? <ChevronDown size={12} /> : <ChevronUp size={12} />}
+            <ChevronDown size={12} className={`${styles.treeToggleChevron} ${!isMinimized ? styles.treeToggleChevronExpanded : ''}`} />
             <span>{isMinimized ? 'Expand' : 'Minimize'}</span>
           </button>
         </div>
       </div>
 
-      {!isMinimized && (
-        <div className={styles.treeContent}>
-        {/* Level 1: Entity JSON Entry */}
-        <div className={styles.treeNode}>
-          <div
-            className={`${styles.treeRow} ${isEntityUserDefined ? styles.normalWeight : styles.dimmedWeight}`}
-            onClick={() => toggleNode('root_entity_json')}
-          >
-            <div className={styles.treeRowMain}>
-              <button
-                type="button"
-                className={styles.chevronBtn}
-                onClick={(e) => toggleNode('root_entity_json', e)}
+      <div className={`${styles.treeContentWrapper} ${isMinimized ? styles.treeContentWrapperCollapsed : ''}`}>
+        <div className={styles.treeContentInner}>
+          <div className={styles.treeContent}>
+            {/* Level 1: Entity JSON Entry */}
+            <div className={styles.treeNode}>
+              <div
+                className={`${styles.treeRow} ${isEntityUserDefined ? styles.normalWeight : styles.dimmedWeight}`}
+                onClick={() => toggleNode('root_entity_json')}
               >
-                {collapsedNodes['root_entity_json'] ? (
-                  <ChevronRight size={13} />
+                <div className={styles.treeRowMain}>
+                  <button
+                    type="button"
+                    className={styles.chevronBtn}
+                    onClick={(e) => toggleNode('root_entity_json', e)}
+                  >
+                    <ChevronRight size={13} className={`${styles.chevronIcon} ${!collapsedNodes['root_entity_json'] ? styles.chevronIconExpanded : ''}`} />
+                  </button>
+                  <span className={styles.nodeKey}>{fileLabel}</span>
+                  <span className={styles.nodeValue}>➔ &quot;{entity.blockId}&quot;</span>
+                  <span className={styles.nodeSub}>({entity.displayName})</span>
+                </div>
+
+                {isEntityUserDefined ? (
+                  <Badge variant="added" size="sm" title="Defined in pack entity definition">
+                    added
+                  </Badge>
                 ) : (
-                  <ChevronDown size={13} />
+                  <Badge variant="fallback" size="sm" title="Inferred from vanilla entity definition">
+                    fallback
+                  </Badge>
                 )}
-              </button>
-              <span className={styles.nodeKey}>{fileLabel}</span>
-              <span className={styles.nodeValue}>➔ &quot;{entity.blockId}&quot;</span>
-              <span className={styles.nodeSub}>({entity.displayName})</span>
-            </div>
+              </div>
 
-            {isEntityUserDefined ? (
-              <Badge variant="added" size="sm" title="Defined in pack entity definition">
-                added
-              </Badge>
-            ) : (
-              <Badge variant="fallback" size="sm" title="Inferred from vanilla entity definition">
-                vanilla fallback
-              </Badge>
-            )}
-          </div>
+              <div className={`${styles.treeChildrenWrapper} ${!collapsedNodes['root_entity_json'] ? styles.treeChildrenExpanded : ''}`}>
+                <div className={styles.treeChildrenInner}>
+                  <div className={styles.treeChildren}>
+                    {/* Level 2: Slots per alias group */}
+                    {aliases.map((ag) => {
+                      const aliasKey = `slot_${ag.alias}`;
+                      const isAliasCollapsed = Boolean(collapsedNodes[aliasKey]);
 
-          {!collapsedNodes['root_entity_json'] && (
-            <div className={styles.treeChildren}>
-              {/* Level 2: Slots per alias group */}
-              {aliases.map((ag) => {
-                const aliasKey = `slot_${ag.alias}`;
-                const isAliasCollapsed = Boolean(collapsedNodes[aliasKey]);
+                      // Deduplicate unique texture leaves for this slot
+                      const seenLeaves = new Set<string>();
+                      const uniqueLeaves: CatalogLeafDto[] = [];
+                      const rawLeaves = [
+                        ...(ag.leaves ?? []),
+                        ...(ag.faceNodes ? ag.faceNodes.flatMap((fn) => fn.leaves ?? []) : []),
+                      ];
+                      for (const leaf of rawLeaves) {
+                        const leafKey = `${leaf.relativePath || leaf.alias}:${leaf.blockVariantIndex ?? ''}:${leaf.textureVariantIndex ?? ''}`;
+                        if (!seenLeaves.has(leafKey)) {
+                          seenLeaves.add(leafKey);
+                          uniqueLeaves.push(leaf);
+                        }
+                      }
 
-                // Deduplicate unique texture leaves for this slot
-                const seenLeaves = new Set<string>();
-                const uniqueLeaves: CatalogLeafDto[] = [];
-                const rawLeaves = [
-                  ...(ag.leaves ?? []),
-                  ...(ag.faceNodes ? ag.faceNodes.flatMap((fn) => fn.leaves ?? []) : []),
-                ];
-                for (const leaf of rawLeaves) {
-                  const leafKey = `${leaf.relativePath || leaf.alias}:${leaf.blockVariantIndex ?? ''}:${leaf.textureVariantIndex ?? ''}`;
-                  if (!seenLeaves.has(leafKey)) {
-                    seenLeaves.add(leafKey);
-                    uniqueLeaves.push(leaf);
-                  }
-                }
+                      return (
+                        <div key={ag.alias} className={styles.treeNode}>
+                          <div
+                            className={`${styles.treeRow} ${isEntityUserDefined ? styles.normalWeight : styles.dimmedWeight}`}
+                            onClick={() => toggleNode(aliasKey)}
+                          >
+                            <div className={styles.treeRowMain}>
+                              <button
+                                type="button"
+                                className={styles.chevronBtn}
+                                onClick={(e) => toggleNode(aliasKey, e)}
+                              >
+                                <ChevronRight size={13} className={`${styles.chevronIcon} ${!isAliasCollapsed ? styles.chevronIconExpanded : ''}`} />
+                              </button>
+                              <span className={styles.nodeKey}>slot</span>
+                              <span className={styles.nodeValue}>➔ &quot;{ag.alias}&quot;</span>
+                              {ag.geometryId && (
+                                <span className={styles.nodeSub}>[{ag.geometryId}]</span>
+                              )}
+                            </div>
 
-                return (
-                  <div key={ag.alias} className={styles.treeNode}>
-                    <div
-                      className={`${styles.treeRow} ${isEntityUserDefined ? styles.normalWeight : styles.dimmedWeight}`}
-                      onClick={() => toggleNode(aliasKey)}
-                    >
-                      <div className={styles.treeRowMain}>
-                        <button
-                          type="button"
-                          className={styles.chevronBtn}
-                          onClick={(e) => toggleNode(aliasKey, e)}
-                        >
-                          {isAliasCollapsed ? (
-                            <ChevronRight size={13} />
-                          ) : (
-                            <ChevronDown size={13} />
-                          )}
-                        </button>
-                        <span className={styles.nodeKey}>slot</span>
-                        <span className={styles.nodeValue}>➔ &quot;{ag.alias}&quot;</span>
-                        {ag.geometryId && (
-                          <span className={styles.nodeSub}>[{ag.geometryId}]</span>
-                        )}
-                      </div>
+                            {isEntityUserDefined ? (
+                              <Badge variant="added" size="sm" title="Slot declared in user entity definition">
+                                added
+                              </Badge>
+                            ) : (
+                              <Badge variant="fallback" size="sm" title="Inferred from vanilla entity definition">
+                                fallback
+                              </Badge>
+                            )}
+                          </div>
 
-                      {isEntityUserDefined ? (
-                        <Badge variant="added" size="sm" title="Slot declared in user entity definition">
-                          added
-                        </Badge>
-                      ) : (
-                        <Badge variant="fallback" size="sm" title="Inferred from vanilla entity definition">
-                          vanilla fallback
-                        </Badge>
-                      )}
-                    </div>
-
-                    {!isAliasCollapsed && (
-                      <div className={styles.treeChildren}>
-                        {uniqueLeaves.map((leaf, lIdx) => (
-                          <EntityTextureLeafRow
-                            key={`${leaf.relativePath || leaf.alias}-${lIdx}`}
-                            leaf={leaf}
-                            onTileClick={onTileClick}
-                          />
-                        ))}
-                      </div>
-                    )}
+                          <div className={`${styles.treeChildrenWrapper} ${!isAliasCollapsed ? styles.treeChildrenExpanded : ''}`}>
+                            <div className={styles.treeChildrenInner}>
+                              <div className={styles.treeChildren}>
+                                {uniqueLeaves.map((leaf, lIdx) => (
+                                  <EntityTextureLeafRow
+                                    key={`${leaf.relativePath || leaf.alias}-${lIdx}`}
+                                    leaf={leaf}
+                                    onTileClick={onTileClick}
+                                  />
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
-                );
-              })}
+                </div>
+              </div>
             </div>
-          )}
+          </div>
         </div>
       </div>
-      )}
     </div>
   );
 };
@@ -267,7 +264,7 @@ const EntityTextureLeafRow: React.FC<EntityTextureLeafRowProps> = ({ leaf, onTil
 
   const getStatusBadge = () => {
     if (isVanilla) {
-      return <Badge variant="fallback" size="sm">vanilla</Badge>;
+      return <Badge variant="fallback" size="sm">fallback</Badge>;
     }
     if (isGhost) {
       return <Badge variant="ghost" size="sm">ghost</Badge>;

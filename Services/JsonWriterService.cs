@@ -1,4 +1,5 @@
 using System.IO;
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
@@ -18,9 +19,50 @@ public static class JsonWriterService
         CommentHandling = JsonCommentHandling.Skip
     };
 
+    // Pack JSON files are hot: background rescan readers hold them open while
+    // IPC writers read-modify-write them (and rapid successive writes race each
+    // other). Single-attempt IO throws "used by another process" under overlap,
+    // so all pack JSON access below retries briefly on lock violations.
+    // All public mutation entry points below are marked [MethodImpl(Synchronized)]:
+    // since IPC handlers now run pack JSON mutations on background threads, concurrent
+    // read-modify-write cycles on the same file would otherwise interleave (e.g. two
+    // rapid variation scaffolds both computing `_var1`, last-write-wins data loss).
+    // The attribute serializes them on the type lock; same-thread re-entry (e.g.
+    // AddVanillaBlock -> AppendFlipbookIfNotExists) is safe because Monitor is reentrant.
+    private const int IoMaxAttempts = 8;
+    private const int IoRetryDelayMs = 50;
+
+    private static void RetryOnLock(Action action) =>
+        RetryOnLock(() => { action(); return true; });
+
+    private static T RetryOnLock<T>(Func<T> action)
+    {
+        IOException? last = null;
+        for (int attempt = 0; attempt < IoMaxAttempts; attempt++)
+        {
+            try
+            {
+                return action();
+            }
+            catch (IOException ex) when (attempt < IoMaxAttempts - 1)
+            {
+                last = ex;
+                Thread.Sleep(IoRetryDelayMs * (attempt + 1));
+            }
+        }
+        throw last!;
+    }
+
+    private static string ReadAllTextRetry(string path) =>
+        RetryOnLock(() => File.ReadAllText(path));
+
+    private static void WriteAllTextRetry(string path, string contents) =>
+        RetryOnLock(() => File.WriteAllText(path, contents));
+
     public static string DefaultBlockId(string alias) => $"custom:{Sanitize(alias)}";
 
     /// <summary>Single texture applied to every face. Simplest, most common case.</summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
     public static void AddPlainBlock(string packRoot, string alias, string? blockId = null)
     {
         blockId ??= DefaultBlockId(alias);
@@ -47,6 +89,7 @@ public static class JsonWriterService
     /// opened immediately - the other two faces show up as ordinary
     /// "declared but missing" ghosts, ready to click and paint individually.
     /// </summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
     public static string AddPerFaceBlock(string packRoot, string alias, string? blockId = null)
     {
         blockId ??= DefaultBlockId(alias);
@@ -84,6 +127,7 @@ public static class JsonWriterService
     /// so the texture animates (Prismarine-style) once frames are painted
     /// into a vertically-stacked sprite sheet at the same path.
     /// </summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
     public static void AddFlipbookBlock(string packRoot, string alias, string? blockId = null, int ticksPerFrame = 10)
     {
         blockId ??= DefaultBlockId(alias);
@@ -103,7 +147,7 @@ public static class JsonWriterService
             ["atlas_tile"] = alias,
             ["ticks_per_frame"] = ticksPerFrame
         });
-        File.WriteAllText(flipbookPath, flipbook.ToJsonString(WriteOptions));
+        WriteAllTextRetry(flipbookPath, flipbook.ToJsonString(WriteOptions));
 
         var blocks = LoadOrCreateBlocksJson(packRoot);
         blocks[blockId] = new JsonObject
@@ -165,6 +209,7 @@ public static class JsonWriterService
     /// source texture's file stem with a `_var{N}` postfix. Returns the new variation
     /// path, or null when the existing entry has an unrecognized shape.
     /// </summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
     public static string? AddTextureVariation(string packRoot, string alias, int? blockVariantIndex, string? relativePath)
     {
         var terrain = LoadOrCreateTerrainTexture(packRoot);
@@ -208,17 +253,48 @@ public static class JsonWriterService
             }
         }
 
-        // New path reuses the alias name with a _var{N} postfix in the sibling directory
-        var firstExisting = CollectPaths(existing).FirstOrDefault();
-        var firstNorm = NormPath(firstExisting);
-        var slash = firstNorm.LastIndexOf('/');
-        var baseDir = "textures/blocks";
-        if (!string.IsNullOrWhiteSpace(firstExisting) && slash > 0)
+        // Target the source texture path to derive the variation stem name from
+        string targetSourcePath = "";
+        if (!string.IsNullOrWhiteSpace(relativePath))
         {
-            baseDir = firstExisting.Replace('\\', '/').TrimStart('/').Substring(0, slash);
+            targetSourcePath = NormPath(relativePath);
         }
-        var stem = alias.ToLowerInvariant();
-        if (string.IsNullOrWhiteSpace(stem)) stem = NormPath(alias);
+        else if (slotArray != null && slotIdx >= 0 && slotIdx < slotArray.Count)
+        {
+            targetSourcePath = SlotFirstPath(slotArray[slotIdx]) ?? "";
+        }
+        if (string.IsNullOrWhiteSpace(targetSourcePath))
+        {
+            targetSourcePath = NormPath(alias);
+        }
+
+        var slash = targetSourcePath.LastIndexOf('/');
+        var baseDir = "textures/blocks";
+        string stem = "";
+        if (slash >= 0)
+        {
+            baseDir = targetSourcePath.Substring(0, slash);
+            stem = targetSourcePath.Substring(slash + 1);
+        }
+        else if (!string.IsNullOrWhiteSpace(targetSourcePath))
+        {
+            stem = targetSourcePath;
+        }
+
+        if (stem.EndsWith(".png", StringComparison.OrdinalIgnoreCase))
+            stem = stem.Substring(0, stem.Length - 4);
+        if (stem.EndsWith(".tga", StringComparison.OrdinalIgnoreCase))
+            stem = stem.Substring(0, stem.Length - 4);
+
+        // If stem already has a _var{N} suffix, strip it so subsequent variations follow the root stem:
+        // e.g. door_wood_lower_var1 -> door_wood_lower -> candidates: door_wood_lower_var2, door_wood_lower_var3
+        var varMatch = System.Text.RegularExpressions.Regex.Match(stem, @"^(.*)_var\d+$", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        if (varMatch.Success)
+        {
+            stem = varMatch.Groups[1].Value;
+        }
+
+        if (string.IsNullOrWhiteSpace(stem)) stem = alias.ToLowerInvariant();
 
         string newPath = "";
         for (int n = 1; ; n++)
@@ -314,6 +390,7 @@ public static class JsonWriterService
     /// variations collapse back to plain entries; emptied slots and aliases are pruned.
     /// Returns true when the file was changed.
     /// </summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
     public static bool DeleteTextureVariation(string packRoot, string alias, string? relativePath)
     {
         if (string.IsNullOrWhiteSpace(relativePath)) return false;
@@ -444,7 +521,217 @@ public static class JsonWriterService
         return changed;
     }
 
+    /// <summary>
+    /// Updates the weight of a texture variation in terrain_texture.json.
+    /// Finds the variation matching relativePath under the given alias and sets its "weight" property.
+    /// Clamps weight between 1 and 999.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public static bool SetTextureVariationWeight(string packRoot, string alias, string? relativePath, int weight)
+    {
+        if (string.IsNullOrWhiteSpace(relativePath)) return false;
+        var target = NormPath(relativePath);
+        weight = Math.Clamp(weight, 1, 999);
+
+        var terrain = LoadOrCreateTerrainTexture(packRoot);
+        var textureData = GetTextureData(terrain);
+        if (!textureData.TryGetPropertyValue(alias, out var aliasNode) || aliasNode is null) return false;
+
+        static bool UpdateWeightInArray(JsonArray va, string target, int weight)
+        {
+            for (int i = 0; i < va.Count; i++)
+            {
+                var item = va[i];
+                if (item is JsonObject jo)
+                {
+                    if (jo.TryGetPropertyValue("path", out var p) && p is JsonValue pjv && pjv.TryGetValue<string>(out var ps))
+                    {
+                        if (string.Equals(NormPath(ps), target, StringComparison.OrdinalIgnoreCase))
+                        {
+                            jo["weight"] = weight;
+                            return true;
+                        }
+                    }
+                }
+                else if (item is JsonValue jv && jv.TryGetValue<string>(out var s))
+                {
+                    if (string.Equals(NormPath(s), target, StringComparison.OrdinalIgnoreCase))
+                    {
+                        va[i] = new JsonObject { ["path"] = s, ["weight"] = weight };
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        bool updated = false;
+
+        void SearchAndSet(JsonNode? node)
+        {
+            if (updated || node is null) return;
+            if (node is JsonObject jo)
+            {
+                if (jo.TryGetPropertyValue("variations", out var vs) && vs is JsonArray va)
+                {
+                    if (UpdateWeightInArray(va, target, weight))
+                    {
+                        updated = true;
+                        return;
+                    }
+                }
+                if (jo.TryGetPropertyValue("textures", out var t))
+                {
+                    SearchAndSet(t);
+                }
+            }
+            else if (node is JsonArray ja)
+            {
+                foreach (var el in ja)
+                {
+                    SearchAndSet(el);
+                    if (updated) return;
+                }
+            }
+        }
+
+        SearchAndSet(aliasNode);
+
+        if (updated)
+        {
+            SaveTerrainTexture(packRoot, terrain);
+        }
+        return updated;
+    }
+
+    /// <summary>
+    /// Renames a texture variation's path in terrain_texture.json and renames the physical
+    /// PNG file on disk if it exists.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public static (bool success, string newRelativePath, string? message) RenameTextureVariation(
+        string packRoot, string alias, string? oldRelativePath, string newLabelOrPath)
+    {
+        if (string.IsNullOrWhiteSpace(oldRelativePath) || string.IsNullOrWhiteSpace(newLabelOrPath))
+            return (false, "", "Path or label cannot be empty.");
+
+        var oldTargetNorm = NormPath(oldRelativePath);
+
+        // Sanitize newLabelOrPath into a relative path stem
+        var cleanInput = newLabelOrPath.Trim().Replace('\\', '/');
+        if (cleanInput.EndsWith(".png", StringComparison.OrdinalIgnoreCase))
+            cleanInput = cleanInput.Substring(0, cleanInput.Length - 4);
+        if (cleanInput.EndsWith(".tga", StringComparison.OrdinalIgnoreCase))
+            cleanInput = cleanInput.Substring(0, cleanInput.Length - 4);
+
+        string newTargetNorm;
+        if (cleanInput.Contains('/'))
+        {
+            newTargetNorm = NormPath(cleanInput);
+        }
+        else
+        {
+            var oldSlash = oldTargetNorm.LastIndexOf('/');
+            var baseDir = oldSlash > 0 ? oldTargetNorm.Substring(0, oldSlash) : "textures/blocks";
+            newTargetNorm = $"{baseDir}/{cleanInput}";
+        }
+
+        var terrain = LoadOrCreateTerrainTexture(packRoot);
+        var textureData = GetTextureData(terrain);
+        if (!textureData.TryGetPropertyValue(alias, out var aliasNode) || aliasNode is null)
+            return (false, "", $"Alias '{alias}' not found in terrain_texture.json.");
+
+        static bool UpdatePathInArray(JsonArray va, string oldTarget, string newTarget)
+        {
+            for (int i = 0; i < va.Count; i++)
+            {
+                var item = va[i];
+                if (item is JsonObject jo)
+                {
+                    if (jo.TryGetPropertyValue("path", out var p) && p is JsonValue pjv && pjv.TryGetValue<string>(out var ps))
+                    {
+                        if (string.Equals(NormPath(ps), oldTarget, StringComparison.OrdinalIgnoreCase))
+                        {
+                            jo["path"] = newTarget;
+                            return true;
+                        }
+                    }
+                }
+                else if (item is JsonValue jv && jv.TryGetValue<string>(out var s))
+                {
+                    if (string.Equals(NormPath(s), oldTarget, StringComparison.OrdinalIgnoreCase))
+                    {
+                        va[i] = newTarget;
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        bool updated = false;
+
+        void SearchAndRename(JsonNode? node)
+        {
+            if (updated || node is null) return;
+            if (node is JsonObject jo)
+            {
+                if (jo.TryGetPropertyValue("variations", out var vs) && vs is JsonArray va)
+                {
+                    if (UpdatePathInArray(va, oldTargetNorm, newTargetNorm))
+                    {
+                        updated = true;
+                        return;
+                    }
+                }
+                if (jo.TryGetPropertyValue("textures", out var t))
+                {
+                    SearchAndRename(t);
+                }
+            }
+            else if (node is JsonArray ja)
+            {
+                foreach (var el in ja)
+                {
+                    SearchAndRename(el);
+                    if (updated) return;
+                }
+            }
+        }
+
+        SearchAndRename(aliasNode);
+
+        if (!updated)
+            return (false, "", $"Variation matching '{oldRelativePath}' not found.");
+
+        SaveTerrainTexture(packRoot, terrain);
+
+        // Rename physical file on disk if it exists
+        try
+        {
+            var oldFullPng = Path.Combine(packRoot, oldTargetNorm.Replace('/', Path.DirectorySeparatorChar) + ".png");
+            var newFullPng = Path.Combine(packRoot, newTargetNorm.Replace('/', Path.DirectorySeparatorChar) + ".png");
+
+            if (File.Exists(oldFullPng) && !File.Exists(newFullPng))
+            {
+                var newDir = Path.GetDirectoryName(newFullPng);
+                if (!string.IsNullOrEmpty(newDir) && !Directory.Exists(newDir))
+                {
+                    Directory.CreateDirectory(newDir);
+                }
+                File.Move(oldFullPng, newFullPng);
+            }
+        }
+        catch
+        {
+            // If disk file rename fails, JSON was already updated
+        }
+
+        return (true, newTargetNorm, null);
+    }
+
     /// <summary>Registers an existing orphan texture file into terrain_texture.json.</summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
     public static void RegisterOrphan(string packRoot, string alias, string relativePath)
     {
         var terrain = LoadOrCreateTerrainTexture(packRoot);
@@ -457,6 +744,7 @@ public static class JsonWriterService
     }
 
     /// <summary>Registers an existing orphan item texture file into item_texture.json.</summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
     public static void RegisterItemOrphan(string packRoot, string alias, string relativePath)
     {
         var itemTexture = LoadOrCreateItemTexture(packRoot);
@@ -471,6 +759,7 @@ public static class JsonWriterService
     /// <summary>
     /// Adds a vanilla block and all its referenced aliases to the pack's JSON files.
     /// </summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
     public static void AddVanillaBlock(string packRoot, string blockId, VanillaData vanilla)
     {
         if (vanilla.RawBlocksJson.TryGetValue(blockId, out var rawBlockJson))
@@ -510,6 +799,7 @@ public static class JsonWriterService
     /// <summary>
     /// Adds a single vanilla alias into terrain_texture.json (and flipbook_textures.json if applicable).
     /// </summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
     public static void AddVanillaBlockAlias(string packRoot, string alias, VanillaData vanilla)
     {
         var terrain = LoadOrCreateTerrainTexture(packRoot);
@@ -530,6 +820,7 @@ public static class JsonWriterService
     /// <summary>
     /// Adds a vanilla item alias into item_texture.json (and flipbook_textures.json if applicable).
     /// </summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
     public static void AddVanillaItem(string packRoot, string itemAlias, VanillaData vanilla)
     {
         var itemTexture = LoadOrCreateItemTexture(packRoot);
@@ -550,6 +841,7 @@ public static class JsonWriterService
     /// <summary>
     /// Adds a vanilla client entity (or attachable) definition to the pack's entity/ or attachables/ folder.
     /// </summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
     public static void AddVanillaEntity(string packRoot, string entityId, VanillaData vanilla)
     {
         var cleanId = entityId.StartsWith("minecraft:", StringComparison.OrdinalIgnoreCase)
@@ -569,7 +861,7 @@ public static class JsonWriterService
 
             if (!File.Exists(targetFile))
             {
-                File.WriteAllText(targetFile, rawJson);
+                WriteAllTextRetry(targetFile, rawJson);
             }
 
             // Also create the textures/entity/<cleanId> folder to prepare for texture files
@@ -578,6 +870,7 @@ public static class JsonWriterService
         }
     }
 
+    [MethodImpl(MethodImplOptions.Synchronized)]
     public static void AppendFlipbookIfNotExists(string packRoot, string aliasOrPath, string rawFlipbookJson)
     {
         var flipbookPath = Path.Combine(packRoot, "textures", "flipbook_textures.json");
@@ -605,7 +898,7 @@ public static class JsonWriterService
         {
             flipbook.Add(JsonNode.Parse(rawFlipbookJson));
             Directory.CreateDirectory(Path.GetDirectoryName(flipbookPath)!);
-            File.WriteAllText(flipbookPath, flipbook.ToJsonString(WriteOptions));
+            WriteAllTextRetry(flipbookPath, flipbook.ToJsonString(WriteOptions));
         }
     }
 
@@ -625,7 +918,7 @@ public static class JsonWriterService
     {
         var path = Path.Combine(packRoot, "textures", "item_texture.json");
         if (File.Exists(path))
-            return JsonNode.Parse(File.ReadAllText(path), null, DocOptions)!.AsObject();
+            return JsonNode.Parse(ReadAllTextRetry(path), null, DocOptions)!.AsObject();
 
         return new JsonObject
         {
@@ -639,14 +932,14 @@ public static class JsonWriterService
     {
         var path = Path.Combine(packRoot, "textures", "item_texture.json");
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        File.WriteAllText(path, itemTexture.ToJsonString(WriteOptions));
+        WriteAllTextRetry(path, itemTexture.ToJsonString(WriteOptions));
     }
 
     private static JsonObject LoadOrCreateTerrainTexture(string packRoot)
     {
         var path = Path.Combine(packRoot, "textures", "terrain_texture.json");
         if (File.Exists(path))
-            return JsonNode.Parse(File.ReadAllText(path), null, DocOptions)!.AsObject();
+            return JsonNode.Parse(ReadAllTextRetry(path), null, DocOptions)!.AsObject();
 
         return new JsonObject
         {
@@ -663,14 +956,14 @@ public static class JsonWriterService
     {
         var path = Path.Combine(packRoot, "textures", "terrain_texture.json");
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        File.WriteAllText(path, terrain.ToJsonString(WriteOptions));
+        WriteAllTextRetry(path, terrain.ToJsonString(WriteOptions));
     }
 
     private static JsonObject LoadOrCreateBlocksJson(string packRoot)
     {
         var path = Path.Combine(packRoot, "blocks.json");
         if (File.Exists(path))
-            return JsonNode.Parse(File.ReadAllText(path), null, DocOptions)!.AsObject();
+            return JsonNode.Parse(ReadAllTextRetry(path), null, DocOptions)!.AsObject();
 
         return new JsonObject { ["format_version"] = "1.19.30" };
     }
@@ -678,17 +971,59 @@ public static class JsonWriterService
     private static void SaveBlocksJson(string packRoot, JsonObject blocks)
     {
         var path = Path.Combine(packRoot, "blocks.json");
-        File.WriteAllText(path, blocks.ToJsonString(WriteOptions));
+        WriteAllTextRetry(path, blocks.ToJsonString(WriteOptions));
+    }
+
+    /// <summary>
+    /// Removes a block definition from blocks.json.
+    /// Does not touch textures, terrain_texture.json, or physical files.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public static bool DeleteBlockEntry(string packRoot, string blockId)
+    {
+        var path = Path.Combine(packRoot, "blocks.json");
+        if (!File.Exists(path)) return false;
+
+        var blocks = LoadOrCreateBlocksJson(packRoot);
+        var cleanId = blockId.StartsWith("minecraft:", StringComparison.OrdinalIgnoreCase)
+            ? blockId.Substring(10)
+            : blockId;
+
+        bool removed = false;
+        if (blocks.ContainsKey(blockId))
+        {
+            blocks.Remove(blockId);
+            removed = true;
+        }
+        if (blocks.ContainsKey(cleanId))
+        {
+            blocks.Remove(cleanId);
+            removed = true;
+        }
+        var mcPrefixed = "minecraft:" + cleanId;
+        if (blocks.ContainsKey(mcPrefixed))
+        {
+            blocks.Remove(mcPrefixed);
+            removed = true;
+        }
+
+        if (removed)
+        {
+            SaveBlocksJson(packRoot, blocks);
+            return true;
+        }
+        return false;
     }
 
     private static JsonArray LoadOrCreateJsonArray(string path)
     {
         if (File.Exists(path))
-            return JsonNode.Parse(File.ReadAllText(path), null, DocOptions)!.AsArray();
+            return JsonNode.Parse(ReadAllTextRetry(path), null, DocOptions)!.AsArray();
 
         return new JsonArray();
     }
 
+    [MethodImpl(MethodImplOptions.Synchronized)]
     public static void DeleteTextureEntries(string packRoot, string alias, string category, string? relativePath = null)
     {
         if (string.Equals(category, "item", StringComparison.OrdinalIgnoreCase))
@@ -839,44 +1174,6 @@ public static class JsonWriterService
                     SaveTerrainTexture(packRoot, terrainObj);
                 }
             }
-
-            var blocksPath = Path.Combine(packRoot, "blocks.json");
-            if (File.Exists(blocksPath))
-            {
-                var blocks = LoadOrCreateBlocksJson(packRoot);
-                var keysToRemove = new List<string>();
-                foreach (var kvp in blocks)
-                {
-                    if (kvp.Value is JsonObject bObj)
-                    {
-                        if (bObj.TryGetPropertyValue("textures", out var tVal))
-                        {
-                            if (tVal is JsonValue jVal && string.Equals(jVal.ToString(), alias, StringComparison.OrdinalIgnoreCase))
-                            {
-                                keysToRemove.Add(kvp.Key);
-                            }
-                            else if (tVal is JsonObject fObj)
-                            {
-                                bool matches = false;
-                                foreach (var face in fObj)
-                                {
-                                    if (string.Equals(face.Value?.ToString(), alias, StringComparison.OrdinalIgnoreCase))
-                                    {
-                                        matches = true;
-                                        break;
-                                    }
-                                }
-                                if (matches) keysToRemove.Add(kvp.Key);
-                            }
-                        }
-                    }
-                }
-                if (keysToRemove.Count > 0)
-                {
-                    foreach (var k in keysToRemove) blocks.Remove(k);
-                    SaveBlocksJson(packRoot, blocks);
-                }
-            }
         }
 
         // Clean flipbook if present
@@ -899,7 +1196,7 @@ public static class JsonWriterService
             }
             if (flipbook.Count != countBefore)
             {
-                File.WriteAllText(flipbookPath, flipbook.ToJsonString(WriteOptions));
+                WriteAllTextRetry(flipbookPath, flipbook.ToJsonString(WriteOptions));
             }
         }
     }

@@ -13,6 +13,17 @@ import {
   ReferencePackProfile,
   OpenWithAppDto,
 } from '../types/ipc';
+import {
+  computeStats,
+  applyOptimisticDeleteTexture,
+  applyOptimisticDeleteEntries,
+  applyOptimisticDeleteVariation,
+  applyOptimisticDeleteBlockEntry,
+  applyOptimisticSetVariationWeight,
+  applyOptimisticRenameVariation,
+  applyOptimisticAddVariation,
+  applyOptimisticAddVanillaEntry,
+} from './mutations/workspaceTreeMutations';
 
 export type TextureFilterKey = 'ghosts' | 'orphans' | 'added' | 'mers' | 'atlas' | 'flipbook' | 'variations' | 'blockstates' | 'variation';
 
@@ -31,8 +42,11 @@ export interface PackStoreState {
   recentPacks: RecentPackItemDto[];
   stats: PackStatsDto;
 
-  // Scan State
+  // Scan & Domain Loading State
   isScanning: boolean;
+  isGridLoading: boolean;
+  isWorkspaceLoading: boolean;
+  isCatalogLoading: boolean;
   scanProgress: ScanProgressPayload | null;
 
   // UI & Filter State
@@ -91,8 +105,20 @@ export interface PackStoreActions {
   setPackState: (dto: Partial<PackStatePayload>) => void;
   resetPackState: () => void;
   updateTexture: (aliasKey: string, newStatus: string, fullPath: string, imageUrl?: string | null, relativePath?: string | null) => void;
+  optimisticDeleteTexture: (fullPath: string, aliasKey?: string) => void;
+  optimisticDeleteEntries: (aliasKey: string, category: string, relativePath?: string) => void;
+  optimisticDeleteVariation: (alias: string, relativePath: string) => void;
+  optimisticDeleteBlockEntry: (blockId: string) => void;
+  optimisticSetVariationWeight: (alias: string, relativePath: string, weight: number) => void;
+  optimisticRenameVariation: (alias: string, oldRelativePath: string, newRelativePath: string) => void;
+  optimisticAddVariation: (alias: string, blockVariantIndex?: number | null, count?: number, sourceRelativePath?: string | null) => void;
+  optimisticAddVanillaEntry: (id: string, category: string, alias?: string, catalogNode?: BlockGroupNodeDto | null) => void;
   setScanProgress: (progress: ScanProgressPayload | null) => void;
   setIsScanning: (scanning: boolean) => void;
+  startPackLoading: (folderPath: string, packName?: string) => void;
+  setIsGridLoading: (loading: boolean) => void;
+  setIsWorkspaceLoading: (loading: boolean) => void;
+  setIsCatalogLoading: (loading: boolean) => void;
   setActiveTab: (tab: 'all' | 'blocks' | 'items' | 'entities') => void;
   setSearchQuery: (query: string) => void;
   setStatusFilter: (filter: 'all' | 'ghosts' | 'added' | 'orphans' | 'mers' | 'atlas' | 'flipbook' | 'variations' | 'blockstates' | 'variation') => void;
@@ -166,6 +192,9 @@ const initialState: PackStoreState = {
   stats: initialStats,
 
   isScanning: false,
+  isGridLoading: false,
+  isWorkspaceLoading: false,
+  isCatalogLoading: false,
   scanProgress: null,
 
   activeTab: 'all',
@@ -217,33 +246,6 @@ const initialState: PackStoreState = {
   jsonOpenWithApps: [],
 };
 
-function computeStats(aliases: TextureAliasDto[]): PackStatsDto {
-  const total = aliases.length;
-  const done = aliases.filter((a) => a.status === 'OK').length;
-  const ghosts = aliases.filter((a) => a.status === 'GHOST').length;
-  const orphans = aliases.filter((a) => a.status === 'ORPHAN').length;
-  const blocks = aliases.filter((a) => a.category === 'block');
-  const items = aliases.filter((a) => a.category === 'item');
-  const entities = aliases.filter((a) => a.category === 'entity');
-
-  return {
-    totalCount: total,
-    okCount: done,
-    ghostCount: ghosts,
-    orphanCount: orphans,
-    blocksCount: blocks.length,
-    itemsCount: items.length,
-    entitiesCount: entities.length,
-    blocksGhostCount: blocks.filter((a) => a.status === 'GHOST').length,
-    itemsGhostCount: items.filter((a) => a.status === 'GHOST').length,
-    entitiesGhostCount: entities.filter((a) => a.status === 'GHOST').length,
-    total,
-    done,
-    ghosts,
-    orphans,
-  };
-}
-
 // Internal store state
 let currentState: PackStoreState = { ...initialState };
 const listeners = new Set<() => void>();
@@ -275,13 +277,16 @@ export const packStoreActions: PackStoreActions = {
       entityWorkspaceTree: Array.isArray(dto.entityWorkspaceTree) ? dto.entityWorkspaceTree : currentState.entityWorkspaceTree,
       packFolders: Array.isArray(dto.packFolders) ? dto.packFolders : currentState.packFolders,
       recentPacks: Array.isArray(dto.recentPacks) ? dto.recentPacks : currentState.recentPacks,
-      catalogTree: dto.catalogTree !== undefined ? dto.catalogTree : currentState.catalogTree,
+      catalogTree: Array.isArray(dto.catalogTree) ? dto.catalogTree : currentState.catalogTree,
       referencePacks: Array.isArray(dto.referencePacks) && dto.referencePacks.length > 0 ? dto.referencePacks : currentState.referencePacks,
       activeReferenceId: dto.activeReferenceId ?? currentState.activeReferenceId,
       hasVanillaAssets: dto.hasVanillaAssets !== undefined ? dto.hasVanillaAssets : currentState.hasVanillaAssets,
       selectedFolderPath: dto.packRoot !== undefined && dto.packRoot !== currentState.packRoot ? null : currentState.selectedFolderPath,
       stats,
       isScanning: false,
+      isGridLoading: false,
+      isWorkspaceLoading: false,
+      isCatalogLoading: false,
       scanProgress: null,
     };
     notify();
@@ -305,8 +310,10 @@ export const packStoreActions: PackStoreActions = {
 
   updateTexture(aliasKey: string, newStatus: string, fullPath: string, imageUrl?: string | null, relativePath?: string | null): void {
     const norm = (p?: string | null) => (p || '').replace(/[/\\]+/g, '/').toLowerCase();
+    const stripExt = (p?: string | null) => (p || '').replace(/[/\\]+/g, '/').toLowerCase().replace(/\.(png|tga|jpg|jpeg|webp)(\?.*)?(#.*)?$/i, '');
     const targetNormFull = norm(fullPath);
-    const targetNormRel = norm(relativePath);
+    const targetNormRel = stripExt(relativePath);
+    const aliasNorm = aliasKey ? aliasKey.toLowerCase() : '';
 
     // If fullPath or relativePath is specified, match specifically by path so we don't
     // accidentally update all variations or blockstates sharing the same alias!
@@ -322,19 +329,25 @@ export const packStoreActions: PackStoreActions = {
 
       // 2. Direct relativePath match (scoped to aliasKey if present)
       if (!isMatch && targetNormRel && alias.relativePath) {
-        const aRel = norm(alias.relativePath).replace(/\.(png|tga)$/, '');
-        const tRel = targetNormRel.replace(/\.(png|tga)$/, '');
-        if (aRel === tRel && (!aliasKey || alias.alias.toLowerCase() === aliasKey.toLowerCase())) {
+        const aRel = stripExt(alias.relativePath);
+        const tRel = targetNormRel;
+        if (aRel === tRel && (!aliasNorm || alias.alias.toLowerCase() === aliasNorm)) {
           isMatch = true;
         }
       }
 
-      // 3. Fallback: match by target fullPath ending with alias relativePath
+      // 3. Fallback: match by target fullPath ending with exact alias relativePath
       if (!isMatch && targetNormFull && alias.relativePath) {
-        const aRel = norm(alias.relativePath).replace(/\.(png|tga)$/, '');
-        if ((targetNormFull.endsWith('/' + aRel + '.png') || targetNormFull.endsWith('/' + aRel + '.tga')) &&
-            (!aliasKey || alias.alias.toLowerCase() === aliasKey.toLowerCase())) {
-          isMatch = true;
+        const aRel = stripExt(alias.relativePath);
+        if ((targetNormFull.endsWith('/' + aRel + '.png') || targetNormFull.endsWith('/' + aRel + '.tga') || targetNormFull.endsWith('\\' + aRel + '.png')) &&
+            (!aliasNorm || alias.alias.toLowerCase() === aliasNorm)) {
+          // Guard: if targetNormFull is e.g. door_jungle_lower_var1.png, do not match door_jungle_lower.png
+          const targetFile = targetNormFull.split(/[/\\]/).pop() || '';
+          const targetFileBase = targetFile.replace(/\.(png|tga)$/i, '');
+          const aliasFile = aRel.split(/[/\\]/).pop() || '';
+          if (targetFileBase === aliasFile) {
+            isMatch = true;
+          }
         }
       }
 
@@ -354,20 +367,265 @@ export const packStoreActions: PackStoreActions = {
       };
     });
 
+    const patchWorkspaceLeaves = (tree: BlockGroupNodeDto[]): BlockGroupNodeDto[] => (tree || []).map((block) => ({
+      ...block,
+      aliasGroups: block.aliasGroups?.map((ag) => ({
+        ...ag,
+        // Update faceNodes leaves if present
+        faceNodes: (ag as any).faceNodes?.map((fn: any) => ({
+          ...fn,
+          leaves: fn.leaves?.map((leaf: any) => {
+            let isMatch = false;
+            if (targetNormFull && leaf.fullPath && norm(leaf.fullPath) === targetNormFull) isMatch = true;
+            if (!isMatch && targetNormRel && leaf.relativePath && stripExt(leaf.relativePath) === targetNormRel && (!aliasNorm || leaf.alias.toLowerCase() === aliasNorm)) isMatch = true;
+            if (!isMatch && targetNormFull && leaf.relativePath) {
+              const lRel = stripExt(leaf.relativePath);
+              const targetFile = targetNormFull.split(/[/\\]/).pop() || '';
+              const targetFileBase = targetFile.replace(/\.(png|tga)$/i, '');
+              const leafFile = lRel.split(/[/\\]/).pop() || '';
+              if (targetFileBase === leafFile && (!aliasNorm || leaf.alias.toLowerCase() === aliasNorm)) {
+                isMatch = true;
+              }
+            }
+            if (!isMatch && !targetNormFull && !targetNormRel && (leaf.alias === aliasKey)) isMatch = true;
+            if (!isMatch) return leaf;
+            return {
+              ...leaf,
+              status: newStatus as any,
+              fullPath: fullPath || leaf.fullPath,
+              imageUrl: imageUrl || leaf.imageUrl,
+            };
+          }),
+        })),
+        leaves: ag.leaves?.map((leaf: any) => {
+          let isMatch = false;
+          if (targetNormFull && leaf.fullPath && norm(leaf.fullPath) === targetNormFull) isMatch = true;
+          if (!isMatch && targetNormRel && leaf.relativePath && stripExt(leaf.relativePath) === targetNormRel && (!aliasNorm || leaf.alias.toLowerCase() === aliasNorm)) isMatch = true;
+          if (!isMatch && targetNormFull && leaf.relativePath) {
+            const lRel = stripExt(leaf.relativePath);
+            const targetFile = targetNormFull.split(/[/\\]/).pop() || '';
+            const targetFileBase = targetFile.replace(/\.(png|tga)$/i, '');
+            const leafFile = lRel.split(/[/\\]/).pop() || '';
+            if (targetFileBase === leafFile && (!aliasNorm || leaf.alias.toLowerCase() === aliasNorm)) {
+              isMatch = true;
+            }
+          }
+          if (!isMatch && !targetNormFull && !targetNormRel && (leaf.alias === aliasKey)) isMatch = true;
+          if (!isMatch) return leaf;
+          return {
+            ...leaf,
+            status: newStatus as any,
+            fullPath: fullPath || leaf.fullPath,
+            imageUrl: imageUrl || leaf.imageUrl,
+          };
+        }),
+      })),
+    }));
+
+    const updatedBlockTree = patchWorkspaceLeaves(currentState.blockWorkspaceTree || [] as any);
+    const updatedEntityTree = patchWorkspaceLeaves(currentState.entityWorkspaceTree || [] as any);
 
     currentState = {
       ...currentState,
       aliases: updatedAliases,
+      blockWorkspaceTree: updatedBlockTree as any,
+      entityWorkspaceTree: updatedEntityTree as any,
       stats: computeStats(updatedAliases),
     };
     notify();
   },
 
-  setScanProgress(progress: ScanProgressPayload | null): void {
+  optimisticDeleteTexture(fullPath: string, aliasKey?: string): void {
+    const result = applyOptimisticDeleteTexture(
+      currentState.aliases,
+      currentState.blockWorkspaceTree || [],
+      currentState.entityWorkspaceTree || [],
+      fullPath,
+      aliasKey
+    );
     currentState = {
       ...currentState,
-      isScanning: progress !== null && progress.stage !== 'scan_done',
-      scanProgress: progress,
+      aliases: result.aliases,
+      blockWorkspaceTree: result.blockWorkspaceTree as any,
+      entityWorkspaceTree: result.entityWorkspaceTree as any,
+      stats: result.stats,
+    };
+    notify();
+  },
+
+  optimisticDeleteEntries(aliasKey: string, category: string, relativePath?: string): void {
+    const result = applyOptimisticDeleteEntries(
+      currentState.aliases,
+      currentState.blockWorkspaceTree || [],
+      currentState.entityWorkspaceTree || [],
+      currentState.catalogTree,
+      aliasKey,
+      category,
+      relativePath
+    );
+    currentState = {
+      ...currentState,
+      aliases: result.aliases,
+      blockWorkspaceTree: result.blockWorkspaceTree as any,
+      entityWorkspaceTree: result.entityWorkspaceTree as any,
+      catalogTree: result.catalogTree as any,
+      stats: result.stats,
+    };
+    notify();
+  },
+
+  optimisticDeleteVariation(alias: string, relativePath: string): void {
+    const result = applyOptimisticDeleteVariation(
+      currentState.aliases,
+      currentState.blockWorkspaceTree || [],
+      currentState.entityWorkspaceTree || [],
+      alias,
+      relativePath
+    );
+    currentState = {
+      ...currentState,
+      aliases: result.aliases,
+      blockWorkspaceTree: result.blockWorkspaceTree as any,
+      entityWorkspaceTree: result.entityWorkspaceTree as any,
+      stats: result.stats,
+    };
+    notify();
+  },
+
+  optimisticDeleteBlockEntry(blockId: string): void {
+    if (!currentState.blockWorkspaceTree) return;
+    const updatedTree = applyOptimisticDeleteBlockEntry(currentState.blockWorkspaceTree, blockId);
+    currentState = {
+      ...currentState,
+      blockWorkspaceTree: updatedTree,
+    };
+    notify();
+  },
+
+  optimisticSetVariationWeight(alias: string, relativePath: string, weight: number): void {
+    const result = applyOptimisticSetVariationWeight(
+      currentState.aliases,
+      currentState.blockWorkspaceTree || [],
+      currentState.entityWorkspaceTree || [],
+      alias,
+      relativePath,
+      weight
+    );
+    currentState = {
+      ...currentState,
+      aliases: result.aliases,
+      blockWorkspaceTree: result.blockWorkspaceTree as any,
+      entityWorkspaceTree: result.entityWorkspaceTree as any,
+      stats: result.stats,
+    };
+    notify();
+  },
+
+  optimisticRenameVariation(alias: string, oldRelativePath: string, newRelativePath: string): void {
+    const result = applyOptimisticRenameVariation(
+      currentState.aliases,
+      currentState.blockWorkspaceTree || [],
+      currentState.entityWorkspaceTree || [],
+      alias,
+      oldRelativePath,
+      newRelativePath
+    );
+    currentState = {
+      ...currentState,
+      aliases: result.aliases,
+      blockWorkspaceTree: result.blockWorkspaceTree as any,
+      entityWorkspaceTree: result.entityWorkspaceTree as any,
+      stats: result.stats,
+    };
+    notify();
+  },
+
+  optimisticAddVariation(alias: string, blockVariantIndex?: number | null, count = 1, sourceRelativePath?: string | null): void {
+    const result = applyOptimisticAddVariation(
+      currentState.aliases,
+      currentState.blockWorkspaceTree || [],
+      currentState.entityWorkspaceTree || [],
+      alias,
+      blockVariantIndex,
+      count,
+      sourceRelativePath
+    );
+    currentState = {
+      ...currentState,
+      aliases: result.aliases,
+      blockWorkspaceTree: result.blockWorkspaceTree as any,
+      entityWorkspaceTree: result.entityWorkspaceTree as any,
+      stats: result.stats,
+    };
+    notify();
+  },
+
+  optimisticAddVanillaEntry(id: string, category: string, alias?: string, catalogNode?: BlockGroupNodeDto | null): void {
+    const result = applyOptimisticAddVanillaEntry(
+      currentState.aliases,
+      currentState.blockWorkspaceTree || [],
+      currentState.entityWorkspaceTree || [],
+      currentState.catalogTree,
+      id,
+      category,
+      alias,
+      catalogNode
+    );
+    currentState = {
+      ...currentState,
+      aliases: result.aliases,
+      blockWorkspaceTree: result.blockWorkspaceTree as any,
+      entityWorkspaceTree: result.entityWorkspaceTree as any,
+      catalogTree: result.catalogTree as any,
+      stats: result.stats,
+    };
+    notify();
+  },
+
+  startPackLoading(folderPath: string, packName?: string): void {
+    const derivedName = packName || folderPath.split(/[\\/]/).filter(Boolean).pop() || 'Resource Pack';
+    currentState = {
+      ...currentState,
+      packRoot: folderPath,
+      packName: derivedName,
+      isScanning: true,
+      isGridLoading: true,
+      isWorkspaceLoading: true,
+      isCatalogLoading: true,
+      scanProgress: {
+        stage: 'scan_start',
+        current: 1,
+        total: 5,
+        message: `Opening ${derivedName}...`,
+      },
+    };
+    notify();
+  },
+
+  setIsGridLoading(loading: boolean): void {
+    currentState = { ...currentState, isGridLoading: loading };
+    notify();
+  },
+
+  setIsWorkspaceLoading(loading: boolean): void {
+    currentState = { ...currentState, isWorkspaceLoading: loading };
+    notify();
+  },
+
+  setIsCatalogLoading(loading: boolean): void {
+    currentState = { ...currentState, isCatalogLoading: loading };
+    notify();
+  },
+
+  setScanProgress(progress: ScanProgressPayload | null): void {
+    const isDone = progress === null || progress.stage === 'scan_done';
+    currentState = {
+      ...currentState,
+      isScanning: !isDone,
+      isGridLoading: !isDone && (progress?.stage === 'scan_start' || progress?.stage === 'scanning'),
+      isWorkspaceLoading: !isDone && progress?.stage !== 'scan_done',
+      isCatalogLoading: !isDone && progress?.stage !== 'scan_done',
+      scanProgress: isDone ? null : progress,
     };
     notify();
   },
@@ -376,6 +634,9 @@ export const packStoreActions: PackStoreActions = {
     currentState = {
       ...currentState,
       isScanning: scanning,
+      isGridLoading: scanning,
+      isWorkspaceLoading: scanning,
+      isCatalogLoading: scanning,
       scanProgress: scanning ? currentState.scanProgress : null,
     };
     notify();

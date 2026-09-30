@@ -1,17 +1,22 @@
 import React, { useMemo, useState, useRef, useEffect, useCallback } from 'react';
-import { usePackStore, pathMatchesFolder } from '../../store/packStore';
+import { usePackStore, packStoreActions, pathMatchesFolder } from '../../store/packStore';
 import { useIpc } from '../../hooks/useIpc';
 import { TextureAliasDto, OpenWithAppDto, TileDragData } from '../../types/ipc';
 import { FlipbookThumbnail } from '../common/FlipbookThumbnail';
 import { TextureContextMenu } from '../common/TextureContextMenu';
 import { TileHoverMorphPortal, TileHoverMorphTarget } from './TileHoverMorphPortal';
 import { TextureDropConfirm } from './TextureDropConfirm';
+import { PackGridSkeleton } from './PackGridSkeleton';
 import { Badge } from '../common/Badge';
+import { normalizePath, getFileName, resolveTextureFullPath } from '../../utils/pathUtils';
+import { hasTerrainTextureJson as checkTerrainTextureJson } from '../../utils/packFileUtils';
 import styles from './PackGrid.module.css';
 
 interface PackGridTileProps {
   alias: TextureAliasDto;
   uniqueKey: string;
+  isExiting?: boolean;
+  isDeletingTexture?: boolean;
   onTileClick: (domEl: HTMLElement, alias: TextureAliasDto, key: string) => void;
   onContextMenu: (e: React.MouseEvent, alias: TextureAliasDto, key: string) => void;
 }
@@ -34,6 +39,8 @@ const getStatusDotClass = (status: string) => {
 const PackGridTile = React.memo<PackGridTileProps>(({
   alias,
   uniqueKey,
+  isExiting,
+  isDeletingTexture,
   onTileClick,
   onContextMenu,
 }) => {
@@ -65,19 +72,16 @@ const PackGridTile = React.memo<PackGridTileProps>(({
   // Process dropped file to base64 and dispatch IPC
   const processImport = useCallback(
     (file: File) => {
+      const targetFullPath = resolveTextureFullPath(packRoot, alias.fullPath, alias.relativePath);
+      if (!targetFullPath) return;
+      // optimistic BEFORE file read — instant tile flip
+      const previewUrl = URL.createObjectURL(file);
+      packStoreActions.updateTexture(alias.alias, 'OK', targetFullPath, previewUrl, alias.relativePath);
+
       const reader = new FileReader();
       reader.onload = () => {
         const base64Data = reader.result as string;
         if (!base64Data) return;
-
-        const targetFullPath =
-          alias.fullPath ||
-          (packRoot && alias.relativePath
-            ? `${packRoot.replace(/[/\\]+$/, '')}\\textures\\${alias.relativePath.replace(/^[/\\]+/, '')}`
-            : '');
-
-        if (!targetFullPath) return;
-
         dropImportTexture({
           aliasKey: alias.alias,
           fullPath: targetFullPath,
@@ -95,6 +99,7 @@ const PackGridTile = React.memo<PackGridTileProps>(({
   // Process copying texture from another tile
   const executeTileCopy = useCallback(
     (sourceData: TileDragData, targetFullPath: string) => {
+      packStoreActions.updateTexture(alias.alias, 'OK', targetFullPath, sourceData.imageUrl || null, alias.relativePath);
       if (sourceData.fullPath) {
         copyTextureFile({
           sourceFullPath: sourceData.fullPath,
@@ -193,11 +198,7 @@ const PackGridTile = React.memo<PackGridTileProps>(({
           return;
         }
 
-        const targetFullPath =
-          alias.fullPath ||
-          (packRoot && alias.relativePath
-            ? `${packRoot.replace(/[/\\]+$/, '')}\\textures\\${alias.relativePath.replace(/^[/\\]+/, '')}`
-            : '');
+        const targetFullPath = resolveTextureFullPath(packRoot, alias.fullPath, alias.relativePath);
 
         if (!targetFullPath) return;
 
@@ -244,11 +245,7 @@ const PackGridTile = React.memo<PackGridTileProps>(({
       processImport(file);
       URL.revokeObjectURL(objectUrl);
     } else if (pendingDrop.type === 'tile') {
-      const targetFullPath =
-        alias.fullPath ||
-        (packRoot && alias.relativePath
-          ? `${packRoot.replace(/[/\\]+$/, '')}\\textures\\${alias.relativePath.replace(/^[/\\]+/, '')}`
-          : '');
+      const targetFullPath = resolveTextureFullPath(packRoot, alias.fullPath, alias.relativePath);
       if (targetFullPath) {
         executeTileCopy(pendingDrop.source, targetFullPath);
       }
@@ -278,7 +275,7 @@ const PackGridTile = React.memo<PackGridTileProps>(({
 
   return (
     <div
-      className={`${styles.tileCard} ${isDragOver ? styles.tileCardDragOver : ''}`}
+      className={`${styles.tileCard} ${isDragOver ? styles.tileCardDragOver : ''} ${isExiting ? styles.tileCardExiting : ''}`}
       draggable={isDraggable}
       onDragStart={handleDragStart}
       onClick={(e) => onTileClick(e.currentTarget, alias, uniqueKey)}
@@ -327,19 +324,19 @@ const PackGridTile = React.memo<PackGridTileProps>(({
             atlasSrc={
               alias.atlasFullPath
                 ? packRoot && alias.atlasFullPath.startsWith(packRoot)
-                  ? `https://pack.local/${alias.atlasFullPath.slice(packRoot.length).replace(/^[/\\]+/, '').replace(/\\/g, '/')}`
-                  : alias.imageUrl.replace(/[^/?#]+(\?.*)?$/, `${alias.atlasFullPath.split(/[/\\]/).pop()}$1`)
+                  ? `https://pack.local/${normalizePath(alias.atlasFullPath.slice(packRoot.length).replace(/^[/\\]+/, ''))}`
+                  : alias.imageUrl.replace(/[^/?#]+(\?.*)?$/, `${getFileName(alias.atlasFullPath)}$1`)
                 : null
             }
             alt={alias.alias}
             aliasKey={alias.alias}
-            className={styles.tileThumbnail}
+            className={`${styles.tileThumbnail} ${isDeletingTexture ? styles.tileThumbnailDeleting : ''}`}
             isFlipbook={alias.isFlipbook || Boolean(alias.hasAtlas)}
             flipbook={alias.flipbook}
             loading="lazy"
           />
         ) : (
-          <span className={styles.placeholderGhost}>?</span>
+          <span key="ghost" className={styles.placeholderGhost}>?</span>
         )}
       </div>
 
@@ -392,6 +389,8 @@ PackGridTile.displayName = 'PackGridTile';
 
 export const PackGrid: React.FC = () => {
   const aliases = usePackStore((s) => s.aliases);
+  const isScanning = usePackStore((s) => s.isScanning);
+  const isGridLoading = usePackStore((s) => s.isGridLoading);
   const activeTab = usePackStore((s) => s.activeTab);
   const searchQuery = usePackStore((s) => s.searchQuery);
   const statusFilter = usePackStore((s) => s.statusFilter);
@@ -400,20 +399,9 @@ export const PackGrid: React.FC = () => {
   const tileZoom = usePackStore((s) => s.tileZoom);
   const packAliases = usePackStore((s) => s.aliases);
   const packFolders = usePackStore((s) => s.packFolders);
-  const { editTexture, deleteTextureFile, deleteTextureEntries, openInExplorer, scaffoldTextureVariation, deleteTextureVariation } = useIpc();
+  const { editTexture, deleteTextureFile, deleteTextureEntries, openInExplorer, scaffoldTextureVariation, deleteTextureVariation, setVariationWeight, renameVariation } = useIpc();
 
-  const hasTerrainTextureJson = React.useMemo(() => {
-    function check(items: any[]): boolean {
-      if (!items) return false;
-      for (const item of items) {
-        const p = (item.relativePath || item.name || '').replace(/[/\\]+/g, '/').toLowerCase();
-        if ((p === 'textures/terrain_texture.json' || p.endsWith('/terrain_texture.json') || p === 'terrain_texture.json') && !item.isMissing) return true;
-        if (item.subFolders?.length && check(item.subFolders)) return true;
-      }
-      return false;
-    }
-    return check(packFolders || []);
-  }, [packFolders]);
+  const hasTerrainTextureJson = React.useMemo(() => checkTerrainTextureJson(packFolders), [packFolders]);
 
 
   // Single active context menu target (prevents full-grid re-renders on menu toggle)
@@ -422,6 +410,11 @@ export const PackGrid: React.FC = () => {
     anchor: { x?: number; y?: number; top?: number; bottom?: number; left?: number; right?: number };
     key: string;
   } | null>(null);
+
+  // Set of tile keys currently playing their exit shrink animation
+  const [exitingTileKeys, setExitingTileKeys] = useState<Set<string>>(new Set());
+  // Set of tile keys currently playing their texture deletion morph animation
+  const [deletingTextureKeys, setDeletingTextureKeys] = useState<Set<string>>(new Set());
 
   // Morphing Portal target (opened on tile click)
   const [hoverMorphTarget, setHoverMorphTarget] = useState<TileHoverMorphTarget | null>(null);
@@ -535,7 +528,9 @@ export const PackGrid: React.FC = () => {
 
   return (
     <div className={styles.gridContainer}>
-      {filteredAliases.length === 0 ? (
+      {isGridLoading || (isScanning && filteredAliases.length === 0) ? (
+        <PackGridSkeleton tileZoom={tileZoom} />
+      ) : filteredAliases.length === 0 ? (
         <div className={styles.emptyState}>
           <span className={styles.emptyIcon}>🔍</span>
           <span className={styles.emptyText}>No textures match the current filter</span>
@@ -550,12 +545,16 @@ export const PackGrid: React.FC = () => {
         >
           {filteredAliases.map((alias, index) => {
             const uniqueKey = `${alias.category}:${alias.alias}:${alias.relativePath || ''}:${alias.textureVariantIndex ?? ''}:${alias.blockVariantIndex ?? ''}:${index}`;
+            const isExiting = exitingTileKeys.has(uniqueKey) || exitingTileKeys.has(alias.alias);
+            const isDeletingTexture = deletingTextureKeys.has(uniqueKey) || deletingTextureKeys.has(alias.alias);
 
             return (
               <PackGridTile
                 key={uniqueKey}
                 alias={alias}
                 uniqueKey={uniqueKey}
+                isExiting={isExiting}
+                isDeletingTexture={isDeletingTexture}
                 onTileClick={handleTileClick}
                 onContextMenu={handleContextMenu}
               />
@@ -586,12 +585,54 @@ export const PackGrid: React.FC = () => {
           onDeleteTexture={() => {
             setHoverMorphTarget(null);
             if (contextMenuTarget.alias.fullPath) {
-              deleteTextureFile(contextMenuTarget.alias.fullPath, contextMenuTarget.alias.alias);
+              const fullPath = contextMenuTarget.alias.fullPath;
+              const aliasKey = contextMenuTarget.alias.alias;
+              const targetKey = contextMenuTarget.key;
+
+              setDeletingTextureKeys((prev) => new Set(prev).add(targetKey).add(aliasKey));
+              setTimeout(() => {
+                packStoreActions.optimisticDeleteTexture(fullPath, aliasKey);
+                deleteTextureFile(fullPath, aliasKey);
+                setDeletingTextureKeys((prev) => {
+                  const next = new Set(prev);
+                  next.delete(targetKey);
+                  next.delete(aliasKey);
+                  return next;
+                });
+              }, 160);
             }
           }}
           onDeleteEntries={() => {
             setHoverMorphTarget(null);
-            deleteTextureEntries(contextMenuTarget.alias.alias, contextMenuTarget.alias.category, contextMenuTarget.alias.relativePath);
+            const aliasKey = contextMenuTarget.alias.alias;
+            const category = contextMenuTarget.alias.category;
+            const relPath = contextMenuTarget.alias.relativePath;
+            const targetKey = contextMenuTarget.key;
+
+            const hasPhysicalTexture = Boolean(
+              contextMenuTarget.alias.fullPath ||
+              contextMenuTarget.alias.status === 'OK' ||
+              contextMenuTarget.alias.exists
+            );
+
+            if (!hasPhysicalTexture) {
+              // Pure ghost entry — card will actually vanish from pack, play exit shrink animation
+              setExitingTileKeys((prev) => new Set(prev).add(targetKey).add(aliasKey));
+              setTimeout(() => {
+                packStoreActions.optimisticDeleteEntries(aliasKey, category, relPath);
+                deleteTextureEntries(aliasKey, category, relPath);
+                setExitingTileKeys((prev) => {
+                  const next = new Set(prev);
+                  next.delete(targetKey);
+                  next.delete(aliasKey);
+                  return next;
+                });
+              }, 180);
+            } else {
+              // Physical file exists on disk — card morphs in-place to ORPHAN, no shrink/exit animation!
+              packStoreActions.optimisticDeleteEntries(aliasKey, category, relPath);
+              deleteTextureEntries(aliasKey, category, relPath);
+            }
           }}
           onEditMers={() => {
             setHoverMorphTarget(null);
@@ -617,6 +658,12 @@ export const PackGrid: React.FC = () => {
             )
               ? async (count = 1) => {
                   setHoverMorphTarget(null);
+                  packStoreActions.optimisticAddVariation(
+                    contextMenuTarget.alias.alias,
+                    contextMenuTarget.alias.blockVariantIndex ?? null,
+                    count,
+                    contextMenuTarget.alias.relativePath ?? null
+                  );
                   for (let i = 0; i < count; i++) {
                     await scaffoldTextureVariation(
                       contextMenuTarget.alias.alias,
@@ -634,7 +681,46 @@ export const PackGrid: React.FC = () => {
             contextMenuTarget.alias.relativePath
               ? () => {
                   setHoverMorphTarget(null);
+                  packStoreActions.optimisticDeleteVariation(
+                    contextMenuTarget.alias.alias,
+                    contextMenuTarget.alias.relativePath!
+                  );
                   deleteTextureVariation(contextMenuTarget.alias.alias, contextMenuTarget.alias.relativePath!);
+                }
+              : undefined
+          }
+          onUpdateWeight={
+            contextMenuTarget.alias.category === 'block' &&
+            contextMenuTarget.alias.textureVariantIndex != null &&
+            contextMenuTarget.alias.relativePath
+              ? (weight: number) => {
+                  setHoverMorphTarget(null);
+                  packStoreActions.optimisticSetVariationWeight(
+                    contextMenuTarget.alias.alias,
+                    contextMenuTarget.alias.relativePath!,
+                    weight
+                  );
+                  setVariationWeight(contextMenuTarget.alias.alias, contextMenuTarget.alias.relativePath!, weight);
+                }
+              : undefined
+          }
+          onRenameVariation={
+            contextMenuTarget.alias.category === 'block' &&
+            contextMenuTarget.alias.textureVariantIndex != null &&
+            contextMenuTarget.alias.relativePath
+              ? (newLabel: string) => {
+                  setHoverMorphTarget(null);
+                  const oldRel = contextMenuTarget.alias.relativePath!;
+                  const oldSlash = oldRel.lastIndexOf('/');
+                  const baseDir = oldSlash > 0 ? oldRel.substring(0, oldSlash) : 'textures/blocks';
+                  const cleanLabel = newLabel.replace(/\.(png|tga)$/i, '');
+                  const newRel = `${baseDir}/${cleanLabel}.png`;
+                  packStoreActions.optimisticRenameVariation(
+                    contextMenuTarget.alias.alias,
+                    oldRel,
+                    newRel
+                  );
+                  renameVariation(contextMenuTarget.alias.alias, oldRel, newLabel);
                 }
               : undefined
           }

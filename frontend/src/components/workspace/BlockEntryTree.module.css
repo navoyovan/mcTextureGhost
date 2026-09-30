@@ -15,27 +15,13 @@
   font-family: var(--font-mono, monospace);
   user-select: none;
   position: relative;
-  resize: vertical;
-}
-
-.treeContainer:not(.treeContainerCollapsed)::after {
-  content: '';
-  position: absolute;
-  bottom: 3px;
-  right: 3px;
-  width: 10px;
-  height: 10px;
-  background: linear-gradient(135deg, transparent 0%, transparent 40%, rgba(255, 255, 255, 0.25) 40%, rgba(255, 255, 255, 0.25) 55%, transparent 55%, transparent 70%, rgba(255, 255, 255, 0.25) 70%, rgba(255, 255, 255, 0.25) 85%, transparent 85%);
-  pointer-events: none;
-  opacity: 0.7;
-  z-index: 10;
+  transition: height 0.26s cubic-bezier(0.16, 1, 0.3, 1), min-height 0.26s cubic-bezier(0.16, 1, 0.3, 1), max-height 0.26s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.15s ease;
 }
 
 .treeContainerCollapsed {
   height: 38px !important;
   min-height: 38px !important;
   max-height: 38px !important;
-  resize: none !important;
   flex-shrink: 0;
 }
 
@@ -112,6 +98,38 @@
   background: rgba(255, 255, 255, 0.08);
   color: #ffffff;
   border-color: rgba(255, 255, 255, 0.2);
+}
+
+.treeToggleChevron {
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.treeToggleChevronExpanded {
+  transform: rotate(180deg);
+}
+
+.treeContentWrapper {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows 0.26s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease;
+  opacity: 1;
+  overflow: hidden;
+  flex: 1;
+  min-height: 0;
+}
+
+.treeContentWrapperCollapsed {
+  grid-template-rows: 0fr;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.treeContentInner {
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .treeContent {
@@ -221,6 +239,14 @@
   flex-shrink: 0;
 }
 
+.chevronIcon {
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.chevronIconExpanded {
+  transform: rotate(90deg);
+}
+
 .chevronPlaceholder {
   width: 14px;
   height: 14px;
@@ -258,7 +284,25 @@
   flex-shrink: 0;
 }
 
-/* Branch Indentation */
+/* Branch Indentation & Animated Accordion */
+.treeChildrenWrapper {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.22s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.18s ease;
+  opacity: 0;
+  overflow: hidden;
+}
+
+.treeChildrenExpanded {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+
+.treeChildrenInner {
+  min-height: 0;
+  overflow: hidden;
+}
+
 .treeChildren {
   margin-left: 18px;
   padding-left: 8px;

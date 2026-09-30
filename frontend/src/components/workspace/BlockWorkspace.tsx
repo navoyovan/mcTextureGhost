@@ -1,120 +1,40 @@
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
-import { Box, Layers, ArrowRight } from 'lucide-react';
-import { usePackStore } from '../../store/packStore';
+import { Box, Layers, ArrowRight, MoreVertical, Trash2 } from 'lucide-react';
+import { usePackStore, packStoreActions } from '../../store/packStore';
 import { useIpc } from '../../hooks/useIpc';
 import { BlockGroupNodeDto, CatalogLeafDto, TextureAliasDto, OpenWithAppDto } from '../../types/ipc';
 import { Block3DViewer } from './Block3DViewer';
 import { BlockEntryTree } from './BlockEntryTree';
-import { WorkspaceTileCard, VariantTileGroup } from './WorkspaceTileCard';
+import { WorkspaceTileCard } from './WorkspaceTileCard';
+import { WorkspaceShell } from './WorkspaceShell';
 import { TileHoverMorphPortal, TileHoverMorphTarget } from '../grid/TileHoverMorphPortal';
 import { TextureContextMenu } from '../common/TextureContextMenu';
+import { WorkspaceSkeleton } from './WorkspaceSkeleton';
 import { Badge } from '../common/Badge';
+import {
+  hasTerrainTextureJson as checkTerrainTextureJson,
+  hasBlocksJson as checkBlocksJson,
+} from '../../utils/packFileUtils';
+import { leafToAliasDto, groupLeavesByVariantSlot } from '../../utils/leafTransforms';
 import styles from './BlockWorkspace.module.css';
-
-function leafToAliasDto(leaf: CatalogLeafDto): TextureAliasDto {
-  return {
-    alias: leaf.alias,
-    displayName: leaf.displayName,
-    relativePath: leaf.relativePath,
-    fullPath: leaf.fullPath,
-    category: (leaf.category as any) || 'block',
-    entityId: leaf.entityId,
-    textureKey: leaf.textureKey,
-    geometryId: leaf.geometryId,
-    isAttachable: leaf.isAttachable,
-    status: (leaf.status === 'VANILLA' ? 'OK' : leaf.status) as any,
-    exists: leaf.status !== 'GHOST',
-    imageUrl: leaf.imageUrl,
-    blockFaces: [],
-    usedByBlocks: [],
-    variantKind: leaf.variantKind || 'None',
-    blockVariantIndex: leaf.blockVariantIndex,
-    totalBlockVariants: leaf.totalBlockVariants,
-    textureVariantIndex: leaf.textureVariantIndex,
-    totalTextureVariants: leaf.totalTextureVariants,
-    weight: leaf.weight,
-    isFlipbook: leaf.isFlipbook,
-    flipbook: leaf.flipbook,
-    primaryFaceBadgeText: leaf.primaryFaceBadgeText || '',
-    subtitleCaption: leaf.subtitleCaption || '',
-    hasMers: (leaf as any).hasMers,
-    mersFullPath: (leaf as any).mersFullPath,
-    key: leaf.alias,
-  };
-}
-
-// Group a flat leaf array by alias + block variant slot.
-// Leaves in the same group are texture variations ("variations": [ ... ]) of the same block state slot.
-// Distinct block variants ("textures": [ ... ]) have different blockVariantIndex and form separate tiles.
-function groupLeavesByVariantSlot(leaves: CatalogLeafDto[]): VariantTileGroup[] {
-  const map = new Map<string, VariantTileGroup>();
-  for (const leaf of leaves) {
-    const isTexVar = Boolean(
-      (leaf.totalTextureVariants && leaf.totalTextureVariants > 1) ||
-      leaf.variantKind === 'TextureVariant' ||
-      leaf.variantKind === 'NestedVariant'
-    );
-
-    const slotKey = isTexVar
-      ? `${leaf.alias}__bv_${leaf.blockVariantIndex ?? 'none'}`
-      : `${leaf.alias}__bv_${leaf.blockVariantIndex ?? 'none'}__rp_${leaf.relativePath || 'def'}`;
-
-    const existing = map.get(slotKey);
-    if (existing) {
-      const exists = existing.leaves.some(
-        (l) =>
-          l.relativePath === leaf.relativePath &&
-          l.textureVariantIndex === leaf.textureVariantIndex
-      );
-      if (!exists) {
-        existing.leaves.push(leaf);
-      }
-    } else {
-      map.set(slotKey, {
-        key: slotKey,
-        alias: leaf.alias,
-        leaves: [leaf],
-      });
-    }
-  }
-  return Array.from(map.values());
-}
 
 export const BlockWorkspace: React.FC = () => {
   const blockWorkspaceTree = usePackStore((s) => s.blockWorkspaceTree);
+  const isScanning = usePackStore((s) => s.isScanning);
+  const isWorkspaceLoading = usePackStore((s) => s.isWorkspaceLoading);
   const searchQuery = usePackStore((s) => s.searchQuery);
   const statusFilter = usePackStore((s) => s.statusFilter);
   const activeFilters = usePackStore((s) => s.activeFilters);
   const packFolders = usePackStore((s) => s.packFolders);
   const packAliases = usePackStore((s) => s.aliases ?? []);
-  const { editTexture, deleteTextureFile, deleteTextureEntries, deleteTextureVariation, openInExplorer, scaffoldTextureVariation } = useIpc();
+  const catalogTree = usePackStore((s) => s.catalogTree);
+  const { editTexture, deleteTextureFile, deleteTextureEntries, deleteTextureVariation, deleteBlockEntry, openInExplorer, scaffoldTextureVariation } = useIpc();
 
-  const hasTerrainTextureJson = useMemo(() => {
-    function check(items: any[]): boolean {
-      if (!items) return false;
-      for (const item of items) {
-        const p = (item.relativePath || item.name || '').replace(/\\/g, '/').toLowerCase();
-        if (
-          (p === 'textures/terrain_texture.json' ||
-           p.endsWith('/terrain_texture.json') ||
-           p === 'terrain_texture.json') &&
-          !item.isMissing
-        ) {
-          return true;
-        }
-        if (item.subFolders && item.subFolders.length > 0) {
-          if (check(item.subFolders)) return true;
-        }
-      }
-      return false;
-    }
-    return check(packFolders || []);
-  }, [packFolders]);
+  const hasTerrainTextureJson = useMemo(() => checkTerrainTextureJson(packFolders), [packFolders]);
+  const hasBlocksJson = useMemo(() => checkBlocksJson(packFolders), [packFolders]);
 
   const [activeMenuKey, setActiveMenuKey] = useState<string | null>(null);
-  const isListDrawerOpen = usePackStore((s) => s.isWorkspaceDrawerOpen);
   const setIsListDrawerOpen = usePackStore((s) => s.setIsWorkspaceDrawerOpen);
-  const disable3DView = usePackStore((s) => s.disable3DView);
   const [contextMenuTarget, setContextMenuTarget] = useState<{
     alias: TextureAliasDto;
     key: string;
@@ -452,14 +372,17 @@ export const BlockWorkspace: React.FC = () => {
   }, []);
 
   const handleDeleteTextureFile = useCallback((path: string, alias: string) => {
+    packStoreActions.optimisticDeleteTexture(path, alias);
     deleteTextureFile(path, alias);
   }, [deleteTextureFile]);
 
   const handleDeleteTextureEntries = useCallback((alias: string, relativePath?: string | null) => {
+    packStoreActions.optimisticDeleteEntries(alias, 'block', relativePath ?? undefined);
     deleteTextureEntries(alias, 'block', relativePath ?? undefined);
   }, [deleteTextureEntries]);
 
   const handleAddVariation = useCallback(async (leaf: CatalogLeafDto, count = 1) => {
+    packStoreActions.optimisticAddVariation(leaf.alias, leaf.blockVariantIndex ?? null, count, leaf.relativePath ?? null);
     for (let i = 0; i < count; i++) {
       await scaffoldTextureVariation(leaf.alias, leaf.blockVariantIndex ?? null, leaf.relativePath ?? null);
     }
@@ -467,12 +390,42 @@ export const BlockWorkspace: React.FC = () => {
 
   const handleDeleteVariation = useCallback((leaf: CatalogLeafDto) => {
     if (leaf.relativePath) {
+      packStoreActions.optimisticDeleteVariation(leaf.alias, leaf.relativePath);
       deleteTextureVariation(leaf.alias, leaf.relativePath);
     }
   }, [deleteTextureVariation]);
 
+  const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
+  const moreMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setIsMoreMenuOpen(false);
+  }, [selectedBlockId]);
+
+  useEffect(() => {
+    if (!isMoreMenuOpen) return;
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (moreMenuRef.current && !moreMenuRef.current.contains(e.target as Node)) {
+        setIsMoreMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, [isMoreMenuOpen]);
+
+  const handleDeleteBlockEntry = useCallback(() => {
+    if (!selectedBlock || selectedBlock.blockId === 'uncategorized') return;
+    packStoreActions.optimisticDeleteBlockEntry(selectedBlock.blockId);
+    deleteBlockEntry(selectedBlock.blockId);
+    setIsMoreMenuOpen(false);
+  }, [selectedBlock, deleteBlockEntry]);
+
   const tileZoom = usePackStore((s) => s.tileZoom);
   const selectedBlockDisplayName = selectedBlock?.displayName || selectedBlock?.blockId || '';
+
+  if (isWorkspaceLoading || (isScanning && (!blockWorkspaceTree || blockWorkspaceTree.length === 0))) {
+    return <WorkspaceSkeleton />;
+  }
 
   if (!blockWorkspaceTree || blockWorkspaceTree.length === 0) {
     return (
@@ -485,144 +438,234 @@ export const BlockWorkspace: React.FC = () => {
   }
 
   return (
-    <div className={styles.workspaceContainer}>
-      {/* Backdrop for compact viewports */}
-      {isListDrawerOpen && (
-        <div
-          className={styles.blockListBackdrop}
-          onClick={() => setIsListDrawerOpen(false)}
-          aria-hidden="true"
-        />
-      )}
-
-      {/* Left List */}
-      <aside
-        className={`${styles.blockListPane} ${isListDrawerOpen ? styles.blockListPaneOpen : ''}`}
-        aria-label="Blocks List"
-      >
-        <div className={styles.blockListHeader}>
-          Pack Blocks ({filteredBlockWorkspaceTree.length}
-          {filteredBlockWorkspaceTree.length !== blockWorkspaceTree.length ? ` / ${blockWorkspaceTree.length}` : ''})
-        </div>
-        {filteredBlockWorkspaceTree.length > 0 ? (
-          filteredBlockWorkspaceTree.map((block) => {
-            const isActive = selectedBlock?.blockId === block.blockId;
-            const isCustom = block.isUserDefined !== false;
-            return (
-              <button
-                key={block.blockId}
-                data-block-id={block.blockId}
-                type="button"
-                className={`${styles.blockItem} ${isActive ? styles.blockItemActive : ''} ${!isCustom ? styles.blockItemVanilla : ''}`}
-                onClick={() => {
-                  setSelectedBlockId(block.blockId);
-                  setIsListDrawerOpen(false);
-                }}
-              >
-                <div className={styles.blockItemLeft}>
-                  <Box size={14} className={!isCustom ? styles.blockIconMuted : undefined} />
-                  <span className={styles.blockItemName}>{block.displayName || block.blockId}</span>
-                </div>
-                <div className={styles.blockItemBadges}>
-                  {!isCustom && block.blockId !== 'uncategorized' && (
-                    <Badge variant="fallback" size="sm" title="Inferred from vanilla blocks.json">fallback</Badge>
-                  )}
-                  {block.ghostCount > 0 && (
-                    <Badge variant="ghost" size="counter">{block.ghostCount}</Badge>
-                  )}
-                </div>
-              </button>
-            );
-          })
-        ) : (
-          <div className={styles.noMatches}>
-            <span>No blocks match your search or filter</span>
-          </div>
-        )}
-      </aside>
-
-      {/* Right Detail Pane */}
-      {selectedBlock ? (
-        <section className={styles.detailPane} aria-label="Block Hierarchy & 3D Preview">
-          <div className={styles.detailHeader}>
-            <div className={styles.blockTitleGroup}>
-              <div className={styles.blockHeaderTitleRow}>
-                <h2 className={styles.blockDisplayName}>{selectedBlock.displayName}</h2>
-              </div>
-              <span className={styles.blockIdSub}>
-                {selectedBlock.blockId === 'uncategorized' || selectedBlock.blockId.includes(':')
-                  ? selectedBlock.blockId
-                  : `minecraft:${selectedBlock.blockId}`}
-              </span>
+    <>
+      <WorkspaceShell
+        listAriaLabel="Blocks List"
+        listHeader={
+          <>
+            Pack Blocks ({filteredBlockWorkspaceTree.length}
+            {filteredBlockWorkspaceTree.length !== blockWorkspaceTree.length ? ` / ${blockWorkspaceTree.length}` : ''})
+          </>
+        }
+        sidebarContent={
+          filteredBlockWorkspaceTree.length > 0 ? (
+            filteredBlockWorkspaceTree.map((block) => {
+              const isActive = selectedBlock?.blockId === block.blockId;
+              const isCustom = block.isUserDefined !== false;
+              return (
+                <button
+                  key={block.blockId}
+                  data-block-id={block.blockId}
+                  type="button"
+                  className={`${styles.blockItem} ${isActive ? styles.blockItemActive : ''} ${!isCustom ? styles.blockItemVanilla : ''}`}
+                  onClick={() => {
+                    setSelectedBlockId(block.blockId);
+                    setIsListDrawerOpen(false);
+                  }}
+                >
+                  <div className={styles.blockItemLeft}>
+                    <Box size={14} className={!isCustom ? styles.blockIconMuted : undefined} />
+                    <span className={styles.blockItemName}>{block.displayName || block.blockId}</span>
+                  </div>
+                  <div className={styles.blockItemBadges}>
+                    {!isCustom && block.blockId !== 'uncategorized' && (
+                      <Badge variant="fallback" size="sm" title="Inferred from vanilla blocks.json">fallback</Badge>
+                    )}
+                    {block.ghostCount > 0 && (
+                      <Badge variant="ghost" size="counter">{block.ghostCount}</Badge>
+                    )}
+                  </div>
+                </button>
+              );
+            })
+          ) : (
+            <div className={styles.noMatches}>
+              <span>No blocks match your search or filter</span>
             </div>
-            <div className={styles.detailHeaderActions}>
+          )
+        }
+        hasSelection={Boolean(selectedBlock)}
+        emptySelectionText="Select a block to inspect"
+        detailAriaLabel="Block Hierarchy & 3D Preview"
+        title={selectedBlock?.displayName}
+        titleBadge={
+          selectedBlock && (
+            <>
               {selectedBlock.isUserDefined === false && selectedBlock.blockId !== 'uncategorized' && (
                 <Badge variant="fallback" size="sm" title="Using vanilla blocks.json definition">
-                  Vanilla Fallback
+                  Fallback
                 </Badge>
               )}
               {selectedBlock.ghostCount > 0 && (
                 <Badge variant="ghost" size="sm">{selectedBlock.ghostCount} ghosts</Badge>
               )}
-            </div>
-          </div>
-
-          {selectedBlock.blockId !== 'uncategorized' && !disable3DView && (
-            <div className={styles.previewSection}>
-              <Block3DViewer
-                blockId={selectedBlock.blockId}
-                faceTextures={faceTextures.textures}
-                faceFlipbooks={faceTextures.flipbooks}
-                blockStates={blockStates}
-                activeStateIndex={activeBlockStateIndex}
-                onSelectStateIndex={(idx) => {
-                  setActiveBlockStateIndex(idx);
-                  setActiveVariationIndex(0);
+            </>
+          )
+        }
+        subtitle={
+          selectedBlock
+            ? (selectedBlock.blockId === 'uncategorized' || selectedBlock.blockId.includes(':')
+                ? selectedBlock.blockId
+                : `minecraft:${selectedBlock.blockId}`)
+            : undefined
+        }
+        headerActions={
+          selectedBlock && selectedBlock.blockId !== 'uncategorized' && (
+            <div className={styles.moreMenuWrapper} ref={moreMenuRef}>
+              <button
+                type="button"
+                className={styles.moreBtn}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsMoreMenuOpen((v) => !v);
                 }}
-                activeVariationIndex={activeVariationIndex}
-                onSelectVariationIndex={setActiveVariationIndex}
-              />
+                title="Block options"
+                aria-label="Block options"
+              >
+                <MoreVertical size={16} />
+              </button>
+              {isMoreMenuOpen && (
+                <div className={styles.moreDropdown}>
+                  <button
+                    type="button"
+                    className={styles.moreDropdownItemDanger}
+                    disabled={selectedBlock.isUserDefined === false}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteBlockEntry();
+                    }}
+                    title={
+                      selectedBlock.isUserDefined === false
+                        ? "This block is using vanilla fallback and not declared in blocks.json"
+                        : `Delete "${selectedBlock.blockId}" from blocks.json`
+                    }
+                  >
+                    <Trash2 size={13} />
+                    <span>Delete blocks.json entries</span>
+                  </button>
+                </div>
+              )}
             </div>
-          )}
-
+          )
+        }
+        show3DPreview={Boolean(selectedBlock && selectedBlock.blockId !== 'uncategorized')}
+        previewTitle="3D Preview"
+        previewContent={
+          selectedBlock && selectedBlock.blockId !== 'uncategorized' ? (
+            <Block3DViewer
+              blockId={selectedBlock.blockId}
+              faceTextures={faceTextures.textures}
+              faceFlipbooks={faceTextures.flipbooks}
+              blockStates={blockStates}
+              activeStateIndex={activeBlockStateIndex}
+              onSelectStateIndex={(idx) => {
+                setActiveBlockStateIndex(idx);
+                setActiveVariationIndex(0);
+              }}
+              activeVariationIndex={activeVariationIndex}
+              onSelectVariationIndex={setActiveVariationIndex}
+            />
+          ) : null
+        }
+      >
+        {/* (Uncategorized) holds true orphans with no blocks.json entry, so no JSON hierarchy applies */}
+        {selectedBlock && selectedBlock.blockId !== 'uncategorized' && (
           <BlockEntryTree
             block={selectedBlock}
             onTileClick={handleTileClick}
           />
+        )}
 
+        {selectedBlock && (
           <div className={styles.hierarchySection}>
-            {selectedBlock.aliasGroups?.map((ag) => {
-              const isDeclaredInTerrainTexture =
+            {(!selectedBlock.aliasGroups || selectedBlock.aliasGroups.length === 0) ? (
+              <div className={styles.emptySelection} style={{ padding: '32px 16px', color: '#71717a' }}>
+                No texture aliases configured for this block
+              </div>
+            ) : (
+              selectedBlock.aliasGroups.map((ag) => {
+              const isBlockUserDefined = hasBlocksJson && selectedBlock.isUserDefined !== false;
+              const aliasKey = ag.alias.toLowerCase();
+
+              const isDeclaredInPackTerrain =
                 hasTerrainTextureJson &&
                 packAliases.some(
                   (a: TextureAliasDto) =>
-                    a.alias.toLowerCase() === ag.alias.toLowerCase() &&
+                    a.alias.toLowerCase() === aliasKey &&
                     a.category === 'block' &&
                     a.status !== 'ORPHAN' &&
                     (a as any).isUserDefined !== false
                 );
 
+              const hasMissingDeclarationLeaf = ag.leaves?.some(
+                (l) => l.subtitleCaption?.toLowerCase() === 'missing declaration'
+              ) || ag.faceNodes?.some((fn) =>
+                fn.leaves?.some((l) => l.subtitleCaption?.toLowerCase() === 'missing declaration')
+              );
+
+              const isDeclaredInVanillaTerrain =
+                !isDeclaredInPackTerrain &&
+                !hasMissingDeclarationLeaf &&
+                (catalogTree && catalogTree.length > 0
+                  ? catalogTree.some((cb) =>
+                      cb.aliasGroups?.some((ca) => ca.alias.toLowerCase() === aliasKey && !ca.leaves?.some(l => l.subtitleCaption?.toLowerCase() === 'missing declaration'))
+                    )
+                  : packAliases.some(
+                      (a) =>
+                        a.alias.toLowerCase() === aliasKey &&
+                        a.category === 'block' &&
+                        (a as any).isUserDefined === false
+                    ));
+
+              const isVanillaFallback = !isDeclaredInPackTerrain && selectedBlock.blockId !== 'uncategorized';
+
+              const isUncategorized = selectedBlock.blockId === 'uncategorized';
+              const isTrueOrphan = isUncategorized && !isDeclaredInPackTerrain;
+
               return (
-                <div key={ag.alias} className={styles.aliasGroupCard}>
+                <div key={ag.alias} className={`${styles.aliasGroupCard} ${isVanillaFallback ? styles.aliasGroupCardFallback : ''}`}>
                   <div className={styles.aliasHeader}>
                     <Layers size={14} />
-                    <span>Alias: {ag.alias}</span>
-                    {!isDeclaredInTerrainTexture && (
-                      <Badge variant="fallback" size="sm" title="Using vanilla terrain_texture.json definition">
-                        Vanilla Fallback
+                    <span>{isTrueOrphan ? '(No alias)' : `Alias: ${ag.alias}`}</span>
+                    {isTrueOrphan && (
+                      <Badge variant="orphan" size="sm" title="Texture file on disk not declared in any JSON">
+                        orphan
                       </Badge>
+                    )}
+                    {isVanillaFallback && (
+                      isDeclaredInVanillaTerrain ? (
+                        <Badge
+                          variant="fallback"
+                          size="sm"
+                          title={
+                            isBlockUserDefined
+                              ? "Vanilla fallback, missing in pack terrain_texture.json"
+                              : "Using vanilla terrain_texture.json definition"
+                          }
+                        >
+                          {isBlockUserDefined ? 'missing entry' : 'fallback'}
+                        </Badge>
+                      ) : (
+                        <Badge variant="missing" size="sm" title="Missing declaration in terrain_texture.json">
+                          missing entry
+                        </Badge>
+                      )
                     )}
                   </div>
 
                 <div className={styles.faceNodeGroup}>
                   {ag.faceNodes && ag.faceNodes.length > 0 ? (
                     ag.faceNodes.map((fn) => {
-                      const groups = groupLeavesByVariantSlot(fn.leaves ?? []);
+                      const effectiveLeaves = isVanillaFallback
+                        ? (fn.leaves ?? []).filter((l) => l.status === 'OK' || l.status === 'OVERRIDE')
+                        : (fn.leaves ?? []);
+                      if (isVanillaFallback && effectiveLeaves.length === 0) return null;
+                      const groups = groupLeavesByVariantSlot(effectiveLeaves);
                       return (
                         <div key={fn.faceLabel} className={styles.faceRow}>
                           <Badge variant="neutral" size="sm" icon={<ArrowRight size={10} />}>
                             Face: {fn.faceLabel}
-                            {fn.ghostCount > 0 && ` • ${fn.ghostCount}`}
+                            {!isVanillaFallback && fn.ghostCount > 0 && ` • ${fn.ghostCount}`}
                           </Badge>
                           <div className={styles.variantStrip}>
                             {groups.map((grp) => {
@@ -638,9 +681,9 @@ export const BlockWorkspace: React.FC = () => {
                                   onToggleMenu={handleToggleMenu}
                                   onTileClick={handleTileClick}
                                   onDeleteTextureFile={handleDeleteTextureFile}
-                                  onDeleteTextureEntries={handleDeleteTextureEntries}
-                                  onAddVariation={isDeclaredInTerrainTexture ? handleAddVariation : undefined}
-                                  onDeleteVariation={isDeclaredInTerrainTexture ? handleDeleteVariation : undefined}
+                                  onDeleteTextureEntries={isDeclaredInPackTerrain ? handleDeleteTextureEntries : undefined}
+                                  onAddVariation={isDeclaredInPackTerrain ? handleAddVariation : undefined}
+                                  onDeleteVariation={isDeclaredInPackTerrain ? handleDeleteVariation : undefined}
                                 />
                               );
                             })}
@@ -649,34 +692,40 @@ export const BlockWorkspace: React.FC = () => {
                       );
                     })
                   ) : (
-                    <div className={styles.variantStrip}>
-                      {groupLeavesByVariantSlot(ag.leaves ?? []).map((grp) => (
-                        <WorkspaceTileCard
-                          key={grp.key}
-                          grp={grp}
-                          cardKey={grp.key}
-                          tileZoom={tileZoom}
-                          selectedBlockName={selectedBlockDisplayName}
-                          isMenuOpen={activeMenuKey === grp.key}
-                          onToggleMenu={handleToggleMenu}
-                          onTileClick={handleTileClick}
-                          onDeleteTextureFile={handleDeleteTextureFile}
-                          onDeleteTextureEntries={handleDeleteTextureEntries}
-                          onAddVariation={isDeclaredInTerrainTexture ? handleAddVariation : undefined}
-                          onDeleteVariation={isDeclaredInTerrainTexture ? handleDeleteVariation : undefined}
-                        />
-                      ))}
-                    </div>
+                    (() => {
+                      const effectiveLeaves = isVanillaFallback
+                        ? (ag.leaves ?? []).filter((l) => l.status === 'OK' || l.status === 'OVERRIDE')
+                        : (ag.leaves ?? []);
+                      if (isVanillaFallback && effectiveLeaves.length === 0) return null;
+                      return (
+                        <div className={styles.variantStrip}>
+                          {groupLeavesByVariantSlot(effectiveLeaves).map((grp) => (
+                            <WorkspaceTileCard
+                              key={grp.key}
+                              grp={grp}
+                              cardKey={grp.key}
+                              tileZoom={tileZoom}
+                              selectedBlockName={selectedBlockDisplayName}
+                              isMenuOpen={activeMenuKey === grp.key}
+                              onToggleMenu={handleToggleMenu}
+                              onTileClick={handleTileClick}
+                              onDeleteTextureFile={handleDeleteTextureFile}
+                              onDeleteTextureEntries={isDeclaredInPackTerrain ? handleDeleteTextureEntries : undefined}
+                              onAddVariation={isDeclaredInPackTerrain ? handleAddVariation : undefined}
+                              onDeleteVariation={isDeclaredInPackTerrain ? handleDeleteVariation : undefined}
+                            />
+                          ))}
+                        </div>
+                      );
+                    })()
                   )}
                 </div>
               </div>
             );
-          })}
+          }))}
           </div>
-        </section>
-      ) : (
-        <div className={styles.emptySelection}>Select a block to inspect</div>
-      )}
+        )}
+      </WorkspaceShell>
 
       {/* Morphing Portal Preview (opened on tile click) */}
       {hoverMorphTarget && (
@@ -714,6 +763,11 @@ export const BlockWorkspace: React.FC = () => {
             )
               ? async (count = 1) => {
                   setHoverMorphTarget(null);
+                  packStoreActions.optimisticAddVariation(
+                    contextMenuTarget.alias.alias,
+                    contextMenuTarget.alias.blockVariantIndex ?? null,
+                    count
+                  );
                   for (let i = 0; i < count; i++) {
                     await scaffoldTextureVariation(
                       contextMenuTarget.alias.alias,
@@ -736,6 +790,10 @@ export const BlockWorkspace: React.FC = () => {
             )
               ? () => {
                   setHoverMorphTarget(null);
+                  packStoreActions.optimisticDeleteVariation(
+                    contextMenuTarget.alias.alias,
+                    contextMenuTarget.alias.relativePath!
+                  );
                   deleteTextureVariation(
                     contextMenuTarget.alias.alias,
                     contextMenuTarget.alias.relativePath!
@@ -758,12 +816,30 @@ export const BlockWorkspace: React.FC = () => {
           }}
           onDeleteTexture={() => {
             if (contextMenuTarget.alias.fullPath) {
-              deleteTextureFile(contextMenuTarget.alias.fullPath);
+              const fullPath = contextMenuTarget.alias.fullPath;
+              const aliasKey = contextMenuTarget.alias.alias;
+              packStoreActions.optimisticDeleteTexture(fullPath, aliasKey);
+              deleteTextureFile(fullPath, aliasKey);
             }
           }}
-          onDeleteEntries={() => {
-            deleteTextureEntries(contextMenuTarget.alias.alias, contextMenuTarget.alias.category || 'block');
-          }}
+          onDeleteEntries={
+            hasTerrainTextureJson &&
+            packAliases.some(
+              (a: TextureAliasDto) =>
+                a.alias.toLowerCase() === contextMenuTarget.alias.alias.toLowerCase() &&
+                a.category === (contextMenuTarget.alias.category || 'block') &&
+                a.status !== 'ORPHAN' &&
+                (a as any).isUserDefined !== false
+            )
+              ? () => {
+                  const aliasKey = contextMenuTarget.alias.alias;
+                  const cat = contextMenuTarget.alias.category || 'block';
+                  const relPath = contextMenuTarget.alias.relativePath;
+                  packStoreActions.optimisticDeleteEntries(aliasKey, cat, relPath);
+                  deleteTextureEntries(aliasKey, cat, relPath);
+                }
+              : undefined
+          }
           onEditMers={() => {
             if (contextMenuTarget.alias.mersFullPath) {
               editTexture(contextMenuTarget.alias.alias, contextMenuTarget.alias.mersFullPath, false);
@@ -771,6 +847,6 @@ export const BlockWorkspace: React.FC = () => {
           }}
         />
       )}
-    </div>
+    </>
   );
 };

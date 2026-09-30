@@ -18,6 +18,8 @@ import {
   X,
   Compass,
   Shuffle,
+  Scale,
+  Tag,
 } from 'lucide-react';
 import { usePackStore } from '../../store/packStore';
 import { useIpc } from '../../hooks/useIpc';
@@ -31,7 +33,11 @@ export interface TextureContextItemData {
   relativePath?: string;
   status: string;
   category?: string;
+  variantKind?: string | null;
   blockVariantIndex?: number | null;
+  textureVariantIndex?: number | null;
+  totalTextureVariants?: number | null;
+  weight?: number | null;
   hasMers?: boolean;
   mersFullPath?: string | null;
   hasAtlas?: boolean;
@@ -55,13 +61,17 @@ interface TextureContextMenuProps {
   onOpenWithDialog: () => void;
   onRevealInExplorer: () => void;
   onDeleteTexture: () => void;
-  onDeleteEntries: () => void;
+  onDeleteEntries?: () => void;
   onEditMers?: () => void;
   onEditAtlas?: () => void;
   /** Blocks-only: scaffold N new texture variation entries for this tile's blockstate slot */
   onAddVariation?: (count: number) => void;
   /** Blocks-only: delete this tile's texture variation entry (file on disk is kept) */
   onDeleteVariation?: () => void;
+  /** Blocks-only: update variation weight */
+  onUpdateWeight?: (weight: number) => void;
+  /** Blocks-only: rename variation relative path / label */
+  onRenameVariation?: (newLabel: string) => void;
 }
 
 function computeMenuPosition(anchor?: ContextMenuAnchor | null, measuredWidth = 240, measuredHeight = 260): { top: number; left: number } {
@@ -113,12 +123,27 @@ export const TextureContextMenu: React.FC<TextureContextMenuProps> = ({
   onEditAtlas,
   onAddVariation,
   onDeleteVariation,
+  onUpdateWeight,
+  onRenameVariation,
 }) => {
   const openWithApps = usePackStore((s) => s.openWithApps);
   const { addCustomEditor, removeCustomEditor, setDefaultEditor } = useIpc();
   const [isSubmenuOpen, setIsSubmenuOpen] = useState(false);
   const [copiedKey, setCopiedKey] = useState<'full' | 'rel' | null>(null);
   const [varCount, setVarCount] = useState(1);
+  const initialWeight = item.weight ?? 1;
+  const [customWeight, setCustomWeight] = useState<number>(initialWeight);
+  const isVarCountDirty = varCount !== 1;
+  const isWeightDirty = customWeight !== initialWeight;
+  const [customLabel, setCustomLabel] = useState<string>(() => {
+    if (item.relativePath) {
+      const parts = item.relativePath.split(/[/\\]/);
+      const fileName = parts.pop() ?? '';
+      return fileName.replace(/\.[^/.]+$/, '');
+    }
+    return item.displayName ?? item.alias;
+  });
+  const [isEditingLabel, setIsEditingLabel] = useState(false);
 
   const defaultApp = openWithApps?.find((a) => a.isDefault);
 
@@ -165,6 +190,15 @@ export const TextureContextMenu: React.FC<TextureContextMenuProps> = ({
   const winWidth = typeof window !== 'undefined' ? window.innerWidth : 1200;
   const currentMenuWidth = menuRef.current?.offsetWidth || 240;
   const flipLeft = menuPos.left + currentMenuWidth + 200 > winWidth;
+  const flipFloatingRight = menuPos.left + currentMenuWidth + 40 > winWidth;
+
+  const isTextureVariation = Boolean(
+    (item.totalTextureVariants != null && item.totalTextureVariants > 1) ||
+    item.textureVariantIndex != null ||
+    item.weight != null ||
+    item.variantKind === 'TextureVariant' ||
+    item.variantKind === 'NestedVariant'
+  );
 
   const clearCloseTimer = useCallback(() => {
     if (closeTimerRef.current) {
@@ -469,6 +503,13 @@ export const TextureContextMenu: React.FC<TextureContextMenuProps> = ({
               <Shuffle size={13} className={styles.menuIcon} />
               <span className={styles.menuLabel}>Add variation</span>
               <div className={styles.varStepper}>
+                <button
+                  type="button"
+                  className={styles.varStepBtn}
+                  onClick={(e) => { e.stopPropagation(); setVarCount((n) => Math.max(1, n - 1)); }}
+                  tabIndex={-1}
+                  title="Decrease count"
+                >−</button>
                 <input
                   type="number"
                   className={styles.varCountInput}
@@ -485,36 +526,141 @@ export const TextureContextMenu: React.FC<TextureContextMenuProps> = ({
                     }
                   }}
                 />
-                <div className={styles.varStepBtns}>
-                  <button
-                    type="button"
-                    className={styles.varStepBtn}
-                    onClick={(e) => { e.stopPropagation(); setVarCount((n) => Math.max(1, n - 1)); }}
-                    tabIndex={-1}
-                    title="Decrease count"
-                  >−</button>
-                  <button
-                    type="button"
-                    className={styles.varStepBtn}
-                    onClick={(e) => { e.stopPropagation(); setVarCount((n) => Math.min(16, n + 1)); }}
-                    tabIndex={-1}
-                    title="Increase count"
-                  >+</button>
-                </div>
+                <button
+                  type="button"
+                  className={styles.varStepBtn}
+                  onClick={(e) => { e.stopPropagation(); setVarCount((n) => Math.min(16, n + 1)); }}
+                  tabIndex={-1}
+                  title="Increase count"
+                >+</button>
               </div>
               <button
                 type="button"
-                className={styles.varConfirmBtn}
-                onClick={() => { onClose(); onAddVariation(varCount); }}
+                className={`${styles.varConfirmBtn} ${styles.floatingSaveBtn} ${flipFloatingRight ? styles.floatingSaveBtnLeft : ''} ${isVarCountDirty ? styles.varConfirmBtnSolid : ''}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onClose();
+                  onAddVariation(varCount);
+                }}
+                onMouseDown={(e) => e.stopPropagation()}
                 title={`Add ${varCount} variation${varCount > 1 ? 's' : ''} for '${item.alias}'`}
               >
-                <Check size={11} />
+                <Check size={11} strokeWidth={isVarCountDirty ? 2.5 : 2} />
               </button>
             </div>
           </>
         )}
 
-        {/* 6d. Delete Variation (blocks workspace only, file on disk is kept) */}
+        {/* 6d. Variation Weight (Texture variations only) */}
+        {onUpdateWeight && isTextureVariation && (
+          <div className={styles.addVariationRow}>
+            <Scale size={13} className={styles.menuIcon} />
+            <span className={styles.menuLabel}>Weight</span>
+            <div className={styles.varStepper}>
+              <button
+                type="button"
+                className={styles.varStepBtn}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const next = Math.max(1, customWeight - 1);
+                  setCustomWeight(next);
+                }}
+                tabIndex={-1}
+                title="Decrease weight"
+              >−</button>
+              <input
+                type="number"
+                className={styles.varCountInput}
+                value={customWeight}
+                min={1}
+                max={999}
+                onChange={(e) => {
+                  const next = Math.max(1, Math.min(999, parseInt(e.target.value) || 1));
+                  setCustomWeight(next);
+                }}
+                onClick={(e) => e.stopPropagation()}
+                onKeyDown={(e) => {
+                  e.stopPropagation();
+                  if (e.key === 'Enter') {
+                    onClose();
+                    onUpdateWeight(customWeight);
+                  }
+                }}
+              />
+              <button
+                type="button"
+                className={styles.varStepBtn}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const next = Math.min(999, customWeight + 1);
+                  setCustomWeight(next);
+                }}
+                tabIndex={-1}
+                title="Increase weight"
+              >+</button>
+            </div>
+            <button
+              type="button"
+              className={`${styles.varConfirmBtn} ${styles.floatingSaveBtn} ${flipFloatingRight ? styles.floatingSaveBtnLeft : ''} ${isWeightDirty ? styles.varConfirmBtnSolid : ''}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                onClose();
+                onUpdateWeight(customWeight);
+              }}
+              onMouseDown={(e) => e.stopPropagation()}
+              title={`Save weight (${customWeight}) for '${item.alias}'`}
+            >
+              <Check size={11} strokeWidth={isWeightDirty ? 2.5 : 2} />
+            </button>
+          </div>
+        )}
+
+        {/* 6e. Variation Rename / Custom Label (Texture variations only) */}
+        {onRenameVariation && (
+          <div className={styles.addVariationRow}>
+            <Tag size={13} className={styles.menuIcon} />
+            <span className={styles.menuLabel}>Label</span>
+            {isEditingLabel ? (
+              <input
+                type="text"
+                autoFocus
+                className={styles.varCountInput}
+                style={{ width: '90px', textAlign: 'left', padding: '0 4px', borderRadius: '4px' }}
+                value={customLabel}
+                onChange={(e) => setCustomLabel(e.target.value)}
+                onClick={(e) => e.stopPropagation()}
+                onKeyDown={(e) => {
+                  e.stopPropagation();
+                  if (e.key === 'Enter') {
+                    setIsEditingLabel(false);
+                    if (customLabel.trim()) onRenameVariation(customLabel.trim());
+                  } else if (e.key === 'Escape') {
+                    setIsEditingLabel(false);
+                  }
+                }}
+                onBlur={() => {
+                  setIsEditingLabel(false);
+                  if (customLabel.trim()) onRenameVariation(customLabel.trim());
+                }}
+              />
+            ) : (
+              <button
+                type="button"
+                className={styles.varConfirmBtn}
+                style={{ width: 'auto', padding: '0 6px', fontSize: '10px', background: 'rgba(255,255,255,0.06)', color: 'var(--text-secondary, #a1a1aa)' }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsEditingLabel(true);
+                }}
+                title="Edit variation label"
+              >
+                Edit
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* 6f. Delete Variation (blocks workspace only, file on disk is kept) */}
         {onDeleteVariation && (
           <button
             type="button"
@@ -548,19 +694,21 @@ export const TextureContextMenu: React.FC<TextureContextMenuProps> = ({
         </button>
 
         {/* 8. Delete Entries (danger) */}
-        <button
-          type="button"
-          className={`${styles.menuItem} ${styles.menuItemDanger}`}
-          disabled={isOrphan}
-          onClick={() => {
-            onClose();
-            onDeleteEntries();
-          }}
-          title={isOrphan ? 'Orphan has no JSON declarations' : 'Remove declarations from JSON schemas'}
-        >
-          <FileX size={13} className={styles.menuIcon} />
-          <span className={styles.menuLabel}>Delete Entries</span>
-        </button>
+        {onDeleteEntries && (
+          <button
+            type="button"
+            className={`${styles.menuItem} ${styles.menuItemDanger}`}
+            disabled={isOrphan}
+            onClick={() => {
+              onClose();
+              onDeleteEntries();
+            }}
+            title={isOrphan ? 'Orphan has no JSON declarations' : 'Remove declarations from JSON schemas'}
+          >
+            <FileX size={13} className={styles.menuIcon} />
+            <span className={styles.menuLabel}>Delete Entries</span>
+          </button>
+        )}
       </div>
     </div>,
     document.body

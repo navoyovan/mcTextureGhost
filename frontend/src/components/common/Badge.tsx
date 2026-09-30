@@ -8,6 +8,7 @@ export type BadgeVariant =
   | 'fallback'
   | 'orphan'
   | 'override'
+  | 'missing'
   | 'anim'
   | 'mers'
   | 'atlas'
