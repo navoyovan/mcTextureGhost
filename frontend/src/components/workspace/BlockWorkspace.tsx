@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
-import { Box, Layers, ArrowRight } from 'lucide-react';
+import { Box, Layers, ArrowRight, MoreVertical, Trash2 } from 'lucide-react';
 import { usePackStore, packStoreActions } from '../../store/packStore';
 import { useIpc } from '../../hooks/useIpc';
 import { BlockGroupNodeDto, CatalogLeafDto, TextureAliasDto, OpenWithAppDto } from '../../types/ipc';
@@ -28,7 +28,7 @@ export const BlockWorkspace: React.FC = () => {
   const packFolders = usePackStore((s) => s.packFolders);
   const packAliases = usePackStore((s) => s.aliases ?? []);
   const catalogTree = usePackStore((s) => s.catalogTree);
-  const { editTexture, deleteTextureFile, deleteTextureEntries, deleteTextureVariation, openInExplorer, scaffoldTextureVariation } = useIpc();
+  const { editTexture, deleteTextureFile, deleteTextureEntries, deleteTextureVariation, deleteBlockEntry, openInExplorer, scaffoldTextureVariation } = useIpc();
 
   const hasTerrainTextureJson = useMemo(() => checkTerrainTextureJson(packFolders), [packFolders]);
   const hasBlocksJson = useMemo(() => checkBlocksJson(packFolders), [packFolders]);
@@ -395,6 +395,31 @@ export const BlockWorkspace: React.FC = () => {
     }
   }, [deleteTextureVariation]);
 
+  const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
+  const moreMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setIsMoreMenuOpen(false);
+  }, [selectedBlockId]);
+
+  useEffect(() => {
+    if (!isMoreMenuOpen) return;
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (moreMenuRef.current && !moreMenuRef.current.contains(e.target as Node)) {
+        setIsMoreMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, [isMoreMenuOpen]);
+
+  const handleDeleteBlockEntry = useCallback(() => {
+    if (!selectedBlock || selectedBlock.blockId === 'uncategorized') return;
+    packStoreActions.optimisticDeleteBlockEntry(selectedBlock.blockId);
+    deleteBlockEntry(selectedBlock.blockId);
+    setIsMoreMenuOpen(false);
+  }, [selectedBlock, deleteBlockEntry]);
+
   const tileZoom = usePackStore((s) => s.tileZoom);
   const selectedBlockDisplayName = selectedBlock?.displayName || selectedBlock?.blockId || '';
 
@@ -463,14 +488,7 @@ export const BlockWorkspace: React.FC = () => {
         emptySelectionText="Select a block to inspect"
         detailAriaLabel="Block Hierarchy & 3D Preview"
         title={selectedBlock?.displayName}
-        subtitle={
-          selectedBlock
-            ? (selectedBlock.blockId === 'uncategorized' || selectedBlock.blockId.includes(':')
-                ? selectedBlock.blockId
-                : `minecraft:${selectedBlock.blockId}`)
-            : undefined
-        }
-        headerActions={
+        titleBadge={
           selectedBlock && (
             <>
               {selectedBlock.isUserDefined === false && selectedBlock.blockId !== 'uncategorized' && (
@@ -482,6 +500,52 @@ export const BlockWorkspace: React.FC = () => {
                 <Badge variant="ghost" size="sm">{selectedBlock.ghostCount} ghosts</Badge>
               )}
             </>
+          )
+        }
+        subtitle={
+          selectedBlock
+            ? (selectedBlock.blockId === 'uncategorized' || selectedBlock.blockId.includes(':')
+                ? selectedBlock.blockId
+                : `minecraft:${selectedBlock.blockId}`)
+            : undefined
+        }
+        headerActions={
+          selectedBlock && selectedBlock.blockId !== 'uncategorized' && (
+            <div className={styles.moreMenuWrapper} ref={moreMenuRef}>
+              <button
+                type="button"
+                className={styles.moreBtn}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsMoreMenuOpen((v) => !v);
+                }}
+                title="Block options"
+                aria-label="Block options"
+              >
+                <MoreVertical size={16} />
+              </button>
+              {isMoreMenuOpen && (
+                <div className={styles.moreDropdown}>
+                  <button
+                    type="button"
+                    className={styles.moreDropdownItemDanger}
+                    disabled={selectedBlock.isUserDefined === false}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteBlockEntry();
+                    }}
+                    title={
+                      selectedBlock.isUserDefined === false
+                        ? "This block is using vanilla fallback and not declared in blocks.json"
+                        : `Delete "${selectedBlock.blockId}" from blocks.json`
+                    }
+                  >
+                    <Trash2 size={13} />
+                    <span>Delete blocks.json entries</span>
+                  </button>
+                </div>
+              )}
+            </div>
           )
         }
         show3DPreview={Boolean(selectedBlock && selectedBlock.blockId !== 'uncategorized')}

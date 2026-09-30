@@ -18,6 +18,7 @@ import {
   applyOptimisticDeleteTexture,
   applyOptimisticDeleteEntries,
   applyOptimisticDeleteVariation,
+  applyOptimisticDeleteBlockEntry,
   applyOptimisticSetVariationWeight,
   applyOptimisticRenameVariation,
   applyOptimisticAddVariation,
@@ -107,6 +108,7 @@ export interface PackStoreActions {
   optimisticDeleteTexture: (fullPath: string, aliasKey?: string) => void;
   optimisticDeleteEntries: (aliasKey: string, category: string, relativePath?: string) => void;
   optimisticDeleteVariation: (alias: string, relativePath: string) => void;
+  optimisticDeleteBlockEntry: (blockId: string) => void;
   optimisticSetVariationWeight: (alias: string, relativePath: string, weight: number) => void;
   optimisticRenameVariation: (alias: string, oldRelativePath: string, newRelativePath: string) => void;
   optimisticAddVariation: (alias: string, blockVariantIndex?: number | null, count?: number, sourceRelativePath?: string | null) => void;
@@ -486,6 +488,16 @@ export const packStoreActions: PackStoreActions = {
       blockWorkspaceTree: result.blockWorkspaceTree as any,
       entityWorkspaceTree: result.entityWorkspaceTree as any,
       stats: result.stats,
+    };
+    notify();
+  },
+
+  optimisticDeleteBlockEntry(blockId: string): void {
+    if (!currentState.blockWorkspaceTree) return;
+    const updatedTree = applyOptimisticDeleteBlockEntry(currentState.blockWorkspaceTree, blockId);
+    currentState = {
+      ...currentState,
+      blockWorkspaceTree: updatedTree,
     };
     notify();
   },

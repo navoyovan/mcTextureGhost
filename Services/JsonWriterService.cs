@@ -974,6 +974,47 @@ public static class JsonWriterService
         WriteAllTextRetry(path, blocks.ToJsonString(WriteOptions));
     }
 
+    /// <summary>
+    /// Removes a block definition from blocks.json.
+    /// Does not touch textures, terrain_texture.json, or physical files.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public static bool DeleteBlockEntry(string packRoot, string blockId)
+    {
+        var path = Path.Combine(packRoot, "blocks.json");
+        if (!File.Exists(path)) return false;
+
+        var blocks = LoadOrCreateBlocksJson(packRoot);
+        var cleanId = blockId.StartsWith("minecraft:", StringComparison.OrdinalIgnoreCase)
+            ? blockId.Substring(10)
+            : blockId;
+
+        bool removed = false;
+        if (blocks.ContainsKey(blockId))
+        {
+            blocks.Remove(blockId);
+            removed = true;
+        }
+        if (blocks.ContainsKey(cleanId))
+        {
+            blocks.Remove(cleanId);
+            removed = true;
+        }
+        var mcPrefixed = "minecraft:" + cleanId;
+        if (blocks.ContainsKey(mcPrefixed))
+        {
+            blocks.Remove(mcPrefixed);
+            removed = true;
+        }
+
+        if (removed)
+        {
+            SaveBlocksJson(packRoot, blocks);
+            return true;
+        }
+        return false;
+    }
+
     private static JsonArray LoadOrCreateJsonArray(string path)
     {
         if (File.Exists(path))

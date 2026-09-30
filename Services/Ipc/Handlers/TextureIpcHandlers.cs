@@ -161,6 +161,23 @@ public static class TextureIpcHandlers
             }
         });
 
+        // 4c. BLOCK:DELETE_ENTRY
+        bridge.RegisterHandler<BlockDeleteEntryPayload>(IpcMessageTypes.BlockDeleteEntry, async (payload, corrId) =>
+        {
+            if (payload == null || string.IsNullOrWhiteSpace(payload.BlockId)) return;
+            var packRoot = await dispatcher.InvokeAsync(() => vm.PackRootPath);
+            if (packRoot == null) return;
+            try
+            {
+                var removed = await Task.Run(() => JsonWriterService.DeleteBlockEntry(packRoot, payload.BlockId));
+                await dispatcher.InvokeAsync(async () => await vm.RescanScopedAsync(TextureCategory.Block));
+            }
+            catch (Exception ex)
+            {
+                bridge.PushError("Delete blocks.json Entry", $"Failed to delete blocks.json entry: {ex.Message}", "warning");
+            }
+        });
+
         // 4b. TEXTURE:SET_VARIATION_WEIGHT
         bridge.RegisterHandler<TextureSetVariationWeightPayload>(IpcMessageTypes.TextureSetVariationWeight, async (payload, corrId) =>
         {

@@ -131,7 +131,10 @@ export const TextureContextMenu: React.FC<TextureContextMenuProps> = ({
   const [isSubmenuOpen, setIsSubmenuOpen] = useState(false);
   const [copiedKey, setCopiedKey] = useState<'full' | 'rel' | null>(null);
   const [varCount, setVarCount] = useState(1);
-  const [customWeight, setCustomWeight] = useState<number>(item.weight ?? 1);
+  const initialWeight = item.weight ?? 1;
+  const [customWeight, setCustomWeight] = useState<number>(initialWeight);
+  const isVarCountDirty = varCount !== 1;
+  const isWeightDirty = customWeight !== initialWeight;
   const [customLabel, setCustomLabel] = useState<string>(() => {
     if (item.relativePath) {
       const parts = item.relativePath.split(/[/\\]/);
@@ -187,7 +190,7 @@ export const TextureContextMenu: React.FC<TextureContextMenuProps> = ({
   const winWidth = typeof window !== 'undefined' ? window.innerWidth : 1200;
   const currentMenuWidth = menuRef.current?.offsetWidth || 240;
   const flipLeft = menuPos.left + currentMenuWidth + 200 > winWidth;
-  const flipFloatingRight = menuPos.left + currentMenuWidth + 36 > winWidth;
+  const flipFloatingRight = menuPos.left + currentMenuWidth + 40 > winWidth;
 
   const isTextureVariation = Boolean(
     (item.totalTextureVariants != null && item.totalTextureVariants > 1) ||
@@ -533,7 +536,7 @@ export const TextureContextMenu: React.FC<TextureContextMenuProps> = ({
               </div>
               <button
                 type="button"
-                className={`${styles.varConfirmBtn} ${styles.floatingSaveBtn} ${flipFloatingRight ? styles.floatingSaveBtnLeft : ''}`}
+                className={`${styles.varConfirmBtn} ${styles.floatingSaveBtn} ${flipFloatingRight ? styles.floatingSaveBtnLeft : ''} ${isVarCountDirty ? styles.varConfirmBtnSolid : ''}`}
                 onClick={(e) => {
                   e.stopPropagation();
                   onClose();
@@ -542,7 +545,7 @@ export const TextureContextMenu: React.FC<TextureContextMenuProps> = ({
                 onMouseDown={(e) => e.stopPropagation()}
                 title={`Add ${varCount} variation${varCount > 1 ? 's' : ''} for '${item.alias}'`}
               >
-                <Check size={11} />
+                <Check size={11} strokeWidth={isVarCountDirty ? 2.5 : 2} />
               </button>
             </div>
           </>
@@ -598,7 +601,7 @@ export const TextureContextMenu: React.FC<TextureContextMenuProps> = ({
             </div>
             <button
               type="button"
-              className={`${styles.varConfirmBtn} ${styles.floatingSaveBtn} ${flipFloatingRight ? styles.floatingSaveBtnLeft : ''}`}
+              className={`${styles.varConfirmBtn} ${styles.floatingSaveBtn} ${flipFloatingRight ? styles.floatingSaveBtnLeft : ''} ${isWeightDirty ? styles.varConfirmBtnSolid : ''}`}
               onClick={(e) => {
                 e.stopPropagation();
                 onClose();
@@ -607,7 +610,7 @@ export const TextureContextMenu: React.FC<TextureContextMenuProps> = ({
               onMouseDown={(e) => e.stopPropagation()}
               title={`Save weight (${customWeight}) for '${item.alias}'`}
             >
-              <Check size={11} />
+              <Check size={11} strokeWidth={isWeightDirty ? 2.5 : 2} />
             </button>
           </div>
         )}

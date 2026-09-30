@@ -71,6 +71,7 @@ public static class IpcMessageTypes
     public const string TextureDeleteFile = "TEXTURE:DELETE_FILE";
     public const string TextureDeleteEntries = "TEXTURE:DELETE_ENTRIES";
     public const string TextureDeleteVariation = "TEXTURE:DELETE_VARIATION";
+    public const string BlockDeleteEntry = "BLOCK:DELETE_ENTRY";
     public const string TextureSetVariationWeight = "TEXTURE:SET_VARIATION_WEIGHT";
     public const string TextureRenameVariation = "TEXTURE:RENAME_VARIATION";
     public const string TextureDropImport = "TEXTURE:DROP_IMPORT";
@@ -184,6 +185,13 @@ public record TextureDeleteEntriesPayload(
 public record TextureDeleteVariationPayload(
     [property: JsonPropertyName("alias")] string Alias,
     [property: JsonPropertyName("relativePath")] string RelativePath
+);
+
+/// <summary>
+/// Payload for "BLOCK:DELETE_ENTRY". Removes entry strictly from blocks.json.
+/// </summary>
+public record BlockDeleteEntryPayload(
+    [property: JsonPropertyName("blockId")] string BlockId
 );
 
 /// <summary>

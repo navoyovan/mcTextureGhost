@@ -8,6 +8,7 @@ import {
   TextureDropImportPayload,
   TextureCopyFilePayload,
   TextureDeleteVariationPayload,
+  BlockDeleteEntryPayload,
   TextureSetVariationWeightPayload,
   TextureRenameVariationPayload,
   ScaffoldTextureVariationPayload,
@@ -242,6 +243,10 @@ export function useIpc() {
     return postCommand<TextureDeleteVariationPayload>(IpcMessageTypes.TextureDeleteVariation, { alias, relativePath });
   }, []);
 
+  const deleteBlockEntry = useCallback((blockId: string) => {
+    return postCommand<BlockDeleteEntryPayload>(IpcMessageTypes.BlockDeleteEntry, { blockId });
+  }, []);
+
   const setVariationWeight = useCallback((alias: string, relativePath: string, weight: number) => {
     return postCommand<TextureSetVariationWeightPayload>(IpcMessageTypes.TextureSetVariationWeight, { alias, relativePath, weight });
   }, []);
@@ -329,6 +334,7 @@ export function useIpc() {
     deleteTextureFile,
     deleteTextureEntries,
     deleteTextureVariation,
+    deleteBlockEntry,
     setVariationWeight,
     renameVariation,
     windowAction,

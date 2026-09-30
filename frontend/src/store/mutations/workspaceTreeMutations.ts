@@ -765,3 +765,20 @@ export function applyOptimisticAddVanillaEntry(
     stats: computeStats(newAliases),
   };
 }
+
+export function applyOptimisticDeleteBlockEntry(
+  blockTree: BlockGroupNodeDto[],
+  blockId: string
+): BlockGroupNodeDto[] {
+  const norm = blockId.toLowerCase().replace(/^minecraft:/, '');
+  return blockTree.map((b) => {
+    const bNorm = b.blockId.toLowerCase().replace(/^minecraft:/, '');
+    if (bNorm === norm) {
+      return {
+        ...b,
+        isUserDefined: false,
+      };
+    }
+    return b;
+  });
+}
