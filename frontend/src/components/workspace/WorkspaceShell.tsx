@@ -19,6 +19,7 @@ export interface WorkspaceShellProps {
   previewTitle?: string;
   previewContent?: React.ReactNode;
   children?: React.ReactNode;
+  hasLangName?: boolean;
 }
 
 export const WorkspaceShell: React.FC<WorkspaceShellProps> = ({
@@ -36,11 +37,14 @@ export const WorkspaceShell: React.FC<WorkspaceShellProps> = ({
   previewTitle = '3D Preview',
   previewContent,
   children,
+  hasLangName,
 }) => {
   const isListDrawerOpen = usePackStore((s) => s.isWorkspaceDrawerOpen);
   const setIsListDrawerOpen = usePackStore((s) => s.setIsWorkspaceDrawerOpen);
   const disable3DView = usePackStore((s) => s.disable3DView);
   const setDisable3DView = usePackStore((s) => s.setDisable3DView);
+
+  const isFallback = hasLangName === false || (typeof title === 'string' && title.startsWith('('));
 
   return (
     <div className={styles.workspaceContainer}>
@@ -68,7 +72,9 @@ export const WorkspaceShell: React.FC<WorkspaceShellProps> = ({
           <div className={styles.detailHeader}>
             <div className={styles.blockTitleGroup}>
               <div className={styles.blockHeaderTitleRow}>
-                <h2 className={styles.blockDisplayName}>{title}</h2>
+                <h2 className={`${styles.blockDisplayName} ${isFallback ? styles.blockDisplayNameFallback : ''}`}>
+                  {title}
+                </h2>
                 {titleBadge}
               </div>
               {subtitle && <span className={styles.blockIdSub}>{subtitle}</span>}

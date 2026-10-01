@@ -262,6 +262,7 @@ public class BlockGroupNode : INotifyPropertyChanged
     public required string DisplayName { get; init; }
     public required TextureCategory Category { get; init; }
     public bool IsUserDefined { get; init; } = true;
+    public bool HasLangName { get; init; } = false;
 
     public ObservableCollection<AliasGroupNode> AliasGroups { get; } = new();
 

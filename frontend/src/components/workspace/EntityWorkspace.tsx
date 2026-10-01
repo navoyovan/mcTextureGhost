@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
-import { PawPrint, ArrowRight, Shield } from 'lucide-react';
+import { PawPrint, ArrowRight, Shield, MoreVertical, Trash2 } from 'lucide-react';
 import { usePackStore, packStoreActions } from '../../store/packStore';
 import { useIpc } from '../../hooks/useIpc';
 import { BlockGroupNodeDto, CatalogLeafDto, TextureAliasDto, OpenWithAppDto } from '../../types/ipc';
@@ -305,6 +305,31 @@ export const EntityWorkspace: React.FC = () => {
     deleteTextureEntries(alias, 'entity', relativePath ?? undefined);
   }, [deleteTextureEntries]);
 
+  const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
+  const moreMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setIsMoreMenuOpen(false);
+  }, [selectedEntityId]);
+
+  useEffect(() => {
+    if (!isMoreMenuOpen) return;
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (moreMenuRef.current && !moreMenuRef.current.contains(e.target as Node)) {
+        setIsMoreMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, [isMoreMenuOpen]);
+
+  const handleDeleteEntityDefinition = useCallback(() => {
+    if (!selectedEntity) return;
+    packStoreActions.optimisticDeleteEntityEntry(selectedEntity.blockId);
+    deleteTextureEntries(selectedEntity.blockId, 'entity');
+    setIsMoreMenuOpen(false);
+  }, [selectedEntity, deleteTextureEntries]);
+
   const selectedEntityDisplayName = selectedEntity?.displayName || selectedEntity?.blockId || '';
 
   if (isWorkspaceLoading || (isScanning && (!entityWorkspaceTree || entityWorkspaceTree.length === 0))) {
@@ -381,17 +406,15 @@ export const EntityWorkspace: React.FC = () => {
         emptySelectionText="Select an entity to inspect"
         detailAriaLabel="Entity Hierarchy & 3D Preview"
         title={selectedEntity?.displayName}
+        hasLangName={selectedEntity?.hasLangName}
         titleBadge={
-          isAttachableEntity && (
-            <Badge variant="category-attachable" size="sm">
-              Attachable / Armor
-            </Badge>
-          )
-        }
-        subtitle={selectedEntity?.blockId}
-        headerActions={
           selectedEntity && (
             <>
+              {isAttachableEntity && (
+                <Badge variant="category-attachable" size="sm">
+                  Attachable / Armor
+                </Badge>
+              )}
               {selectedEntity.isUserDefined === false && (
                 <Badge variant="fallback" size="sm" title="Using vanilla entity definition">
                   Fallback
@@ -403,6 +426,46 @@ export const EntityWorkspace: React.FC = () => {
                 </Badge>
               )}
             </>
+          )
+        }
+        subtitle={selectedEntity?.blockId}
+        headerActions={
+          selectedEntity && (
+            <div className={styles.moreMenuWrapper} ref={moreMenuRef}>
+              <button
+                type="button"
+                className={styles.moreBtn}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsMoreMenuOpen((v) => !v);
+                }}
+                title="Entity options"
+                aria-label="Entity options"
+              >
+                <MoreVertical size={16} />
+              </button>
+              {isMoreMenuOpen && (
+                <div className={styles.moreDropdown}>
+                  <button
+                    type="button"
+                    className={styles.moreDropdownItemDanger}
+                    disabled={selectedEntity.isUserDefined === false}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteEntityDefinition();
+                    }}
+                    title={
+                      selectedEntity.isUserDefined === false
+                        ? "This entity is using vanilla fallback and not declared in pack entity definitions"
+                        : `Delete "${selectedEntity.blockId}" definition JSON from pack`
+                    }
+                  >
+                    <Trash2 size={13} />
+                    <span>Delete entity definition JSON</span>
+                  </button>
+                </div>
+              )}
+            </div>
           )
         }
         show3DPreview={Boolean(selectedEntity)}

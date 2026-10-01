@@ -128,49 +128,55 @@ public record VanillaData(
         return null;
     }
 
-    public string GetBlockDisplayName(string blockId)
+    public (string DisplayName, bool HasLangName) GetBlockDisplayNameWithStatus(string blockId)
     {
         var cleanId = blockId;
         if (cleanId.StartsWith("minecraft:", StringComparison.OrdinalIgnoreCase))
             cleanId = cleanId.Substring(10);
 
         if (LangKeys.TryGetValue($"tile.{cleanId}.name", out var name) && !string.IsNullOrWhiteSpace(name))
-            return name;
+            return (name, true);
         if (LangKeys.TryGetValue($"item.{cleanId}.name", out var iName) && !string.IsNullOrWhiteSpace(iName))
-            return iName;
+            return (iName, true);
         if (LangKeys.TryGetValue($"tile.{cleanId}", out var tName) && !string.IsNullOrWhiteSpace(tName))
-            return tName;
+            return (tName, true);
 
-        return ToTitleCase(cleanId);
+        return (ToTitleCase(cleanId), false);
     }
 
-    public string GetItemDisplayName(string itemAlias)
+    public string GetBlockDisplayName(string blockId) => GetBlockDisplayNameWithStatus(blockId).DisplayName;
+
+    public (string DisplayName, bool HasLangName) GetItemDisplayNameWithStatus(string itemAlias)
     {
         var cleanId = itemAlias;
         if (cleanId.StartsWith("minecraft:", StringComparison.OrdinalIgnoreCase))
             cleanId = cleanId.Substring(10);
 
         if (LangKeys.TryGetValue($"item.{cleanId}.name", out var name) && !string.IsNullOrWhiteSpace(name))
-            return name;
+            return (name, true);
         if (LangKeys.TryGetValue($"tile.{cleanId}.name", out var tName) && !string.IsNullOrWhiteSpace(tName))
-            return tName;
+            return (tName, true);
 
-        return ToTitleCase(cleanId);
+        return (ToTitleCase(cleanId), false);
     }
 
-    public string GetEntityDisplayName(string entityId)
+    public string GetItemDisplayName(string itemAlias) => GetItemDisplayNameWithStatus(itemAlias).DisplayName;
+
+    public (string DisplayName, bool HasLangName) GetEntityDisplayNameWithStatus(string entityId)
     {
         var cleanId = entityId;
         if (cleanId.StartsWith("minecraft:", StringComparison.OrdinalIgnoreCase))
             cleanId = cleanId.Substring(10);
 
         if (LangKeys.TryGetValue($"entity.{cleanId}.name", out var name) && !string.IsNullOrWhiteSpace(name))
-            return name;
+            return (name, true);
         if (LangKeys.TryGetValue($"item.spawn_egg.entity.{cleanId}.name", out var eggName) && !string.IsNullOrWhiteSpace(eggName))
-            return eggName.Replace(" Spawn Egg", "", StringComparison.OrdinalIgnoreCase);
+            return (eggName.Replace(" Spawn Egg", "", StringComparison.OrdinalIgnoreCase), true);
 
-        return ToTitleCase(cleanId);
+        return (ToTitleCase(cleanId), false);
     }
+
+    public string GetEntityDisplayName(string entityId) => GetEntityDisplayNameWithStatus(entityId).DisplayName;
 
     public static string ToTitleCase(string id)
     {
@@ -507,6 +513,9 @@ public static class VanillaDataService
             }
         }
 
+        // Unflatten Mojang transition aliases (e.g. flattened_stone -> stone) to restore canonical blockstate arrays
+        NormalizeFlattenedAliases(rawBlocks, blockUsage, blockToAliases, terrainTextures, rawTerrain);
+
         // 3. Item texture
         var rawItem = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var declaredItemPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -748,5 +757,57 @@ public static class VanillaDataService
         if (norm.EndsWith(".tga", StringComparison.OrdinalIgnoreCase))
             norm = norm.Substring(0, norm.Length - 4);
         return norm;
+    }
+
+    /// <summary>
+    /// Unflattens Mojang bedrock-samples transition aliases (e.g. "flattened_stone", "flattened_dirt", "flattened_prismarine")
+    /// back to their canonical Bedrock terrain_texture blockstate aliases ("stone", "dirt", "prismarine").
+    /// This restores the 7-texture blockstate array for stone and multi-state variants across the catalog and pack scanner.
+    /// </summary>
+    public static void NormalizeFlattenedAliases(
+        Dictionary<string, string> rawBlocks,
+        Dictionary<string, List<BlockFaceUsage>> blockUsage,
+        Dictionary<string, List<string>> blockToAliases,
+        Dictionary<string, ParsedAliasData> terrainTextures,
+        Dictionary<string, string> rawTerrain)
+    {
+        foreach (var (blockId, aliases) in blockToAliases)
+        {
+            for (int i = 0; i < aliases.Count; i++)
+            {
+                var alias = aliases[i];
+                if (alias.StartsWith("flattened_", StringComparison.OrdinalIgnoreCase))
+                {
+                    var canonical = alias.Substring("flattened_".Length);
+                    if (terrainTextures.ContainsKey(canonical) || rawTerrain.ContainsKey(canonical))
+                    {
+                        // 1. Remap blockToAliases to canonical blockstate alias
+                        aliases[i] = canonical;
+
+                        // 2. Remap blockUsage to canonical, keeping original as fallback
+                        if (blockUsage.TryGetValue(alias, out var usages))
+                        {
+                            if (!blockUsage.TryGetValue(canonical, out var canonicalUsages))
+                            {
+                                blockUsage[canonical] = canonicalUsages = new List<BlockFaceUsage>();
+                            }
+                            foreach (var u in usages)
+                            {
+                                if (!canonicalUsages.Any(cu => cu.BlockId.Equals(u.BlockId, StringComparison.OrdinalIgnoreCase) && cu.Face.Equals(u.Face, StringComparison.OrdinalIgnoreCase)))
+                                {
+                                    canonicalUsages.Add(new BlockFaceUsage(u.BlockId, u.Face));
+                                }
+                            }
+                        }
+
+                        // 3. Remap rawBlocks JSON string so scaffolding outputs canonical alias
+                        if (rawBlocks.TryGetValue(blockId, out var rawJson) && rawJson.Contains($"\"{alias}\""))
+                        {
+                            rawBlocks[blockId] = rawJson.Replace($"\"{alias}\"", $"\"{canonical}\"");
+                        }
+                    }
+                }
+            }
+        }
     }
 }
