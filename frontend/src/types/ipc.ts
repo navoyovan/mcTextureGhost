@@ -371,6 +371,7 @@ export interface BlockGroupNodeDto {
   ghostCount: number;
   totalVariants: number;
   isUserDefined?: boolean;
+  hasLangName?: boolean;
 }
 
 export interface PackFolderItemDto {

@@ -95,6 +95,13 @@
   margin: 0;
 }
 
+.blockDisplayNameFallback {
+  font-family: var(--font-brand, 'Syne', sans-serif);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
 .blockIdSub {
   font-family: var(--font-mono, monospace);
   font-size: 11px;

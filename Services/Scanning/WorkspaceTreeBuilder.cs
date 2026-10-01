@@ -88,11 +88,13 @@ public static partial class WorkspaceTreeBuilder
             if (aliasesForBlock == null || aliasesForBlock.Count == 0)
                 continue;
 
+            var (dispName, hasLang) = vanilla.GetBlockDisplayNameWithStatus(blockId);
             var blockNode = new BlockGroupNode
             {
                 BlockId = blockId,
-                DisplayName = vanilla.GetBlockDisplayName(blockId),
-                Category = TextureCategory.Block
+                DisplayName = dispName,
+                Category = TextureCategory.Block,
+                HasLangName = hasLang
             };
 
             foreach (var alias in aliasesForBlock)
@@ -253,11 +255,13 @@ public static partial class WorkspaceTreeBuilder
 
         foreach (var itemAlias in allItemAliases)
         {
+            var (dispName, hasLang) = vanilla.GetItemDisplayNameWithStatus(itemAlias);
             var itemBlockNode = new BlockGroupNode
             {
                 BlockId = itemAlias,
-                DisplayName = vanilla.GetItemDisplayName(itemAlias),
-                Category = TextureCategory.Item
+                DisplayName = dispName,
+                Category = TextureCategory.Item,
+                HasLangName = hasLang
             };
 
             var aliasNode = new AliasGroupNode
@@ -399,11 +403,13 @@ public static partial class WorkspaceTreeBuilder
             if (entityId.Contains(".v1.0", StringComparison.OrdinalIgnoreCase) || entityId.Contains(".v1.8", StringComparison.OrdinalIgnoreCase))
                 continue;
 
+            var (dispName, hasLang) = vanilla.GetEntityDisplayNameWithStatus(entityId);
             var entityNode = new BlockGroupNode
             {
                 BlockId = entityId,
-                DisplayName = vanilla.GetEntityDisplayName(entityId),
-                Category = TextureCategory.Entity
+                DisplayName = dispName,
+                Category = TextureCategory.Entity,
+                HasLangName = hasLang
             };
 
             var declaredSlots = vanilla.EntityDefinitions.TryGetValue(entityId, out var vSlots)
@@ -556,7 +562,8 @@ public static partial class WorkspaceTreeBuilder
             {
                 BlockId = "uncategorized",
                 DisplayName = "(Uncategorized)",
-                Category = TextureCategory.Block
+                Category = TextureCategory.Block,
+                HasLangName = false
             };
 
             foreach (var grp in untracked.GroupBy(u => u.Alias, StringComparer.OrdinalIgnoreCase))

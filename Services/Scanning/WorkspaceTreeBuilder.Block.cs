@@ -62,12 +62,14 @@ public static partial class WorkspaceTreeBuilder
             if (!userBlockToAliases.TryGetValue(blockId, out var aliasesForBlock) || aliasesForBlock.Count == 0)
                 continue;
 
+            var (dispName, hasLang) = vanilla.GetBlockDisplayNameWithStatus(blockId);
             var blockNode = new BlockGroupNode
             {
                 BlockId = blockId,
-                DisplayName = vanilla.GetBlockDisplayName(blockId),
+                DisplayName = dispName,
                 Category = TextureCategory.Block,
-                IsUserDefined = true
+                IsUserDefined = true,
+                HasLangName = hasLang
             };
 
             foreach (var alias in aliasesForBlock)
@@ -327,12 +329,14 @@ public static partial class WorkspaceTreeBuilder
 
             foreach (var (blockId, aliasesForBlock) in vanillaBlockGroups.OrderBy(k => k.Key, StringComparer.OrdinalIgnoreCase))
             {
+                var (dispName, hasLang) = vanilla.GetBlockDisplayNameWithStatus(blockId);
                 var blockNode = new BlockGroupNode
                 {
                     BlockId = blockId,
-                    DisplayName = vanilla.GetBlockDisplayName(blockId),
+                    DisplayName = dispName,
                     Category = TextureCategory.Block,
-                    IsUserDefined = false
+                    IsUserDefined = false,
+                    HasLangName = hasLang
                 };
 
                 foreach (var alias in aliasesForBlock)
@@ -602,12 +606,14 @@ public static partial class WorkspaceTreeBuilder
                     fallbackBlockId = $"{aliasName}__fallback";
                 }
 
+                var (dispName, hasLang) = vanilla.GetBlockDisplayNameWithStatus(aliasName);
                 var fallbackNode = new BlockGroupNode
                 {
                     BlockId = fallbackBlockId,
-                    DisplayName = vanilla.GetBlockDisplayName(aliasName),
+                    DisplayName = dispName,
                     Category = TextureCategory.Block,
-                    IsUserDefined = false
+                    IsUserDefined = false,
+                    HasLangName = hasLang
                 };
 
                 var fallbackAliasNode = new AliasGroupNode
@@ -664,7 +670,8 @@ public static partial class WorkspaceTreeBuilder
                     BlockId = "uncategorized",
                     DisplayName = "(Uncategorized)",
                     Category = TextureCategory.Block,
-                    IsUserDefined = false
+                    IsUserDefined = false,
+                    HasLangName = false
                 };
 
                 foreach (var grp in orphanItems.GroupBy(u => u.Alias, StringComparer.OrdinalIgnoreCase))

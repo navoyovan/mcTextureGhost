@@ -607,6 +607,7 @@ export function applyOptimisticAddVanillaEntry(
     blockId: node.blockId,
     displayName: node.displayName || node.blockId,
     category: node.category,
+    hasLangName: node.hasLangName,
     ghostCount:
       node.aliasGroups?.reduce(
         (s, ag) => s + (ag.leaves?.filter((l) => l.status === 'GHOST' || l.status === 'VANILLA').length ?? 0),
@@ -782,3 +783,25 @@ export function applyOptimisticDeleteBlockEntry(
     return b;
   });
 }
+
+export function applyOptimisticDeleteEntityEntry(
+  entityTree: BlockGroupNodeDto[],
+  entityId: string
+): BlockGroupNodeDto[] {
+  const norm = entityId.toLowerCase().replace(/^minecraft:/, '');
+  return entityTree.map((e) => {
+    const eNorm = e.blockId.toLowerCase().replace(/^minecraft:/, '');
+    if (eNorm === norm) {
+      return {
+        ...e,
+        isUserDefined: false,
+        aliasGroups: e.aliasGroups?.map((ag) => ({
+          ...ag,
+          isUserDefined: false,
+        })),
+      };
+    }
+    return e;
+  });
+}
+

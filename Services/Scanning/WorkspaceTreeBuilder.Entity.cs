@@ -36,7 +36,7 @@ public static partial class WorkspaceTreeBuilder
                 : entityId;
 
             var isAttachable = group.Any(t => t.IsAttachable);
-            var displayName = vanilla?.GetEntityDisplayName(entityId) ?? cleanId;
+            var (displayName, hasLang) = vanilla != null ? vanilla.GetEntityDisplayNameWithStatus(entityId) : (cleanId, false);
 
             var isCustomEntity = group.Any(t => t.IsUserDefined);
             var hasPackJson = packRoot != null && (
@@ -52,7 +52,8 @@ public static partial class WorkspaceTreeBuilder
                 BlockId = entityId,
                 DisplayName = displayName,
                 Category = TextureCategory.Entity,
-                IsUserDefined = isUserDefined
+                IsUserDefined = isUserDefined,
+                HasLangName = hasLang
             };
 
             // Group tiles by their distinct geometry so adult, baby, and variant geometries are separated cleanly

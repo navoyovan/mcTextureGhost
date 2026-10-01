@@ -397,9 +397,11 @@ export const BlockWorkspace: React.FC = () => {
 
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
   const moreMenuRef = useRef<HTMLDivElement>(null);
+  const [openAliasMenu, setOpenAliasMenu] = useState<string | null>(null);
 
   useEffect(() => {
     setIsMoreMenuOpen(false);
+    setOpenAliasMenu(null);
   }, [selectedBlockId]);
 
   useEffect(() => {
@@ -413,12 +415,30 @@ export const BlockWorkspace: React.FC = () => {
     return () => document.removeEventListener('mousedown', handleOutsideClick);
   }, [isMoreMenuOpen]);
 
+  useEffect(() => {
+    if (!openAliasMenu) return;
+    const handleOutsideClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest(`.${styles.moreMenuWrapper}`)) {
+        setOpenAliasMenu(null);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, [openAliasMenu]);
+
   const handleDeleteBlockEntry = useCallback(() => {
     if (!selectedBlock || selectedBlock.blockId === 'uncategorized') return;
     packStoreActions.optimisticDeleteBlockEntry(selectedBlock.blockId);
     deleteBlockEntry(selectedBlock.blockId);
     setIsMoreMenuOpen(false);
   }, [selectedBlock, deleteBlockEntry]);
+
+  const handleDeleteAliasEntry = useCallback((alias: string) => {
+    packStoreActions.optimisticDeleteEntries(alias, 'block');
+    deleteTextureEntries(alias, 'block');
+    setOpenAliasMenu(null);
+  }, [deleteTextureEntries]);
 
   const tileZoom = usePackStore((s) => s.tileZoom);
   const selectedBlockDisplayName = selectedBlock?.displayName || selectedBlock?.blockId || '';
@@ -488,6 +508,7 @@ export const BlockWorkspace: React.FC = () => {
         emptySelectionText="Select a block to inspect"
         detailAriaLabel="Block Hierarchy & 3D Preview"
         title={selectedBlock?.displayName}
+        hasLangName={selectedBlock?.hasLangName}
         titleBadge={
           selectedBlock && (
             <>
@@ -650,6 +671,45 @@ export const BlockWorkspace: React.FC = () => {
                           missing entry
                         </Badge>
                       )
+                    )}
+                    {!isTrueOrphan && (
+                      <div className={styles.aliasHeaderRight}>
+                        <div className={styles.moreMenuWrapper}>
+                          <button
+                            type="button"
+                            className={styles.moreBtn}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOpenAliasMenu((cur) => (cur === ag.alias ? null : ag.alias));
+                            }}
+                            title={`Alias "${ag.alias}" options`}
+                            aria-label={`Alias "${ag.alias}" options`}
+                          >
+                            <MoreVertical size={14} />
+                          </button>
+                          {openAliasMenu === ag.alias && (
+                            <div className={styles.moreDropdown}>
+                              <button
+                                type="button"
+                                className={styles.moreDropdownItemDanger}
+                                disabled={!isDeclaredInPackTerrain}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteAliasEntry(ag.alias);
+                                }}
+                                title={
+                                  !isDeclaredInPackTerrain
+                                    ? "This alias is using vanilla fallback and not declared in terrain_texture.json"
+                                    : `Delete "${ag.alias}" from terrain_texture.json`
+                                }
+                              >
+                                <Trash2 size={13} />
+                                <span>Delete terrain_texture.json entries</span>
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     )}
                   </div>
 

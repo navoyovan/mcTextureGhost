@@ -341,7 +341,10 @@ export const CatalogBlockGroup: React.FC<CatalogBlockGroupProps> = ({
           </button>
 
           <div className={styles.blockTitleGroup}>
-            <span className={styles.blockDisplayName} title={block.displayName}>
+            <span
+              className={`${styles.blockDisplayName} ${block.hasLangName ? styles.blockDisplayNamePixel : ''}`}
+              title={block.displayName}
+            >
               {block.displayName}
             </span>
             <span className={styles.blockIdText} title={block.blockId}>

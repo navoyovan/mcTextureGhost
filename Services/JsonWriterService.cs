@@ -805,15 +805,25 @@ public static class JsonWriterService
         var terrain = LoadOrCreateTerrainTexture(packRoot);
         var textureData = GetTextureData(terrain);
 
-        if (vanilla.RawTerrainTextureJson.TryGetValue(alias, out var rawTerrainJson))
+        var targetAlias = alias;
+        if (targetAlias.StartsWith("flattened_", StringComparison.OrdinalIgnoreCase))
         {
-            textureData[alias] = JsonNode.Parse(rawTerrainJson);
+            var canonical = targetAlias.Substring("flattened_".Length);
+            if (vanilla.RawTerrainTextureJson.ContainsKey(canonical))
+            {
+                targetAlias = canonical;
+            }
+        }
+
+        if (vanilla.RawTerrainTextureJson.TryGetValue(targetAlias, out var rawTerrainJson))
+        {
+            textureData[targetAlias] = JsonNode.Parse(rawTerrainJson);
             SaveTerrainTexture(packRoot, terrain);
         }
 
-        if (vanilla.RawFlipbookJson.TryGetValue(alias, out var rawFbJson))
+        if (vanilla.RawFlipbookJson.TryGetValue(targetAlias, out var rawFbJson))
         {
-            AppendFlipbookIfNotExists(packRoot, alias, rawFbJson);
+            AppendFlipbookIfNotExists(packRoot, targetAlias, rawFbJson);
         }
     }
 

@@ -522,6 +522,13 @@
   color: #e4e4e7;
 }
 
+.aliasHeaderRight {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .aliasHeader .vanillaHeaderBadge {
   margin-left: auto;
 }

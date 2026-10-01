@@ -505,6 +505,9 @@ public static class CatalogReferenceService
             }
         }
 
+        // Unflatten Mojang transition aliases (e.g. flattened_stone -> stone) to restore canonical blockstate arrays
+        VanillaDataService.NormalizeFlattenedAliases(rawBlocks, blockUsage, blockToAliases, terrainTextures, rawTerrain);
+
         var customItemTextures = File.Exists(itemPath)
             ? TextureAtlasParser.ParseTextureAtlasJson(itemPath)
             : null;
