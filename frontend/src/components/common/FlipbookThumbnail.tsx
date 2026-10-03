@@ -432,6 +432,7 @@ const AnimatedFlipbookThumbnail: React.FC<FlipbookThumbnailProps> = ({
         alt={alt}
         className={`${styles.thumbnailImg} ${className || ''}`}
         loading={loading}
+        decoding="async"
         onError={onError}
       />
     );
@@ -454,6 +455,7 @@ const AnimatedFlipbookThumbnail: React.FC<FlipbookThumbnailProps> = ({
       alt={alt}
       className={`${styles.thumbnailImg} ${className || ''}`}
       loading={loading || 'eager'}
+      decoding="async"
       onError={onError}
     />
   );

@@ -20,12 +20,14 @@ export interface WorkspaceShellProps {
   previewContent?: React.ReactNode;
   children?: React.ReactNode;
   hasLangName?: boolean;
+  sidebarRef?: React.Ref<HTMLElement>;
 }
 
 export const WorkspaceShell: React.FC<WorkspaceShellProps> = ({
   listAriaLabel,
   listHeader,
   sidebarContent,
+  sidebarRef,
   hasSelection,
   emptySelectionText = 'Select an item to inspect',
   detailAriaLabel = 'Detail Pane',
@@ -59,6 +61,7 @@ export const WorkspaceShell: React.FC<WorkspaceShellProps> = ({
 
       {/* Left List */}
       <aside
+        ref={sidebarRef}
         className={`${styles.blockListPane} ${isListDrawerOpen ? styles.blockListPaneOpen : ''}`}
         aria-label={listAriaLabel}
       >

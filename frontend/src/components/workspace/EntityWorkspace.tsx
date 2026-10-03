@@ -12,6 +12,7 @@ import { TextureContextMenu } from '../common/TextureContextMenu';
 import { WorkspaceSkeleton } from './WorkspaceSkeleton';
 import { Badge } from '../common/Badge';
 import { leafToAliasDto, groupLeavesByVariantSlot } from '../../utils/leafTransforms';
+import { useVirtualList } from '../../hooks/useVirtualList';
 import styles from './BlockWorkspace.module.css';
 
 interface EntitySidebarItemProps {
@@ -298,6 +299,25 @@ export const EntityWorkspace: React.FC = () => {
     return fallback;
   }, [filteredEntityWorkspaceTree, entityWorkspaceTree, selectedEntityId]);
 
+  const {
+    containerRef: sidebarScrollRef,
+    startIndex,
+    endIndex,
+    paddingTop,
+    paddingBottom,
+    scrollToIndex,
+  } = useVirtualList({
+    itemCount: filteredEntityWorkspaceTree.length,
+    itemHeight: 37,
+    headerHeight: 41,
+    overscan: 6,
+  });
+
+  const visibleEntities = useMemo(
+    () => filteredEntityWorkspaceTree.slice(startIndex, endIndex),
+    [filteredEntityWorkspaceTree, startIndex, endIndex]
+  );
+
   // Keyboard arrow navigation (Up / Down) through entity list
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -330,16 +350,13 @@ export const EntityWorkspace: React.FC = () => {
         startTransition(() => {
           setSelectedEntityId(nextEntity.blockId);
         });
-        const btn = document.querySelector(`[data-entity-id="${nextEntity.blockId}"]`);
-        if (btn) {
-          btn.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-        }
+        scrollToIndex(nextIndex);
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [filteredEntityWorkspaceTree, selectedEntity?.blockId, selectedEntityId]);
+  }, [filteredEntityWorkspaceTree, selectedEntity?.blockId, selectedEntityId, scrollToIndex]);
 
   // Collect all leaves for selected entity
   const allLeaves = useMemo<CatalogLeafDto[]>(() => {
@@ -514,6 +531,7 @@ export const EntityWorkspace: React.FC = () => {
     <>
       <WorkspaceShell
         listAriaLabel="Entities List"
+        sidebarRef={sidebarScrollRef as any}
         listHeader={
           <>
             Pack Entities ({filteredEntityWorkspaceTree.length}
@@ -522,18 +540,20 @@ export const EntityWorkspace: React.FC = () => {
         }
         sidebarContent={
           filteredEntityWorkspaceTree.length > 0 ? (
-            filteredEntityWorkspaceTree.map((entity) => (
-              <EntitySidebarItem
-                key={entity.blockId}
-                entityId={entity.blockId}
-                displayName={entity.displayName || entity.blockId}
-                isCustom={entity.isUserDefined !== false}
-                isActive={selectedEntity?.blockId === entity.blockId}
-                isAttachable={Boolean(entity.aliasGroups?.some((ag) => ag.isAttachable || ag.leaves?.some((l) => l.isAttachable)))}
-                ghostCount={entity.ghostCount || 0}
-                onSelect={handleSelectEntity}
-              />
-            ))
+            <div style={{ paddingTop: `${paddingTop}px`, paddingBottom: `${paddingBottom}px` }}>
+              {visibleEntities.map((entity) => (
+                <EntitySidebarItem
+                  key={entity.blockId}
+                  entityId={entity.blockId}
+                  displayName={entity.displayName || entity.blockId}
+                  isCustom={entity.isUserDefined !== false}
+                  isActive={selectedEntity?.blockId === entity.blockId}
+                  isAttachable={Boolean(entity.aliasGroups?.some((ag) => ag.isAttachable || ag.leaves?.some((l) => l.isAttachable)))}
+                  ghostCount={entity.ghostCount || 0}
+                  onSelect={handleSelectEntity}
+                />
+              ))}
+            </div>
           ) : (
             <div className={styles.noMatches}>
               <span>No entities match your search or filter</span>

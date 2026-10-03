@@ -392,7 +392,7 @@ const TextureLeafRow: React.FC<TextureLeafRowProps> = ({ leaf, onTileClick }) =>
         <div className={styles.chevronPlaceholder} />
 
         {leaf.imageUrl && (
-          <img src={leaf.imageUrl} alt="" className={styles.thumbPreview} loading="lazy" />
+          <img src={leaf.imageUrl} alt="" className={styles.thumbPreview} loading="lazy" decoding="async" />
         )}
 
         <span className={styles.nodeLabel}>

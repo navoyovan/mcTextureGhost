@@ -16,6 +16,7 @@ import {
   hasBlocksJson as checkBlocksJson,
 } from '../../utils/packFileUtils';
 import { leafToAliasDto, groupLeavesByVariantSlot } from '../../utils/leafTransforms';
+import { useVirtualList } from '../../hooks/useVirtualList';
 import styles from './BlockWorkspace.module.css';
 
 const AliasLoadingOverlay: React.FC<{ op: 'deleting' | 'adding' }> = React.memo(({ op }) => (
@@ -361,6 +362,25 @@ export const BlockWorkspace: React.FC = () => {
     prevBlockIdRef.current = curId;
   }, [selectedBlock?.blockId, setActiveBlockStateIndex, setActiveVariationIndex]);
 
+  const {
+    containerRef: sidebarScrollRef,
+    startIndex,
+    endIndex,
+    paddingTop,
+    paddingBottom,
+    scrollToIndex,
+  } = useVirtualList({
+    itemCount: filteredBlockWorkspaceTree.length,
+    itemHeight: 37,
+    headerHeight: 41,
+    overscan: 6,
+  });
+
+  const visibleBlocks = useMemo(
+    () => filteredBlockWorkspaceTree.slice(startIndex, endIndex),
+    [filteredBlockWorkspaceTree, startIndex, endIndex]
+  );
+
   // Keyboard arrow navigation (Up / Down) through blocks list
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -392,16 +412,13 @@ export const BlockWorkspace: React.FC = () => {
         startTransition(() => {
           setSelectedBlockId(nextBlock.blockId);
         });
-        const btn = document.querySelector(`[data-block-id="${nextBlock.blockId}"]`);
-        if (btn) {
-          btn.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-        }
+        scrollToIndex(nextIndex);
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [filteredBlockWorkspaceTree, selectedBlock?.blockId, selectedBlockId]);
+  }, [filteredBlockWorkspaceTree, selectedBlock?.blockId, selectedBlockId, scrollToIndex]);
 
   // Reset activeVariationIndex when switching blockstate
   useEffect(() => {
@@ -703,6 +720,7 @@ export const BlockWorkspace: React.FC = () => {
     <>
       <WorkspaceShell
         listAriaLabel="Blocks List"
+        sidebarRef={sidebarScrollRef as any}
         listHeader={
           <>
             Pack Blocks ({filteredBlockWorkspaceTree.length}
@@ -711,17 +729,19 @@ export const BlockWorkspace: React.FC = () => {
         }
         sidebarContent={
           filteredBlockWorkspaceTree.length > 0 ? (
-            filteredBlockWorkspaceTree.map((block) => (
-              <BlockSidebarItem
-                key={block.blockId}
-                blockId={block.blockId}
-                displayName={block.displayName || block.blockId}
-                isCustom={block.isUserDefined !== false}
-                isActive={selectedBlock?.blockId === block.blockId}
-                ghostCount={block.ghostCount || 0}
-                onSelect={handleSelectBlock}
-              />
-            ))
+            <div style={{ paddingTop: `${paddingTop}px`, paddingBottom: `${paddingBottom}px` }}>
+              {visibleBlocks.map((block) => (
+                <BlockSidebarItem
+                  key={block.blockId}
+                  blockId={block.blockId}
+                  displayName={block.displayName || block.blockId}
+                  isCustom={block.isUserDefined !== false}
+                  isActive={selectedBlock?.blockId === block.blockId}
+                  ghostCount={block.ghostCount || 0}
+                  onSelect={handleSelectBlock}
+                />
+              ))}
+            </div>
           ) : (
             <div className={styles.noMatches}>
               <span>No blocks match your search or filter</span>
