@@ -347,31 +347,43 @@ export const packStoreActions: PackStoreActions = {
         }
       }
     }
+    const packDeclaredAliasSet = new Set<string>();
+    for (const a of sanitizedAliases) {
+      if (a.category === 'block' && a.status !== 'ORPHAN' && (a as any).isUserDefined !== false) {
+        packDeclaredAliasSet.add(a.alias.toLowerCase());
+      }
+    }
     Object.keys(updatedPendingAliasOps).forEach((alias) => {
       const op = updatedPendingAliasOps[alias];
-      const aliasExistsInTree = aliasInTreeSet.has(alias.toLowerCase());
-      if (op === 'deleting' && !aliasExistsInTree) {
-        delete updatedPendingAliasOps[alias];
-      } else if (op === 'adding' && aliasExistsInTree) {
-        delete updatedPendingAliasOps[alias];
+      const aliasNorm = alias.toLowerCase();
+      const aliasExistsInTree = aliasInTreeSet.has(aliasNorm);
+      const isDeclaredInPack = packDeclaredAliasSet.has(aliasNorm);
+      if (op === 'deleting') {
+        if (!isDeclaredInPack || !aliasExistsInTree) {
+          delete updatedPendingAliasOps[alias];
+        }
+      } else if (op === 'adding') {
+        if (aliasExistsInTree) {
+          delete updatedPendingAliasOps[alias];
+        }
       }
     });
 
     // Auto-clear resolved pending tile operations
     const updatedPendingTileOps = { ...currentState.pendingTileOps };
-    const tilePathSet = new Set<string>();
+    const existingTilePathSet = new Set<string>();
     for (const a of sanitizedAliases) {
-      if (a.fullPath) {
-        tilePathSet.add(a.fullPath.replace(/[/\\]+/g, '/').toLowerCase());
+      if (a.fullPath && (a.status === 'OK' || a.status === 'OVERRIDE')) {
+        existingTilePathSet.add(a.fullPath.replace(/[/\\]+/g, '/').toLowerCase());
       }
     }
     Object.keys(updatedPendingTileOps).forEach((fullPath) => {
       const op = updatedPendingTileOps[fullPath];
       const pathNorm = fullPath.replace(/[/\\]+/g, '/').toLowerCase();
-      const tileExistsInAliases = tilePathSet.has(pathNorm);
-      if (op === 'deleting' && !tileExistsInAliases) {
+      const tileExistsOnDisk = existingTilePathSet.has(pathNorm);
+      if (op === 'deleting' && !tileExistsOnDisk) {
         delete updatedPendingTileOps[fullPath];
-      } else if (op === 'adding' && tileExistsInAliases) {
+      } else if (op === 'adding' && tileExistsOnDisk) {
         delete updatedPendingTileOps[fullPath];
       }
     });
@@ -541,12 +553,36 @@ export const packStoreActions: PackStoreActions = {
 
     const updatedPendingAliasOps = { ...currentState.pendingAliasOps };
     if (patch.removeAliasKeys) {
-      for (const k of patch.removeAliasKeys) delete updatedPendingAliasOps[k];
+      for (const k of patch.removeAliasKeys) {
+        delete updatedPendingAliasOps[k.toLowerCase()];
+        const colonIdx = k.indexOf(':');
+        if (colonIdx > 0) {
+          delete updatedPendingAliasOps[k.substring(0, colonIdx).toLowerCase()];
+        }
+      }
     }
     if (patch.upsertAliases) {
       for (const a of patch.upsertAliases) {
-        delete updatedPendingAliasOps[a.alias];
-        if (a.key) delete updatedPendingAliasOps[a.key];
+        delete updatedPendingAliasOps[a.alias.toLowerCase()];
+        if (a.key) {
+          delete updatedPendingAliasOps[a.key.toLowerCase()];
+          const colonIdx = a.key.indexOf(':');
+          if (colonIdx > 0) {
+            delete updatedPendingAliasOps[a.key.substring(0, colonIdx).toLowerCase()];
+          }
+        }
+      }
+    }
+    if (patch.upsertBlocks) {
+      for (const b of patch.upsertBlocks) {
+        if (b.aliasGroups) {
+          for (const ag of b.aliasGroups) {
+            const norm = ag.alias.toLowerCase();
+            if (updatedPendingAliasOps[norm] === 'deleting') {
+              delete updatedPendingAliasOps[norm];
+            }
+          }
+        }
       }
     }
 
@@ -829,6 +865,14 @@ export const packStoreActions: PackStoreActions = {
       delete next[key];
     } else {
       next[key] = op;
+      setTimeout(() => {
+        if (currentState.pendingAliasOps[key]) {
+          const cleaned = { ...currentState.pendingAliasOps };
+          delete cleaned[key];
+          currentState = { ...currentState, pendingAliasOps: cleaned };
+          notify();
+        }
+      }, 2500);
     }
     currentState = { ...currentState, pendingAliasOps: next };
     notify();
@@ -841,6 +885,14 @@ export const packStoreActions: PackStoreActions = {
       delete next[key];
     } else {
       next[key] = op;
+      setTimeout(() => {
+        if (currentState.pendingTileOps[key]) {
+          const cleaned = { ...currentState.pendingTileOps };
+          delete cleaned[key];
+          currentState = { ...currentState, pendingTileOps: cleaned };
+          notify();
+        }
+      }, 2500);
     }
     currentState = { ...currentState, pendingTileOps: next };
     notify();
