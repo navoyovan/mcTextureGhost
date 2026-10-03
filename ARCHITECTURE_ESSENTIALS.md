@@ -29,7 +29,7 @@ Paths are repository-relative. Read the entry point relevant to the task, not ev
 | Domain IPC request handling | `Services/Ipc/Handlers/` (`AppIpcHandlers.cs`, `PackIpcHandlers.cs`, `CatalogIpcHandlers.cs`, `TextureIpcHandlers.cs`) registered via `MainWindow.xaml.cs` |
 | Backend state, commands, file-watcher coordination | `ViewModels/MainViewModel.cs` (coalesced `RunScanLoopAsync`); self-write watcher suppression: `Services/WriteJournal.cs`; batch collections: `ViewModels/BulkObservableCollection.cs` |
 | IPC message names and payloads | `Services/IpcContracts.cs` and `frontend/src/types/ipc.ts` |
-| IPC transport, dispatch, subscriptions, correlated requests | `Services/IpcBridgeService.cs` and `frontend/src/hooks/useIpc.ts` |
+| IPC transport, dispatch, subscriptions, correlated requests | `Services/IpcBridgeService.cs` and `frontend/src/hooks/useIpc.ts`; snapshot diffing: `Services/PackStateDiffer.cs` |
 | Frontend state, navigation & pure tree mutations | `frontend/src/store/packStore.ts`, `frontend/src/store/mutations/workspaceTreeMutations.ts`, and `frontend/src/App.tsx` |
 | Path normalization & pack file queries | `frontend/src/utils/pathUtils.ts` and `frontend/src/utils/packFileUtils.ts` |
 | Leaf-to-alias DTO transforms & variant grouping | `frontend/src/utils/leafTransforms.ts` |
@@ -63,6 +63,7 @@ Paths are repository-relative. Read the entry point relevant to the task, not ev
 ## 3. IPC & Virtual Hosts
 - **Host → Web:** JSON string through `CoreWebView2.PostWebMessageAsString`.
 - **Web → Host:** Object envelope through WebView2 `postMessage`; shared helpers (`postCommand`, `subscribeToEvent`, `sendRequest`) live in `frontend/src/hooks/useIpc.ts`.
+- **Delta Protocol (`PACK:PATCH`):** Post-rescan state changes compute diffs against the previous snapshot via `Services/PackStateDiffer.cs`, transmitting incremental `PACK:PATCH` payloads (KB-scale) with monotonic sequence numbers (`seq`) rather than full `PACK:STATE_CHANGED` payloads (MB-scale). Full snapshots are strictly reserved for initial pack load, pack reload, and pack close.
 - **Envelope:** Message `type` and `payload`, with correlation and timestamp metadata. Consult the contract files above rather than maintaining a separate message catalog here.
 - **Contract edits:** Check both C# and TypeScript contracts, the handler, and the caller together.
 - **Virtual hosts:**

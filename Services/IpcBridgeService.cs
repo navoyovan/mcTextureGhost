@@ -65,6 +65,9 @@ public interface IIpcBridgeService : IDisposable
     /// <summary>Convenience: pushes full pack state to web.</summary>
     void PushPackState(PackStatePayload state);
 
+    /// <summary>Convenience: pushes incremental pack patch to web.</summary>
+    void PushPackPatch(PackPatchPayload patch);
+
     /// <summary>Convenience: pushes scan progress update to web.</summary>
     void PushScanProgress(string stage, int current, int total, string message);
 
@@ -477,6 +480,9 @@ public sealed class IpcBridgeService : IIpcBridgeService
 
     public void PushPackState(PackStatePayload state) =>
         PostMessage(IpcMessageTypes.PackStateChanged, state);
+
+    public void PushPackPatch(PackPatchPayload patch) =>
+        PostMessage(IpcMessageTypes.PackPatch, patch);
 
     public void PushScanProgress(string stage, int current, int total, string message) =>
         PostMessage(IpcMessageTypes.ScanProgress, new ScanProgressPayload(stage, current, total, message));

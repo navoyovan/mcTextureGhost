@@ -55,6 +55,7 @@ export const IpcMessageTypes = {
 
   // Outgoing from C# to Web
   PackStateChanged: 'PACK:STATE_CHANGED',
+  PackPatch: 'PACK:PATCH',
   ScanProgress: 'SCAN:PROGRESS',
   TextureUpdated: 'TEXTURE:UPDATED',
   AppConfig: 'APP:CONFIG',
@@ -453,6 +454,21 @@ export interface PackStatePayload {
   activeReferenceId?: string | null;
   entityWorkspaceTree?: BlockGroupNodeDto[] | null;
   hasVanillaAssets?: boolean;
+}
+
+export interface PackPatchPayload {
+  seq: number;
+  upsertAliases?: TextureAliasDto[];
+  removeAliasKeys?: string[];
+  upsertBlocks?: BlockGroupNodeDto[];
+  removeBlockIds?: string[];
+  upsertEntities?: BlockGroupNodeDto[];
+  removeEntityIds?: string[];
+  upsertCatalog?: BlockGroupNodeDto[];
+  stats?: PackStatsDto;
+  manifest?: ManifestModelDto | null;
+  hasPackIcon?: boolean;
+  packIconUrl?: string | null;
 }
 
 export interface ScanProgressPayload {
