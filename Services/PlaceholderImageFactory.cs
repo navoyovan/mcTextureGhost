@@ -12,6 +12,7 @@ public static class PlaceholderImageFactory
 {
     public static void CreateStub(string fullPath, int size = 16)
     {
+        WriteJournal.RecordWrite(fullPath);
         var directory = Path.GetDirectoryName(fullPath);
         if (!string.IsNullOrEmpty(directory))
             Directory.CreateDirectory(directory);

@@ -130,6 +130,7 @@ export const WorkspaceTileCard: React.FC<WorkspaceTileCardProps> = React.memo(({
 
   const processImport = useCallback(
     (leaf: CatalogLeafDto, file: File) => {
+      const tImportStart = performance.now();
       const targetFullPath = resolveTextureFullPath(packRoot, leaf.fullPath, leaf.relativePath);
       if (!targetFullPath) return;
       // optimistic BEFORE file read — instant tile flip even for large files
@@ -139,6 +140,7 @@ export const WorkspaceTileCard: React.FC<WorkspaceTileCardProps> = React.memo(({
       // Use arrayBuffer() which stays off the main thread, then convert to base64 in small chunks
       // to avoid locking the JS thread during encoding (readAsDataURL blocks on large files)
       file.arrayBuffer().then((buffer) => {
+        const tEncodeStart = performance.now();
         const bytes = new Uint8Array(buffer);
         let binary = '';
         const chunkSize = 8192;
@@ -146,6 +148,9 @@ export const WorkspaceTileCard: React.FC<WorkspaceTileCardProps> = React.memo(({
           binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
         }
         const base64Data = `data:${file.type || 'image/png'};base64,${btoa(binary)}`;
+        const encodeMs = performance.now() - tEncodeStart;
+        const totalMs = performance.now() - tImportStart;
+        console.log(`[PERF][IMPORT] file=${file.name} size=${(file.size / 1024).toFixed(1)}KB encode=${encodeMs.toFixed(1)}ms totalBeforeIpc=${totalMs.toFixed(1)}ms`);
         dropImportTexture({
           aliasKey: leaf.alias,
           fullPath: targetFullPath,

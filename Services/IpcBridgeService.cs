@@ -430,8 +430,11 @@ public sealed class IpcBridgeService : IIpcBridgeService
         if (_coreWebView2 == null || _dispatcher == null) return;
 
         // Perform JSON serialization on caller thread (zero UI-thread blocking for heavy objects)
+        var perfSw = Stopwatch.StartNew();
         var envelope = IpcEnvelope.Create(type, payload, correlationId);
         string json = JsonSerializer.Serialize(envelope, JsonOptions);
+        perfSw.Stop();
+        Debug.WriteLine($"[PERF][IPC OUT] {type} serialize={perfSw.ElapsedMilliseconds}ms size={json.Length / 1024}KB uiThread={_dispatcher.CheckAccess()}");
 
         if (_dispatcher.CheckAccess())
         {

@@ -93,6 +93,7 @@ public static class TextureIpcHandlers
                             {
                                 if (File.Exists(payload.FullPath))
                                 {
+                                    WriteJournal.RecordWrite(payload.FullPath);
                                     File.Delete(payload.FullPath);
                                 }
                                 deleted = true;
@@ -248,6 +249,7 @@ public static class TextureIpcHandlers
                     }
                     var bytes = Convert.FromBase64String(base64);
 
+                    WriteJournal.RecordWrite(targetPath);
                     await File.WriteAllBytesAsync(targetPath, bytes);
 
                     ImagePathConverter.ClearCache();
@@ -310,6 +312,7 @@ public static class TextureIpcHandlers
                         Directory.CreateDirectory(dir);
                     }
 
+                    WriteJournal.RecordWrite(targetPath);
                     await Task.Run(() => File.Copy(payload.SourceFullPath, targetPath, overwrite: true));
 
                     ImagePathConverter.ClearCache();
@@ -419,6 +422,7 @@ public static class TextureIpcHandlers
 
                     if (sourceFile != null && File.Exists(sourceFile))
                     {
+                        WriteJournal.RecordWrite(targetFile);
                         File.Copy(sourceFile, targetFile, overwrite: true);
                     }
                     else
@@ -428,6 +432,7 @@ public static class TextureIpcHandlers
                         var vanillaSrc = PackArchiveUtility.ResolveReferenceTexturePath(refDir, targetFile, payload.RelativePath ?? newPath, payload.Alias, "block", packRoot);
                         if (!string.IsNullOrEmpty(vanillaSrc) && File.Exists(vanillaSrc))
                         {
+                            WriteJournal.RecordWrite(targetFile);
                             File.Copy(vanillaSrc, targetFile, overwrite: true);
                         }
                         else

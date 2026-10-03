@@ -1348,11 +1348,15 @@ public class MainViewModel : INotifyPropertyChanged
                 {
                     ScanProgressChanged?.Invoke("scanning", 2, 5, "Scanning atlas textures & JSON declarations...");
                 }
+                var perfSw = System.Diagnostics.Stopwatch.StartNew();
                 var results = await Task.Run(() => PackScanner.Scan(packRoot, _vanillaData));
+                System.Diagnostics.Debug.WriteLine($"[PERF][RESCAN] scan={perfSw.ElapsedMilliseconds}ms aliases={results.Count}");
+                perfSw.Restart();
 
                 foreach (var alias in results)
                     Aliases.Add(alias);
                 ApplySearchFilter();
+                System.Diagnostics.Debug.WriteLine($"[PERF][RESCAN] populateAliases(UI)={perfSw.ElapsedMilliseconds}ms");
 
                 if (_vanillaData != null)
                 {
@@ -1360,6 +1364,7 @@ public class MainViewModel : INotifyPropertyChanged
                     {
                         ScanProgressChanged?.Invoke("building_trees", 3, 5, "Building catalog & workspace models...");
                     }
+                    perfSw.Restart();
                     var (catalogNodes, workspaceNodes, entityNodes) = await Task.Run(() =>
                     {
                         var cat = PackScanner.BuildCatalogTree(results, _vanillaData, packRoot);
@@ -1367,6 +1372,8 @@ public class MainViewModel : INotifyPropertyChanged
                         var ent = PackScanner.BuildEntityWorkspaceTree(results, _vanillaData, packRoot);
                         return (cat, ws, ent);
                     });
+                    System.Diagnostics.Debug.WriteLine($"[PERF][RESCAN] buildTrees={perfSw.ElapsedMilliseconds}ms");
+                    perfSw.Restart();
 
                     foreach (var node in catalogNodes)
                         CatalogTree.Add(node);
@@ -1377,6 +1384,7 @@ public class MainViewModel : INotifyPropertyChanged
 
                     foreach (var node in entityNodes)
                         EntityWorkspaceTree.Add(node);
+                    System.Diagnostics.Debug.WriteLine($"[PERF][RESCAN] populateTrees(UI)={perfSw.ElapsedMilliseconds}ms");
                 }
 
                 var blockCount = results.Count(a => a.Category == TextureCategory.Block);
@@ -1933,6 +1941,12 @@ public class MainViewModel : INotifyPropertyChanged
 
         void OnFileChanged(object sender, FileSystemEventArgs e)
         {
+            if (WriteJournal.IsSelfWrite(e.FullPath))
+            {
+                System.Diagnostics.Debug.WriteLine($"[PERF][WATCHER] Suppressed self-write: {e.FullPath} ({e.ChangeType})");
+                return;
+            }
+
             var dispatcher = Application.Current?.Dispatcher;
             if (dispatcher == null) return;
             dispatcher.InvokeAsync(() =>
@@ -1944,6 +1958,12 @@ public class MainViewModel : INotifyPropertyChanged
 
         void OnFileRenamed(object sender, RenamedEventArgs e)
         {
+            if (WriteJournal.IsSelfWrite(e.FullPath) || WriteJournal.IsSelfWrite(e.OldFullPath))
+            {
+                System.Diagnostics.Debug.WriteLine($"[PERF][WATCHER] Suppressed self-write rename: {e.OldFullPath} -> {e.FullPath}");
+                return;
+            }
+
             var dispatcher = Application.Current?.Dispatcher;
             if (dispatcher == null) return;
             dispatcher.InvokeAsync(() =>

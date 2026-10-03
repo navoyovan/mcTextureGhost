@@ -279,13 +279,20 @@ function notifyDeferred(): void {
     deferredNotifyScheduled = true;
     queueMicrotask(() => {
       deferredNotifyScheduled = false;
+      const t0 = performance.now();
       listeners.forEach((listener) => listener());
+      const notifyMs = performance.now() - t0;
+      requestAnimationFrame(() => {
+        const paintMs = performance.now() - t0;
+        console.log(`[PERF][REACT] pumpListeners=${notifyMs.toFixed(1)}ms framePaint=${paintMs.toFixed(1)}ms (${listeners.size} listeners)`);
+      });
     });
   }
 }
 
 export const packStoreActions: PackStoreActions = {
   setPackState(dto: Partial<PackStatePayload>): void {
+    const t0 = performance.now();
     const rawAliases = dto.aliases || currentState.aliases || [];
     const sanitizedAliases = Array.isArray(rawAliases) ? rawAliases : [];
     const stats = dto.stats || computeStats(sanitizedAliases);
@@ -350,6 +357,8 @@ export const packStoreActions: PackStoreActions = {
       scanProgress: null,
     };
     notifyDeferred();
+    const setPackStateMs = performance.now() - t0;
+    console.log(`[PERF][STORE] setPackState took ${setPackStateMs.toFixed(1)}ms (blocks: ${newBlockWorkspaceTree.length}, aliases: ${sanitizedAliases.length})`);
   },
 
   resetPackState(): void {
