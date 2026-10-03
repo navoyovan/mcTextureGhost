@@ -295,7 +295,7 @@
   position: absolute;
   top: calc(100% + 4px);
   right: 0;
-  min-width: 195px;
+  min-width: 240px;
   background: rgba(26, 26, 32, 0.96);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
@@ -306,6 +306,7 @@
   z-index: 100;
   display: flex;
   flex-direction: column;
+  gap: 2px;
 }
 
 .moreDropdownItemDanger {
@@ -505,6 +506,82 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
+  transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s ease, padding 0.3s ease, border-color 0.2s ease;
+}
+
+@keyframes alias-collapse {
+  0% {
+    opacity: 1;
+    max-height: 500px;
+    padding: 14px;
+    margin-bottom: 0;
+    transform: scale(1);
+  }
+  60% {
+    opacity: 0.3;
+    max-height: 60px;
+    padding: 10px 14px;
+    transform: scale(0.98);
+  }
+  100% {
+    opacity: 0;
+    max-height: 0;
+    padding: 0 14px;
+    margin-bottom: -16px;
+    border-color: transparent;
+    transform: scale(0.95);
+  }
+}
+
+.aliasCardDeleting {
+  animation: alias-collapse 0.35s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+@keyframes alias-expand {
+  0% {
+    opacity: 0.3;
+    max-height: 60px;
+    transform: scale(0.98);
+  }
+  100% {
+    opacity: 1;
+    max-height: 600px;
+    transform: scale(1);
+  }
+}
+
+.aliasCardAdding {
+  animation: alias-expand 0.3s cubic-bezier(0.4, 0, 0.2, 1) ease-out;
+  overflow: hidden;
+}
+
+.aliasLoadingOverlay {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 14px 0;
+  color: #71717a;
+  font-size: 12px;
+  font-family: var(--font-brand);
+  user-select: none;
+}
+
+.aliasLoadingSpinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.15);
+  border-top-color: #8b5cf6;
+  border-radius: 50%;
+  animation: alias-spin 0.7s linear infinite;
+}
+
+@keyframes alias-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .aliasGroupCardFallback {

@@ -64,12 +64,14 @@ function ensureGlobalListenerAttached(): void {
       // 2. Demux by message type to registered subscribers
       const handlers = globalListeners.get(envelope.type);
       if (handlers && handlers.size > 0) {
-        handlers.forEach((fn) => {
-          try {
-            fn(envelope.payload, envelope);
-          } catch (err) {
-            console.error(`[useIpc] Error in handler for message "${envelope.type}":`, err);
-          }
+        queueMicrotask(() => {
+          handlers.forEach((fn) => {
+            try {
+              fn(envelope.payload, envelope);
+            } catch (err) {
+              console.error(`[useIpc] Error in handler for message "${envelope.type}":`, err);
+            }
+          });
         });
       }
     } catch (err) {

@@ -92,6 +92,10 @@ export interface PackStoreState {
   entityWorkspaceActiveSlotIndex: number;
   entityWorkspaceActiveVariationIndex: number;
 
+  /** Pending alias and tile ops to prevent flash during background scans */
+  pendingAliasOps: Record<string, 'deleting' | 'adding'>;
+  pendingTileOps: Record<string, 'deleting' | 'adding'>;
+
   // App & Theme Config
   tintOpacity: number;
   tintBrightness: number;
@@ -115,6 +119,8 @@ export interface PackStoreActions {
   optimisticRenameVariation: (alias: string, oldRelativePath: string, newRelativePath: string) => void;
   optimisticAddVariation: (alias: string, blockVariantIndex?: number | null, count?: number, sourceRelativePath?: string | null) => void;
   optimisticAddVanillaEntry: (id: string, category: string, alias?: string, catalogNode?: BlockGroupNodeDto | null) => void;
+  setPendingAliasOp: (alias: string, op: 'deleting' | 'adding' | null) => void;
+  setPendingTileOp: (fullPath: string, op: 'deleting' | 'adding' | null) => void;
   setScanProgress: (progress: ScanProgressPayload | null) => void;
   setIsScanning: (scanning: boolean) => void;
   startPackLoading: (folderPath: string, packName?: string) => void;
@@ -237,6 +243,9 @@ const initialState: PackStoreState = {
   entityWorkspaceActiveSlotIndex: 0,
   entityWorkspaceActiveVariationIndex: 0,
 
+  pendingAliasOps: {},
+  pendingTileOps: {},
+
   isPackClosing: typeof window !== 'undefined' && sessionStorage.getItem('mctg_pack_closing') === '1',
 
   tintOpacity: 85,
@@ -260,11 +269,58 @@ function notify(): void {
   listeners.forEach((listener) => listener());
 }
 
+// Deferred notify — state is updated immediately but the React re-render pump
+// fires in a microtask (outside the current event handler). Used for heavy
+// selection changes (block/entity) to prevent 'click handler took Xms' violations.
+let deferredNotifyScheduled = false;
+function notifyDeferred(): void {
+  cachedSnapshot = null; // snapshot is stale immediately
+  if (!deferredNotifyScheduled) {
+    deferredNotifyScheduled = true;
+    queueMicrotask(() => {
+      deferredNotifyScheduled = false;
+      listeners.forEach((listener) => listener());
+    });
+  }
+}
+
 export const packStoreActions: PackStoreActions = {
   setPackState(dto: Partial<PackStatePayload>): void {
     const rawAliases = dto.aliases || currentState.aliases || [];
     const sanitizedAliases = Array.isArray(rawAliases) ? rawAliases : [];
     const stats = dto.stats || computeStats(sanitizedAliases);
+
+    const newBlockWorkspaceTree = Array.isArray(dto.blockWorkspaceTree) ? dto.blockWorkspaceTree : currentState.blockWorkspaceTree;
+
+    // Auto-clear resolved pending alias operations
+    const updatedPendingAliasOps = { ...currentState.pendingAliasOps };
+    Object.keys(updatedPendingAliasOps).forEach((alias) => {
+      const op = updatedPendingAliasOps[alias];
+      const aliasNorm = alias.toLowerCase();
+      const aliasExistsInTree = newBlockWorkspaceTree.some((block) =>
+        block.aliasGroups?.some((ag) => ag.alias.toLowerCase() === aliasNorm)
+      );
+      if (op === 'deleting' && !aliasExistsInTree) {
+        delete updatedPendingAliasOps[alias];
+      } else if (op === 'adding' && aliasExistsInTree) {
+        delete updatedPendingAliasOps[alias];
+      }
+    });
+
+    // Auto-clear resolved pending tile operations
+    const updatedPendingTileOps = { ...currentState.pendingTileOps };
+    Object.keys(updatedPendingTileOps).forEach((fullPath) => {
+      const op = updatedPendingTileOps[fullPath];
+      const pathNorm = fullPath.replace(/[/\\]+/g, '/').toLowerCase();
+      const tileExistsInAliases = sanitizedAliases.some(
+        (a) => a.fullPath && a.fullPath.replace(/[/\\]+/g, '/').toLowerCase() === pathNorm
+      );
+      if (op === 'deleting' && !tileExistsInAliases) {
+        delete updatedPendingTileOps[fullPath];
+      } else if (op === 'adding' && tileExistsInAliases) {
+        delete updatedPendingTileOps[fullPath];
+      }
+    });
 
     currentState = {
       ...currentState,
@@ -275,7 +331,7 @@ export const packStoreActions: PackStoreActions = {
       packIconUrl: dto.packIconUrl ?? currentState.packIconUrl,
       manifest: dto.manifest ?? currentState.manifest,
       aliases: sanitizedAliases,
-      blockWorkspaceTree: Array.isArray(dto.blockWorkspaceTree) ? dto.blockWorkspaceTree : currentState.blockWorkspaceTree,
+      blockWorkspaceTree: newBlockWorkspaceTree,
       entityWorkspaceTree: Array.isArray(dto.entityWorkspaceTree) ? dto.entityWorkspaceTree : currentState.entityWorkspaceTree,
       packFolders: Array.isArray(dto.packFolders) ? dto.packFolders : currentState.packFolders,
       recentPacks: Array.isArray(dto.recentPacks) ? dto.recentPacks : currentState.recentPacks,
@@ -285,13 +341,15 @@ export const packStoreActions: PackStoreActions = {
       hasVanillaAssets: dto.hasVanillaAssets !== undefined ? dto.hasVanillaAssets : currentState.hasVanillaAssets,
       selectedFolderPath: dto.packRoot !== undefined && dto.packRoot !== currentState.packRoot ? null : currentState.selectedFolderPath,
       stats,
+      pendingAliasOps: updatedPendingAliasOps,
+      pendingTileOps: updatedPendingTileOps,
       isScanning: false,
       isGridLoading: false,
       isWorkspaceLoading: false,
       isCatalogLoading: false,
       scanProgress: null,
     };
-    notify();
+    notifyDeferred();
   },
 
   resetPackState(): void {
@@ -594,6 +652,30 @@ export const packStoreActions: PackStoreActions = {
     notify();
   },
 
+  setPendingAliasOp(alias: string, op: 'deleting' | 'adding' | null): void {
+    const next = { ...currentState.pendingAliasOps };
+    const key = alias.toLowerCase();
+    if (!op) {
+      delete next[key];
+    } else {
+      next[key] = op;
+    }
+    currentState = { ...currentState, pendingAliasOps: next };
+    notify();
+  },
+
+  setPendingTileOp(fullPath: string, op: 'deleting' | 'adding' | null): void {
+    const next = { ...currentState.pendingTileOps };
+    const key = fullPath.replace(/[/\\]+/g, '/').toLowerCase();
+    if (!op) {
+      delete next[key];
+    } else {
+      next[key] = op;
+    }
+    currentState = { ...currentState, pendingTileOps: next };
+    notify();
+  },
+
   startPackLoading(folderPath: string, packName?: string): void {
     const derivedName = packName || folderPath.split(/[\\/]/).filter(Boolean).pop() || 'Resource Pack';
     currentState = {
@@ -698,7 +780,7 @@ export const packStoreActions: PackStoreActions = {
 
   setSelectedBlockId(id: string | null): void {
     currentState = { ...currentState, selectedBlockId: id };
-    notify();
+    notifyDeferred();
   },
 
   setSelectedAliasKey(key: string | null): void {
@@ -830,7 +912,7 @@ export const packStoreActions: PackStoreActions = {
   setEntityWorkspaceSelectedId(id: string | null): void {
     currentState = { ...currentState, entityWorkspaceSelectedId: id };
     cachedSnapshot = null;
-    notify();
+    notifyDeferred();
   },
 
   setEntityWorkspaceActiveLeafKey(key: string | null): void {

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useCallback, useRef, useEffect, startTransition } from 'react';
 import { PawPrint, ArrowRight, Shield, MoreVertical, Trash2 } from 'lucide-react';
 import { usePackStore, packStoreActions } from '../../store/packStore';
 import { useIpc } from '../../hooks/useIpc';
@@ -13,6 +13,59 @@ import { WorkspaceSkeleton } from './WorkspaceSkeleton';
 import { Badge } from '../common/Badge';
 import { leafToAliasDto, groupLeavesByVariantSlot } from '../../utils/leafTransforms';
 import styles from './BlockWorkspace.module.css';
+
+interface EntitySidebarItemProps {
+  entityId: string;
+  displayName: string;
+  isCustom: boolean;
+  isActive: boolean;
+  isAttachable: boolean;
+  ghostCount: number;
+  onSelect: (id: string) => void;
+}
+
+const EntitySidebarItem: React.FC<EntitySidebarItemProps> = React.memo(({
+  entityId,
+  displayName,
+  isCustom,
+  isActive,
+  isAttachable,
+  ghostCount,
+  onSelect,
+}) => {
+  return (
+    <button
+      data-entity-id={entityId}
+      type="button"
+      className={`${styles.blockItem} ${isActive ? styles.blockItemActive : ''} ${!isCustom ? styles.blockItemVanilla : ''}`}
+      onClick={() => {
+        if (!isActive) {
+          onSelect(entityId);
+        }
+      }}
+    >
+      <div className={styles.blockItemLeft}>
+        {isAttachable ? (
+          <Shield size={14} className={!isCustom ? styles.blockIconMuted : undefined} />
+        ) : (
+          <PawPrint size={14} className={!isCustom ? styles.blockIconMuted : undefined} />
+        )}
+        <span className={styles.blockItemName}>{displayName || entityId}</span>
+      </div>
+      <div className={styles.blockItemBadges}>
+        {isAttachable && (
+          <Badge variant="category-attachable" size="sm">attachable</Badge>
+        )}
+        {!isCustom && (
+          <Badge variant="fallback" size="sm" title="Inferred from vanilla entity definition">fallback</Badge>
+        )}
+        {ghostCount > 0 && (
+          <Badge variant="ghost" size="counter">{ghostCount}</Badge>
+        )}
+      </div>
+    </button>
+  );
+});
 
 export const EntityWorkspace: React.FC = () => {
   const entityWorkspaceTree = usePackStore((s) => s.entityWorkspaceTree);
@@ -56,6 +109,10 @@ export const EntityWorkspace: React.FC = () => {
     };
   }, [activeMenuKey]);
 
+  const lastSelectedEntityRef = useRef<BlockGroupNodeDto | null>(null);
+  const lastSelectedIndexRef = useRef<number>(-1);
+  const prevSelectedEntityIdRef = useRef<string | null>(null);
+
   // Filter entity list by toolbar searchQuery and activeFilters/statusFilter
   const filteredEntityWorkspaceTree = useMemo(() => {
     if (!entityWorkspaceTree) return [];
@@ -65,8 +122,9 @@ export const EntityWorkspace: React.FC = () => {
       ? activeFilters
       : (statusFilter !== 'all' ? [statusFilter as any] : []);
 
-    return entityWorkspaceTree.filter((entity) => {
+    const filtered = entityWorkspaceTree.filter((entity) => {
       const allLeaves = entity.aliasGroups?.flatMap((ag) => ag.leaves ?? []) ?? [];
+      const isCurrentlySelected = Boolean(selectedEntityId && entity.blockId === selectedEntityId);
 
       // 1. Active Filters (Checklist)
       if (effectiveFilters.length > 0) {
@@ -80,7 +138,7 @@ export const EntityWorkspace: React.FC = () => {
             (effectiveFilters.includes('ghosts') && (entity.ghostCount ?? 0) > 0) ||
             (effectiveFilters.includes('added') && allLeaves.some((l) => l.status === 'OK' || l.status === 'OVERRIDE')) ||
             (effectiveFilters.includes('orphans') && allLeaves.some((l) => l.status === 'ORPHAN'));
-          if (!statusMatch) return false;
+          if (!statusMatch && !isCurrentlySelected) return false;
         }
 
         if (hasFeatureFilter) {
@@ -112,7 +170,7 @@ export const EntityWorkspace: React.FC = () => {
             (effectiveFilters.includes('variations') && hasTextureVariation) ||
             (effectiveFilters.includes('blockstates') && hasBlockstate) ||
             (effectiveFilters.includes('variation') && hasMergedVariation);
-          if (!featureMatch) return false;
+          if (!featureMatch && !isCurrentlySelected) return false;
         }
       }
 
@@ -134,17 +192,111 @@ export const EntityWorkspace: React.FC = () => {
         );
       });
     });
-  }, [entityWorkspaceTree, searchQuery, statusFilter, activeFilters]);
 
-  // Keep selectedEntity pointed to a valid entity in the filtered list
+    const norm = (id?: string | null) => (id || '').toLowerCase().replace(/^minecraft:/, '');
+
+    // Reset or update selected index tracking when switching entities
+    if (selectedEntityId !== prevSelectedEntityIdRef.current) {
+      prevSelectedEntityIdRef.current = selectedEntityId ?? null;
+      lastSelectedIndexRef.current = -1;
+    }
+
+    // If currently selected entity is no longer in filtered list or shifted position (e.g. live update),
+    // retain it in the list at its existing pinned index so the user remains on the entity until manually navigating away
+    let resultList = filtered;
+    if (selectedEntityId) {
+      const normSelected = norm(selectedEntityId);
+      const existingIdx = resultList.findIndex((e) => norm(e.blockId) === normSelected);
+
+      // If this entity was not yet pinned, record its current index
+      if (lastSelectedIndexRef.current < 0 && existingIdx !== -1) {
+        lastSelectedIndexRef.current = existingIdx;
+      }
+
+      if (existingIdx !== -1) {
+        // If pack live update re-ordered this entity, pull it out and re-pin it at its established index
+        if (lastSelectedIndexRef.current >= 0 && existingIdx !== lastSelectedIndexRef.current) {
+          const item = resultList[existingIdx];
+          if (item) {
+            const withoutItem = [...resultList.slice(0, existingIdx), ...resultList.slice(existingIdx + 1)];
+            const targetIdx = Math.min(Math.max(0, lastSelectedIndexRef.current), withoutItem.length);
+            resultList = [
+              ...withoutItem.slice(0, targetIdx),
+              item,
+              ...withoutItem.slice(targetIdx),
+            ];
+          }
+        }
+      } else {
+        const fullMatch = entityWorkspaceTree.find((e) => norm(e.blockId) === normSelected);
+        const snapshotMatch =
+          lastSelectedEntityRef.current && norm(lastSelectedEntityRef.current.blockId) === normSelected
+            ? lastSelectedEntityRef.current
+            : null;
+        const fallbackItem = fullMatch || snapshotMatch;
+        if (fallbackItem) {
+          let targetIdx = lastSelectedIndexRef.current;
+          if (targetIdx < 0 || targetIdx > resultList.length) {
+            const targetName = (fallbackItem.displayName || fallbackItem.blockId || '').toLowerCase();
+            targetIdx = resultList.findIndex(
+              (e) => (e.displayName || e.blockId || '').toLowerCase().localeCompare(targetName) > 0
+            );
+            if (targetIdx === -1) {
+              targetIdx = resultList.length;
+            }
+            lastSelectedIndexRef.current = targetIdx;
+          }
+          targetIdx = Math.min(Math.max(0, targetIdx), resultList.length);
+          resultList = [
+            ...resultList.slice(0, targetIdx),
+            fallbackItem,
+            ...resultList.slice(targetIdx),
+          ];
+        }
+      }
+    }
+
+    // Deduplicate by blockId to ensure uniqueness in tree and avoid duplicate React keys
+    const seen = new Map<string, BlockGroupNodeDto>();
+    for (const e of resultList) {
+      const key = norm(e.blockId);
+      if (!seen.has(key)) {
+        seen.set(key, e);
+      } else {
+        const existing = seen.get(key)!;
+        if (e.isUserDefined !== false && existing.isUserDefined === false) {
+          seen.set(key, e);
+        } else if ((e.ghostCount || 0) > (existing.ghostCount || 0)) {
+          seen.set(key, e);
+        }
+      }
+    }
+
+    return Array.from(seen.values());
+  }, [entityWorkspaceTree, searchQuery, statusFilter, activeFilters, selectedEntityId]);
+
+  // Keep selectedEntity pointed to a valid entity: first check filtered list, then full tree if currently selected, then fallback to last snapshot, then fallback to first filtered
   const selectedEntity = useMemo<BlockGroupNodeDto | null>(() => {
-    if (!filteredEntityWorkspaceTree || filteredEntityWorkspaceTree.length === 0) return null;
-    return (
-      filteredEntityWorkspaceTree.find((e) => e.blockId === selectedEntityId) ??
-      filteredEntityWorkspaceTree[0] ??
-      null
-    );
-  }, [filteredEntityWorkspaceTree, selectedEntityId]);
+    if (selectedEntityId) {
+      const normSelected = (selectedEntityId || '').toLowerCase().replace(/^minecraft:/, '');
+      const foundInFiltered = filteredEntityWorkspaceTree.find((e) => (e.blockId || '').toLowerCase().replace(/^minecraft:/, '') === normSelected);
+      if (foundInFiltered) {
+        lastSelectedEntityRef.current = foundInFiltered;
+        return foundInFiltered;
+      }
+      const foundInFull = entityWorkspaceTree?.find((e) => (e.blockId || '').toLowerCase().replace(/^minecraft:/, '') === normSelected);
+      if (foundInFull) {
+        lastSelectedEntityRef.current = foundInFull;
+        return foundInFull;
+      }
+      if (lastSelectedEntityRef.current && (lastSelectedEntityRef.current.blockId || '').toLowerCase().replace(/^minecraft:/, '') === normSelected) {
+        return lastSelectedEntityRef.current;
+      }
+    }
+    const fallback = filteredEntityWorkspaceTree[0] ?? null;
+    lastSelectedEntityRef.current = fallback;
+    return fallback;
+  }, [filteredEntityWorkspaceTree, entityWorkspaceTree, selectedEntityId]);
 
   // Keyboard arrow navigation (Up / Down) through entity list
   useEffect(() => {
@@ -175,7 +327,9 @@ export const EntityWorkspace: React.FC = () => {
 
       const nextEntity = filteredEntityWorkspaceTree[nextIndex];
       if (nextEntity) {
-        setSelectedEntityId(nextEntity.blockId);
+        startTransition(() => {
+          setSelectedEntityId(nextEntity.blockId);
+        });
         const btn = document.querySelector(`[data-entity-id="${nextEntity.blockId}"]`);
         if (btn) {
           btn.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
@@ -226,11 +380,14 @@ export const EntityWorkspace: React.FC = () => {
       let vIdx = 0;
       for (const grp of variantGroups) {
         for (const leaf of grp.leaves) {
+          const isPackUrl = leaf.imageUrl?.startsWith('https://pack.local');
+          const isPackFilePresent = leaf.status === 'OK' || leaf.status === 'OVERRIDE' || !!leaf.fullPath;
+          const safeImageUrl = (!isPackUrl || isPackFilePresent) ? leaf.imageUrl : null;
           variations.push({
             index: vIdx++,
             label: leaf.displayName || leaf.relativePath || `Variation ${vIdx}`,
             leaf,
-            imageUrl: leaf.imageUrl,
+            imageUrl: safeImageUrl,
             isGhost: leaf.status === 'GHOST',
           });
         }
@@ -330,6 +487,13 @@ export const EntityWorkspace: React.FC = () => {
     setIsMoreMenuOpen(false);
   }, [selectedEntity, deleteTextureEntries]);
 
+  const handleSelectEntity = useCallback((id: string) => {
+    startTransition(() => {
+      setSelectedEntityId(id);
+    });
+    setIsListDrawerOpen(false);
+  }, [setSelectedEntityId, setIsListDrawerOpen]);
+
   const selectedEntityDisplayName = selectedEntity?.displayName || selectedEntity?.blockId || '';
 
   if (isWorkspaceLoading || (isScanning && (!entityWorkspaceTree || entityWorkspaceTree.length === 0))) {
@@ -358,44 +522,18 @@ export const EntityWorkspace: React.FC = () => {
         }
         sidebarContent={
           filteredEntityWorkspaceTree.length > 0 ? (
-            filteredEntityWorkspaceTree.map((entity) => {
-              const isActive = selectedEntity?.blockId === entity.blockId;
-              const isCustom = entity.isUserDefined !== false;
-              const isAttachable = entity.aliasGroups?.some((ag) => ag.isAttachable || ag.leaves?.some((l) => l.isAttachable));
-
-              return (
-                <button
-                  key={entity.blockId}
-                  data-entity-id={entity.blockId}
-                  type="button"
-                  className={`${styles.blockItem} ${isActive ? styles.blockItemActive : ''} ${!isCustom ? styles.blockItemVanilla : ''}`}
-                  onClick={() => {
-                    setSelectedEntityId(entity.blockId);
-                    setIsListDrawerOpen(false);
-                  }}
-                >
-                  <div className={styles.blockItemLeft}>
-                    {isAttachable ? (
-                      <Shield size={14} className={!isCustom ? styles.blockIconMuted : undefined} />
-                    ) : (
-                      <PawPrint size={14} className={!isCustom ? styles.blockIconMuted : undefined} />
-                    )}
-                    <span className={styles.blockItemName}>{entity.displayName || entity.blockId}</span>
-                  </div>
-                  <div className={styles.blockItemBadges}>
-                    {isAttachable && (
-                      <Badge variant="category-attachable" size="sm">attachable</Badge>
-                    )}
-                    {!isCustom && (
-                      <Badge variant="fallback" size="sm" title="Inferred from vanilla entity definition">fallback</Badge>
-                    )}
-                    {entity.ghostCount > 0 && (
-                      <Badge variant="ghost" size="counter">{entity.ghostCount}</Badge>
-                    )}
-                  </div>
-                </button>
-              );
-            })
+            filteredEntityWorkspaceTree.map((entity) => (
+              <EntitySidebarItem
+                key={entity.blockId}
+                entityId={entity.blockId}
+                displayName={entity.displayName || entity.blockId}
+                isCustom={entity.isUserDefined !== false}
+                isActive={selectedEntity?.blockId === entity.blockId}
+                isAttachable={Boolean(entity.aliasGroups?.some((ag) => ag.isAttachable || ag.leaves?.some((l) => l.isAttachable)))}
+                ghostCount={entity.ghostCount || 0}
+                onSelect={handleSelectEntity}
+              />
+            ))
           ) : (
             <div className={styles.noMatches}>
               <span>No entities match your search or filter</span>

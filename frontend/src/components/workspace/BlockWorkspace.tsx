@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useCallback, useRef, useEffect, startTransition } from 'react';
 import { Box, Layers, ArrowRight, MoreVertical, Trash2 } from 'lucide-react';
 import { usePackStore, packStoreActions } from '../../store/packStore';
 import { useIpc } from '../../hooks/useIpc';
@@ -18,6 +18,57 @@ import {
 import { leafToAliasDto, groupLeavesByVariantSlot } from '../../utils/leafTransforms';
 import styles from './BlockWorkspace.module.css';
 
+const AliasLoadingOverlay: React.FC<{ op: 'deleting' | 'adding' }> = React.memo(({ op }) => (
+  <div className={styles.aliasLoadingOverlay}>
+    <div className={styles.aliasLoadingSpinner} />
+    <span>{op === 'deleting' ? 'Removing alias entries…' : 'Adding variation…'}</span>
+  </div>
+));
+
+interface BlockSidebarItemProps {
+  blockId: string;
+  displayName: string;
+  isCustom: boolean;
+  isActive: boolean;
+  ghostCount: number;
+  onSelect: (id: string) => void;
+}
+
+const BlockSidebarItem: React.FC<BlockSidebarItemProps> = React.memo(({
+  blockId,
+  displayName,
+  isCustom,
+  isActive,
+  ghostCount,
+  onSelect,
+}) => {
+  return (
+    <button
+      data-block-id={blockId}
+      type="button"
+      className={`${styles.blockItem} ${isActive ? styles.blockItemActive : ''} ${!isCustom ? styles.blockItemVanilla : ''}`}
+      onClick={() => {
+        if (!isActive) {
+          onSelect(blockId);
+        }
+      }}
+    >
+      <div className={styles.blockItemLeft}>
+        <Box size={14} className={!isCustom ? styles.blockIconMuted : undefined} />
+        <span className={styles.blockItemName}>{displayName || blockId}</span>
+      </div>
+      <div className={styles.blockItemBadges}>
+        {!isCustom && blockId !== 'uncategorized' && (
+          <Badge variant="fallback" size="sm" title="Inferred from vanilla blocks.json">fallback</Badge>
+        )}
+        {ghostCount > 0 && (
+          <Badge variant="ghost" size="counter">{ghostCount}</Badge>
+        )}
+      </div>
+    </button>
+  );
+});
+
 export const BlockWorkspace: React.FC = () => {
   const blockWorkspaceTree = usePackStore((s) => s.blockWorkspaceTree);
   const isScanning = usePackStore((s) => s.isScanning);
@@ -28,6 +79,9 @@ export const BlockWorkspace: React.FC = () => {
   const packFolders = usePackStore((s) => s.packFolders);
   const packAliases = usePackStore((s) => s.aliases ?? []);
   const catalogTree = usePackStore((s) => s.catalogTree);
+  const selectedBlockId = usePackStore((s) => s.blockWorkspaceSelectedId);
+  const setSelectedBlockId = usePackStore((s) => s.setBlockWorkspaceSelectedId);
+  const pendingAliasOps = usePackStore((s) => s.pendingAliasOps);
   const { editTexture, deleteTextureFile, deleteTextureEntries, deleteTextureVariation, deleteBlockEntry, openInExplorer, scaffoldTextureVariation } = useIpc();
 
   const hasTerrainTextureJson = useMemo(() => checkTerrainTextureJson(packFolders), [packFolders]);
@@ -56,6 +110,10 @@ export const BlockWorkspace: React.FC = () => {
     };
   }, [activeMenuKey]);
 
+  const lastSelectedBlockRef = useRef<BlockGroupNodeDto | null>(null);
+  const lastSelectedIndexRef = useRef<number>(-1);
+  const prevSelectedBlockIdRef = useRef<string | null>(null);
+
   // Filter block list by toolbar searchQuery and activeFilters/statusFilter
   const filteredBlockWorkspaceTree = useMemo(() => {
     if (!blockWorkspaceTree) return [];
@@ -65,11 +123,38 @@ export const BlockWorkspace: React.FC = () => {
       ? activeFilters
       : (statusFilter !== 'all' ? [statusFilter as any] : []);
 
-    return blockWorkspaceTree.filter((block) => {
+    const filtered = blockWorkspaceTree.filter((block) => {
       const allLeaves = [
         ...(block.aliasGroups?.flatMap((ag) => ag.leaves ?? []) ?? []),
         ...(block.aliasGroups?.flatMap((ag) => ag.faceNodes?.flatMap((fn) => fn.leaves ?? []) ?? []) ?? []),
       ];
+
+      // 0. Base pack presence: exclude untouched vanilla blocks that have no pack content
+      const hasPackTexture = allLeaves.some(
+        (l) => l.status === 'OK' || l.status === 'OVERRIDE' || l.status === 'ORPHAN'
+      );
+      const hasPackTerrainDeclaration =
+        hasTerrainTextureJson &&
+        block.aliasGroups?.some((ag) => {
+          const aliasKey = ag.alias.toLowerCase();
+          return packAliases.some(
+            (a: TextureAliasDto) =>
+              a.alias.toLowerCase() === aliasKey &&
+              a.category === 'block' &&
+              a.status !== 'ORPHAN' &&
+              (a as any).isUserDefined !== false
+          );
+        });
+      const isCustomBlock =
+        (block.blockId.includes(':') && !block.blockId.startsWith('minecraft:')) ||
+        (catalogTree && catalogTree.length > 0
+          ? !catalogTree.some((b) => b.blockId.toLowerCase() === block.blockId.toLowerCase())
+          : false);
+      const isUncategorized = block.blockId === 'uncategorized';
+
+      const hasPackPresence = hasPackTexture || hasPackTerrainDeclaration || isCustomBlock || isUncategorized;
+      const isCurrentlySelected = Boolean(selectedBlockId && block.blockId === selectedBlockId);
+      if (!hasPackPresence && !isCurrentlySelected) return false;
 
       // 1. Active Filters (Checklist)
       if (effectiveFilters.length > 0) {
@@ -83,7 +168,7 @@ export const BlockWorkspace: React.FC = () => {
             (effectiveFilters.includes('ghosts') && (block.ghostCount ?? 0) > 0) ||
             (effectiveFilters.includes('added') && allLeaves.some((l) => l.status === 'OK' || l.status === 'OVERRIDE')) ||
             (effectiveFilters.includes('orphans') && allLeaves.some((l) => l.status === 'ORPHAN'));
-          if (!statusMatch) return false;
+          if (!statusMatch && !isCurrentlySelected) return false;
         }
 
         if (hasFeatureFilter) {
@@ -115,7 +200,7 @@ export const BlockWorkspace: React.FC = () => {
             (effectiveFilters.includes('variations') && hasTextureVariation) ||
             (effectiveFilters.includes('blockstates') && hasBlockstate) ||
             (effectiveFilters.includes('variation') && hasMergedVariation);
-          if (!featureMatch) return false;
+          if (!featureMatch && !isCurrentlySelected) return false;
         }
       }
 
@@ -137,24 +222,132 @@ export const BlockWorkspace: React.FC = () => {
         );
       });
     });
-  }, [blockWorkspaceTree, searchQuery, statusFilter, activeFilters]);
 
-  const selectedBlockId = usePackStore((s) => s.blockWorkspaceSelectedId);
-  const setSelectedBlockId = usePackStore((s) => s.setBlockWorkspaceSelectedId);
+    const norm = (id?: string | null) => (id || '').toLowerCase().replace(/^minecraft:/, '');
+
+    // Reset or update selected index tracking when switching blocks
+    if (selectedBlockId !== prevSelectedBlockIdRef.current) {
+      prevSelectedBlockIdRef.current = selectedBlockId ?? null;
+      lastSelectedIndexRef.current = -1;
+    }
+
+    // If currently selected block is no longer in filtered list or shifted position (e.g. live update),
+    // retain it in the list at its existing pinned index so the user remains on the block until manually navigating away
+    let resultList = filtered;
+    if (selectedBlockId) {
+      const normSelected = norm(selectedBlockId);
+      const existingIdx = resultList.findIndex((b) => norm(b.blockId) === normSelected);
+
+      // If this block was not yet pinned, record its current index
+      if (lastSelectedIndexRef.current < 0 && existingIdx !== -1) {
+        lastSelectedIndexRef.current = existingIdx;
+      }
+
+      if (existingIdx !== -1) {
+        // If pack live update re-categorized this block (e.g. from user blocks to fallback section),
+        // pull it out of its new offset and re-pin it back at its established index!
+        if (lastSelectedIndexRef.current >= 0 && existingIdx !== lastSelectedIndexRef.current) {
+          const item = resultList[existingIdx];
+          if (item) {
+            const withoutItem = [...resultList.slice(0, existingIdx), ...resultList.slice(existingIdx + 1)];
+            const targetIdx = Math.min(Math.max(0, lastSelectedIndexRef.current), withoutItem.length);
+            resultList = [
+              ...withoutItem.slice(0, targetIdx),
+              item,
+              ...withoutItem.slice(targetIdx),
+            ];
+          }
+        }
+      } else {
+        const fullMatch = blockWorkspaceTree.find((b) => norm(b.blockId) === normSelected);
+        const catalogMatch = catalogTree?.find((b) => norm(b.blockId) === normSelected);
+        const snapshotMatch =
+          lastSelectedBlockRef.current && norm(lastSelectedBlockRef.current.blockId) === normSelected
+            ? lastSelectedBlockRef.current
+            : null;
+        const fallbackItem =
+          fullMatch ||
+          (catalogMatch ? ({ ...catalogMatch, isUserDefined: false } as BlockGroupNodeDto) : null) ||
+          snapshotMatch;
+        if (fallbackItem) {
+          let targetIdx = lastSelectedIndexRef.current;
+          if (targetIdx < 0 || targetIdx > resultList.length) {
+            const targetName = (fallbackItem.displayName || fallbackItem.blockId || '').toLowerCase();
+            targetIdx = resultList.findIndex(
+              (b) => (b.displayName || b.blockId || '').toLowerCase().localeCompare(targetName) > 0
+            );
+            if (targetIdx === -1) {
+              targetIdx = resultList.length;
+            }
+            lastSelectedIndexRef.current = targetIdx;
+          }
+          targetIdx = Math.min(Math.max(0, targetIdx), resultList.length);
+          resultList = [
+            ...resultList.slice(0, targetIdx),
+            fallbackItem,
+            ...resultList.slice(targetIdx),
+          ];
+        }
+      }
+    }
+
+    // Deduplicate by blockId to ensure uniqueness in tree and avoid duplicate React keys
+    const seen = new Map<string, BlockGroupNodeDto>();
+    for (const b of resultList) {
+      const key = norm(b.blockId);
+      if (!seen.has(key)) {
+        seen.set(key, b);
+      } else {
+        const existing = seen.get(key)!;
+        if (b.isUserDefined !== false && existing.isUserDefined === false) {
+          seen.set(key, b);
+        } else if ((b.ghostCount || 0) > (existing.ghostCount || 0)) {
+          seen.set(key, b);
+        }
+      }
+    }
+
+    return Array.from(seen.values());
+  }, [blockWorkspaceTree, searchQuery, statusFilter, activeFilters, hasTerrainTextureJson, packAliases, catalogTree, selectedBlockId]);
+
   const activeBlockStateIndex = usePackStore((s) => s.blockWorkspaceActiveStateIndex);
   const setActiveBlockStateIndex = usePackStore((s) => s.setBlockWorkspaceActiveStateIndex);
   const activeVariationIndex = usePackStore((s) => s.blockWorkspaceActiveVariationIndex);
   const setActiveVariationIndex = usePackStore((s) => s.setBlockWorkspaceActiveVariationIndex);
 
-  // Keep selectedBlock pointed to a valid block in the filtered list
+  // Keep selectedBlock pointed to a valid block: first check filtered list, then full tree if currently selected, then catalogTree fallback, then last known snapshot, then fallback to first filtered
   const selectedBlock = useMemo<BlockGroupNodeDto | null>(() => {
-    if (!filteredBlockWorkspaceTree || filteredBlockWorkspaceTree.length === 0) return null;
-    return (
-      filteredBlockWorkspaceTree.find((b) => b.blockId === selectedBlockId) ??
-      filteredBlockWorkspaceTree[0] ??
-      null
-    );
-  }, [filteredBlockWorkspaceTree, selectedBlockId]);
+    if (selectedBlockId) {
+      const normSelected = (selectedBlockId || '').toLowerCase().replace(/^minecraft:/, '');
+      const foundInFiltered = filteredBlockWorkspaceTree.find((b) => (b.blockId || '').toLowerCase().replace(/^minecraft:/, '') === normSelected);
+      if (foundInFiltered) {
+        lastSelectedBlockRef.current = foundInFiltered;
+        return foundInFiltered;
+      }
+      const foundInFull = blockWorkspaceTree?.find((b) => (b.blockId || '').toLowerCase().replace(/^minecraft:/, '') === normSelected);
+      if (foundInFull) {
+        lastSelectedBlockRef.current = foundInFull;
+        return foundInFull;
+      }
+      if (catalogTree && catalogTree.length > 0) {
+        const foundInCatalog = catalogTree.find((b) => (b.blockId || '').toLowerCase().replace(/^minecraft:/, '') === normSelected);
+        if (foundInCatalog) {
+          const fallbackNode: BlockGroupNodeDto = {
+            ...foundInCatalog,
+            isUserDefined: false,
+          };
+          lastSelectedBlockRef.current = fallbackNode;
+          return fallbackNode;
+        }
+      }
+      if (lastSelectedBlockRef.current && (lastSelectedBlockRef.current.blockId || '').toLowerCase().replace(/^minecraft:/, '') === normSelected) {
+        return lastSelectedBlockRef.current;
+      }
+    }
+    const fallback = filteredBlockWorkspaceTree[0] ?? null;
+    lastSelectedBlockRef.current = fallback;
+    return fallback;
+  }, [filteredBlockWorkspaceTree, blockWorkspaceTree, catalogTree, selectedBlockId]);
 
   // Reset active indices when switching block (but preserve when merely restoring from inactive view)
   const prevBlockIdRef = useRef<string | null>(null);
@@ -195,7 +388,9 @@ export const BlockWorkspace: React.FC = () => {
 
       const nextBlock = filteredBlockWorkspaceTree[nextIndex];
       if (nextBlock) {
-        setSelectedBlockId(nextBlock.blockId);
+        startTransition(() => {
+          setSelectedBlockId(nextBlock.blockId);
+        });
         const btn = document.querySelector(`[data-block-id="${nextBlock.blockId}"]`);
         if (btn) {
           btn.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
@@ -285,17 +480,21 @@ export const BlockWorkspace: React.FC = () => {
               if (g) {
                 const leaf = g.leaves[v] ?? g.leaves[0];
                 if (leaf && leaf.status !== 'GHOST' && leaf.imageUrl) {
-                  textures[label] = leaf.imageUrl;
-                  flipbooks[label] = leaf.flipbook ?? null;
-                  if (label === 'side') {
-                    textures.north = textures.north ?? leaf.imageUrl;
-                    textures.south = textures.south ?? leaf.imageUrl;
-                    textures.east = textures.east ?? leaf.imageUrl;
-                    textures.west = textures.west ?? leaf.imageUrl;
-                    flipbooks.north = flipbooks.north ?? leaf.flipbook ?? null;
-                    flipbooks.south = flipbooks.south ?? leaf.flipbook ?? null;
-                    flipbooks.east = flipbooks.east ?? leaf.flipbook ?? null;
-                    flipbooks.west = flipbooks.west ?? leaf.flipbook ?? null;
+                  const isPackUrl = leaf.imageUrl.startsWith('https://pack.local');
+                  const isPackFilePresent = leaf.status === 'OK' || leaf.status === 'OVERRIDE' || !!leaf.fullPath;
+                  if (!isPackUrl || isPackFilePresent) {
+                    textures[label] = leaf.imageUrl;
+                    flipbooks[label] = leaf.flipbook ?? null;
+                    if (label === 'side') {
+                      textures.north = textures.north ?? leaf.imageUrl;
+                      textures.south = textures.south ?? leaf.imageUrl;
+                      textures.east = textures.east ?? leaf.imageUrl;
+                      textures.west = textures.west ?? leaf.imageUrl;
+                      flipbooks.north = flipbooks.north ?? leaf.flipbook ?? null;
+                      flipbooks.south = flipbooks.south ?? leaf.flipbook ?? null;
+                      flipbooks.east = flipbooks.east ?? leaf.flipbook ?? null;
+                      flipbooks.west = flipbooks.west ?? leaf.flipbook ?? null;
+                    }
                   }
                 }
               }
@@ -306,8 +505,12 @@ export const BlockWorkspace: React.FC = () => {
             if (g) {
               const leaf = g.leaves[v] ?? g.leaves[0];
               if (leaf && leaf.status !== 'GHOST' && leaf.imageUrl) {
-                textures.all = leaf.imageUrl;
-                flipbooks.all = leaf.flipbook ?? null;
+                const isPackUrl = leaf.imageUrl.startsWith('https://pack.local');
+                const isPackFilePresent = leaf.status === 'OK' || leaf.status === 'OVERRIDE' || !!leaf.fullPath;
+                if (!isPackUrl || isPackFilePresent) {
+                  textures.all = leaf.imageUrl;
+                  flipbooks.all = leaf.flipbook ?? null;
+                }
               }
             }
           }
@@ -356,6 +559,13 @@ export const BlockWorkspace: React.FC = () => {
 
   const [hoverMorphTarget, setHoverMorphTarget] = useState<TileHoverMorphTarget | null>(null);
 
+  const handleSelectBlock = useCallback((id: string) => {
+    startTransition(() => {
+      setSelectedBlockId(id);
+    });
+    setIsListDrawerOpen(false);
+  }, [setSelectedBlockId, setIsListDrawerOpen]);
+
   const handleTileClick = useCallback((domEl: HTMLElement, leaf: CatalogLeafDto, key: string, targetType: 'card' | 'image' = 'image') => {
     const rect = domEl.getBoundingClientRect();
     setHoverMorphTarget({
@@ -372,17 +582,17 @@ export const BlockWorkspace: React.FC = () => {
   }, []);
 
   const handleDeleteTextureFile = useCallback((path: string, alias: string) => {
-    packStoreActions.optimisticDeleteTexture(path, alias);
+    packStoreActions.setPendingTileOp(path, 'deleting');
     deleteTextureFile(path, alias);
   }, [deleteTextureFile]);
 
   const handleDeleteTextureEntries = useCallback((alias: string, relativePath?: string | null) => {
-    packStoreActions.optimisticDeleteEntries(alias, 'block', relativePath ?? undefined);
+    packStoreActions.setPendingAliasOp(alias, 'deleting');
     deleteTextureEntries(alias, 'block', relativePath ?? undefined);
   }, [deleteTextureEntries]);
 
   const handleAddVariation = useCallback(async (leaf: CatalogLeafDto, count = 1) => {
-    packStoreActions.optimisticAddVariation(leaf.alias, leaf.blockVariantIndex ?? null, count, leaf.relativePath ?? null);
+    packStoreActions.setPendingAliasOp(leaf.alias, 'adding');
     for (let i = 0; i < count; i++) {
       await scaffoldTextureVariation(leaf.alias, leaf.blockVariantIndex ?? null, leaf.relativePath ?? null);
     }
@@ -434,8 +644,39 @@ export const BlockWorkspace: React.FC = () => {
     setIsMoreMenuOpen(false);
   }, [selectedBlock, deleteBlockEntry]);
 
+  // Distinct aliases belonging to this block that are declared in pack's terrain_texture.json
+  const declaredTerrainAliases = useMemo(() => {
+    if (!selectedBlock?.aliasGroups || !hasTerrainTextureJson) return [];
+    const packAliasNames = new Set(
+      packAliases
+        .filter((a) => a.category === 'block' && a.status !== 'ORPHAN' && (a as any).isUserDefined !== false)
+        .map((a) => a.alias.toLowerCase())
+    );
+    return selectedBlock.aliasGroups
+      .map((ag) => ag.alias)
+      .filter((alias) => packAliasNames.has(alias.toLowerCase()));
+  }, [selectedBlock, hasTerrainTextureJson, packAliases]);
+
+  const handleDeleteBlockAndTerrainEntries = useCallback(async () => {
+    if (!selectedBlock || selectedBlock.blockId === 'uncategorized') return;
+
+    if (selectedBlock.isUserDefined !== false) {
+      packStoreActions.optimisticDeleteBlockEntry(selectedBlock.blockId);
+      await deleteBlockEntry(selectedBlock.blockId);
+    }
+
+    if (declaredTerrainAliases.length > 0) {
+      for (const alias of declaredTerrainAliases) {
+        packStoreActions.setPendingAliasOp(alias, 'deleting');
+        await deleteTextureEntries(alias, 'block');
+      }
+    }
+
+    setIsMoreMenuOpen(false);
+  }, [selectedBlock, declaredTerrainAliases, deleteBlockEntry, deleteTextureEntries]);
+
   const handleDeleteAliasEntry = useCallback((alias: string) => {
-    packStoreActions.optimisticDeleteEntries(alias, 'block');
+    packStoreActions.setPendingAliasOp(alias, 'deleting');
     deleteTextureEntries(alias, 'block');
     setOpenAliasMenu(null);
   }, [deleteTextureEntries]);
@@ -469,35 +710,17 @@ export const BlockWorkspace: React.FC = () => {
         }
         sidebarContent={
           filteredBlockWorkspaceTree.length > 0 ? (
-            filteredBlockWorkspaceTree.map((block) => {
-              const isActive = selectedBlock?.blockId === block.blockId;
-              const isCustom = block.isUserDefined !== false;
-              return (
-                <button
-                  key={block.blockId}
-                  data-block-id={block.blockId}
-                  type="button"
-                  className={`${styles.blockItem} ${isActive ? styles.blockItemActive : ''} ${!isCustom ? styles.blockItemVanilla : ''}`}
-                  onClick={() => {
-                    setSelectedBlockId(block.blockId);
-                    setIsListDrawerOpen(false);
-                  }}
-                >
-                  <div className={styles.blockItemLeft}>
-                    <Box size={14} className={!isCustom ? styles.blockIconMuted : undefined} />
-                    <span className={styles.blockItemName}>{block.displayName || block.blockId}</span>
-                  </div>
-                  <div className={styles.blockItemBadges}>
-                    {!isCustom && block.blockId !== 'uncategorized' && (
-                      <Badge variant="fallback" size="sm" title="Inferred from vanilla blocks.json">fallback</Badge>
-                    )}
-                    {block.ghostCount > 0 && (
-                      <Badge variant="ghost" size="counter">{block.ghostCount}</Badge>
-                    )}
-                  </div>
-                </button>
-              );
-            })
+            filteredBlockWorkspaceTree.map((block) => (
+              <BlockSidebarItem
+                key={block.blockId}
+                blockId={block.blockId}
+                displayName={block.displayName || block.blockId}
+                isCustom={block.isUserDefined !== false}
+                isActive={selectedBlock?.blockId === block.blockId}
+                ghostCount={block.ghostCount || 0}
+                onSelect={handleSelectBlock}
+              />
+            ))
           ) : (
             <div className={styles.noMatches}>
               <span>No blocks match your search or filter</span>
@@ -564,6 +787,24 @@ export const BlockWorkspace: React.FC = () => {
                     <Trash2 size={13} />
                     <span>Delete blocks.json entries</span>
                   </button>
+
+                  <button
+                    type="button"
+                    className={styles.moreDropdownItemDanger}
+                    disabled={selectedBlock.isUserDefined === false && declaredTerrainAliases.length === 0}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteBlockAndTerrainEntries();
+                    }}
+                    title={
+                      selectedBlock.isUserDefined === false && declaredTerrainAliases.length === 0
+                        ? "This block has no pack blocks.json or terrain_texture.json declarations"
+                        : `Delete "${selectedBlock.blockId}" from both blocks.json and terrain_texture.json`
+                    }
+                  >
+                    <Trash2 size={13} />
+                    <span>Delete blocks and terrain texture</span>
+                  </button>
                 </div>
               )}
             </div>
@@ -599,190 +840,224 @@ export const BlockWorkspace: React.FC = () => {
 
         {selectedBlock && (
           <div className={styles.hierarchySection}>
-            {(!selectedBlock.aliasGroups || selectedBlock.aliasGroups.length === 0) ? (
-              <div className={styles.emptySelection} style={{ padding: '32px 16px', color: '#71717a' }}>
-                No texture aliases configured for this block
-              </div>
-            ) : (
-              selectedBlock.aliasGroups.map((ag) => {
-              const isBlockUserDefined = hasBlocksJson && selectedBlock.isUserDefined !== false;
-              const aliasKey = ag.alias.toLowerCase();
+            {(() => {
+              const visibleAliasGroups = (selectedBlock.aliasGroups ?? []).filter((ag) => {
+                const aliasKey = ag.alias.toLowerCase();
+                const isDeclaredInPackTerrain =
+                  hasTerrainTextureJson &&
+                  packAliases.some(
+                    (a: TextureAliasDto) =>
+                      a.alias.toLowerCase() === aliasKey &&
+                      a.category === 'block' &&
+                      a.status !== 'ORPHAN' &&
+                      (a as any).isUserDefined !== false
+                  );
+                const isVanillaFallback = !isDeclaredInPackTerrain && selectedBlock.blockId !== 'uncategorized';
+                if (!isVanillaFallback) return true;
 
-              const isDeclaredInPackTerrain =
-                hasTerrainTextureJson &&
-                packAliases.some(
-                  (a: TextureAliasDto) =>
-                    a.alias.toLowerCase() === aliasKey &&
-                    a.category === 'block' &&
-                    a.status !== 'ORPHAN' &&
-                    (a as any).isUserDefined !== false
+                // For vanilla fallback, only show the alias container if it contains pack textures (OK or OVERRIDE)
+                const hasPackLeaves = ag.faceNodes && ag.faceNodes.length > 0
+                  ? ag.faceNodes.some((fn) => (fn.leaves ?? []).some((l) => l.status === 'OK' || l.status === 'OVERRIDE'))
+                  : (ag.leaves ?? []).some((l) => l.status === 'OK' || l.status === 'OVERRIDE');
+                return hasPackLeaves;
+              });
+
+              if (visibleAliasGroups.length === 0) {
+                return (
+                  <div className={styles.emptySelection} style={{ padding: '32px 16px', color: '#71717a' }}>
+                    No texture aliases configured for this block in the pack
+                  </div>
+                );
+              }
+
+              return visibleAliasGroups.map((ag) => {
+                const isBlockUserDefined = hasBlocksJson && selectedBlock.isUserDefined !== false;
+                const aliasKey = ag.alias.toLowerCase();
+
+                const isDeclaredInPackTerrain =
+                  hasTerrainTextureJson &&
+                  packAliases.some(
+                    (a: TextureAliasDto) =>
+                      a.alias.toLowerCase() === aliasKey &&
+                      a.category === 'block' &&
+                      a.status !== 'ORPHAN' &&
+                      (a as any).isUserDefined !== false
+                  );
+
+                const hasMissingDeclarationLeaf = ag.leaves?.some(
+                  (l) => l.subtitleCaption?.toLowerCase() === 'missing declaration'
+                ) || ag.faceNodes?.some((fn) =>
+                  fn.leaves?.some((l) => l.subtitleCaption?.toLowerCase() === 'missing declaration')
                 );
 
-              const hasMissingDeclarationLeaf = ag.leaves?.some(
-                (l) => l.subtitleCaption?.toLowerCase() === 'missing declaration'
-              ) || ag.faceNodes?.some((fn) =>
-                fn.leaves?.some((l) => l.subtitleCaption?.toLowerCase() === 'missing declaration')
-              );
-
-              const isDeclaredInVanillaTerrain =
-                !isDeclaredInPackTerrain &&
-                !hasMissingDeclarationLeaf &&
-                (catalogTree && catalogTree.length > 0
-                  ? catalogTree.some((cb) =>
-                      cb.aliasGroups?.some((ca) => ca.alias.toLowerCase() === aliasKey && !ca.leaves?.some(l => l.subtitleCaption?.toLowerCase() === 'missing declaration'))
-                    )
-                  : packAliases.some(
-                      (a) =>
-                        a.alias.toLowerCase() === aliasKey &&
-                        a.category === 'block' &&
-                        (a as any).isUserDefined === false
-                    ));
-
-              const isVanillaFallback = !isDeclaredInPackTerrain && selectedBlock.blockId !== 'uncategorized';
-
-              const isUncategorized = selectedBlock.blockId === 'uncategorized';
-              const isTrueOrphan = isUncategorized && !isDeclaredInPackTerrain;
-
-              return (
-                <div key={ag.alias} className={`${styles.aliasGroupCard} ${isVanillaFallback ? styles.aliasGroupCardFallback : ''}`}>
-                  <div className={styles.aliasHeader}>
-                    <Layers size={14} />
-                    <span>{isTrueOrphan ? '(No alias)' : `Alias: ${ag.alias}`}</span>
-                    {isTrueOrphan && (
-                      <Badge variant="orphan" size="sm" title="Texture file on disk not declared in any JSON">
-                        orphan
-                      </Badge>
-                    )}
-                    {isVanillaFallback && (
-                      isDeclaredInVanillaTerrain ? (
-                        <Badge
-                          variant="fallback"
-                          size="sm"
-                          title={
-                            isBlockUserDefined
-                              ? "Vanilla fallback, missing in pack terrain_texture.json"
-                              : "Using vanilla terrain_texture.json definition"
-                          }
-                        >
-                          {isBlockUserDefined ? 'missing entry' : 'fallback'}
-                        </Badge>
-                      ) : (
-                        <Badge variant="missing" size="sm" title="Missing declaration in terrain_texture.json">
-                          missing entry
-                        </Badge>
+                const isDeclaredInVanillaTerrain =
+                  !isDeclaredInPackTerrain &&
+                  !hasMissingDeclarationLeaf &&
+                  (catalogTree && catalogTree.length > 0
+                    ? catalogTree.some((cb) =>
+                        cb.aliasGroups?.some((ca) => ca.alias.toLowerCase() === aliasKey && !ca.leaves?.some(l => l.subtitleCaption?.toLowerCase() === 'missing declaration'))
                       )
-                    )}
-                    {!isTrueOrphan && (
-                      <div className={styles.aliasHeaderRight}>
-                        <div className={styles.moreMenuWrapper}>
-                          <button
-                            type="button"
-                            className={styles.moreBtn}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setOpenAliasMenu((cur) => (cur === ag.alias ? null : ag.alias));
-                            }}
-                            title={`Alias "${ag.alias}" options`}
-                            aria-label={`Alias "${ag.alias}" options`}
+                    : packAliases.some(
+                        (a) =>
+                          a.alias.toLowerCase() === aliasKey &&
+                          a.category === 'block' &&
+                          (a as any).isUserDefined === false
+                      ));
+
+                const isVanillaFallback = !isDeclaredInPackTerrain && selectedBlock.blockId !== 'uncategorized';
+                const isUncategorized = selectedBlock.blockId === 'uncategorized';
+                const isTrueOrphan = isUncategorized && !isDeclaredInPackTerrain;
+                const pendingOp = pendingAliasOps[aliasKey] ?? null;
+
+                return (
+                  <div
+                    key={ag.alias}
+                    className={`${styles.aliasGroupCard} ${isVanillaFallback ? styles.aliasGroupCardFallback : ''} ${pendingOp === 'deleting' ? styles.aliasCardDeleting : ''} ${pendingOp === 'adding' ? styles.aliasCardAdding : ''}`}
+                  >
+                    <div className={styles.aliasHeader}>
+                      <Layers size={14} />
+                      <span>{isTrueOrphan ? '(No alias)' : `Alias: ${ag.alias}`}</span>
+                      {isTrueOrphan && (
+                        <Badge variant="orphan" size="sm" title="Texture file on disk not declared in any JSON">
+                          orphan
+                        </Badge>
+                      )}
+                      {isVanillaFallback && (
+                        isDeclaredInVanillaTerrain ? (
+                          <Badge
+                            variant="fallback"
+                            size="sm"
+                            title={
+                              isBlockUserDefined
+                                ? "Vanilla fallback, missing in pack terrain_texture.json"
+                                : "Using vanilla terrain_texture.json definition"
+                            }
                           >
-                            <MoreVertical size={14} />
-                          </button>
-                          {openAliasMenu === ag.alias && (
-                            <div className={styles.moreDropdown}>
-                              <button
-                                type="button"
-                                className={styles.moreDropdownItemDanger}
-                                disabled={!isDeclaredInPackTerrain}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleDeleteAliasEntry(ag.alias);
-                                }}
-                                title={
-                                  !isDeclaredInPackTerrain
-                                    ? "This alias is using vanilla fallback and not declared in terrain_texture.json"
-                                    : `Delete "${ag.alias}" from terrain_texture.json`
-                                }
-                              >
-                                <Trash2 size={13} />
-                                <span>Delete terrain_texture.json entries</span>
-                              </button>
-                            </div>
-                          )}
+                            {isBlockUserDefined ? 'missing entry' : 'fallback'}
+                          </Badge>
+                        ) : (
+                          <Badge variant="missing" size="sm" title="Missing declaration in terrain_texture.json">
+                            missing entry
+                          </Badge>
+                        )
+                      )}
+                      {!isTrueOrphan && (
+                        <div className={styles.aliasHeaderRight}>
+                          <div className={styles.moreMenuWrapper}>
+                            <button
+                              type="button"
+                              className={styles.moreBtn}
+                              disabled={Boolean(pendingOp)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setOpenAliasMenu((cur) => (cur === ag.alias ? null : ag.alias));
+                              }}
+                              title={`Alias "${ag.alias}" options`}
+                              aria-label={`Alias "${ag.alias}" options`}
+                            >
+                              <MoreVertical size={14} />
+                            </button>
+                            {openAliasMenu === ag.alias && (
+                              <div className={styles.moreDropdown}>
+                                <button
+                                  type="button"
+                                  className={styles.moreDropdownItemDanger}
+                                  disabled={!isDeclaredInPackTerrain || Boolean(pendingOp)}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteAliasEntry(ag.alias);
+                                  }}
+                                  title={
+                                    !isDeclaredInPackTerrain
+                                      ? "This alias is using vanilla fallback and not declared in terrain_texture.json"
+                                      : `Delete "${ag.alias}" from terrain_texture.json`
+                                  }
+                                >
+                                  <Trash2 size={13} />
+                                  <span>Delete terrain_texture.json entries</span>
+                                </button>
+                              </div>
+                            )}
+                          </div>
                         </div>
+                      )}
+                    </div>
+
+                    {pendingOp ? (
+                      <AliasLoadingOverlay op={pendingOp} />
+                    ) : (
+                      <div className={styles.faceNodeGroup}>
+                        {ag.faceNodes && ag.faceNodes.length > 0 ? (
+                          ag.faceNodes.map((fn) => {
+                            const effectiveLeaves = isVanillaFallback
+                              ? (fn.leaves ?? []).filter((l) => l.status === 'OK' || l.status === 'OVERRIDE')
+                              : (fn.leaves ?? []);
+                            if (isVanillaFallback && effectiveLeaves.length === 0) return null;
+                            const groups = groupLeavesByVariantSlot(effectiveLeaves);
+                            return (
+                              <div key={fn.faceLabel} className={styles.faceRow}>
+                                <Badge variant="neutral" size="sm" icon={<ArrowRight size={10} />}>
+                                  Face: {fn.faceLabel}
+                                  {!isVanillaFallback && fn.ghostCount > 0 && ` • ${fn.ghostCount}`}
+                                </Badge>
+                                <div className={styles.variantStrip}>
+                                  {groups.map((grp) => {
+                                    const cardKey = `${grp.key}-${fn.faceLabel}`;
+                                    return (
+                                      <WorkspaceTileCard
+                                        key={cardKey}
+                                        grp={grp}
+                                        cardKey={cardKey}
+                                        tileZoom={tileZoom}
+                                        selectedBlockName={selectedBlockDisplayName}
+                                        isMenuOpen={activeMenuKey === cardKey}
+                                        onToggleMenu={handleToggleMenu}
+                                        onTileClick={handleTileClick}
+                                        onDeleteTextureFile={handleDeleteTextureFile}
+                                        onDeleteTextureEntries={isDeclaredInPackTerrain ? handleDeleteTextureEntries : undefined}
+                                        onAddVariation={isDeclaredInPackTerrain ? handleAddVariation : undefined}
+                                        onDeleteVariation={isDeclaredInPackTerrain ? handleDeleteVariation : undefined}
+                                      />
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            );
+                          })
+                        ) : (
+                          (() => {
+                            const effectiveLeaves = isVanillaFallback
+                              ? (ag.leaves ?? []).filter((l) => l.status === 'OK' || l.status === 'OVERRIDE')
+                              : (ag.leaves ?? []);
+                            if (isVanillaFallback && effectiveLeaves.length === 0) return null;
+                            return (
+                              <div className={styles.variantStrip}>
+                                {groupLeavesByVariantSlot(effectiveLeaves).map((grp) => (
+                                  <WorkspaceTileCard
+                                    key={grp.key}
+                                    grp={grp}
+                                    cardKey={grp.key}
+                                    tileZoom={tileZoom}
+                                    selectedBlockName={selectedBlockDisplayName}
+                                    isMenuOpen={activeMenuKey === grp.key}
+                                    onToggleMenu={handleToggleMenu}
+                                    onTileClick={handleTileClick}
+                                    onDeleteTextureFile={handleDeleteTextureFile}
+                                    onDeleteTextureEntries={isDeclaredInPackTerrain ? handleDeleteTextureEntries : undefined}
+                                    onAddVariation={isDeclaredInPackTerrain ? handleAddVariation : undefined}
+                                    onDeleteVariation={isDeclaredInPackTerrain ? handleDeleteVariation : undefined}
+                                  />
+                                ))}
+                              </div>
+                            );
+                          })()
+                        )}
                       </div>
                     )}
                   </div>
-
-                <div className={styles.faceNodeGroup}>
-                  {ag.faceNodes && ag.faceNodes.length > 0 ? (
-                    ag.faceNodes.map((fn) => {
-                      const effectiveLeaves = isVanillaFallback
-                        ? (fn.leaves ?? []).filter((l) => l.status === 'OK' || l.status === 'OVERRIDE')
-                        : (fn.leaves ?? []);
-                      if (isVanillaFallback && effectiveLeaves.length === 0) return null;
-                      const groups = groupLeavesByVariantSlot(effectiveLeaves);
-                      return (
-                        <div key={fn.faceLabel} className={styles.faceRow}>
-                          <Badge variant="neutral" size="sm" icon={<ArrowRight size={10} />}>
-                            Face: {fn.faceLabel}
-                            {!isVanillaFallback && fn.ghostCount > 0 && ` • ${fn.ghostCount}`}
-                          </Badge>
-                          <div className={styles.variantStrip}>
-                            {groups.map((grp) => {
-                              const cardKey = `${grp.key}-${fn.faceLabel}`;
-                              return (
-                                <WorkspaceTileCard
-                                  key={cardKey}
-                                  grp={grp}
-                                  cardKey={cardKey}
-                                  tileZoom={tileZoom}
-                                  selectedBlockName={selectedBlockDisplayName}
-                                  isMenuOpen={activeMenuKey === cardKey}
-                                  onToggleMenu={handleToggleMenu}
-                                  onTileClick={handleTileClick}
-                                  onDeleteTextureFile={handleDeleteTextureFile}
-                                  onDeleteTextureEntries={isDeclaredInPackTerrain ? handleDeleteTextureEntries : undefined}
-                                  onAddVariation={isDeclaredInPackTerrain ? handleAddVariation : undefined}
-                                  onDeleteVariation={isDeclaredInPackTerrain ? handleDeleteVariation : undefined}
-                                />
-                              );
-                            })}
-                          </div>
-                        </div>
-                      );
-                    })
-                  ) : (
-                    (() => {
-                      const effectiveLeaves = isVanillaFallback
-                        ? (ag.leaves ?? []).filter((l) => l.status === 'OK' || l.status === 'OVERRIDE')
-                        : (ag.leaves ?? []);
-                      if (isVanillaFallback && effectiveLeaves.length === 0) return null;
-                      return (
-                        <div className={styles.variantStrip}>
-                          {groupLeavesByVariantSlot(effectiveLeaves).map((grp) => (
-                            <WorkspaceTileCard
-                              key={grp.key}
-                              grp={grp}
-                              cardKey={grp.key}
-                              tileZoom={tileZoom}
-                              selectedBlockName={selectedBlockDisplayName}
-                              isMenuOpen={activeMenuKey === grp.key}
-                              onToggleMenu={handleToggleMenu}
-                              onTileClick={handleTileClick}
-                              onDeleteTextureFile={handleDeleteTextureFile}
-                              onDeleteTextureEntries={isDeclaredInPackTerrain ? handleDeleteTextureEntries : undefined}
-                              onAddVariation={isDeclaredInPackTerrain ? handleAddVariation : undefined}
-                              onDeleteVariation={isDeclaredInPackTerrain ? handleDeleteVariation : undefined}
-                            />
-                          ))}
-                        </div>
-                      );
-                    })()
-                  )}
-                </div>
-              </div>
-            );
-          }))}
+                );
+              });
+            })()}
           </div>
         )}
       </WorkspaceShell>

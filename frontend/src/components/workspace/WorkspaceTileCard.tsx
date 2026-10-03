@@ -136,10 +136,16 @@ export const WorkspaceTileCard: React.FC<WorkspaceTileCardProps> = React.memo(({
       const previewUrl = URL.createObjectURL(file);
       packStoreActions.updateTexture(leaf.alias, 'OK', targetFullPath, previewUrl, leaf.relativePath);
 
-      const reader = new FileReader();
-      reader.onload = () => {
-        const base64Data = reader.result as string;
-        if (!base64Data) return;
+      // Use arrayBuffer() which stays off the main thread, then convert to base64 in small chunks
+      // to avoid locking the JS thread during encoding (readAsDataURL blocks on large files)
+      file.arrayBuffer().then((buffer) => {
+        const bytes = new Uint8Array(buffer);
+        let binary = '';
+        const chunkSize = 8192;
+        for (let i = 0; i < bytes.length; i += chunkSize) {
+          binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+        }
+        const base64Data = `data:${file.type || 'image/png'};base64,${btoa(binary)}`;
         dropImportTexture({
           aliasKey: leaf.alias,
           fullPath: targetFullPath,
@@ -148,8 +154,7 @@ export const WorkspaceTileCard: React.FC<WorkspaceTileCardProps> = React.memo(({
           category: (leaf.category as string) || 'block',
           fileName: file.name,
         });
-      };
-      reader.readAsDataURL(file);
+      }).catch((err) => console.error('[WorkspaceTileCard] Failed to read file buffer:', err));
     },
     [packRoot, dropImportTexture]
   );
@@ -167,23 +172,23 @@ export const WorkspaceTileCard: React.FC<WorkspaceTileCardProps> = React.memo(({
         });
       } else if (sourceData.imageUrl) {
         fetch(sourceData.imageUrl)
-          .then((res) => res.blob())
-          .then((blob) => {
-            const reader = new FileReader();
-            reader.onload = () => {
-              const base64Data = reader.result as string;
-              if (base64Data) {
-                dropImportTexture({
-                  aliasKey: leaf.alias,
-                  fullPath: targetFullPath,
-                  base64Data,
-                  relativePath: leaf.relativePath,
-                  category: (leaf.category as string) || 'block',
-                  fileName: `${sourceData.aliasKey}.png`,
-                });
-              }
-            };
-            reader.readAsDataURL(blob);
+          .then((res) => res.arrayBuffer())
+          .then((buffer) => {
+            const bytes = new Uint8Array(buffer);
+            let binary = '';
+            const chunkSize = 8192;
+            for (let i = 0; i < bytes.length; i += chunkSize) {
+              binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+            }
+            const base64Data = `data:image/png;base64,${btoa(binary)}`;
+            dropImportTexture({
+              aliasKey: leaf.alias,
+              fullPath: targetFullPath,
+              base64Data,
+              relativePath: leaf.relativePath,
+              category: (leaf.category as string) || 'block',
+              fileName: `${sourceData.aliasKey}.png`,
+            });
           })
           .catch((err) => console.error('[WorkspaceTileCard] Failed to fetch source texture blob:', err));
       }
@@ -513,16 +518,17 @@ export const WorkspaceTileCard: React.FC<WorkspaceTileCardProps> = React.memo(({
         {leaves.map((leaf, i) => {
           const leafName = getLeafTitle(leaf, alias);
           const storeAlias = findStoreAlias(leaf);
-          const isLeafGhost = storeAlias
-            ? storeAlias.status === 'GHOST' || !storeAlias.exists
-            : leaf.status === 'GHOST' || (!leaf.fullPath && leaf.status !== 'OK' && leaf.status !== 'OVERRIDE');
+          const isLeafGhost =
+            leaf.status === 'GHOST' ||
+            (storeAlias && (storeAlias.status === 'GHOST' || storeAlias.exists === false)) ||
+            (!leaf.fullPath && leaf.status !== 'OK' && leaf.status !== 'OVERRIDE');
           const baseImgUrl = isLeafGhost ? '' : (leaf.imageUrl || storeAlias?.imageUrl || '');
           const resolvedImgUrl = isLeafGhost
             ? ''
             : (baseImgUrl || (packRoot
               ? (leaf.fullPath && leaf.fullPath.startsWith(packRoot)
                 ? `https://pack.local/${normalizePath(leaf.fullPath.slice(packRoot.length).replace(/^[/\\]+/, ''))}`
-                : leaf.relativePath
+                : (leaf.status === 'OK' || leaf.status === 'OVERRIDE') && leaf.relativePath
                 ? `https://pack.local/${normalizePath(leaf.relativePath.replace(/^[/\\]+/, ''))}`
                 : '')
               : ''));
@@ -582,7 +588,6 @@ export const WorkspaceTileCard: React.FC<WorkspaceTileCardProps> = React.memo(({
                     className={`${styles.leafThumb} ${deletingSlotIndex === i ? styles.leafThumbDeleting : ''}`}
                     isFlipbook={leaf.isFlipbook || Boolean(leaf.hasAtlas)}
                     flipbook={leaf.flipbook}
-                    loading="lazy"
                   />
                 ) : (
                   <span key="ghost" className={styles.leafGhost}>?</span>
