@@ -42,7 +42,7 @@ public class MainViewModel : INotifyPropertyChanged
     private TaskCompletionSource<bool>? _pendingScanTcs;
     private string? _packRoot;
 
-    public ObservableCollection<TextureAlias> Aliases { get; } = new();
+    public BulkObservableCollection<TextureAlias> Aliases { get; } = new();
     public ICollectionView FilteredAliases { get; }
 
     public ObservableCollection<PackFolderItem> PackFolders { get; } = new();
@@ -585,13 +585,13 @@ public class MainViewModel : INotifyPropertyChanged
     /// exclusively from the user's pack. Populated on every rescan alongside
     /// <see cref="CatalogTree"/>.
     /// </summary>
-    public ObservableCollection<BlockGroupNode> BlockWorkspaceTree { get; } = new();
+    public BulkObservableCollection<BlockGroupNode> BlockWorkspaceTree { get; } = new();
 
     /// <summary>
     /// 4-tier tree (Entity → AliasGroup → FaceNode → CatalogLeaf) sourced
     /// from the user's entity/ and attachables/ definitions.
     /// </summary>
-    public ObservableCollection<BlockGroupNode> EntityWorkspaceTree { get; } = new();
+    public BulkObservableCollection<BlockGroupNode> EntityWorkspaceTree { get; } = new();
 
     // ─── Vanilla Reference Data ───────────────────────────────────────────────
     private VanillaData? _vanillaData;
@@ -625,7 +625,7 @@ public class MainViewModel : INotifyPropertyChanged
     public RelayCommand FetchVanillaDataCommand { get; }
 
     // ─── Catalog Tree & Dialog ────────────────────────────────────────────────
-    public ObservableCollection<BlockGroupNode> CatalogTree { get; } = new();
+    public BulkObservableCollection<BlockGroupNode> CatalogTree { get; } = new();
     public ICollectionView FilteredCatalogTree { get; }
     public RelayCommand AddVanillaEntryCommand { get; }
     public RelayCommand SetCatalogCategoryAllCommand { get; }
@@ -1457,14 +1457,19 @@ public class MainViewModel : INotifyPropertyChanged
             ScanProgressChanged?.Invoke("scan_start", 1, 5, "Initializing pack scan...");
         }
 
-        // Clear the current snapshot before rebuilding it so deleted entries cannot remain visible.
-        Aliases.Clear();
-        CatalogTree.Clear();
-        BlockWorkspaceTree.Clear();
-        EntityWorkspaceTree.Clear();
-        PackFolders.Clear();
-        FilteredAliases.Refresh();
-        FilteredCatalogTree.Refresh();
+        // On initial load, clear current collections so empty state is clean;
+        // on subsequent rescans, preserve existing collections while background scan runs
+        // to avoid blank UI flashing before swapping in the new data.
+        if (isInitialLoad)
+        {
+            Aliases.Clear();
+            CatalogTree.Clear();
+            BlockWorkspaceTree.Clear();
+            EntityWorkspaceTree.Clear();
+            PackFolders.Clear();
+            FilteredAliases.Refresh();
+            FilteredCatalogTree.Refresh();
+        }
 
         // Discard cached BitmapImages and flipbook frame slices so modified-on-disk textures reload fresh.
         ImagePathConverter.ClearCache();
@@ -1483,8 +1488,7 @@ public class MainViewModel : INotifyPropertyChanged
             System.Diagnostics.Debug.WriteLine($"[PERF][RESCAN] scan={perfSw.ElapsedMilliseconds}ms aliases={results.Count}");
             perfSw.Restart();
 
-            foreach (var alias in results)
-                Aliases.Add(alias);
+            Aliases.ReplaceRange(results);
             ApplySearchFilter();
             System.Diagnostics.Debug.WriteLine($"[PERF][RESCAN] populateAliases(UI)={perfSw.ElapsedMilliseconds}ms");
 
@@ -1505,15 +1509,11 @@ public class MainViewModel : INotifyPropertyChanged
                 System.Diagnostics.Debug.WriteLine($"[PERF][RESCAN] buildTrees={perfSw.ElapsedMilliseconds}ms");
                 perfSw.Restart();
 
-                foreach (var node in catalogNodes)
-                    CatalogTree.Add(node);
+                CatalogTree.ReplaceRange(catalogNodes);
                 FilteredCatalogTree.Refresh();
 
-                foreach (var node in workspaceNodes)
-                    BlockWorkspaceTree.Add(node);
-
-                foreach (var node in entityNodes)
-                    EntityWorkspaceTree.Add(node);
+                BlockWorkspaceTree.ReplaceRange(workspaceNodes);
+                EntityWorkspaceTree.ReplaceRange(entityNodes);
                 System.Diagnostics.Debug.WriteLine($"[PERF][RESCAN] populateTrees(UI)={perfSw.ElapsedMilliseconds}ms");
             }
 
@@ -1578,9 +1578,7 @@ public class MainViewModel : INotifyPropertyChanged
         {
             var results = await Task.Run(() => PackScanner.Scan(packRoot, _vanillaData));
 
-            Aliases.Clear();
-            foreach (var alias in results)
-                Aliases.Add(alias);
+            Aliases.ReplaceRange(results);
             ApplySearchFilter();
 
             if (_vanillaData != null)
@@ -1588,16 +1586,12 @@ public class MainViewModel : INotifyPropertyChanged
                 if (category == TextureCategory.Block)
                 {
                     var ws = await Task.Run(() => PackScanner.BuildBlockWorkspaceTree(results, _vanillaData, packRoot));
-                    BlockWorkspaceTree.Clear();
-                    foreach (var node in ws)
-                        BlockWorkspaceTree.Add(node);
+                    BlockWorkspaceTree.ReplaceRange(ws);
                 }
                 else if (category == TextureCategory.Entity)
                 {
                     var ent = await Task.Run(() => PackScanner.BuildEntityWorkspaceTree(results, _vanillaData, packRoot));
-                    EntityWorkspaceTree.Clear();
-                    foreach (var node in ent)
-                        EntityWorkspaceTree.Add(node);
+                    EntityWorkspaceTree.ReplaceRange(ent);
                 }
             }
 
