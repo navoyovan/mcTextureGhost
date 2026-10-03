@@ -224,23 +224,24 @@ public static class TextureIpcHandlers
         // 5. TEXTURE:DROP_IMPORT
         bridge.RegisterHandler<TextureDropImportPayload>(IpcMessageTypes.TextureDropImport, async (payload, corrId) =>
         {
-            await dispatcher.InvokeAsync(async () =>
+            if (payload == null || string.IsNullOrWhiteSpace(payload.FullPath) || string.IsNullOrWhiteSpace(payload.Base64Data))
             {
-                if (payload == null || string.IsNullOrWhiteSpace(payload.FullPath) || string.IsNullOrWhiteSpace(payload.Base64Data))
+                bridge.PushError("Import Failed", "Invalid drop payload or missing file data.", "error");
+                return;
+            }
+
+            try
+            {
+                var targetPath = payload.FullPath;
+                var dir = Path.GetDirectoryName(targetPath);
+                if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
                 {
-                    bridge.PushError("Import Failed", "Invalid drop payload or missing file data.", "error");
-                    return;
+                    Directory.CreateDirectory(dir);
                 }
 
-                try
+                // Decode base64 and write file off the UI thread
+                await Task.Run(async () =>
                 {
-                    var targetPath = payload.FullPath;
-                    var dir = Path.GetDirectoryName(targetPath);
-                    if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
-                    {
-                        Directory.CreateDirectory(dir);
-                    }
-
                     var base64 = payload.Base64Data;
                     var commaIdx = base64.IndexOf(',');
                     if (commaIdx >= 0 && base64.Substring(0, commaIdx).Contains("base64"))
@@ -251,7 +252,11 @@ public static class TextureIpcHandlers
 
                     WriteJournal.RecordWrite(targetPath);
                     await File.WriteAllBytesAsync(targetPath, bytes);
+                });
 
+                // Update UI state and notify frontend on UI Dispatcher thread
+                await dispatcher.InvokeAsync(() =>
+                {
                     ImagePathConverter.ClearCache();
 
                     var alias = vm.Aliases.FirstOrDefault(a =>
@@ -277,44 +282,48 @@ public static class TextureIpcHandlers
                         $"{virtualUrl}?t={DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}",
                         relPath
                     );
-
-                }
-                catch (Exception ex)
-                {
-                    bridge.PushError("Texture Drop Failed", ex.Message, "error");
-                }
-            });
+                });
+            }
+            catch (Exception ex)
+            {
+                bridge.PushError("Texture Drop Failed", ex.Message, "error");
+            }
         });
 
         // 6. TEXTURE:COPY_FILE
         bridge.RegisterHandler<TextureCopyFilePayload>(IpcMessageTypes.TextureCopyFile, async (payload, corrId) =>
         {
-            await dispatcher.InvokeAsync(async () =>
+            if (payload == null || string.IsNullOrWhiteSpace(payload.SourceFullPath) || string.IsNullOrWhiteSpace(payload.TargetFullPath))
             {
-                if (payload == null || string.IsNullOrWhiteSpace(payload.SourceFullPath) || string.IsNullOrWhiteSpace(payload.TargetFullPath))
+                bridge.PushError("Copy Failed", "Invalid copy payload or missing file path.", "error");
+                return;
+            }
+
+            if (!File.Exists(payload.SourceFullPath))
+            {
+                bridge.PushError("Copy Failed", $"Source file '{payload.SourceFullPath}' does not exist.", "error");
+                return;
+            }
+
+            try
+            {
+                var targetPath = payload.TargetFullPath;
+                var dir = Path.GetDirectoryName(targetPath);
+                if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
                 {
-                    bridge.PushError("Copy Failed", "Invalid copy payload or missing file path.", "error");
-                    return;
+                    Directory.CreateDirectory(dir);
                 }
 
-                if (!File.Exists(payload.SourceFullPath))
+                // Copy file off the UI thread
+                await Task.Run(() =>
                 {
-                    bridge.PushError("Copy Failed", $"Source file '{payload.SourceFullPath}' does not exist.", "error");
-                    return;
-                }
-
-                try
-                {
-                    var targetPath = payload.TargetFullPath;
-                    var dir = Path.GetDirectoryName(targetPath);
-                    if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
-                    {
-                        Directory.CreateDirectory(dir);
-                    }
-
                     WriteJournal.RecordWrite(targetPath);
-                    await Task.Run(() => File.Copy(payload.SourceFullPath, targetPath, overwrite: true));
+                    File.Copy(payload.SourceFullPath, targetPath, overwrite: true);
+                });
 
+                // Update UI state on UI Dispatcher thread
+                await dispatcher.InvokeAsync(() =>
+                {
                     ImagePathConverter.ClearCache();
 
                     var alias = vm.Aliases.FirstOrDefault(a =>
@@ -340,13 +349,12 @@ public static class TextureIpcHandlers
                         $"{virtualUrl}?t={DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}",
                         relPath
                     );
-
-                }
-                catch (Exception ex)
-                {
-                    bridge.PushError("Texture Copy Failed", ex.Message, "error");
-                }
-            });
+                });
+            }
+            catch (Exception ex)
+            {
+                bridge.PushError("Texture Copy Failed", ex.Message, "error");
+            }
         });
 
         // 7. SCAFFOLD:PLAIN
