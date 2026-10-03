@@ -154,7 +154,8 @@ public record TextureDeleteFilePayload(
 public record TextureDropImportPayload(
     [property: JsonPropertyName("aliasKey")] string AliasKey,
     [property: JsonPropertyName("fullPath")] string FullPath,
-    [property: JsonPropertyName("base64Data")] string Base64Data,
+    [property: JsonPropertyName("base64Data")] string? Base64Data = null,
+    [property: JsonPropertyName("sourceFilePath")] string? SourceFilePath = null,
     [property: JsonPropertyName("relativePath")] string? RelativePath = null,
     [property: JsonPropertyName("category")] string? Category = null,
     [property: JsonPropertyName("fileName")] string? FileName = null

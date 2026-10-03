@@ -137,29 +137,43 @@ export const WorkspaceTileCard: React.FC<WorkspaceTileCardProps> = React.memo(({
       const previewUrl = URL.createObjectURL(file);
       packStoreActions.updateTexture(leaf.alias, 'OK', targetFullPath, previewUrl, leaf.relativePath);
 
-      // Use arrayBuffer() which stays off the main thread, then convert to base64 in small chunks
-      // to avoid locking the JS thread during encoding (readAsDataURL blocks on large files)
-      file.arrayBuffer().then((buffer) => {
-        const tEncodeStart = performance.now();
-        const bytes = new Uint8Array(buffer);
-        let binary = '';
-        const chunkSize = 8192;
-        for (let i = 0; i < bytes.length; i += chunkSize) {
-          binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
-        }
-        const base64Data = `data:${file.type || 'image/png'};base64,${btoa(binary)}`;
-        const encodeMs = performance.now() - tEncodeStart;
+      const sourceFilePath = (file as any).path as string | undefined;
+      if (sourceFilePath) {
         const totalMs = performance.now() - tImportStart;
-        console.log(`[PERF][IMPORT] file=${file.name} size=${(file.size / 1024).toFixed(1)}KB encode=${encodeMs.toFixed(1)}ms totalBeforeIpc=${totalMs.toFixed(1)}ms`);
+        console.log(`[PERF][IMPORT] file=${file.name} nativePath=${sourceFilePath} totalBeforeIpc=${totalMs.toFixed(1)}ms`);
         dropImportTexture({
           aliasKey: leaf.alias,
           fullPath: targetFullPath,
-          base64Data,
+          sourceFilePath,
           relativePath: leaf.relativePath,
           category: (leaf.category as string) || 'block',
           fileName: file.name,
         });
-      }).catch((err) => console.error('[WorkspaceTileCard] Failed to read file buffer:', err));
+      } else {
+        // Fallback: Use arrayBuffer() which stays off the main thread, then convert to base64 in small chunks
+        // to avoid locking the JS thread during encoding (readAsDataURL blocks on large files)
+        file.arrayBuffer().then((buffer) => {
+          const tEncodeStart = performance.now();
+          const bytes = new Uint8Array(buffer);
+          let binary = '';
+          const chunkSize = 8192;
+          for (let i = 0; i < bytes.length; i += chunkSize) {
+            binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+          }
+          const base64Data = `data:${file.type || 'image/png'};base64,${btoa(binary)}`;
+          const encodeMs = performance.now() - tEncodeStart;
+          const totalMs = performance.now() - tImportStart;
+          console.log(`[PERF][IMPORT] file=${file.name} size=${(file.size / 1024).toFixed(1)}KB encode=${encodeMs.toFixed(1)}ms totalBeforeIpc=${totalMs.toFixed(1)}ms`);
+          dropImportTexture({
+            aliasKey: leaf.alias,
+            fullPath: targetFullPath,
+            base64Data,
+            relativePath: leaf.relativePath,
+            category: (leaf.category as string) || 'block',
+            fileName: file.name,
+          });
+        }).catch((err) => console.error('[WorkspaceTileCard] Failed to read file buffer:', err));
+      }
     },
     [packRoot, dropImportTexture]
   );

@@ -224,7 +224,7 @@ public static class TextureIpcHandlers
         // 5. TEXTURE:DROP_IMPORT
         bridge.RegisterHandler<TextureDropImportPayload>(IpcMessageTypes.TextureDropImport, async (payload, corrId) =>
         {
-            if (payload == null || string.IsNullOrWhiteSpace(payload.FullPath) || string.IsNullOrWhiteSpace(payload.Base64Data))
+            if (payload == null || string.IsNullOrWhiteSpace(payload.FullPath) || (string.IsNullOrWhiteSpace(payload.Base64Data) && string.IsNullOrWhiteSpace(payload.SourceFilePath)))
             {
                 bridge.PushError("Import Failed", "Invalid drop payload or missing file data.", "error");
                 return;
@@ -239,19 +239,27 @@ public static class TextureIpcHandlers
                     Directory.CreateDirectory(dir);
                 }
 
-                // Decode base64 and write file off the UI thread
+                // Decode base64 or copy directly from disk off the UI thread
                 await Task.Run(async () =>
                 {
-                    var base64 = payload.Base64Data;
-                    var commaIdx = base64.IndexOf(',');
-                    if (commaIdx >= 0 && base64.Substring(0, commaIdx).Contains("base64"))
+                    if (!string.IsNullOrWhiteSpace(payload.SourceFilePath) && File.Exists(payload.SourceFilePath))
                     {
-                        base64 = base64.Substring(commaIdx + 1);
+                        WriteJournal.RecordWrite(targetPath);
+                        File.Copy(payload.SourceFilePath, targetPath, overwrite: true);
                     }
-                    var bytes = Convert.FromBase64String(base64);
+                    else if (!string.IsNullOrWhiteSpace(payload.Base64Data))
+                    {
+                        var base64 = payload.Base64Data;
+                        var commaIdx = base64.IndexOf(',');
+                        if (commaIdx >= 0 && base64.Substring(0, commaIdx).Contains("base64"))
+                        {
+                            base64 = base64.Substring(commaIdx + 1);
+                        }
+                        var bytes = Convert.FromBase64String(base64);
 
-                    WriteJournal.RecordWrite(targetPath);
-                    await File.WriteAllBytesAsync(targetPath, bytes);
+                        WriteJournal.RecordWrite(targetPath);
+                        await File.WriteAllBytesAsync(targetPath, bytes);
+                    }
                 });
 
                 // Update UI state and notify frontend on UI Dispatcher thread

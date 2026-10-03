@@ -147,20 +147,32 @@ const TileHoverMorphCard: React.FC<TileHoverMorphPortalProps> = ({
       const previewUrl = URL.createObjectURL(file);
       packStoreActions.updateTexture(alias.alias, 'OK', targetFullPath, previewUrl, alias.relativePath);
 
-      const reader = new FileReader();
-      reader.onload = () => {
-        const base64Data = reader.result as string;
-        if (!base64Data) return;
+      const sourceFilePath = (file as any).path as string | undefined;
+      if (sourceFilePath) {
         dropImportTexture({
           aliasKey: alias.alias,
           fullPath: targetFullPath,
-          base64Data,
+          sourceFilePath,
           relativePath: alias.relativePath,
           category: alias.category,
           fileName: file.name,
         });
-      };
-      reader.readAsDataURL(file);
+      } else {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const base64Data = reader.result as string;
+          if (!base64Data) return;
+          dropImportTexture({
+            aliasKey: alias.alias,
+            fullPath: targetFullPath,
+            base64Data,
+            relativePath: alias.relativePath,
+            category: alias.category,
+            fileName: file.name,
+          });
+        };
+        reader.readAsDataURL(file);
+      }
     },
     [alias, packRoot, dropImportTexture]
   );

@@ -153,7 +153,8 @@ export interface TextureRenameVariationPayload {
 export interface TextureDropImportPayload {
   aliasKey: string;
   fullPath: string;
-  base64Data: string;
+  base64Data?: string;
+  sourceFilePath?: string;
   relativePath?: string;
   category?: string;
   fileName?: string;
