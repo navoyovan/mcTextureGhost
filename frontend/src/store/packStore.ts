@@ -40,6 +40,10 @@ export interface PackStoreState {
   aliases: TextureAliasDto[];
   blockWorkspaceTree: BlockGroupNodeDto[];
   entityWorkspaceTree: BlockGroupNodeDto[];
+  /** Normalized O(1) indexes */
+  blocksById: Map<string, BlockGroupNodeDto>;
+  entitiesById: Map<string, BlockGroupNodeDto>;
+  aliasesByKey: Map<string, TextureAliasDto>;
   packFolders: PackFolderItemDto[];
   recentPacks: RecentPackItemDto[];
   stats: PackStatsDto;
@@ -188,6 +192,31 @@ const initialStats: PackStatsDto = {
   orphans: 0,
 };
 
+function buildBlocksById(tree: BlockGroupNodeDto[]): Map<string, BlockGroupNodeDto> {
+  const map = new Map<string, BlockGroupNodeDto>();
+  for (const b of tree) {
+    if (!b?.blockId) continue;
+    const norm = b.blockId.toLowerCase();
+    map.set(norm, b);
+    const strip = norm.replace(/^minecraft:/, '');
+    if (strip !== norm) map.set(strip, b);
+  }
+  return map;
+}
+
+function buildAliasesByKey(aliases: TextureAliasDto[]): Map<string, TextureAliasDto> {
+  const map = new Map<string, TextureAliasDto>();
+  for (const a of aliases) {
+    const k = (a.key || a.alias || '').toLowerCase();
+    if (k) map.set(k, a);
+    if (a.alias) {
+      const ak = a.alias.toLowerCase();
+      if (ak !== k) map.set(ak, a);
+    }
+  }
+  return map;
+}
+
 const initialState: PackStoreState = {
   packRoot: null,
   packName: null,
@@ -198,6 +227,9 @@ const initialState: PackStoreState = {
   aliases: [],
   blockWorkspaceTree: [],
   entityWorkspaceTree: [],
+  blocksById: new Map(),
+  entitiesById: new Map(),
+  aliasesByKey: new Map(),
   packFolders: [],
   recentPacks: [],
   stats: initialStats,
@@ -302,15 +334,24 @@ export const packStoreActions: PackStoreActions = {
     const stats = dto.stats || computeStats(sanitizedAliases);
 
     const newBlockWorkspaceTree = Array.isArray(dto.blockWorkspaceTree) ? dto.blockWorkspaceTree : currentState.blockWorkspaceTree;
+    const newEntityWorkspaceTree = Array.isArray(dto.entityWorkspaceTree) ? dto.entityWorkspaceTree : currentState.entityWorkspaceTree;
+    const newBlocksById = buildBlocksById(newBlockWorkspaceTree);
+    const newEntitiesById = buildBlocksById(newEntityWorkspaceTree);
+    const newAliasesByKey = buildAliasesByKey(sanitizedAliases);
 
     // Auto-clear resolved pending alias operations
     const updatedPendingAliasOps = { ...currentState.pendingAliasOps };
+    const aliasInTreeSet = new Set<string>();
+    for (const block of newBlockWorkspaceTree) {
+      if (block.aliasGroups) {
+        for (const ag of block.aliasGroups) {
+          aliasInTreeSet.add(ag.alias.toLowerCase());
+        }
+      }
+    }
     Object.keys(updatedPendingAliasOps).forEach((alias) => {
       const op = updatedPendingAliasOps[alias];
-      const aliasNorm = alias.toLowerCase();
-      const aliasExistsInTree = newBlockWorkspaceTree.some((block) =>
-        block.aliasGroups?.some((ag) => ag.alias.toLowerCase() === aliasNorm)
-      );
+      const aliasExistsInTree = aliasInTreeSet.has(alias.toLowerCase());
       if (op === 'deleting' && !aliasExistsInTree) {
         delete updatedPendingAliasOps[alias];
       } else if (op === 'adding' && aliasExistsInTree) {
@@ -320,12 +361,16 @@ export const packStoreActions: PackStoreActions = {
 
     // Auto-clear resolved pending tile operations
     const updatedPendingTileOps = { ...currentState.pendingTileOps };
+    const tilePathSet = new Set<string>();
+    for (const a of sanitizedAliases) {
+      if (a.fullPath) {
+        tilePathSet.add(a.fullPath.replace(/[/\\]+/g, '/').toLowerCase());
+      }
+    }
     Object.keys(updatedPendingTileOps).forEach((fullPath) => {
       const op = updatedPendingTileOps[fullPath];
       const pathNorm = fullPath.replace(/[/\\]+/g, '/').toLowerCase();
-      const tileExistsInAliases = sanitizedAliases.some(
-        (a) => a.fullPath && a.fullPath.replace(/[/\\]+/g, '/').toLowerCase() === pathNorm
-      );
+      const tileExistsInAliases = tilePathSet.has(pathNorm);
       if (op === 'deleting' && !tileExistsInAliases) {
         delete updatedPendingTileOps[fullPath];
       } else if (op === 'adding' && tileExistsInAliases) {
@@ -343,7 +388,10 @@ export const packStoreActions: PackStoreActions = {
       manifest: dto.manifest ?? currentState.manifest,
       aliases: sanitizedAliases,
       blockWorkspaceTree: newBlockWorkspaceTree,
-      entityWorkspaceTree: Array.isArray(dto.entityWorkspaceTree) ? dto.entityWorkspaceTree : currentState.entityWorkspaceTree,
+      entityWorkspaceTree: newEntityWorkspaceTree,
+      blocksById: newBlocksById,
+      entitiesById: newEntitiesById,
+      aliasesByKey: newAliasesByKey,
       packFolders: Array.isArray(dto.packFolders) ? dto.packFolders : currentState.packFolders,
       recentPacks: Array.isArray(dto.recentPacks) ? dto.recentPacks : currentState.recentPacks,
       catalogTree: Array.isArray(dto.catalogTree) ? dto.catalogTree : currentState.catalogTree,
@@ -504,12 +552,72 @@ export const packStoreActions: PackStoreActions = {
       }
     }
 
+    let nextBlocksById = currentState.blocksById;
+    if (nextBlocks !== currentState.blockWorkspaceTree) {
+      nextBlocksById = new Map(currentState.blocksById);
+      if (patch.removeBlockIds) {
+        for (const id of patch.removeBlockIds) {
+          const norm = id.toLowerCase();
+          nextBlocksById.delete(norm);
+          nextBlocksById.delete(norm.replace(/^minecraft:/, ''));
+        }
+      }
+      if (patch.upsertBlocks) {
+        for (const b of patch.upsertBlocks) {
+          const norm = b.blockId.toLowerCase();
+          nextBlocksById.set(norm, b);
+          const strip = norm.replace(/^minecraft:/, '');
+          if (strip !== norm) nextBlocksById.set(strip, b);
+        }
+      }
+    }
+
+    let nextEntitiesById = currentState.entitiesById;
+    if (nextEntities !== currentState.entityWorkspaceTree) {
+      nextEntitiesById = new Map(currentState.entitiesById);
+      if (patch.removeEntityIds) {
+        for (const id of patch.removeEntityIds) {
+          const norm = id.toLowerCase();
+          nextEntitiesById.delete(norm);
+          nextEntitiesById.delete(norm.replace(/^minecraft:/, ''));
+        }
+      }
+      if (patch.upsertEntities) {
+        for (const e of patch.upsertEntities) {
+          const norm = e.blockId.toLowerCase();
+          nextEntitiesById.set(norm, e);
+          const strip = norm.replace(/^minecraft:/, '');
+          if (strip !== norm) nextEntitiesById.set(strip, e);
+        }
+      }
+    }
+
+    let nextAliasesByKey = currentState.aliasesByKey;
+    if (nextAliases !== currentState.aliases) {
+      nextAliasesByKey = new Map(currentState.aliasesByKey);
+      if (patch.removeAliasKeys) {
+        for (const k of patch.removeAliasKeys) {
+          nextAliasesByKey.delete(k.toLowerCase());
+        }
+      }
+      if (patch.upsertAliases) {
+        for (const a of patch.upsertAliases) {
+          const k = (a.key || a.alias || '').toLowerCase();
+          if (k) nextAliasesByKey.set(k, a);
+          if (a.alias) nextAliasesByKey.set(a.alias.toLowerCase(), a);
+        }
+      }
+    }
+
     currentState = {
       ...currentState,
       lastAppliedPatchSeq: Math.max(currentState.lastAppliedPatchSeq, patch.seq || 0),
       aliases: nextAliases,
       blockWorkspaceTree: nextBlocks,
       entityWorkspaceTree: nextEntities,
+      blocksById: nextBlocksById,
+      entitiesById: nextEntitiesById,
+      aliasesByKey: nextAliasesByKey,
       stats: patch.stats ?? (aliasesChanged ? computeStats(nextAliases) : currentState.stats),
       manifest: patch.manifest !== undefined ? (patch.manifest ?? currentState.manifest) : currentState.manifest,
       hasPackIcon: patch.hasPackIcon !== undefined ? patch.hasPackIcon : currentState.hasPackIcon,
@@ -665,6 +773,9 @@ export const packStoreActions: PackStoreActions = {
       aliases: updatedAliases,
       blockWorkspaceTree: updatedBlockTree as any,
       entityWorkspaceTree: updatedEntityTree as any,
+      blocksById: buildBlocksById(updatedBlockTree),
+      entitiesById: buildBlocksById(updatedEntityTree),
+      aliasesByKey: buildAliasesByKey(updatedAliases),
       stats: computeStats(updatedAliases),
     };
     notify();

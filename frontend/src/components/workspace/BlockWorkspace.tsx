@@ -71,6 +71,7 @@ const BlockSidebarItem: React.FC<BlockSidebarItemProps> = React.memo(({
 
 export const BlockWorkspace: React.FC = () => {
   const blockWorkspaceTree = usePackStore((s) => s.blockWorkspaceTree);
+  const blocksById = usePackStore((s) => s.blocksById);
   const isScanning = usePackStore((s) => s.isScanning);
   const isWorkspaceLoading = usePackStore((s) => s.isWorkspaceLoading);
   const searchQuery = usePackStore((s) => s.searchQuery);
@@ -259,7 +260,7 @@ export const BlockWorkspace: React.FC = () => {
           }
         }
       } else {
-        const fullMatch = blockWorkspaceTree.find((b) => norm(b.blockId) === normSelected);
+        const fullMatch = blocksById?.get(normSelected) || blockWorkspaceTree.find((b) => norm(b.blockId) === normSelected);
         const catalogMatch = catalogTree?.find((b) => norm(b.blockId) === normSelected);
         const snapshotMatch =
           lastSelectedBlockRef.current && norm(lastSelectedBlockRef.current.blockId) === normSelected
@@ -324,7 +325,7 @@ export const BlockWorkspace: React.FC = () => {
         lastSelectedBlockRef.current = foundInFiltered;
         return foundInFiltered;
       }
-      const foundInFull = blockWorkspaceTree?.find((b) => (b.blockId || '').toLowerCase().replace(/^minecraft:/, '') === normSelected);
+      const foundInFull = blocksById?.get(normSelected) || blockWorkspaceTree?.find((b) => (b.blockId || '').toLowerCase().replace(/^minecraft:/, '') === normSelected);
       if (foundInFull) {
         lastSelectedBlockRef.current = foundInFull;
         return foundInFull;

@@ -33,11 +33,11 @@ export interface CatalogDrawerProps {
  */
 export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose }) => {
   const catalogTree = usePackStore((s) => s.catalogTree);
-  const blockWorkspaceTree = usePackStore((s) => s.blockWorkspaceTree);
-  const entityWorkspaceTree = usePackStore((s) => s.entityWorkspaceTree);
+  const blocksById = usePackStore((s) => s.blocksById);
+  const entitiesById = usePackStore((s) => s.entitiesById);
+  const aliasesByKey = usePackStore((s) => s.aliasesByKey);
   const referencePacks = usePackStore((s) => s.referencePacks);
   const activeReferenceId = usePackStore((s) => s.activeReferenceId);
-  const aliases = usePackStore((s) => s.aliases);
   const packFolders = usePackStore((s) => s.packFolders);
   const hasVanillaAssets = usePackStore((s) => s.hasVanillaAssets);
   const simulateNoAssets = usePackStore((s) => s.simulateNoAssets);
@@ -49,58 +49,42 @@ export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose })
 
   const isBlockUserDefined = useCallback(
     (blockId: string): boolean => {
-      if (!hasBlocksJson || !blockWorkspaceTree || !Array.isArray(blockWorkspaceTree)) return false;
-      return blockWorkspaceTree.some(
-        (b) => b.blockId.toLowerCase() === blockId.toLowerCase() && b.isUserDefined !== false
-      );
+      if (!hasBlocksJson || !blocksById) return false;
+      const norm = (blockId || '').toLowerCase();
+      const b = blocksById.get(norm.replace(/^minecraft:/, '')) || blocksById.get(norm);
+      return b ? b.isUserDefined !== false : false;
     },
-    [hasBlocksJson, blockWorkspaceTree]
+    [hasBlocksJson, blocksById]
   );
 
   const isAliasDeclaredInPack = useCallback(
     (alias: string, category: string, _parentBlockId?: string): boolean => {
+      if (!aliasesByKey) return false;
       const cat = category.toLowerCase();
+      const a = aliasesByKey.get((alias || '').toLowerCase());
+      if (!a || a.status === 'ORPHAN') return false;
+
       if (cat === 'block') {
         if (!hasTerrainTextureJson) return false;
-        // Check pack aliases directly — alias is declared if it exists in terrain_texture.json user data
-        // (status Ghost/Ok), regardless of whether its parent block is user-defined or vanilla fallback.
-        // This fixes cases like glowing_obsidian where blockId is glowingobsidian (no underscore)
-        // but alias is glowing_obsidian and block is vanilla fallback (isUserDefined false).
-        if (!hasTerrainTextureJson) return false;
-        // Declared check must be via pack aliases with IsUserDefined, not workspace tree.
-        // Workspace tree contains vanilla fallback aliasGroups even when terrain has no entry
-        // (e.g. bamboo_mosaic slab fallback), which previously made isAliasDeclared true
-        // even after deletion (terrain_texture.json entry removed, only orphan PNG remains).
-        return aliases.some(
-          (a) =>
-            a.alias.toLowerCase() === alias.toLowerCase() &&
-            a.category.toLowerCase() === 'block' &&
-            a.status !== 'ORPHAN' &&
-            a.isUserDefined !== false
-        );
+        return a.category.toLowerCase() === 'block' && a.isUserDefined !== false;
       }
       if (cat === 'item') {
         if (!hasItemTextureJson) return false;
-        return aliases.some(
-          (a) =>
-            a.alias.toLowerCase() === alias.toLowerCase() &&
-            a.category.toLowerCase() === 'item' &&
-            a.status !== 'ORPHAN'
-        );
+        return a.category.toLowerCase() === 'item';
       }
       return false;
     },
-    [blockWorkspaceTree, hasTerrainTextureJson, hasItemTextureJson, aliases]
+    [hasTerrainTextureJson, hasItemTextureJson, aliasesByKey]
   );
 
   const isEntityInWorkspace = useCallback(
     (entityId: string): boolean => {
-      if (!entityWorkspaceTree || !Array.isArray(entityWorkspaceTree)) return false;
-      return entityWorkspaceTree.some(
-        (e) => e.blockId.toLowerCase() === entityId.toLowerCase() && e.isUserDefined !== false
-      );
+      if (!entitiesById) return false;
+      const norm = (entityId || '').toLowerCase();
+      const e = entitiesById.get(norm.replace(/^minecraft:/, '')) || entitiesById.get(norm);
+      return e ? e.isUserDefined !== false : false;
     },
-    [entityWorkspaceTree]
+    [entitiesById]
   );
 
   const [searchText, setSearchText] = useState('');
@@ -133,9 +117,8 @@ export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose })
       for (const id of prev) {
         if (id.startsWith('alias:')) {
           const aliasKey = id.slice(6);
-          const stillExists = aliases.some(
-            (a) => a.alias.toLowerCase() === aliasKey && a.status !== 'ORPHAN' && a.isUserDefined !== false
-          );
+          const a = aliasesByKey?.get(aliasKey);
+          const stillExists = !!a && a.status !== 'ORPHAN' && a.isUserDefined !== false;
           if (stillExists) next.add(id);
         } else if (id.startsWith('block:')) {
           const blockId = id.slice(6);
@@ -143,9 +126,8 @@ export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose })
           if (stillExists) next.add(id);
         } else if (id.startsWith('item:')) {
           const itemId = id.slice(5);
-          const stillExists = aliases.some(
-            (a) => a.alias.toLowerCase() === itemId && a.category === 'item' && a.status !== 'ORPHAN'
-          );
+          const a = aliasesByKey?.get(itemId);
+          const stillExists = !!a && a.category === 'item' && a.status !== 'ORPHAN';
           if (stillExists) next.add(id);
         } else if (id.startsWith('entity:')) {
           const entityId = id.slice(7);
@@ -155,7 +137,7 @@ export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose })
       }
       return next.size === prev.size ? prev : next;
     });
-  }, [aliases, isBlockUserDefined, isEntityInWorkspace]);
+  }, [aliasesByKey, isBlockUserDefined, isEntityInWorkspace]);
 
   const activeReference = useMemo(() => {
     return referencePacks?.find((p) => p.id === activeReferenceId) || referencePacks?.[0] || {
