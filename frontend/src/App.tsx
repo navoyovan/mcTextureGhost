@@ -130,6 +130,11 @@ export const App: React.FC = () => {
       setPackState(payload);
     });
 
+    // 1b. PACK:PATCH
+    const unsubPackPatch = subscribe(IpcMessageTypes.PackPatch, (payload) => {
+      usePackStore.getState().applyPackPatch(payload);
+    });
+
     // 2. SCAN:PROGRESS
     const unsubScanProgress = subscribe(IpcMessageTypes.ScanProgress, (payload) => {
       setScanProgress(payload);
@@ -198,6 +203,7 @@ export const App: React.FC = () => {
 
     return () => {
       unsubPackState();
+      unsubPackPatch();
       unsubScanProgress();
       unsubTextureUpdated();
       unsubAppConfig();

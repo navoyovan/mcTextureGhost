@@ -2,6 +2,7 @@
 import { useSyncExternalStore } from 'react';
 import {
   PackStatePayload,
+  PackPatchPayload,
   TextureAliasDto,
   BlockGroupNodeDto,
   PackFolderItemDto,
@@ -95,6 +96,7 @@ export interface PackStoreState {
   /** Pending alias and tile ops to prevent flash during background scans */
   pendingAliasOps: Record<string, 'deleting' | 'adding'>;
   pendingTileOps: Record<string, 'deleting' | 'adding'>;
+  lastAppliedPatchSeq: number;
 
   // App & Theme Config
   tintOpacity: number;
@@ -108,6 +110,7 @@ export interface PackStoreState {
 
 export interface PackStoreActions {
   setPackState: (dto: Partial<PackStatePayload>) => void;
+  applyPackPatch: (patch: PackPatchPayload) => void;
   resetPackState: () => void;
   updateTexture: (aliasKey: string, newStatus: string, fullPath: string, imageUrl?: string | null, relativePath?: string | null) => void;
   optimisticDeleteTexture: (fullPath: string, aliasKey?: string) => void;
@@ -245,6 +248,7 @@ const initialState: PackStoreState = {
 
   pendingAliasOps: {},
   pendingTileOps: {},
+  lastAppliedPatchSeq: 0,
 
   isPackClosing: typeof window !== 'undefined' && sessionStorage.getItem('mctg_pack_closing') === '1',
 
@@ -359,6 +363,168 @@ export const packStoreActions: PackStoreActions = {
     notifyDeferred();
     const setPackStateMs = performance.now() - t0;
     console.log(`[PERF][STORE] setPackState took ${setPackStateMs.toFixed(1)}ms (blocks: ${newBlockWorkspaceTree.length}, aliases: ${sanitizedAliases.length})`);
+  },
+
+  applyPackPatch(patch: PackPatchPayload): void {
+    if (patch.seq && patch.seq < currentState.lastAppliedPatchSeq) {
+      console.warn(`[PERF][STORE] Dropped outdated patch seq=${patch.seq} (current=${currentState.lastAppliedPatchSeq})`);
+      return;
+    }
+
+    const t0 = performance.now();
+    let aliasesChanged = false;
+    let nextAliases = currentState.aliases;
+
+    const upsertMap = new Map<string, TextureAliasDto>();
+    if (patch.upsertAliases && patch.upsertAliases.length > 0) {
+      for (const a of patch.upsertAliases) {
+        const k = (a.key || a.alias).toLowerCase();
+        upsertMap.set(k, a);
+      }
+    }
+
+    const removeSet = new Set<string>();
+    if (patch.removeAliasKeys && patch.removeAliasKeys.length > 0) {
+      for (const k of patch.removeAliasKeys) {
+        removeSet.add(k.toLowerCase());
+      }
+    }
+
+    if (upsertMap.size > 0 || removeSet.size > 0) {
+      aliasesChanged = true;
+      const remaining: TextureAliasDto[] = [];
+      const updatedKeys = new Set<string>();
+
+      for (const alias of currentState.aliases) {
+        const k = (alias.key || alias.alias).toLowerCase();
+        if (removeSet.has(k)) {
+          continue;
+        }
+        if (upsertMap.has(k)) {
+          remaining.push(upsertMap.get(k)!);
+          updatedKeys.add(k);
+        } else {
+          remaining.push(alias);
+        }
+      }
+
+      for (const [k, a] of upsertMap.entries()) {
+        if (!updatedKeys.has(k)) {
+          remaining.push(a);
+        }
+      }
+
+      nextAliases = remaining;
+    }
+
+    let nextBlocks = currentState.blockWorkspaceTree;
+    if ((patch.upsertBlocks && patch.upsertBlocks.length > 0) || (patch.removeBlockIds && patch.removeBlockIds.length > 0)) {
+      const blockUpsertMap = new Map<string, BlockGroupNodeDto>();
+      if (patch.upsertBlocks) {
+        for (const b of patch.upsertBlocks) {
+          blockUpsertMap.set(b.blockId.toLowerCase(), b);
+        }
+      }
+      const blockRemoveSet = new Set<string>();
+      if (patch.removeBlockIds) {
+        for (const id of patch.removeBlockIds) {
+          blockRemoveSet.add(id.toLowerCase());
+        }
+      }
+
+      const remainingBlocks: BlockGroupNodeDto[] = [];
+      const updatedBlockIds = new Set<string>();
+
+      for (const b of currentState.blockWorkspaceTree) {
+        const id = b.blockId.toLowerCase();
+        if (blockRemoveSet.has(id)) continue;
+        if (blockUpsertMap.has(id)) {
+          remainingBlocks.push(blockUpsertMap.get(id)!);
+          updatedBlockIds.add(id);
+        } else {
+          remainingBlocks.push(b);
+        }
+      }
+
+      for (const [id, b] of blockUpsertMap.entries()) {
+        if (!updatedBlockIds.has(id)) {
+          remainingBlocks.push(b);
+        }
+      }
+
+      nextBlocks = remainingBlocks;
+    }
+
+    let nextEntities = currentState.entityWorkspaceTree;
+    if ((patch.upsertEntities && patch.upsertEntities.length > 0) || (patch.removeEntityIds && patch.removeEntityIds.length > 0)) {
+      const entityUpsertMap = new Map<string, BlockGroupNodeDto>();
+      if (patch.upsertEntities) {
+        for (const e of patch.upsertEntities) {
+          entityUpsertMap.set(e.blockId.toLowerCase(), e);
+        }
+      }
+      const entityRemoveSet = new Set<string>();
+      if (patch.removeEntityIds) {
+        for (const id of patch.removeEntityIds) {
+          entityRemoveSet.add(id.toLowerCase());
+        }
+      }
+
+      const remainingEntities: BlockGroupNodeDto[] = [];
+      const updatedEntityIds = new Set<string>();
+
+      for (const e of currentState.entityWorkspaceTree) {
+        const id = e.blockId.toLowerCase();
+        if (entityRemoveSet.has(id)) continue;
+        if (entityUpsertMap.has(id)) {
+          remainingEntities.push(entityUpsertMap.get(id)!);
+          updatedEntityIds.add(id);
+        } else {
+          remainingEntities.push(e);
+        }
+      }
+
+      for (const [id, e] of entityUpsertMap.entries()) {
+        if (!updatedEntityIds.has(id)) {
+          remainingEntities.push(e);
+        }
+      }
+
+      nextEntities = remainingEntities;
+    }
+
+    const updatedPendingAliasOps = { ...currentState.pendingAliasOps };
+    if (patch.removeAliasKeys) {
+      for (const k of patch.removeAliasKeys) delete updatedPendingAliasOps[k];
+    }
+    if (patch.upsertAliases) {
+      for (const a of patch.upsertAliases) {
+        delete updatedPendingAliasOps[a.alias];
+        if (a.key) delete updatedPendingAliasOps[a.key];
+      }
+    }
+
+    currentState = {
+      ...currentState,
+      lastAppliedPatchSeq: Math.max(currentState.lastAppliedPatchSeq, patch.seq || 0),
+      aliases: nextAliases,
+      blockWorkspaceTree: nextBlocks,
+      entityWorkspaceTree: nextEntities,
+      stats: patch.stats ?? (aliasesChanged ? computeStats(nextAliases) : currentState.stats),
+      manifest: patch.manifest !== undefined ? (patch.manifest ?? currentState.manifest) : currentState.manifest,
+      hasPackIcon: patch.hasPackIcon !== undefined ? patch.hasPackIcon : currentState.hasPackIcon,
+      packIconUrl: patch.packIconUrl !== undefined ? patch.packIconUrl : currentState.packIconUrl,
+      pendingAliasOps: updatedPendingAliasOps,
+      isScanning: false,
+      isGridLoading: false,
+      isWorkspaceLoading: false,
+      isCatalogLoading: false,
+      scanProgress: null,
+    };
+
+    notifyDeferred();
+    const patchMs = performance.now() - t0;
+    console.log(`[PERF][STORE] applyPackPatch seq=${patch.seq} took ${patchMs.toFixed(1)}ms (upsertedAliases: ${patch.upsertAliases?.length ?? 0}, removedAliases: ${patch.removeAliasKeys?.length ?? 0}, upsertedBlocks: ${patch.upsertBlocks?.length ?? 0})`);
   },
 
   resetPackState(): void {
