@@ -81,6 +81,16 @@ public class ImagePathConverter : IValueConverter
         CacheCleared?.Invoke();
     }
 
+    /// <summary>Invalidate a single cached image by path so it reloads immediately without purging the entire cache.</summary>
+    public static void Invalidate(string? path)
+    {
+        if (string.IsNullOrEmpty(path)) return;
+        if (_cache.TryRemove(path, out _))
+        {
+            CacheCleared?.Invoke();
+        }
+    }
+
     public static BitmapImage? GetBitmap(string? path)
     {
         if (string.IsNullOrEmpty(path) || !File.Exists(path))

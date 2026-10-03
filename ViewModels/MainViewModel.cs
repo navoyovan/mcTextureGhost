@@ -31,6 +31,8 @@ public class MainViewModel : INotifyPropertyChanged
 
     private FileSystemWatcher? _watcher;
     private readonly DispatcherTimer _watchDebounceTimer;
+    private readonly object _changedFilesLock = new();
+    private readonly HashSet<string> _pendingChangedFiles = new(StringComparer.OrdinalIgnoreCase);
     private readonly object _rescanLock = new();
     private bool _isScanRunning;
     private bool _hasPendingScan;
@@ -726,7 +728,7 @@ public class MainViewModel : INotifyPropertyChanged
         _watchDebounceTimer.Tick += (s, e) =>
         {
             _watchDebounceTimer.Stop();
-            _ = RescanAsync();
+            ProcessPendingWatcherChanges();
         };
 
         CommitSearchCommand = new RelayCommand(_ => CommitSearch());
@@ -1170,6 +1172,10 @@ public class MainViewModel : INotifyPropertyChanged
     private void ClosePack()
     {
         _watchDebounceTimer.Stop();
+        lock (_changedFilesLock)
+        {
+            _pendingChangedFiles.Clear();
+        }
         _watcher?.Dispose();
         _watcher = null;
         PackRootPath = null;
@@ -2081,6 +2087,10 @@ public class MainViewModel : INotifyPropertyChanged
     {
         _watcher?.Dispose();
         _watchDebounceTimer.Stop();
+        lock (_changedFilesLock)
+        {
+            _pendingChangedFiles.Clear();
+        }
         if (_packRoot is null || !Directory.Exists(_packRoot)) return;
 
         _watcher = new FileSystemWatcher(_packRoot)
@@ -2090,17 +2100,19 @@ public class MainViewModel : INotifyPropertyChanged
             EnableRaisingEvents = true
         };
 
-        void OnFileChanged(object sender, FileSystemEventArgs e)
+        void QueueChange(string path, string changeType)
         {
-            if (!IsWatchedPackFile(e.FullPath))
+            if (!IsWatchedPackFile(path)) return;
+
+            if (WriteJournal.IsSelfWrite(path))
             {
+                System.Diagnostics.Debug.WriteLine($"[PERF][WATCHER] Suppressed self-write: {path} ({changeType})");
                 return;
             }
 
-            if (WriteJournal.IsSelfWrite(e.FullPath))
+            lock (_changedFilesLock)
             {
-                System.Diagnostics.Debug.WriteLine($"[PERF][WATCHER] Suppressed self-write: {e.FullPath} ({e.ChangeType})");
-                return;
+                _pendingChangedFiles.Add(path);
             }
 
             var dispatcher = Application.Current?.Dispatcher;
@@ -2112,26 +2124,17 @@ public class MainViewModel : INotifyPropertyChanged
             });
         }
 
+        void OnFileChanged(object sender, FileSystemEventArgs e)
+        {
+            QueueChange(e.FullPath, e.ChangeType.ToString());
+        }
+
         void OnFileRenamed(object sender, RenamedEventArgs e)
         {
-            if (!IsWatchedPackFile(e.FullPath) && !IsWatchedPackFile(e.OldFullPath))
-            {
-                return;
-            }
-
-            if (WriteJournal.IsSelfWrite(e.FullPath) || WriteJournal.IsSelfWrite(e.OldFullPath))
-            {
-                System.Diagnostics.Debug.WriteLine($"[PERF][WATCHER] Suppressed self-write rename: {e.OldFullPath} -> {e.FullPath}");
-                return;
-            }
-
-            var dispatcher = Application.Current?.Dispatcher;
-            if (dispatcher == null) return;
-            dispatcher.InvokeAsync(() =>
-            {
-                _watchDebounceTimer.Stop();
-                _watchDebounceTimer.Start();
-            });
+            if (!string.IsNullOrEmpty(e.OldFullPath))
+                QueueChange(e.OldFullPath, "RenamedOld");
+            if (!string.IsNullOrEmpty(e.FullPath))
+                QueueChange(e.FullPath, "RenamedNew");
         }
 
         // Any create/delete/rename/change in pack root or textures/ refreshes existence in place
@@ -2142,32 +2145,176 @@ public class MainViewModel : INotifyPropertyChanged
         _watcher.Changed += OnFileChanged;
     }
 
-    private void RefreshExistence()
+    private void ProcessPendingWatcherChanges()
+    {
+        List<string> paths;
+        lock (_changedFilesLock)
+        {
+            if (_pendingChangedFiles.Count == 0) return;
+            paths = _pendingChangedFiles.ToList();
+            _pendingChangedFiles.Clear();
+        }
+
+        if (paths.Count == 0) return;
+
+        // Change classifier: TextureFileChanged vs JsonDeclarationChanged / Structural
+        var textureExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ".png", ".tga", ".jpg", ".jpeg"
+        };
+
+        bool anyStructuralOrJson = false;
+        foreach (var path in paths)
+        {
+            if (Directory.Exists(path))
+            {
+                anyStructuralOrJson = true;
+                break;
+            }
+
+            var ext = Path.GetExtension(path);
+            if (!textureExtensions.Contains(ext))
+            {
+                anyStructuralOrJson = true;
+                break;
+            }
+        }
+
+        if (anyStructuralOrJson)
+        {
+            System.Diagnostics.Debug.WriteLine($"[PERF][WATCHER] Structural/JSON change detected across {paths.Count} files. Triggering coalesced rescan.");
+            _ = RescanAsync();
+            return;
+        }
+
+        // All changed files are texture files (.png, .tga, etc.)
+        // Check if all changed paths map to existing in-memory aliases
+        var matchedAliases = new List<TextureAlias>();
+        bool anyUnmatched = false;
+
+        foreach (var path in paths)
+        {
+            string norm;
+            try
+            {
+                norm = Path.GetFullPath(path);
+            }
+            catch
+            {
+                norm = path;
+            }
+
+            // Check pack_icon.png
+            if (norm.EndsWith("pack_icon.png", StringComparison.OrdinalIgnoreCase))
+            {
+                ImagePathConverter.Invalidate(norm);
+                OnPropertyChanged(nameof(HasPackIcon));
+                OnPropertyChanged(nameof(PackIconPath));
+            }
+
+            var matches = Aliases.Where(a =>
+                !string.IsNullOrEmpty(a.FullPath) &&
+                string.Equals(Path.GetFullPath(a.FullPath), norm, StringComparison.OrdinalIgnoreCase)
+            ).ToList();
+
+            if (matches.Count == 0)
+            {
+                anyUnmatched = true;
+                break;
+            }
+
+            matchedAliases.AddRange(matches);
+        }
+
+        if (anyUnmatched || matchedAliases.Count == 0)
+        {
+            System.Diagnostics.Debug.WriteLine($"[PERF][WATCHER] Unmatched texture path detected. Triggering coalesced rescan for orphan/tree resolution.");
+            _ = RescanAsync();
+            return;
+        }
+
+        System.Diagnostics.Debug.WriteLine($"[PERF][WATCHER] Texture-only change detected for {matchedAliases.Count} aliases ({paths.Count} files). Applying incremental update.");
+        HandleTextureFilesChanged(matchedAliases);
+    }
+
+    private void HandleTextureFilesChanged(IEnumerable<TextureAlias> aliases)
     {
         var dispatcher = Application.Current?.Dispatcher;
         if (dispatcher != null && !dispatcher.CheckAccess())
         {
-            dispatcher.Invoke(RefreshExistence);
+            dispatcher.Invoke(() => HandleTextureFilesChanged(aliases));
             return;
         }
 
-        ImagePathConverter.ClearCache();
-        FlipbookAnimationManager.ClearCache();
+        var uniqueAliases = aliases.Distinct().ToList();
+        if (uniqueAliases.Count == 0) return;
 
-        foreach (var alias in Aliases)
+        bool countsChanged = false;
+
+        foreach (var alias in uniqueAliases)
         {
+            var exists = File.Exists(alias.FullPath);
+            var prevStatus = alias.Status;
+
+            ImagePathConverter.Invalidate(alias.FullPath);
+            FlipbookAnimationManager.Invalidate(alias.FullPath);
+
             if (alias.Status == TextureStatus.Orphan)
             {
-                alias.Status = File.Exists(alias.FullPath) ? TextureStatus.Orphan : TextureStatus.Ghost;
+                alias.Status = exists ? TextureStatus.Orphan : TextureStatus.Ghost;
             }
             else if (alias.Status != TextureStatus.NoEntry)
             {
-                alias.Status = File.Exists(alias.FullPath) ? TextureStatus.Ok : TextureStatus.Ghost;
+                alias.Status = exists ? TextureStatus.Ok : TextureStatus.Ghost;
             }
+
+            if (alias.Status != prevStatus)
+            {
+                countsChanged = true;
+            }
+
+            UpdateLeavesForAlias(CatalogTree, alias, exists);
+            UpdateLeavesForAlias(BlockWorkspaceTree, alias, exists);
+            UpdateLeavesForAlias(EntityWorkspaceTree, alias, exists);
+
+            TextureUpdated?.Invoke(alias);
         }
 
-        // Synchronize CatalogTree leaves and refresh thumbnails
-        foreach (var block in CatalogTree)
+        if (countsChanged)
+        {
+            RefreshTreeCounts();
+            var blockCount = Aliases.Count(a => a.Category == TextureCategory.Block);
+            var itemCount = Aliases.Count(a => a.Category == TextureCategory.Item);
+            var ghostCount = Aliases.Count(a => a.Status == TextureStatus.Ghost);
+            var orphanCount = Aliases.Count(a => a.Status == TextureStatus.Orphan);
+
+            StatusMessage = orphanCount > 0
+                ? $"{Aliases.Count} textures ({blockCount} blocks, {itemCount} items • {ghostCount} ghosts, {orphanCount} orphans)."
+                : $"{Aliases.Count} textures ({blockCount} blocks, {itemCount} items • {ghostCount} ghosts).";
+
+            OnPropertyChanged(nameof(TotalGhostCount));
+            OnPropertyChanged(nameof(TotalAddedCount));
+            OnPropertyChanged(nameof(TotalOrphanCount));
+            OnPropertyChanged(nameof(TotalAliasCount));
+            OnPropertyChanged(nameof(AllGhostCount));
+            OnPropertyChanged(nameof(AllAliasCount));
+            OnPropertyChanged(nameof(BlocksGhostCount));
+            OnPropertyChanged(nameof(ItemsGhostCount));
+            OnPropertyChanged(nameof(BlocksTotalCount));
+            OnPropertyChanged(nameof(ItemsTotalCount));
+            OnPropertyChanged(nameof(FilterStatusLabel));
+            OnPropertyChanged(nameof(IsFilterActive));
+            OnPropertyChanged(nameof(WindowTitle));
+            FilteredAliases.Refresh();
+            FilteredCatalogTree?.Refresh();
+        }
+    }
+
+    private static void UpdateLeavesForAlias(IEnumerable<BlockGroupNode>? tree, TextureAlias alias, bool exists)
+    {
+        if (tree == null) return;
+
+        foreach (var block in tree)
         {
             bool blockChanged = false;
             foreach (var ag in block.AliasGroups)
@@ -2175,33 +2322,25 @@ public class MainViewModel : INotifyPropertyChanged
                 bool agChanged = false;
                 foreach (var leaf in ag.Leaves)
                 {
-                    if (leaf.TextureAlias != null)
+                    if (leaf.TextureAlias == alias ||
+                        (!string.IsNullOrEmpty(leaf.FullPath) && string.Equals(leaf.FullPath, alias.FullPath, StringComparison.OrdinalIgnoreCase)))
                     {
-                        var newStatus = leaf.TextureAlias.Status switch
+                        var newStatus = alias.Status switch
                         {
                             TextureStatus.Ok => CatalogEntryStatus.Ok,
                             TextureStatus.Ghost => CatalogEntryStatus.Ghost,
                             TextureStatus.Orphan => CatalogEntryStatus.Orphan,
-                            _ => CatalogEntryStatus.Ok
+                            _ => exists ? CatalogEntryStatus.VanillaOverride : CatalogEntryStatus.NotAdded
                         };
-                        if (leaf.Status != newStatus)
-                        {
-                            leaf.Status = newStatus;
-                            agChanged = true;
-                        }
-                    }
-                    else if (leaf.Status == CatalogEntryStatus.NotAdded || leaf.Status == CatalogEntryStatus.VanillaOverride)
-                    {
-                        var exists = File.Exists(leaf.FullPath);
-                        var newStatus = exists ? CatalogEntryStatus.VanillaOverride : CatalogEntryStatus.NotAdded;
-                        if (leaf.Status != newStatus)
-                        {
-                            leaf.Status = newStatus;
-                            agChanged = true;
-                        }
-                    }
 
-                    leaf.RefreshThumbnail();
+                        if (leaf.Status != newStatus)
+                        {
+                            leaf.Status = newStatus;
+                            agChanged = true;
+                        }
+
+                        leaf.RefreshThumbnail();
+                    }
                 }
 
                 if (agChanged)
@@ -2216,35 +2355,6 @@ public class MainViewModel : INotifyPropertyChanged
                 block.NotifyCountsChanged();
             }
         }
-
-        RefreshTreeCounts();
-
-        var blockCount = Aliases.Count(a => a.Category == TextureCategory.Block);
-        var itemCount = Aliases.Count(a => a.Category == TextureCategory.Item);
-        var ghostCount = Aliases.Count(a => a.Status == TextureStatus.Ghost);
-        var orphanCount = Aliases.Count(a => a.Status == TextureStatus.Orphan);
-
-        StatusMessage = orphanCount > 0
-            ? $"{Aliases.Count} textures ({blockCount} blocks, {itemCount} items • {ghostCount} ghosts, {orphanCount} orphans)."
-            : $"{Aliases.Count} textures ({blockCount} blocks, {itemCount} items • {ghostCount} ghosts).";
-
-        OnPropertyChanged(nameof(TotalGhostCount));
-        OnPropertyChanged(nameof(TotalAddedCount));
-        OnPropertyChanged(nameof(TotalOrphanCount));
-        OnPropertyChanged(nameof(TotalAliasCount));
-        OnPropertyChanged(nameof(AllGhostCount));
-        OnPropertyChanged(nameof(AllAliasCount));
-        OnPropertyChanged(nameof(BlocksGhostCount));
-        OnPropertyChanged(nameof(ItemsGhostCount));
-        OnPropertyChanged(nameof(BlocksTotalCount));
-        OnPropertyChanged(nameof(ItemsTotalCount));
-        OnPropertyChanged(nameof(FilterStatusLabel));
-        OnPropertyChanged(nameof(IsFilterActive));
-        OnPropertyChanged(nameof(WindowTitle));
-        OnPropertyChanged(nameof(HasPackIcon));
-        OnPropertyChanged(nameof(PackIconPath));
-        FilteredAliases.Refresh();
-        FilteredCatalogTree.Refresh();
     }
 
     private void HandlePackIconClick()
