@@ -84,7 +84,8 @@ public static class TextureIpcHandlers
                 {
                     await Task.Run(async () =>
                     {
-                        ImagePathConverter.ClearCache();
+                        ImagePathConverter.Invalidate(payload.FullPath);
+                        FlipbookAnimationManager.Invalidate(payload.FullPath);
                         bool deleted = false;
                         Exception? lastEx = null;
                         for (int attempt = 0; attempt < 5; attempt++)
@@ -112,9 +113,22 @@ public static class TextureIpcHandlers
                         }
                     });
 
-                    await dispatcher.InvokeAsync(async () =>
+                    await dispatcher.InvokeAsync(() =>
                     {
-                        await vm.RescanAsync();
+                        var normPath = Path.GetFullPath(payload.FullPath);
+                        var matches = vm.Aliases.Where(a =>
+                            !string.IsNullOrEmpty(a.FullPath) &&
+                            string.Equals(Path.GetFullPath(a.FullPath), normPath, StringComparison.OrdinalIgnoreCase)
+                        ).ToList();
+
+                        if (matches.Count > 0)
+                        {
+                            vm.HandleTextureFilesChanged(matches);
+                        }
+                        else
+                        {
+                            _ = vm.RescanAsync();
+                        }
                     });
                 }
                 catch (Exception ex)
@@ -133,7 +147,12 @@ public static class TextureIpcHandlers
             try
             {
                 await Task.Run(() => JsonWriterService.DeleteTextureEntries(packRoot, payload.AliasKey, payload.Category, payload.RelativePath));
-                await dispatcher.InvokeAsync(async () => await vm.RescanAsync());
+                var cat = string.Equals(payload.Category, "entity", StringComparison.OrdinalIgnoreCase)
+                    ? TextureCategory.Entity
+                    : string.Equals(payload.Category, "item", StringComparison.OrdinalIgnoreCase)
+                        ? TextureCategory.Item
+                        : TextureCategory.Block;
+                await dispatcher.InvokeAsync(async () => await vm.RescanScopedAsync(cat));
             }
             catch (Exception ex)
             {
@@ -265,7 +284,8 @@ public static class TextureIpcHandlers
                 // Update UI state and notify frontend on UI Dispatcher thread
                 await dispatcher.InvokeAsync(() =>
                 {
-                    ImagePathConverter.ClearCache();
+                    ImagePathConverter.Invalidate(targetPath);
+                    FlipbookAnimationManager.Invalidate(targetPath);
 
                     var alias = vm.Aliases.FirstOrDefault(a =>
                         (!string.IsNullOrEmpty(a.FullPath) && a.FullPath.Equals(targetPath, StringComparison.OrdinalIgnoreCase)) ||

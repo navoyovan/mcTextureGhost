@@ -19,27 +19,38 @@ public class BulkObservableCollection<T> : ObservableCollection<T>
 
     public BulkObservableCollection(List<T> list) : base(list) { }
 
+    public List<T> ToSnapshotList()
+    {
+        lock (this)
+        {
+            return new List<T>(Items);
+        }
+    }
+
     /// <summary>
     /// Atomically replaces the contents of the collection with the provided items,
     /// firing only a single Reset notification when finished.
     /// </summary>
     public void ReplaceRange(IEnumerable<T>? items)
     {
-        _suppressNotification = true;
-        try
+        lock (this)
         {
-            Items.Clear();
-            if (items != null)
+            _suppressNotification = true;
+            try
             {
-                foreach (var item in items)
+                Items.Clear();
+                if (items != null)
                 {
-                    Items.Add(item);
+                    foreach (var item in items)
+                    {
+                        Items.Add(item);
+                    }
                 }
             }
-        }
-        finally
-        {
-            _suppressNotification = false;
+            finally
+            {
+                _suppressNotification = false;
+            }
         }
 
         OnPropertyChanged(new PropertyChangedEventArgs(nameof(Count)));
@@ -53,17 +64,20 @@ public class BulkObservableCollection<T> : ObservableCollection<T>
     public void AddRange(IEnumerable<T>? items)
     {
         if (items == null) return;
-        _suppressNotification = true;
-        try
+        lock (this)
         {
-            foreach (var item in items)
+            _suppressNotification = true;
+            try
             {
-                Items.Add(item);
+                foreach (var item in items)
+                {
+                    Items.Add(item);
+                }
             }
-        }
-        finally
-        {
-            _suppressNotification = false;
+            finally
+            {
+                _suppressNotification = false;
+            }
         }
 
         OnPropertyChanged(new PropertyChangedEventArgs(nameof(Count)));

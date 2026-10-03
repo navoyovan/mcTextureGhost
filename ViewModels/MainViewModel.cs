@@ -1569,9 +1569,6 @@ public class MainViewModel : INotifyPropertyChanged
         IsScanning = true;
         StatusMessage = $"Updating {category.ToString().ToLowerInvariant()} textures...";
 
-        ImagePathConverter.ClearCache();
-        FlipbookAnimationManager.ClearCache();
-
         var packRoot = _packRoot;
 
         try
@@ -2231,7 +2228,7 @@ public class MainViewModel : INotifyPropertyChanged
         HandleTextureFilesChanged(matchedAliases);
     }
 
-    private void HandleTextureFilesChanged(IEnumerable<TextureAlias> aliases)
+    public void HandleTextureFilesChanged(IEnumerable<TextureAlias> aliases)
     {
         var dispatcher = Application.Current?.Dispatcher;
         if (dispatcher != null && !dispatcher.CheckAccess())

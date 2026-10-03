@@ -381,7 +381,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
     {
         ViewModel.PackStateChanged += () =>
         {
-            Dispatcher.Invoke(() =>
+            _ = Task.Run(() =>
             {
                 PushPackStateOrPatch(includeAllTrees: true);
             });
@@ -389,7 +389,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
 
         ViewModel.PackStateScopedChanged += (category) =>
         {
-            Dispatcher.Invoke(() =>
+            _ = Task.Run(() =>
             {
                 PushPackStateOrPatch(includeAllTrees: false, categoryScope: category);
             });
@@ -439,7 +439,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         if (forceFull || _lastPushedState == null)
         {
             _lastPushedState = currentState;
-            _ipcBridge?.PushPackState(currentState);
+            Dispatcher.InvokeAsync(() => _ipcBridge?.PushPackState(currentState));
             return;
         }
 
@@ -447,12 +447,12 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         if (patch != null)
         {
             _lastPushedState = currentState;
-            _ipcBridge?.PushPackPatch(patch);
+            Dispatcher.InvokeAsync(() => _ipcBridge?.PushPackPatch(patch));
         }
         else
         {
             _lastPushedState = currentState;
-            _ipcBridge?.PushPackState(currentState);
+            Dispatcher.InvokeAsync(() => _ipcBridge?.PushPackState(currentState));
         }
     }
 
@@ -478,15 +478,15 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
             HasPackIcon: ViewModel.HasPackIcon,
             PackIconUrl: ViewModel.HasPackIcon ? IpcContractMapper.BuildVirtualTextureUrl("pack_icon.png", ViewModel.PackIconPath, ViewModel.PackRootPath) : null,
             Manifest: ViewModel.CurrentManifest?.ToDto(),
-            Aliases: ViewModel.Aliases.Select(a => a.ToDto(ViewModel.PackRootPath)).ToList(),
-            BlockWorkspaceTree: includeBlocks ? ViewModel.BlockWorkspaceTree.Select(b => b.ToDto(ViewModel.PackRootPath)).ToList() : null,
-            PackFolders: includeAllTrees ? ViewModel.PackFolders.Select(f => f.ToDto()).ToList() : null,
-            RecentPacks: includeAllTrees ? ViewModel.RecentPacks.Select(r => r.ToDto(ViewModel.PackRootPath)).ToList() : null,
+            Aliases: ViewModel.Aliases.ToSnapshotList().Select(a => a.ToDto(ViewModel.PackRootPath)).ToList(),
+            BlockWorkspaceTree: includeBlocks ? ViewModel.BlockWorkspaceTree.ToSnapshotList().Select(b => b.ToDto(ViewModel.PackRootPath)).ToList() : null,
+            PackFolders: includeAllTrees ? ViewModel.PackFolders.ToList().Select(f => f.ToDto()).ToList() : null,
+            RecentPacks: includeAllTrees ? ViewModel.RecentPacks.ToList().Select(r => r.ToDto(ViewModel.PackRootPath)).ToList() : null,
             Stats: ViewModel.ExtractStats(),
-            CatalogTree: includeAllTrees ? ViewModel.CatalogTree.Select(c => c.ToDto(ViewModel.PackRootPath)).ToList() : null,
+            CatalogTree: includeAllTrees ? ViewModel.CatalogTree.ToSnapshotList().Select(c => c.ToDto(ViewModel.PackRootPath)).ToList() : null,
             ReferencePacks: refProfiles,
             ActiveReferenceId: CatalogReferenceService.ActiveReferenceId,
-            EntityWorkspaceTree: includeEntities ? ViewModel.EntityWorkspaceTree.Select(e => e.ToDto(ViewModel.PackRootPath)).ToList() : null,
+            EntityWorkspaceTree: includeEntities ? ViewModel.EntityWorkspaceTree.ToSnapshotList().Select(e => e.ToDto(ViewModel.PackRootPath)).ToList() : null,
             HasVanillaAssets: CatalogReferenceService.Has3DModelsInstalled()
         );
     }
