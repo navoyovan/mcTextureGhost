@@ -1,5 +1,5 @@
 // frontend/src/hooks/useVirtualList.ts
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 
 export interface UseVirtualListOptions {
   itemCount: number;
@@ -12,24 +12,28 @@ export function useVirtualList({
   itemCount,
   itemHeight,
   headerHeight = 0,
-  overscan = 6,
+  overscan = 10,
 }: UseVirtualListOptions) {
-  const containerRef = useRef<HTMLElement | null>(null);
+  const [containerEl, setContainerEl] = useState<HTMLElement | null>(null);
   const [scrollTop, setScrollTop] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(600);
 
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
+  const containerRef = useCallback((node: HTMLElement | null) => {
+    setContainerEl(node);
+  }, []);
 
-    setViewportHeight(el.clientHeight || 600);
+  useEffect(() => {
+    if (!containerEl) return;
+
+    setViewportHeight(containerEl.clientHeight || 600);
+    setScrollTop(containerEl.scrollTop || 0);
 
     let rafId: number | null = null;
     const handleScroll = () => {
       if (rafId !== null) return;
       rafId = requestAnimationFrame(() => {
-        if (el) {
-          setScrollTop(el.scrollTop);
+        if (containerEl) {
+          setScrollTop(containerEl.scrollTop);
         }
         rafId = null;
       });
@@ -43,15 +47,15 @@ export function useVirtualList({
       }
     });
 
-    el.addEventListener('scroll', handleScroll, { passive: true });
-    ro.observe(el);
+    containerEl.addEventListener('scroll', handleScroll, { passive: true });
+    ro.observe(containerEl);
 
     return () => {
-      el.removeEventListener('scroll', handleScroll);
+      containerEl.removeEventListener('scroll', handleScroll);
       ro.disconnect();
       if (rafId !== null) cancelAnimationFrame(rafId);
     };
-  }, []);
+  }, [containerEl]);
 
   const { startIndex, endIndex } = useMemo(() => {
     if (itemCount <= 0) {
@@ -67,32 +71,30 @@ export function useVirtualList({
 
   // Clamp scroll position when itemCount decreases (e.g. search/filter query)
   useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    const maxScroll = Math.max(0, headerHeight + itemCount * itemHeight - el.clientHeight);
-    if (el.scrollTop > maxScroll && maxScroll >= 0) {
-      el.scrollTop = maxScroll;
+    if (!containerEl) return;
+    const maxScroll = Math.max(0, headerHeight + itemCount * itemHeight - containerEl.clientHeight);
+    if (containerEl.scrollTop > maxScroll && maxScroll >= 0) {
+      containerEl.scrollTop = maxScroll;
       setScrollTop(maxScroll);
     }
-  }, [itemCount, itemHeight, headerHeight]);
+  }, [containerEl, itemCount, itemHeight, headerHeight]);
 
   const paddingTop = startIndex * itemHeight;
   const paddingBottom = Math.max(0, (itemCount - endIndex) * itemHeight);
 
   const scrollToIndex = useCallback(
     (index: number) => {
-      const el = containerRef.current;
-      if (!el || index < 0 || index >= itemCount) return;
+      if (!containerEl || index < 0 || index >= itemCount) return;
       const itemTop = headerHeight + index * itemHeight;
       const itemBottom = itemTop + itemHeight;
-      const bottomThreshold = el.scrollTop + el.clientHeight - 80;
-      if (itemTop < el.scrollTop) {
-        el.scrollTop = itemTop;
-      } else if (itemBottom > bottomThreshold && el.clientHeight > 80) {
-        el.scrollTop = itemBottom - (el.clientHeight - 80);
+      const bottomThreshold = containerEl.scrollTop + containerEl.clientHeight - 80;
+      if (itemTop < containerEl.scrollTop) {
+        containerEl.scrollTop = itemTop;
+      } else if (itemBottom > bottomThreshold && containerEl.clientHeight > 80) {
+        containerEl.scrollTop = itemBottom - (containerEl.clientHeight - 80);
       }
     },
-    [headerHeight, itemCount, itemHeight]
+    [containerEl, headerHeight, itemCount, itemHeight]
   );
 
   return {
