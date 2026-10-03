@@ -59,6 +59,7 @@ graph TD
 - **`ViewModels/MainViewModel.cs`**:
   - Acts as central state hub, status message broadcaster, and pack lifecycle coordinator.
   - Coordinates file system monitoring via debounced `FileSystemWatcher`, filtered by `Services/WriteJournal.cs` to suppress self-write feedback loops.
+  - Manages single-flight coalescing rescans (`RunScanLoopAsync`) so concurrent or rapid file mutations execute at most one follow-up rescan rather than queuing sequential scans.
 - **`Services/WriteJournal.cs`**:
   - Thread-safe registry tracking self-initiated file writes/deletes to prevent internal file operations from triggering redundant `FileSystemWatcher` rescans.
 - **`Services/Ipc/Handlers/` (Domain IPC Dispatch)**:
