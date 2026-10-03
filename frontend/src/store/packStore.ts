@@ -16,15 +16,6 @@ import {
 } from '../types/ipc';
 import {
   computeStats,
-  applyOptimisticDeleteTexture,
-  applyOptimisticDeleteEntries,
-  applyOptimisticDeleteVariation,
-  applyOptimisticDeleteBlockEntry,
-  applyOptimisticDeleteEntityEntry,
-  applyOptimisticSetVariationWeight,
-  applyOptimisticRenameVariation,
-  applyOptimisticAddVariation,
-  applyOptimisticAddVanillaEntry,
 } from './mutations/workspaceTreeMutations';
 
 export type TextureFilterKey = 'ghosts' | 'orphans' | 'added' | 'mers' | 'atlas' | 'flipbook' | 'variations' | 'blockstates' | 'variation';
@@ -215,6 +206,13 @@ function buildAliasesByKey(aliases: TextureAliasDto[]): Map<string, TextureAlias
     }
   }
   return map;
+}
+
+function bustUrlCache(url?: string | null): string {
+  if (!url) return '';
+  const base = url.replace(/[?&]t=\d+/g, '');
+  const sep = base.includes('?') ? '&' : '?';
+  return `${base}${sep}t=${Date.now()}`;
 }
 
 const initialState: PackStoreState = {
@@ -701,11 +699,12 @@ export const packStoreActions: PackStoreActions = {
 
       if (!isMatch) return alias;
 
+      const resolvedImg = bustUrlCache(imageUrl || alias.imageUrl);
       return {
         ...alias,
         status: newStatus as any,
         fullPath: fullPath || alias.fullPath,
-        imageUrl: imageUrl || alias.imageUrl,
+        imageUrl: resolvedImg,
         exists: newStatus === 'OK' || newStatus === 'OVERRIDE',
       };
     });
@@ -732,11 +731,12 @@ export const packStoreActions: PackStoreActions = {
             }
             if (!isMatch && !targetNormFull && !targetNormRel && (leaf.alias === aliasKey)) isMatch = true;
             if (!isMatch) return leaf;
+            const resolvedImg = bustUrlCache(imageUrl || leaf.imageUrl);
             return {
               ...leaf,
               status: newStatus as any,
               fullPath: fullPath || leaf.fullPath,
-              imageUrl: imageUrl || leaf.imageUrl,
+              imageUrl: resolvedImg,
             };
           }),
         })),
@@ -755,11 +755,12 @@ export const packStoreActions: PackStoreActions = {
           }
           if (!isMatch && !targetNormFull && !targetNormRel && (leaf.alias === aliasKey)) isMatch = true;
           if (!isMatch) return leaf;
+          const resolvedImg = bustUrlCache(imageUrl || leaf.imageUrl);
           return {
             ...leaf,
             status: newStatus as any,
             fullPath: fullPath || leaf.fullPath,
-            imageUrl: imageUrl || leaf.imageUrl,
+            imageUrl: resolvedImg,
           };
         }),
       })),
@@ -782,160 +783,43 @@ export const packStoreActions: PackStoreActions = {
   },
 
   optimisticDeleteTexture(fullPath: string, aliasKey?: string): void {
-    const result = applyOptimisticDeleteTexture(
-      currentState.aliases,
-      currentState.blockWorkspaceTree || [],
-      currentState.entityWorkspaceTree || [],
-      fullPath,
-      aliasKey
-    );
-    currentState = {
-      ...currentState,
-      aliases: result.aliases,
-      blockWorkspaceTree: result.blockWorkspaceTree as any,
-      entityWorkspaceTree: result.entityWorkspaceTree as any,
-      stats: result.stats,
-    };
-    notify();
+    if (fullPath) this.setPendingTileOp(fullPath, 'deleting');
+    if (aliasKey) this.setPendingAliasOp(aliasKey, 'deleting');
   },
 
-  optimisticDeleteEntries(aliasKey: string, category: string, relativePath?: string): void {
-    const result = applyOptimisticDeleteEntries(
-      currentState.aliases,
-      currentState.blockWorkspaceTree || [],
-      currentState.entityWorkspaceTree || [],
-      currentState.catalogTree,
-      aliasKey,
-      category,
-      relativePath
-    );
-    currentState = {
-      ...currentState,
-      aliases: result.aliases,
-      blockWorkspaceTree: result.blockWorkspaceTree as any,
-      entityWorkspaceTree: result.entityWorkspaceTree as any,
-      catalogTree: result.catalogTree as any,
-      stats: result.stats,
-    };
-    notify();
+  optimisticDeleteEntries(aliasKey: string, _category: string, relativePath?: string): void {
+    if (aliasKey) this.setPendingAliasOp(aliasKey, 'deleting');
+    if (relativePath) this.setPendingTileOp(relativePath, 'deleting');
   },
 
   optimisticDeleteVariation(alias: string, relativePath: string): void {
-    const result = applyOptimisticDeleteVariation(
-      currentState.aliases,
-      currentState.blockWorkspaceTree || [],
-      currentState.entityWorkspaceTree || [],
-      alias,
-      relativePath
-    );
-    currentState = {
-      ...currentState,
-      aliases: result.aliases,
-      blockWorkspaceTree: result.blockWorkspaceTree as any,
-      entityWorkspaceTree: result.entityWorkspaceTree as any,
-      stats: result.stats,
-    };
-    notify();
+    if (alias) this.setPendingAliasOp(alias, 'deleting');
+    if (relativePath) this.setPendingTileOp(relativePath, 'deleting');
   },
 
   optimisticDeleteBlockEntry(blockId: string): void {
-    if (!currentState.blockWorkspaceTree) return;
-    const updatedTree = applyOptimisticDeleteBlockEntry(currentState.blockWorkspaceTree, blockId);
-    currentState = {
-      ...currentState,
-      blockWorkspaceTree: updatedTree,
-    };
-    notify();
+    if (blockId) this.setPendingAliasOp(blockId, 'deleting');
   },
 
   optimisticDeleteEntityEntry(entityId: string): void {
-    if (!currentState.entityWorkspaceTree) return;
-    const updatedTree = applyOptimisticDeleteEntityEntry(currentState.entityWorkspaceTree, entityId);
-    currentState = {
-      ...currentState,
-      entityWorkspaceTree: updatedTree,
-    };
-    notify();
+    if (entityId) this.setPendingAliasOp(entityId, 'deleting');
   },
 
-  optimisticSetVariationWeight(alias: string, relativePath: string, weight: number): void {
-    const result = applyOptimisticSetVariationWeight(
-      currentState.aliases,
-      currentState.blockWorkspaceTree || [],
-      currentState.entityWorkspaceTree || [],
-      alias,
-      relativePath,
-      weight
-    );
-    currentState = {
-      ...currentState,
-      aliases: result.aliases,
-      blockWorkspaceTree: result.blockWorkspaceTree as any,
-      entityWorkspaceTree: result.entityWorkspaceTree as any,
-      stats: result.stats,
-    };
-    notify();
+  optimisticSetVariationWeight(alias: string, _relativePath: string, _weight: number): void {
+    if (alias) this.setPendingAliasOp(alias, 'adding');
   },
 
-  optimisticRenameVariation(alias: string, oldRelativePath: string, newRelativePath: string): void {
-    const result = applyOptimisticRenameVariation(
-      currentState.aliases,
-      currentState.blockWorkspaceTree || [],
-      currentState.entityWorkspaceTree || [],
-      alias,
-      oldRelativePath,
-      newRelativePath
-    );
-    currentState = {
-      ...currentState,
-      aliases: result.aliases,
-      blockWorkspaceTree: result.blockWorkspaceTree as any,
-      entityWorkspaceTree: result.entityWorkspaceTree as any,
-      stats: result.stats,
-    };
-    notify();
+  optimisticRenameVariation(alias: string, _oldRelativePath: string, _newRelativePath: string): void {
+    if (alias) this.setPendingAliasOp(alias, 'adding');
   },
 
-  optimisticAddVariation(alias: string, blockVariantIndex?: number | null, count = 1, sourceRelativePath?: string | null): void {
-    const result = applyOptimisticAddVariation(
-      currentState.aliases,
-      currentState.blockWorkspaceTree || [],
-      currentState.entityWorkspaceTree || [],
-      alias,
-      blockVariantIndex,
-      count,
-      sourceRelativePath
-    );
-    currentState = {
-      ...currentState,
-      aliases: result.aliases,
-      blockWorkspaceTree: result.blockWorkspaceTree as any,
-      entityWorkspaceTree: result.entityWorkspaceTree as any,
-      stats: result.stats,
-    };
-    notify();
+  optimisticAddVariation(alias: string, _blockVariantIndex?: number | null, _count = 1, _sourceRelativePath?: string | null): void {
+    if (alias) this.setPendingAliasOp(alias, 'adding');
   },
 
-  optimisticAddVanillaEntry(id: string, category: string, alias?: string, catalogNode?: BlockGroupNodeDto | null): void {
-    const result = applyOptimisticAddVanillaEntry(
-      currentState.aliases,
-      currentState.blockWorkspaceTree || [],
-      currentState.entityWorkspaceTree || [],
-      currentState.catalogTree,
-      id,
-      category,
-      alias,
-      catalogNode
-    );
-    currentState = {
-      ...currentState,
-      aliases: result.aliases,
-      blockWorkspaceTree: result.blockWorkspaceTree as any,
-      entityWorkspaceTree: result.entityWorkspaceTree as any,
-      catalogTree: result.catalogTree as any,
-      stats: result.stats,
-    };
-    notify();
+  optimisticAddVanillaEntry(id: string, _category: string, alias?: string, _catalogNode?: BlockGroupNodeDto | null): void {
+    if (alias) this.setPendingAliasOp(alias, 'adding');
+    if (id) this.setPendingAliasOp(id, 'adding');
   },
 
   setPendingAliasOp(alias: string, op: 'deleting' | 'adding' | null): void {
