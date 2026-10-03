@@ -2039,6 +2039,44 @@ public class MainViewModel : INotifyPropertyChanged
         return null;
     }
 
+    private static readonly HashSet<string> WatchedExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".png", ".tga", ".jpg", ".jpeg",
+        ".json", ".material", ".vertex", ".geometry", ".lang"
+    };
+
+    private static bool IsWatchedPackFile(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return false;
+
+        var fileName = Path.GetFileName(path);
+        if (string.IsNullOrEmpty(fileName)) return false;
+
+        // Ignore hidden, editor swap, or OS metadata files
+        if (fileName.StartsWith("~") || fileName.StartsWith(".")) return false;
+        if (fileName.Equals("Thumbs.db", StringComparison.OrdinalIgnoreCase) ||
+            fileName.Equals("desktop.ini", StringComparison.OrdinalIgnoreCase)) return false;
+
+        // Ignore temp/backup extensions
+        if (fileName.EndsWith(".tmp", StringComparison.OrdinalIgnoreCase) ||
+            fileName.EndsWith(".temp", StringComparison.OrdinalIgnoreCase) ||
+            fileName.EndsWith(".bak", StringComparison.OrdinalIgnoreCase) ||
+            fileName.EndsWith(".part", StringComparison.OrdinalIgnoreCase) ||
+            fileName.EndsWith(".swp", StringComparison.OrdinalIgnoreCase)) return false;
+
+        // Ignore git/vs internal paths
+        if (path.Contains("\\.git\\", StringComparison.OrdinalIgnoreCase) ||
+            path.Contains("/.git/", StringComparison.OrdinalIgnoreCase) ||
+            path.Contains("\\.vs\\", StringComparison.OrdinalIgnoreCase) ||
+            path.Contains("/.vs/", StringComparison.OrdinalIgnoreCase)) return false;
+
+        // Allow directories so user folder renames/additions are indexed
+        if (Directory.Exists(path)) return true;
+
+        var ext = Path.GetExtension(fileName);
+        return WatchedExtensions.Contains(ext);
+    }
+
     private void StartWatching()
     {
         _watcher?.Dispose();
@@ -2054,6 +2092,11 @@ public class MainViewModel : INotifyPropertyChanged
 
         void OnFileChanged(object sender, FileSystemEventArgs e)
         {
+            if (!IsWatchedPackFile(e.FullPath))
+            {
+                return;
+            }
+
             if (WriteJournal.IsSelfWrite(e.FullPath))
             {
                 System.Diagnostics.Debug.WriteLine($"[PERF][WATCHER] Suppressed self-write: {e.FullPath} ({e.ChangeType})");
@@ -2071,6 +2114,11 @@ public class MainViewModel : INotifyPropertyChanged
 
         void OnFileRenamed(object sender, RenamedEventArgs e)
         {
+            if (!IsWatchedPackFile(e.FullPath) && !IsWatchedPackFile(e.OldFullPath))
+            {
+                return;
+            }
+
             if (WriteJournal.IsSelfWrite(e.FullPath) || WriteJournal.IsSelfWrite(e.OldFullPath))
             {
                 System.Diagnostics.Debug.WriteLine($"[PERF][WATCHER] Suppressed self-write rename: {e.OldFullPath} -> {e.FullPath}");
