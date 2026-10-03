@@ -371,9 +371,9 @@ export const BlockWorkspace: React.FC = () => {
     scrollToIndex,
   } = useVirtualList({
     itemCount: filteredBlockWorkspaceTree.length,
-    itemHeight: 37,
+    itemHeight: 40,
     headerHeight: 41,
-    overscan: 6,
+    overscan: 10,
   });
 
   const visibleBlocks = useMemo(
@@ -729,7 +729,10 @@ export const BlockWorkspace: React.FC = () => {
         }
         sidebarContent={
           filteredBlockWorkspaceTree.length > 0 ? (
-            <div style={{ paddingTop: `${paddingTop}px`, paddingBottom: `${paddingBottom}px` }}>
+            <div
+              className={styles.virtualListWrapper}
+              style={{ paddingTop: `${paddingTop}px`, paddingBottom: `${paddingBottom}px` }}
+            >
               {visibleBlocks.map((block) => (
                 <BlockSidebarItem
                   key={block.blockId}

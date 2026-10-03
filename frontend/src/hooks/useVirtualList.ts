@@ -54,12 +54,27 @@ export function useVirtualList({
   }, []);
 
   const { startIndex, endIndex } = useMemo(() => {
+    if (itemCount <= 0) {
+      return { startIndex: 0, endIndex: 0 };
+    }
     const adjustedScrollTop = Math.max(0, scrollTop - headerHeight);
-    const start = Math.max(0, Math.floor(adjustedScrollTop / itemHeight) - overscan);
+    const rawStart = Math.floor(adjustedScrollTop / itemHeight);
+    const start = Math.max(0, Math.min(itemCount - 1, rawStart - overscan));
     const visibleCount = Math.ceil(viewportHeight / itemHeight);
-    const end = Math.min(itemCount, start + visibleCount + overscan * 2);
+    const end = Math.min(itemCount, Math.max(start + 1, rawStart + visibleCount + overscan));
     return { startIndex: start, endIndex: end };
   }, [scrollTop, headerHeight, viewportHeight, itemCount, itemHeight, overscan]);
+
+  // Clamp scroll position when itemCount decreases (e.g. search/filter query)
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const maxScroll = Math.max(0, headerHeight + itemCount * itemHeight - el.clientHeight);
+    if (el.scrollTop > maxScroll && maxScroll >= 0) {
+      el.scrollTop = maxScroll;
+      setScrollTop(maxScroll);
+    }
+  }, [itemCount, itemHeight, headerHeight]);
 
   const paddingTop = startIndex * itemHeight;
   const paddingBottom = Math.max(0, (itemCount - endIndex) * itemHeight);
@@ -70,10 +85,11 @@ export function useVirtualList({
       if (!el || index < 0 || index >= itemCount) return;
       const itemTop = headerHeight + index * itemHeight;
       const itemBottom = itemTop + itemHeight;
+      const bottomThreshold = el.scrollTop + el.clientHeight - 80;
       if (itemTop < el.scrollTop) {
         el.scrollTop = itemTop;
-      } else if (itemBottom > el.scrollTop + el.clientHeight) {
-        el.scrollTop = itemBottom - el.clientHeight;
+      } else if (itemBottom > bottomThreshold && el.clientHeight > 80) {
+        el.scrollTop = itemBottom - (el.clientHeight - 80);
       }
     },
     [headerHeight, itemCount, itemHeight]

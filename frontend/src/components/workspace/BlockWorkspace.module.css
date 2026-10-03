@@ -38,10 +38,22 @@
   letter-spacing: 0.06em;
 }
 
+.virtualListWrapper {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+}
+
 .blockItem {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  width: 100%;
+  box-sizing: border-box;
+  height: 40px;
+  min-height: 40px;
+  max-height: 40px;
   padding: 10px 16px;
   background: transparent;
   border: none;
@@ -91,6 +103,8 @@
   display: flex;
   align-items: center;
   gap: 4px;
+  flex-shrink: 0;
+  margin-left: 8px;
 }
 
 .vanillaTag {
@@ -146,6 +160,8 @@
   align-items: center;
   gap: 8px;
   overflow: hidden;
+  flex: 1;
+  min-width: 0;
 }
 
 .blockItemName {

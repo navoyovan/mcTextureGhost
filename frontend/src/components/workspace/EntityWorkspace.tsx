@@ -308,9 +308,9 @@ export const EntityWorkspace: React.FC = () => {
     scrollToIndex,
   } = useVirtualList({
     itemCount: filteredEntityWorkspaceTree.length,
-    itemHeight: 37,
+    itemHeight: 40,
     headerHeight: 41,
-    overscan: 6,
+    overscan: 10,
   });
 
   const visibleEntities = useMemo(
@@ -540,7 +540,10 @@ export const EntityWorkspace: React.FC = () => {
         }
         sidebarContent={
           filteredEntityWorkspaceTree.length > 0 ? (
-            <div style={{ paddingTop: `${paddingTop}px`, paddingBottom: `${paddingBottom}px` }}>
+            <div
+              className={styles.virtualListWrapper}
+              style={{ paddingTop: `${paddingTop}px`, paddingBottom: `${paddingBottom}px` }}
+            >
               {visibleEntities.map((entity) => (
                 <EntitySidebarItem
                   key={entity.blockId}
