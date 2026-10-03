@@ -495,10 +495,13 @@ public static class TextureIpcHandlers
                             Directory.CreateDirectory(dir);
                         }
 
-                        File.Copy(srcPath, payload.FullPath, overwrite: true);
-
-                        // If there is an associated atlas / flipbook texture companion in reference pack, extract it too
-                        PackArchiveUtility.ExtractCompanionAtlasIfExists(refDir, srcPath, payload.FullPath, payload.AliasKey, vm.PackRootPath, vm.VanillaData);
+                        WriteJournal.RecordWrite(payload.FullPath);
+                        await Task.Run(() =>
+                        {
+                            File.Copy(srcPath, payload.FullPath, overwrite: true);
+                            // If there is an associated atlas / flipbook texture companion in reference pack, extract it too
+                            PackArchiveUtility.ExtractCompanionAtlasIfExists(refDir, srcPath, payload.FullPath, payload.AliasKey, vm.PackRootPath, vm.VanillaData);
+                        });
 
                         ImagePathConverter.ClearCache();
 
@@ -523,7 +526,10 @@ public static class TextureIpcHandlers
                             relPath
                         );
 
-                        await vm.RescanAsync();
+                        var cat = string.Equals(payload.Category, "item", StringComparison.OrdinalIgnoreCase)
+                            ? TextureCategory.Item
+                            : TextureCategory.Block;
+                        await vm.RescanScopedAsync(cat);
                     }
                     else
                     {
