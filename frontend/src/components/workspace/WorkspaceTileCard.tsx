@@ -73,6 +73,12 @@ export const WorkspaceTileCard: React.FC<WorkspaceTileCardProps> = React.memo(({
   const packRoot = usePackStore((s) => s.packRoot);
   const packAliases = usePackStore((s) => s.aliases);
 
+  // Index aliases for this card's specific alias to avoid O(N) array scans across all pack aliases
+  const groupStoreAliases = useMemo(() => {
+    const target = alias.toLowerCase();
+    return packAliases.filter((a) => a.alias.toLowerCase() === target && a.status !== 'ORPHAN');
+  }, [packAliases, alias]);
+
   const handleUpdateWeight = useCallback((leaf: CatalogLeafDto, weight: number) => {
     if (!leaf.relativePath) return;
     packStoreActions.optimisticSetVariationWeight(leaf.alias, leaf.relativePath, weight);
@@ -91,12 +97,8 @@ export const WorkspaceTileCard: React.FC<WorkspaceTileCardProps> = React.memo(({
 
   const findStoreAlias = useCallback((targetLeaf: CatalogLeafDto) => {
     const targetRel = (targetLeaf.relativePath || '').replace(/\\/g, '/').toLowerCase().replace(/\.(png|tga)$/i, '');
-    const targetAlias = targetLeaf.alias.toLowerCase();
 
-    return packAliases.find((a) => {
-      if (a.status === 'ORPHAN') return false;
-      if (a.alias.toLowerCase() !== targetAlias) return false;
-
+    return groupStoreAliases.find((a) => {
       // 1. If both declare relativePath, match strictly by relative path
       if (targetRel && a.relativePath) {
         const aRel = a.relativePath.replace(/\\/g, '/').toLowerCase().replace(/\.(png|tga)$/i, '');
@@ -117,7 +119,7 @@ export const WorkspaceTileCard: React.FC<WorkspaceTileCardProps> = React.memo(({
 
       return true;
     });
-  }, [packAliases]);
+  }, [groupStoreAliases]);
 
   // Drag and drop state
   const [dragSlotIndex, setDragSlotIndex] = useState<number | null>(null);

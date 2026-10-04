@@ -311,7 +311,7 @@ function notifyDeferred(): void {
   cachedSnapshot = null; // snapshot is stale immediately
   if (!deferredNotifyScheduled) {
     deferredNotifyScheduled = true;
-    queueMicrotask(() => {
+    setTimeout(() => {
       deferredNotifyScheduled = false;
       const t0 = performance.now();
       listeners.forEach((listener) => listener());
@@ -320,7 +320,7 @@ function notifyDeferred(): void {
         const paintMs = performance.now() - t0;
         console.log(`[PERF][REACT] pumpListeners=${notifyMs.toFixed(1)}ms framePaint=${paintMs.toFixed(1)}ms (${listeners.size} listeners)`);
       });
-    });
+    }, 0);
   }
 }
 
@@ -870,12 +870,12 @@ export const packStoreActions: PackStoreActions = {
           const cleaned = { ...currentState.pendingAliasOps };
           delete cleaned[key];
           currentState = { ...currentState, pendingAliasOps: cleaned };
-          notify();
+          notifyDeferred();
         }
       }, 2500);
     }
     currentState = { ...currentState, pendingAliasOps: next };
-    notify();
+    notifyDeferred();
   },
 
   setPendingTileOp(fullPath: string, op: 'deleting' | 'adding' | null): void {
@@ -890,12 +890,12 @@ export const packStoreActions: PackStoreActions = {
           const cleaned = { ...currentState.pendingTileOps };
           delete cleaned[key];
           currentState = { ...currentState, pendingTileOps: cleaned };
-          notify();
+          notifyDeferred();
         }
       }, 2500);
     }
     currentState = { ...currentState, pendingTileOps: next };
-    notify();
+    notifyDeferred();
   },
 
   startPackLoading(folderPath: string, packName?: string): void {

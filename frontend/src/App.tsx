@@ -295,37 +295,22 @@ export const App: React.FC = () => {
             <Sidebar />
             <div className={styles.workspaceContentArea}>
               <Toolbar />
-              {/* Keep workspace/grid mounted when inactive to preserve scroll + selection (inactive views are hidden, not unmounted) */}
-              <div
-                style={{
-                  display: isJsonFileSelected ? 'none' : activeView === 'grid' ? 'flex' : 'none',
-                  flex: 1,
-                  overflow: 'hidden',
-                  minHeight: 0,
-                }}
-              >
-                <PackGrid />
-              </div>
-              <div
-                style={{
-                  display: isJsonFileSelected ? 'none' : activeView === 'workspace' ? 'flex' : 'none',
-                  flex: 1,
-                  overflow: 'hidden',
-                  minHeight: 0,
-                }}
-              >
-                <BlockWorkspace />
-              </div>
-              <div
-                style={{
-                  display: isJsonFileSelected ? 'none' : activeView === 'entity' ? 'flex' : 'none',
-                  flex: 1,
-                  overflow: 'hidden',
-                  minHeight: 0,
-                }}
-              >
-                <EntityWorkspace />
-              </div>
+              {/* Only mount active view so hidden views do not consume main thread cycles during store updates */}
+              {!isJsonFileSelected && activeView === 'grid' && (
+                <div style={{ flex: 1, overflow: 'hidden', minHeight: 0, display: 'flex' }}>
+                  <PackGrid />
+                </div>
+              )}
+              {!isJsonFileSelected && activeView === 'workspace' && (
+                <div style={{ flex: 1, overflow: 'hidden', minHeight: 0, display: 'flex' }}>
+                  <BlockWorkspace />
+                </div>
+              )}
+              {!isJsonFileSelected && activeView === 'entity' && (
+                <div style={{ flex: 1, overflow: 'hidden', minHeight: 0, display: 'flex' }}>
+                  <EntityWorkspace />
+                </div>
+              )}
               {isJsonFileSelected && (
                 <JsonReader
                   key={`${packRoot}:${selectedFolderPath}`}

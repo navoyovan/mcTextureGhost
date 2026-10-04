@@ -64,6 +64,21 @@ const BlockSidebarItem: React.FC<BlockSidebarItemProps> = React.memo(({
   );
 });
 
+const EMPTY_ALIASES: TextureAliasDto[] = [];
+
+interface BlockMeta {
+  hasPackTexture: boolean;
+  hasPackLeavesAdded: boolean;
+  hasPackLeavesOrphan: boolean;
+  hasMers: boolean;
+  hasAtlas: boolean;
+  hasFlipbook: boolean;
+  hasTextureVariation: boolean;
+  hasBlockstate: boolean;
+  hasMergedVariation: boolean;
+  searchTokens: string;
+}
+
 export const BlockWorkspace: React.FC = () => {
   const blockWorkspaceTree = usePackStore((s) => s.blockWorkspaceTree);
   const blocksById = usePackStore((s) => s.blocksById);
@@ -73,7 +88,7 @@ export const BlockWorkspace: React.FC = () => {
   const statusFilter = usePackStore((s) => s.statusFilter);
   const activeFilters = usePackStore((s) => s.activeFilters);
   const packFolders = usePackStore((s) => s.packFolders);
-  const packAliases = usePackStore((s) => s.aliases ?? []);
+  const packAliases = usePackStore((s) => s.aliases || EMPTY_ALIASES);
   const catalogTree = usePackStore((s) => s.catalogTree);
   const selectedBlockId = usePackStore((s) => s.blockWorkspaceSelectedId);
   const setSelectedBlockId = usePackStore((s) => s.setBlockWorkspaceSelectedId);
@@ -82,6 +97,84 @@ export const BlockWorkspace: React.FC = () => {
 
   const hasTerrainTextureJson = useMemo(() => checkTerrainTextureJson(packFolders), [packFolders]);
   const hasBlocksJson = useMemo(() => checkBlocksJson(packFolders), [packFolders]);
+
+  const blockMetaMap = useMemo(() => {
+    const map = new Map<string, BlockMeta>();
+    if (!blockWorkspaceTree) return map;
+
+    for (let i = 0; i < blockWorkspaceTree.length; i++) {
+      const block = blockWorkspaceTree[i];
+      if (!block?.blockId) continue;
+
+      let hasPackTexture = false;
+      let hasPackLeavesAdded = false;
+      let hasPackLeavesOrphan = false;
+      let hasMers = false;
+      let hasAtlas = false;
+      let hasFlipbook = false;
+      let hasTextureVariation = false;
+      let hasBlockstate = Boolean(block.totalVariants && block.totalVariants > 1);
+
+      const tokenParts: string[] = [];
+      if (block.blockId) tokenParts.push(block.blockId.toLowerCase());
+      if (block.displayName) tokenParts.push(block.displayName.toLowerCase());
+
+      const processLeaf = (l: CatalogLeafDto) => {
+        const st = l.status;
+        if (st === 'OK' || st === 'OVERRIDE' || st === 'ORPHAN') hasPackTexture = true;
+        if (st === 'OK' || st === 'OVERRIDE') hasPackLeavesAdded = true;
+        if (st === 'ORPHAN') hasPackLeavesOrphan = true;
+        if ((l as any).hasMers || (l as any).mersFullPath) hasMers = true;
+        if ((l as any).hasAtlas || (l as any).atlasFullPath) hasAtlas = true;
+        if (l.isFlipbook || Boolean(l.flipbook)) hasFlipbook = true;
+        if ((l.totalTextureVariants && l.totalTextureVariants > 1) || l.variantKind === 'TextureVariant' || l.variantKind === 'NestedVariant' || l.textureVariantIndex != null) {
+          hasTextureVariation = true;
+        }
+        if ((l.totalBlockVariants && l.totalBlockVariants > 1) || l.variantKind === 'BlockVariant' || l.variantKind === 'NestedVariant' || l.blockVariantIndex != null) {
+          hasBlockstate = true;
+        }
+        if (l.relativePath) tokenParts.push(l.relativePath.toLowerCase());
+        if (l.displayName) tokenParts.push(l.displayName.toLowerCase());
+        if (l.alias) tokenParts.push(l.alias.toLowerCase());
+      };
+
+      if (block.aliasGroups) {
+        for (const ag of block.aliasGroups) {
+          if (ag.alias) tokenParts.push(ag.alias.toLowerCase());
+          if (ag.leaves) {
+            for (let j = 0; j < ag.leaves.length; j++) {
+              const l = ag.leaves[j];
+              if (l) processLeaf(l);
+            }
+          }
+          if (ag.faceNodes) {
+            for (const fn of ag.faceNodes) {
+              if (fn.leaves) {
+                for (let k = 0; k < fn.leaves.length; k++) {
+                  const l = fn.leaves[k];
+                  if (l) processLeaf(l);
+                }
+              }
+            }
+          }
+        }
+      }
+
+      map.set(block.blockId, {
+        hasPackTexture,
+        hasPackLeavesAdded,
+        hasPackLeavesOrphan,
+        hasMers,
+        hasAtlas,
+        hasFlipbook,
+        hasTextureVariation,
+        hasBlockstate,
+        hasMergedVariation: hasTextureVariation || hasBlockstate,
+        searchTokens: tokenParts.join(' '),
+      });
+    }
+    return map;
+  }, [blockWorkspaceTree]);
 
   const packDeclaredBlockAliases = useMemo(() => {
     const set = new Set<string>();
@@ -136,6 +229,7 @@ export const BlockWorkspace: React.FC = () => {
 
   const [activeMenuKey, setActiveMenuKey] = useState<string | null>(null);
   const setIsListDrawerOpen = usePackStore((s) => s.setIsWorkspaceDrawerOpen);
+  const disable3DView = usePackStore((s) => s.disable3DView);
   const [contextMenuTarget, setContextMenuTarget] = useState<{
     alias: TextureAliasDto;
     key: string;
@@ -171,15 +265,8 @@ export const BlockWorkspace: React.FC = () => {
       : (statusFilter !== 'all' ? [statusFilter as any] : []);
 
     const filtered = blockWorkspaceTree.filter((block) => {
-      const allLeaves = [
-        ...(block.aliasGroups?.flatMap((ag) => ag.leaves ?? []) ?? []),
-        ...(block.aliasGroups?.flatMap((ag) => ag.faceNodes?.flatMap((fn) => fn.leaves ?? []) ?? []) ?? []),
-      ];
-
-      // 0. Base pack presence: exclude untouched vanilla blocks that have no pack content
-      const hasPackTexture = allLeaves.some(
-        (l) => l.status === 'OK' || l.status === 'OVERRIDE' || l.status === 'ORPHAN'
-      );
+      const meta = blockMetaMap.get(block.blockId);
+      const hasPackTexture = meta?.hasPackTexture || false;
       const hasPackTerrainDeclaration =
         hasTerrainTextureJson &&
         Boolean(block.aliasGroups?.some((ag) => packDeclaredBlockAliases.has(ag.alias.toLowerCase())));
@@ -204,40 +291,19 @@ export const BlockWorkspace: React.FC = () => {
         if (hasStatusFilter) {
           const statusMatch =
             (effectiveFilters.includes('ghosts') && (block.ghostCount ?? 0) > 0) ||
-            (effectiveFilters.includes('added') && allLeaves.some((l) => l.status === 'OK' || l.status === 'OVERRIDE')) ||
-            (effectiveFilters.includes('orphans') && allLeaves.some((l) => l.status === 'ORPHAN'));
+            (effectiveFilters.includes('added') && (meta?.hasPackLeavesAdded || false)) ||
+            (effectiveFilters.includes('orphans') && (meta?.hasPackLeavesOrphan || false));
           if (!statusMatch && !isCurrentlySelected) return false;
         }
 
         if (hasFeatureFilter) {
-          const hasMers = allLeaves.some((l) => (l as any).hasMers || (l as any).mersFullPath);
-          const hasAtlas = allLeaves.some((l) => (l as any).hasAtlas || (l as any).atlasFullPath);
-          const hasFlipbook = allLeaves.some((l) => l.isFlipbook || Boolean(l.flipbook));
-          const hasTextureVariation = allLeaves.some(
-            (l) =>
-              (l.totalTextureVariants && l.totalTextureVariants > 1) ||
-              l.variantKind === 'TextureVariant' ||
-              l.variantKind === 'NestedVariant' ||
-              l.textureVariantIndex != null
-          );
-          const hasBlockstate =
-            (block.totalVariants && block.totalVariants > 1) ||
-            allLeaves.some(
-              (l) =>
-                (l.totalBlockVariants && l.totalBlockVariants > 1) ||
-                l.variantKind === 'BlockVariant' ||
-                l.variantKind === 'NestedVariant' ||
-                l.blockVariantIndex != null
-            );
-          const hasMergedVariation = hasTextureVariation || hasBlockstate;
-
           const featureMatch =
-            (effectiveFilters.includes('mers') && hasMers) ||
-            (effectiveFilters.includes('atlas') && hasAtlas) ||
-            (effectiveFilters.includes('flipbook') && hasFlipbook) ||
-            (effectiveFilters.includes('variations') && hasTextureVariation) ||
-            (effectiveFilters.includes('blockstates') && hasBlockstate) ||
-            (effectiveFilters.includes('variation') && hasMergedVariation);
+            (effectiveFilters.includes('mers') && (meta?.hasMers || false)) ||
+            (effectiveFilters.includes('atlas') && (meta?.hasAtlas || false)) ||
+            (effectiveFilters.includes('flipbook') && (meta?.hasFlipbook || false)) ||
+            (effectiveFilters.includes('variations') && (meta?.hasTextureVariation || false)) ||
+            (effectiveFilters.includes('blockstates') && (meta?.hasBlockstate || false)) ||
+            (effectiveFilters.includes('variation') && (meta?.hasMergedVariation || false));
           if (!featureMatch && !isCurrentlySelected) return false;
         }
       }
@@ -245,20 +311,7 @@ export const BlockWorkspace: React.FC = () => {
       // 2. Search query filter
       if (!query) return true;
 
-      const blockIdMatches = (block.blockId || '').toLowerCase().includes(query);
-      const dispNameMatches = (block.displayName || '').toLowerCase().includes(query);
-      if (blockIdMatches || dispNameMatches) return true;
-
-      // Check inner aliases, paths, or leaf display names
-      return block.aliasGroups?.some((ag) => {
-        if ((ag.alias || '').toLowerCase().includes(query)) return true;
-        return allLeaves.some(
-          (l) =>
-            (l.relativePath || '').toLowerCase().includes(query) ||
-            (l.displayName || '').toLowerCase().includes(query) ||
-            (l.alias || '').toLowerCase().includes(query)
-        );
-      });
+      return meta?.searchTokens.includes(query) ?? false;
     });
 
     const norm = (id?: string | null) => (id || '').toLowerCase().replace(/^minecraft:/, '');
@@ -719,6 +772,8 @@ export const BlockWorkspace: React.FC = () => {
     if (declaredTerrainAliases.length > 0) {
       for (const alias of declaredTerrainAliases) {
         packStoreActions.setPendingAliasOp(alias, 'deleting');
+      }
+      for (const alias of declaredTerrainAliases) {
         await deleteTextureEntries(alias, 'block');
       }
     }
@@ -772,7 +827,7 @@ export const BlockWorkspace: React.FC = () => {
                   blockId={block.blockId}
                   displayName={block.displayName || block.blockId}
                   isCustom={block.isUserDefined !== false}
-                  isActive={selectedBlock?.blockId === block.blockId}
+                  isActive={selectedBlockId === block.blockId}
                   ghostCount={block.ghostCount || 0}
                   onSelect={handleSelectBlock}
                 />
@@ -870,7 +925,7 @@ export const BlockWorkspace: React.FC = () => {
         show3DPreview={Boolean(selectedBlock && selectedBlock.blockId !== 'uncategorized')}
         previewTitle="3D Preview"
         previewContent={
-          selectedBlock && selectedBlock.blockId !== 'uncategorized' ? (
+          selectedBlock && selectedBlock.blockId !== 'uncategorized' && !disable3DView ? (
             <Block3DViewer
               blockId={selectedBlock.blockId}
               faceTextures={faceTextures.textures}
