@@ -62,11 +62,23 @@ const TileHoverMorphCard: React.FC<TileHoverMorphPortalProps> = ({
     return null;
   });
 
-  const storeAlias = usePackStore((s) =>
-    s.aliases.find((a) => {
-      const normalizePath = (p?: string | null) =>
-        (p || '').replace(/\\/g, '/').toLowerCase().replace(/\.(png|tga|jpg|jpeg|webp)$/, '');
+  const storeAlias = usePackStore((s) => {
+    const k = (target.alias.key || target.alias.alias || '').toLowerCase();
+    const candidate = s.aliasesByKey.get(k);
+    if (candidate) {
+      if (target.alias.status !== 'ORPHAN' && candidate.status !== 'ORPHAN') {
+        if (!target.alias.relativePath || candidate.relativePath === target.alias.relativePath) {
+          if (!target.alias.blockVariantIndex || candidate.blockVariantIndex === target.alias.blockVariantIndex) {
+            return candidate;
+          }
+        }
+      }
+    }
 
+    const normalizePath = (p?: string | null) =>
+      (p || '').replace(/\\/g, '/').toLowerCase().replace(/\.(png|tga|jpg|jpeg|webp)$/, '');
+
+    return s.aliases.find((a) => {
       // 1. If target is an ORPHAN, only match orphans by exact path
       if (target.alias.status === 'ORPHAN') {
         if (target.alias.fullPath && a.fullPath && normalizePath(a.fullPath) === normalizePath(target.alias.fullPath)) {
@@ -110,8 +122,8 @@ const TileHoverMorphCard: React.FC<TileHoverMorphPortalProps> = ({
         return true;
       }
       return false;
-    })
-  );
+    });
+  });
   const [localAdded, setLocalAdded] = useState(false);
   const alias = storeAlias ? { ...target.alias, ...storeAlias } : target.alias;
   const isGhost = localAdded ? false : alias.status === 'GHOST';

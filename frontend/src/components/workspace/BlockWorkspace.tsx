@@ -1026,24 +1026,24 @@ export const BlockWorkspace: React.FC = () => {
                         </Badge>
                       )}
                       {isVanillaFallback && (
-                        isBlockDeclaredInPack ? (
+                        isDeclaredInVanillaTerrain ? (
+                          <Badge
+                            variant="fallback"
+                            size="sm"
+                            title={
+                              isBlockDeclaredInPack
+                                ? "Vanilla fallback, missing in pack terrain_texture.json"
+                                : "Using vanilla terrain_texture.json definition"
+                            }
+                          >
+                            {isBlockDeclaredInPack ? 'missing entry' : 'fallback'}
+                          </Badge>
+                        ) : (
                           <Badge
                             variant="missing"
                             size="sm"
                             title="Missing declaration in terrain_texture.json"
                           >
-                            missing entry
-                          </Badge>
-                        ) : isDeclaredInVanillaTerrain ? (
-                          <Badge
-                            variant="fallback"
-                            size="sm"
-                            title="Using vanilla terrain_texture.json definition"
-                          >
-                            fallback
-                          </Badge>
-                        ) : (
-                          <Badge variant="missing" size="sm" title="Missing declaration in terrain_texture.json">
                             missing entry
                           </Badge>
                         )

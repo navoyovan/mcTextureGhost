@@ -692,8 +692,7 @@ export const packStoreActions: PackStoreActions = {
     const targetNormRel = stripExt(relativePath);
     const aliasNorm = aliasKey ? aliasKey.toLowerCase() : '';
 
-    // If fullPath or relativePath is specified, match specifically by path so we don't
-    // accidentally update all variations or blockstates sharing the same alias!
+    let anyAliasChanged = false;
     const updatedAliases = currentState.aliases.map((alias) => {
       let isMatch = false;
 
@@ -718,7 +717,6 @@ export const packStoreActions: PackStoreActions = {
         const aRel = stripExt(alias.relativePath);
         if ((targetNormFull.endsWith('/' + aRel + '.png') || targetNormFull.endsWith('/' + aRel + '.tga') || targetNormFull.endsWith('\\' + aRel + '.png')) &&
             (!aliasNorm || alias.alias.toLowerCase() === aliasNorm)) {
-          // Guard: if targetNormFull is e.g. door_jungle_lower_var1.png, do not match door_jungle_lower.png
           const targetFile = targetNormFull.split(/[/\\]/).pop() || '';
           const targetFileBase = targetFile.replace(/\.(png|tga)$/i, '');
           const aliasFile = aRel.split(/[/\\]/).pop() || '';
@@ -736,84 +734,167 @@ export const packStoreActions: PackStoreActions = {
       if (!isMatch) return alias;
 
       const resolvedImg = bustUrlCache(imageUrl || alias.imageUrl);
+      const isExists = newStatus === 'OK' || newStatus === 'OVERRIDE';
+      const finalFullPath = fullPath || alias.fullPath;
+      if (
+        alias.status === newStatus &&
+        alias.fullPath === finalFullPath &&
+        alias.imageUrl === resolvedImg &&
+        alias.exists === isExists
+      ) {
+        return alias;
+      }
+
+      anyAliasChanged = true;
       return {
         ...alias,
         status: newStatus as any,
-        fullPath: fullPath || alias.fullPath,
+        fullPath: finalFullPath,
         imageUrl: resolvedImg,
-        exists: newStatus === 'OK' || newStatus === 'OVERRIDE',
+        exists: isExists,
       };
     });
 
-    const patchWorkspaceLeaves = (tree: BlockGroupNodeDto[]): BlockGroupNodeDto[] => (tree || []).map((block) => ({
-      ...block,
-      aliasGroups: block.aliasGroups?.map((ag) => ({
-        ...ag,
-        // Update faceNodes leaves if present
-        faceNodes: (ag as any).faceNodes?.map((fn: any) => ({
-          ...fn,
-          leaves: fn.leaves?.map((leaf: any) => {
-            let isMatch = false;
-            if (targetNormFull && leaf.fullPath && norm(leaf.fullPath) === targetNormFull) isMatch = true;
-            if (!isMatch && targetNormRel && leaf.relativePath && stripExt(leaf.relativePath) === targetNormRel && (!aliasNorm || leaf.alias.toLowerCase() === aliasNorm)) isMatch = true;
-            if (!isMatch && targetNormFull && leaf.relativePath) {
-              const lRel = stripExt(leaf.relativePath);
-              const targetFile = targetNormFull.split(/[/\\]/).pop() || '';
-              const targetFileBase = targetFile.replace(/\.(png|tga)$/i, '');
-              const leafFile = lRel.split(/[/\\]/).pop() || '';
-              if (targetFileBase === leafFile && (!aliasNorm || leaf.alias.toLowerCase() === aliasNorm)) {
-                isMatch = true;
+    const isLeafMatch = (leaf: any): boolean => {
+      if (targetNormFull && leaf.fullPath && norm(leaf.fullPath) === targetNormFull) return true;
+      if (targetNormRel && leaf.relativePath && stripExt(leaf.relativePath) === targetNormRel && (!aliasNorm || leaf.alias.toLowerCase() === aliasNorm)) return true;
+      if (targetNormFull && leaf.relativePath) {
+        const lRel = stripExt(leaf.relativePath);
+        const targetFile = targetNormFull.split(/[/\\]/).pop() || '';
+        const targetFileBase = targetFile.replace(/\.(png|tga)$/i, '');
+        const leafFile = lRel.split(/[/\\]/).pop() || '';
+        if (targetFileBase === leafFile && (!aliasNorm || leaf.alias.toLowerCase() === aliasNorm)) {
+          return true;
+        }
+      }
+      if (!targetNormFull && !targetNormRel && (leaf.alias === aliasKey)) return true;
+      return false;
+    };
+
+    const patchWorkspaceLeaves = (tree: BlockGroupNodeDto[]): { nextTree: BlockGroupNodeDto[]; changed: boolean } => {
+      if (!tree || tree.length === 0) return { nextTree: tree, changed: false };
+      let treeChanged = false;
+      const nextTree = tree.map((block) => {
+        // Surgical pruning: skip blocks that do not reference this alias or could not match target path
+        const mightContain = !aliasNorm || (block.aliasGroups && block.aliasGroups.some((ag) => ag.alias.toLowerCase() === aliasNorm));
+        if (!mightContain && !targetNormFull && !targetNormRel) {
+          return block;
+        }
+
+        let blockChanged = false;
+        const nextAliasGroups = block.aliasGroups?.map((ag) => {
+          if (aliasNorm && ag.alias.toLowerCase() !== aliasNorm && !targetNormFull && !targetNormRel) {
+            return ag;
+          }
+
+          let agChanged = false;
+          const nextFaceNodes = (ag as any).faceNodes?.map((fn: any) => {
+            let fnChanged = false;
+            const nextLeaves = fn.leaves?.map((leaf: any) => {
+              if (!isLeafMatch(leaf)) return leaf;
+              const resolvedImg = bustUrlCache(imageUrl || leaf.imageUrl);
+              const finalFullPath = fullPath || leaf.fullPath;
+              if (leaf.status === newStatus && leaf.fullPath === finalFullPath && leaf.imageUrl === resolvedImg) {
+                return leaf;
               }
-            }
-            if (!isMatch && !targetNormFull && !targetNormRel && (leaf.alias === aliasKey)) isMatch = true;
-            if (!isMatch) return leaf;
+              fnChanged = true;
+              return {
+                ...leaf,
+                status: newStatus as any,
+                fullPath: finalFullPath,
+                imageUrl: resolvedImg,
+              };
+            });
+            if (!fnChanged) return fn;
+            agChanged = true;
+            return { ...fn, leaves: nextLeaves };
+          });
+
+          let leavesChanged = false;
+          const nextLeaves = ag.leaves?.map((leaf: any) => {
+            if (!isLeafMatch(leaf)) return leaf;
             const resolvedImg = bustUrlCache(imageUrl || leaf.imageUrl);
+            const finalFullPath = fullPath || leaf.fullPath;
+            if (leaf.status === newStatus && leaf.fullPath === finalFullPath && leaf.imageUrl === resolvedImg) {
+              return leaf;
+            }
+            leavesChanged = true;
             return {
               ...leaf,
               status: newStatus as any,
-              fullPath: fullPath || leaf.fullPath,
+              fullPath: finalFullPath,
               imageUrl: resolvedImg,
             };
-          }),
-        })),
-        leaves: ag.leaves?.map((leaf: any) => {
-          let isMatch = false;
-          if (targetNormFull && leaf.fullPath && norm(leaf.fullPath) === targetNormFull) isMatch = true;
-          if (!isMatch && targetNormRel && leaf.relativePath && stripExt(leaf.relativePath) === targetNormRel && (!aliasNorm || leaf.alias.toLowerCase() === aliasNorm)) isMatch = true;
-          if (!isMatch && targetNormFull && leaf.relativePath) {
-            const lRel = stripExt(leaf.relativePath);
-            const targetFile = targetNormFull.split(/[/\\]/).pop() || '';
-            const targetFileBase = targetFile.replace(/\.(png|tga)$/i, '');
-            const leafFile = lRel.split(/[/\\]/).pop() || '';
-            if (targetFileBase === leafFile && (!aliasNorm || leaf.alias.toLowerCase() === aliasNorm)) {
-              isMatch = true;
-            }
-          }
-          if (!isMatch && !targetNormFull && !targetNormRel && (leaf.alias === aliasKey)) isMatch = true;
-          if (!isMatch) return leaf;
-          const resolvedImg = bustUrlCache(imageUrl || leaf.imageUrl);
-          return {
-            ...leaf,
-            status: newStatus as any,
-            fullPath: fullPath || leaf.fullPath,
-            imageUrl: resolvedImg,
-          };
-        }),
-      })),
-    }));
+          });
 
-    const updatedBlockTree = patchWorkspaceLeaves(currentState.blockWorkspaceTree || [] as any);
-    const updatedEntityTree = patchWorkspaceLeaves(currentState.entityWorkspaceTree || [] as any);
+          if (!agChanged && !leavesChanged) return ag;
+          blockChanged = true;
+          return {
+            ...ag,
+            faceNodes: agChanged ? nextFaceNodes : (ag as any).faceNodes,
+            leaves: leavesChanged ? nextLeaves : ag.leaves,
+          };
+        });
+
+        if (!blockChanged) return block;
+        treeChanged = true;
+        return {
+          ...block,
+          aliasGroups: nextAliasGroups,
+        };
+      });
+
+      return { nextTree: treeChanged ? nextTree : tree, changed: treeChanged };
+    };
+
+    const blockResult = patchWorkspaceLeaves(currentState.blockWorkspaceTree || [] as any);
+    const entityResult = patchWorkspaceLeaves(currentState.entityWorkspaceTree || [] as any);
+
+    // If nothing in memory actually changed (e.g. redundant IPC update), return immediately without re-rendering!
+    if (!anyAliasChanged && !blockResult.changed && !entityResult.changed) {
+      return;
+    }
+
+    let nextBlocksById = currentState.blocksById;
+    if (blockResult.changed) {
+      nextBlocksById = new Map(currentState.blocksById);
+      for (const b of blockResult.nextTree) {
+        if (b !== currentState.blocksById.get(b.blockId.toLowerCase())) {
+          const normId = b.blockId.toLowerCase();
+          nextBlocksById.set(normId, b);
+          const strip = normId.replace(/^minecraft:/, '');
+          if (strip !== normId) nextBlocksById.set(strip, b);
+        }
+      }
+    }
+
+    let nextEntitiesById = currentState.entitiesById;
+    if (entityResult.changed) {
+      nextEntitiesById = new Map(currentState.entitiesById);
+      for (const e of entityResult.nextTree) {
+        if (e !== currentState.entitiesById.get(e.blockId.toLowerCase())) {
+          const normId = e.blockId.toLowerCase();
+          nextEntitiesById.set(normId, e);
+          const strip = normId.replace(/^minecraft:/, '');
+          if (strip !== normId) nextEntitiesById.set(strip, e);
+        }
+      }
+    }
+
+    let nextAliasesByKey = currentState.aliasesByKey;
+    if (anyAliasChanged) {
+      nextAliasesByKey = buildAliasesByKey(updatedAliases);
+    }
 
     currentState = {
       ...currentState,
-      aliases: updatedAliases,
-      blockWorkspaceTree: updatedBlockTree as any,
-      entityWorkspaceTree: updatedEntityTree as any,
-      blocksById: buildBlocksById(updatedBlockTree),
-      entitiesById: buildBlocksById(updatedEntityTree),
-      aliasesByKey: buildAliasesByKey(updatedAliases),
-      stats: computeStats(updatedAliases),
+      aliases: anyAliasChanged ? updatedAliases : currentState.aliases,
+      blockWorkspaceTree: blockResult.changed ? blockResult.nextTree as any : currentState.blockWorkspaceTree,
+      entityWorkspaceTree: entityResult.changed ? entityResult.nextTree as any : currentState.entityWorkspaceTree,
+      blocksById: nextBlocksById,
+      entitiesById: nextEntitiesById,
+      aliasesByKey: nextAliasesByKey,
+      stats: anyAliasChanged ? computeStats(updatedAliases) : currentState.stats,
     };
     notify();
   },
