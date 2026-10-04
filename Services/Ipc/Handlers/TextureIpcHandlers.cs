@@ -42,13 +42,16 @@ public static class TextureIpcHandlers
                     var dir = Path.GetDirectoryName(payload.FullPath);
                     if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
                     {
+                        WriteJournal.RecordWrite(dir);
                         Directory.CreateDirectory(dir);
                     }
+                    WriteJournal.RecordWrite(payload.FullPath);
                     PlaceholderImageFactory.CreateStub(payload.FullPath, 16);
                     ImagePathConverter.ClearCache();
                     if (alias != null)
                     {
                         alias.Status = TextureStatus.Ok;
+                        vm.HandleTextureFilesChanged(new[] { alias });
                     }
                     var relPath = alias?.RelativePath ?? Path.GetFileName(payload.FullPath);
                     bridge.PushTextureUpdated(
@@ -255,6 +258,7 @@ public static class TextureIpcHandlers
                 var dir = Path.GetDirectoryName(targetPath);
                 if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
                 {
+                    WriteJournal.RecordWrite(dir);
                     Directory.CreateDirectory(dir);
                 }
 
@@ -299,6 +303,7 @@ public static class TextureIpcHandlers
                     {
                         alias.Status = TextureStatus.Ok;
                         alias.FullPath = targetPath;
+                        vm.HandleTextureFilesChanged(new[] { alias });
                     }
 
                     var relPath = alias?.RelativePath ?? payload.RelativePath ?? Path.GetFileName(targetPath);
@@ -520,6 +525,7 @@ public static class TextureIpcHandlers
                         var dir = Path.GetDirectoryName(payload.FullPath);
                         if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
                         {
+                            WriteJournal.RecordWrite(dir);
                             Directory.CreateDirectory(dir);
                         }
 
@@ -543,6 +549,7 @@ public static class TextureIpcHandlers
                         if (matchedAlias != null)
                         {
                             matchedAlias.Status = TextureStatus.Ok;
+                            vm.HandleTextureFilesChanged(new[] { matchedAlias });
                         }
 
                         var relPath = matchedAlias?.RelativePath ?? payload.RelativePath ?? Path.GetFileName(payload.FullPath);
@@ -553,11 +560,6 @@ public static class TextureIpcHandlers
                             IpcContractMapper.BuildVirtualTextureUrl(relPath, payload.FullPath, vm.PackRootPath),
                             relPath
                         );
-
-                        var cat = string.Equals(payload.Category, "item", StringComparison.OrdinalIgnoreCase)
-                            ? TextureCategory.Item
-                            : TextureCategory.Block;
-                        await vm.RescanScopedAsync(cat);
                     }
                     else
                     {
