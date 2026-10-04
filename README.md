@@ -9,19 +9,19 @@
 
 Stop chasing "ghost". mcTextureGhost scans your pack, shows you every declared texture entries that doesn't exist yet ("ghosts"). No JSON wrangling required.
 
-![mcTextureGhost Welcome Screen](frontend/public/welcome.webp)
+![mcTextureGhost Welcome Screen](assets/welcome.webp)
 
 Built to make texturing Minecraft packs faster and less tedious. It gives you a single workspace to inspect existing textures alongside all the missing ones you still need to create. For now only support Bedrock `resource-pack` formats.
 
-![mcTextureGhost Workspace](frontend/public/workspace.webp)
+![mcTextureGhost Workspace](assets/workspace.webp)
 
-![mcTextureGhost Welcome Screen](frontend/public/workspace-fullscreen.webp)
+![mcTextureGhost Welcome Screen](assets/workspace-fullscreen.webp)
 
 ---
 
 ## What it does
 
-<video src="frontend/public/tut.mp4" controls autoplay loop muted playsinline height="360"></video>
+<video src="assets/tut.mp4" controls autoplay loop muted playsinline height="360"></video>
 
 ### Ghost Detection
 
@@ -65,7 +65,7 @@ Sidebar tree of your pack's directory structure with live texture and ghost coun
 
 ```powershell
 git clone https://github.com/navoyovan/mcTextureGhost.git
-cd McTextureGhost
+cd mcTextureGhost
 dotnet run --project McTextureGhost.csproj
 ```
 
@@ -77,7 +77,7 @@ Download the latest standalone release binary from [GitHub Releases](https://git
 
 ## License
 
-McTextureGhost is source-available under the [Business Source License 1.1](./LICENSE).
+mcTextureGhost is source-available under the [Business Source License 1.1](./LICENSE).
 
 - Free for personal, educational, and non-commercial use.
 - Cannot be resold or repackaged as a commercial product without a separate agreement.
