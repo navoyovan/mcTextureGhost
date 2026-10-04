@@ -18,7 +18,10 @@
 ### v1.2.0 (Staging)
 - [ ] auto scaffold and detach face entries (like shared textures **ex:** `acacia_fence` using `acacia_planks` into `acacia_fence`) maybe default to its own alias but they might clash bcs acacia_planks alias is acacia_planks, get it?
 
-### v1.1.0 (Testing)
+### v1.1.1 (experimental-optimization)
+- [ ] ??????
+
+### v1.1.0 (Released 2026-10-01)
 **Improvements**
 - [x] Optimistic UI updates across all texture interactables — instant feedback for additions, deletions, and variations without waiting for disk I/O
 - [x] Skeleton loading states and granular store flags for smoother, non-blocking background rescans

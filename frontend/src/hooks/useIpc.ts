@@ -69,7 +69,7 @@ function ensureGlobalListenerAttached(): void {
       // 2. Demux by message type to registered subscribers
       const handlers = globalListeners.get(envelope.type);
       if (handlers && handlers.size > 0) {
-        queueMicrotask(() => {
+        setTimeout(() => {
           const tHandlerStart = performance.now();
           handlers.forEach((fn) => {
             try {
@@ -80,7 +80,7 @@ function ensureGlobalListenerAttached(): void {
           });
           const handlerMs = performance.now() - tHandlerStart;
           console.log(`[PERF][IPC IN] ${envelope.type} parse=${parseMs.toFixed(1)}ms size=${(rawLen / 1024).toFixed(1)}KB handler=${handlerMs.toFixed(1)}ms total=${(performance.now() - t0).toFixed(1)}ms`);
-        });
+        }, 0);
       } else {
         console.log(`[PERF][IPC IN] ${envelope.type} parse=${parseMs.toFixed(1)}ms size=${(rawLen / 1024).toFixed(1)}KB (no handlers)`);
       }

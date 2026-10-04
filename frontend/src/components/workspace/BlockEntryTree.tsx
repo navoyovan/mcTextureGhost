@@ -33,6 +33,45 @@ export const BlockEntryTree: React.FC<BlockEntryTreeProps> = ({ block, onTileCli
   const hasTerrainTextureJson = useMemo(() => checkTerrainTextureJson(packFolders), [packFolders]);
   const hasBlocksJson = useMemo(() => checkBlocksJson(packFolders), [packFolders]);
 
+  const packDeclaredBlockAliases = useMemo(() => {
+    const set = new Set<string>();
+    if (!hasTerrainTextureJson || !packAliases) return set;
+    for (let i = 0; i < packAliases.length; i++) {
+      const a = packAliases[i];
+      if (a && a.alias && a.category.toLowerCase() === 'block' && a.status !== 'ORPHAN' && a.isUserDefined !== false) {
+        set.add(a.alias.toLowerCase());
+      }
+    }
+    return set;
+  }, [hasTerrainTextureJson, packAliases]);
+
+  const vanillaCatalogAliases = useMemo(() => {
+    const set = new Set<string>();
+    if (!catalogTree) return set;
+    for (const cb of catalogTree) {
+      if (cb?.aliasGroups) {
+        for (const ca of cb.aliasGroups) {
+          if (ca?.alias && !ca.leaves?.some((l) => l.subtitleCaption?.toLowerCase() === 'missing declaration')) {
+            set.add(ca.alias.toLowerCase());
+          }
+        }
+      }
+    }
+    return set;
+  }, [catalogTree]);
+
+  const vanillaFallbackAliasSet = useMemo(() => {
+    const set = new Set<string>();
+    if (!packAliases) return set;
+    for (let i = 0; i < packAliases.length; i++) {
+      const a = packAliases[i];
+      if (a && a.alias && a.category.toLowerCase() === 'block' && (a as any).isUserDefined === false) {
+        set.add(a.alias.toLowerCase());
+      }
+    }
+    return set;
+  }, [packAliases]);
+
   const toggleNode = (nodeId: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     setCollapsedNodes((prev) => ({
@@ -69,13 +108,7 @@ export const BlockEntryTree: React.FC<BlockEntryTreeProps> = ({ block, onTileCli
 
       const isDeclaredInPackTerrain =
         hasTerrainTextureJson &&
-        packAliases.some(
-          (a) =>
-            a.alias.toLowerCase() === aliasKey &&
-            a.category.toLowerCase() === 'block' &&
-            a.status !== 'ORPHAN' &&
-            a.isUserDefined !== false
-        );
+        packDeclaredBlockAliases.has(aliasKey);
 
       // An alias is missing if any of its leaves explicitly indicate missing declaration
       const hasMissingDeclarationLeaf = ag.leaves?.some(
@@ -89,15 +122,8 @@ export const BlockEntryTree: React.FC<BlockEntryTreeProps> = ({ block, onTileCli
         !isDeclaredInPackTerrain &&
         !hasMissingDeclarationLeaf &&
         (catalogTree && catalogTree.length > 0
-          ? catalogTree.some((cb) =>
-              cb.aliasGroups?.some((ca) => ca.alias.toLowerCase() === aliasKey && !ca.leaves?.some(l => l.subtitleCaption?.toLowerCase() === 'missing declaration'))
-            )
-          : packAliases.some(
-              (a) =>
-                a.alias.toLowerCase() === aliasKey &&
-                a.category.toLowerCase() === 'block' &&
-                (a as any).isUserDefined === false
-            ));
+          ? vanillaCatalogAliases.has(aliasKey)
+          : vanillaFallbackAliasSet.has(aliasKey));
 
       const rawLeaves = [
         ...(ag.leaves ?? []),
@@ -163,7 +189,7 @@ export const BlockEntryTree: React.FC<BlockEntryTreeProps> = ({ block, onTileCli
     }
 
     return list;
-  }, [declaredAliases, packAliases, hasTerrainTextureJson, catalogTree, block.blockId]);
+  }, [declaredAliases, packAliases, hasTerrainTextureJson, catalogTree, block.blockId, packDeclaredBlockAliases, vanillaCatalogAliases, vanillaFallbackAliasSet]);
 
   // Calculate total visible lines across blocks.json and terrain_texture.json
   const visibleLines = useMemo(() => {
@@ -389,10 +415,17 @@ const TextureLeafRow: React.FC<TextureLeafRowProps> = ({ leaf, onTileClick }) =>
       title={isVanilla ? 'Vanilla fallback texture' : isGhost ? 'Missing texture file (Ghost)' : 'Existing texture file'}
     >
       <div className={styles.treeRowMain}>
-        <div className={styles.chevronPlaceholder} />
-
-        {leaf.imageUrl && (
-          <img src={leaf.imageUrl} alt="" className={styles.thumbPreview} loading="lazy" decoding="async" />
+        {!isGhost && leaf.imageUrl && (
+          <img
+            src={leaf.imageUrl}
+            alt=""
+            className={styles.thumbPreview}
+            loading="lazy"
+            decoding="async"
+            onError={(e) => {
+              (e.currentTarget as HTMLElement).style.display = 'none';
+            }}
+          />
         )}
 
         <span className={styles.nodeLabel}>

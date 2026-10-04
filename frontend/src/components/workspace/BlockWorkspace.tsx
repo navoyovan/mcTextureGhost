@@ -83,6 +83,57 @@ export const BlockWorkspace: React.FC = () => {
   const hasTerrainTextureJson = useMemo(() => checkTerrainTextureJson(packFolders), [packFolders]);
   const hasBlocksJson = useMemo(() => checkBlocksJson(packFolders), [packFolders]);
 
+  const packDeclaredBlockAliases = useMemo(() => {
+    const set = new Set<string>();
+    if (!hasTerrainTextureJson || !packAliases) return set;
+    for (let i = 0; i < packAliases.length; i++) {
+      const a = packAliases[i];
+      if (a && a.alias && a.category === 'block' && a.status !== 'ORPHAN' && (a as any).isUserDefined !== false) {
+        set.add(a.alias.toLowerCase());
+      }
+    }
+    return set;
+  }, [hasTerrainTextureJson, packAliases]);
+
+  const vanillaFallbackAliasSet = useMemo(() => {
+    const set = new Set<string>();
+    if (!packAliases) return set;
+    for (let i = 0; i < packAliases.length; i++) {
+      const a = packAliases[i];
+      if (a && a.alias && a.category === 'block' && (a as any).isUserDefined === false) {
+        set.add(a.alias.toLowerCase());
+      }
+    }
+    return set;
+  }, [packAliases]);
+
+  const catalogBlockIdSet = useMemo(() => {
+    const set = new Set<string>();
+    if (!catalogTree) return set;
+    for (let i = 0; i < catalogTree.length; i++) {
+      const b = catalogTree[i];
+      if (b?.blockId) {
+        set.add(b.blockId.toLowerCase());
+      }
+    }
+    return set;
+  }, [catalogTree]);
+
+  const vanillaCatalogAliases = useMemo(() => {
+    const set = new Set<string>();
+    if (!catalogTree) return set;
+    for (const cb of catalogTree) {
+      if (cb?.aliasGroups) {
+        for (const ca of cb.aliasGroups) {
+          if (ca?.alias && !ca.leaves?.some((l) => l.subtitleCaption?.toLowerCase() === 'missing declaration')) {
+            set.add(ca.alias.toLowerCase());
+          }
+        }
+      }
+    }
+    return set;
+  }, [catalogTree]);
+
   const [activeMenuKey, setActiveMenuKey] = useState<string | null>(null);
   const setIsListDrawerOpen = usePackStore((s) => s.setIsWorkspaceDrawerOpen);
   const [contextMenuTarget, setContextMenuTarget] = useState<{
@@ -131,20 +182,11 @@ export const BlockWorkspace: React.FC = () => {
       );
       const hasPackTerrainDeclaration =
         hasTerrainTextureJson &&
-        block.aliasGroups?.some((ag) => {
-          const aliasKey = ag.alias.toLowerCase();
-          return packAliases.some(
-            (a: TextureAliasDto) =>
-              a.alias.toLowerCase() === aliasKey &&
-              a.category === 'block' &&
-              a.status !== 'ORPHAN' &&
-              (a as any).isUserDefined !== false
-          );
-        });
+        Boolean(block.aliasGroups?.some((ag) => packDeclaredBlockAliases.has(ag.alias.toLowerCase())));
       const isCustomBlock =
         (block.blockId.includes(':') && !block.blockId.startsWith('minecraft:')) ||
         (catalogTree && catalogTree.length > 0
-          ? !catalogTree.some((b) => b.blockId.toLowerCase() === block.blockId.toLowerCase())
+          ? !catalogBlockIdSet.has(block.blockId.toLowerCase())
           : false);
       const isUncategorized = block.blockId === 'uncategorized';
 
@@ -304,7 +346,7 @@ export const BlockWorkspace: React.FC = () => {
     }
 
     return Array.from(seen.values());
-  }, [blockWorkspaceTree, searchQuery, statusFilter, activeFilters, hasTerrainTextureJson, packAliases, catalogTree, selectedBlockId]);
+  }, [blockWorkspaceTree, searchQuery, statusFilter, activeFilters, hasTerrainTextureJson, packDeclaredBlockAliases, catalogBlockIdSet, catalogTree, selectedBlockId]);
 
   const activeBlockStateIndex = usePackStore((s) => s.blockWorkspaceActiveStateIndex);
   const setActiveBlockStateIndex = usePackStore((s) => s.setBlockWorkspaceActiveStateIndex);
@@ -491,9 +533,10 @@ export const BlockWorkspace: React.FC = () => {
               const g = groups[i] ?? groups[0];
               if (g) {
                 const leaf = g.leaves[v] ?? g.leaves[0];
-                if (leaf && leaf.status !== 'GHOST' && leaf.imageUrl) {
+                const isGhostLeaf = !leaf || leaf.status === 'GHOST' || (!leaf.fullPath && leaf.status !== 'OK' && leaf.status !== 'OVERRIDE');
+                if (leaf && !isGhostLeaf && leaf.imageUrl) {
                   const isPackUrl = leaf.imageUrl.startsWith('https://pack.local');
-                  const isPackFilePresent = leaf.status === 'OK' || leaf.status === 'OVERRIDE' || !!leaf.fullPath;
+                  const isPackFilePresent = leaf.status === 'OK' || leaf.status === 'OVERRIDE' || Boolean(leaf.fullPath);
                   if (!isPackUrl || isPackFilePresent) {
                     textures[label] = leaf.imageUrl;
                     flipbooks[label] = leaf.flipbook ?? null;
@@ -516,9 +559,10 @@ export const BlockWorkspace: React.FC = () => {
             const g = groups[i] ?? groups[0];
             if (g) {
               const leaf = g.leaves[v] ?? g.leaves[0];
-              if (leaf && leaf.status !== 'GHOST' && leaf.imageUrl) {
+              const isGhostLeaf = !leaf || leaf.status === 'GHOST' || (!leaf.fullPath && leaf.status !== 'OK' && leaf.status !== 'OVERRIDE');
+              if (leaf && !isGhostLeaf && leaf.imageUrl) {
                 const isPackUrl = leaf.imageUrl.startsWith('https://pack.local');
-                const isPackFilePresent = leaf.status === 'OK' || leaf.status === 'OVERRIDE' || !!leaf.fullPath;
+                const isPackFilePresent = leaf.status === 'OK' || leaf.status === 'OVERRIDE' || Boolean(leaf.fullPath);
                 if (!isPackUrl || isPackFilePresent) {
                   textures.all = leaf.imageUrl;
                   flipbooks.all = leaf.flipbook ?? null;
@@ -659,15 +703,10 @@ export const BlockWorkspace: React.FC = () => {
   // Distinct aliases belonging to this block that are declared in pack's terrain_texture.json
   const declaredTerrainAliases = useMemo(() => {
     if (!selectedBlock?.aliasGroups || !hasTerrainTextureJson) return [];
-    const packAliasNames = new Set(
-      packAliases
-        .filter((a) => a.category === 'block' && a.status !== 'ORPHAN' && (a as any).isUserDefined !== false)
-        .map((a) => a.alias.toLowerCase())
-    );
     return selectedBlock.aliasGroups
       .map((ag) => ag.alias)
-      .filter((alias) => packAliasNames.has(alias.toLowerCase()));
-  }, [selectedBlock, hasTerrainTextureJson, packAliases]);
+      .filter((alias) => packDeclaredBlockAliases.has(alias.toLowerCase()));
+  }, [selectedBlock, hasTerrainTextureJson, packDeclaredBlockAliases]);
 
   const handleDeleteBlockAndTerrainEntries = useCallback(async () => {
     if (!selectedBlock || selectedBlock.blockId === 'uncategorized') return;
@@ -865,13 +904,7 @@ export const BlockWorkspace: React.FC = () => {
                 const aliasKey = ag.alias.toLowerCase();
                 const isDeclaredInPackTerrain =
                   hasTerrainTextureJson &&
-                  packAliases.some(
-                    (a: TextureAliasDto) =>
-                      a.alias.toLowerCase() === aliasKey &&
-                      a.category === 'block' &&
-                      a.status !== 'ORPHAN' &&
-                      (a as any).isUserDefined !== false
-                  );
+                  packDeclaredBlockAliases.has(aliasKey);
 
                 // If block is declared in pack blocks.json OR alias is declared in pack terrain_texture.json: ALWAYS SHOW!
                 if (isBlockDeclaredInPack || isDeclaredInPackTerrain) {
@@ -898,13 +931,7 @@ export const BlockWorkspace: React.FC = () => {
 
                 const isDeclaredInPackTerrain =
                   hasTerrainTextureJson &&
-                  packAliases.some(
-                    (a: TextureAliasDto) =>
-                      a.alias.toLowerCase() === aliasKey &&
-                      a.category === 'block' &&
-                      a.status !== 'ORPHAN' &&
-                      (a as any).isUserDefined !== false
-                  );
+                  packDeclaredBlockAliases.has(aliasKey);
 
                 const pendingOp = pendingAliasOps[aliasKey] ?? null;
                 const isEffectivelyDeclaredInPackTerrain = isDeclaredInPackTerrain && pendingOp !== 'deleting';
@@ -919,15 +946,8 @@ export const BlockWorkspace: React.FC = () => {
                   !isEffectivelyDeclaredInPackTerrain &&
                   !hasMissingDeclarationLeaf &&
                   (catalogTree && catalogTree.length > 0
-                    ? catalogTree.some((cb) =>
-                        cb.aliasGroups?.some((ca) => ca.alias.toLowerCase() === aliasKey && !ca.leaves?.some(l => l.subtitleCaption?.toLowerCase() === 'missing declaration'))
-                      )
-                    : packAliases.some(
-                        (a) =>
-                          a.alias.toLowerCase() === aliasKey &&
-                          a.category === 'block' &&
-                          (a as any).isUserDefined === false
-                      ));
+                    ? vanillaCatalogAliases.has(aliasKey)
+                    : vanillaFallbackAliasSet.has(aliasKey));
 
                 const isMissingInPackTerrain = !isEffectivelyDeclaredInPackTerrain;
                 const isVanillaFallback = isMissingInPackTerrain && selectedBlock.blockId !== 'uncategorized';

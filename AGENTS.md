@@ -4,7 +4,9 @@
 
 ## Execution Rules for Agents
 - **STRICT ANTI-OVERANALYZING & IMMEDIATE ACTION INVARIANT (HARD ENFORCEMENT):**
-  - **Tool Call Hard Limit**: When investigating a bug or UI issue, you are allowed a MAXIMUM of 2-3 targeted `view_file` calls total before you MUST apply edits with `replace_file_content`. Wandering through 4+ files without editing is strictly forbidden.
+  - **Hard Ban on Broad Recursive Searches**: NEVER execute repo-wide or disk-wide recursive file searches (`Get-ChildItem -Recurse`, uncapped `grep`, broad `find`). Searches must be strictly bounded to known, specific component directories.
+  - **Zero Deep Pipeline Tracing for UI Bugs**: When an error, screenshot, or bug report points to a frontend view or component, NEVER trace into scanner engines, IPC bridges, backend parsers, or data pipelines. Patch the immediate UI consumer immediately.
+  - **Tool Call Hard Limit**: When investigating a bug or UI issue, you are allowed a MAXIMUM of 2 targeted `view_file` calls total before you MUST apply edits with `replace_file_content`. Wandering through 3+ files or launching background tasks without editing is strictly forbidden.
   - **Zero Exploratory Reading**: Never read architectural specs, mutation pipelines, stores, CSS, or backend handlers unless explicitly named or directly causing a syntax/runtime crash.
   - **Single Read Invariant**: NEVER re-read or inspect the same file or line range multiple times. If context has the lines, use them immediately.
   - **75% Confidence Trigger**: The instant a plausible cause or UI target line is located, STOP all analysis, apply the surgical edit immediately, run verification, and output results.
