@@ -56,8 +56,11 @@ public static class JsonWriterService
     private static string ReadAllTextRetry(string path) =>
         RetryOnLock(() => File.ReadAllText(path));
 
-    private static void WriteAllTextRetry(string path, string contents) =>
+    private static void WriteAllTextRetry(string path, string contents)
+    {
+        WriteJournal.RecordWrite(path);
         RetryOnLock(() => File.WriteAllText(path, contents));
+    }
 
     public static string DefaultBlockId(string alias) => $"custom:{Sanitize(alias)}";
 
@@ -719,6 +722,8 @@ public static class JsonWriterService
                 {
                     Directory.CreateDirectory(newDir);
                 }
+                WriteJournal.RecordWrite(oldFullPng);
+                WriteJournal.RecordWrite(newFullPng);
                 File.Move(oldFullPng, newFullPng);
             }
         }
@@ -1091,6 +1096,7 @@ public static class JsonWriterService
                 var explicitPath = Path.Combine(packRoot, relativePath.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar));
                 if (File.Exists(explicitPath) && explicitPath.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
                 {
+                    WriteJournal.RecordWrite(explicitPath);
                     try { File.Delete(explicitPath); } catch { }
                 }
             }
@@ -1108,6 +1114,7 @@ public static class JsonWriterService
             {
                 if (File.Exists(p))
                 {
+                    WriteJournal.RecordWrite(p);
                     try { File.Delete(p); } catch { }
                 }
             }
@@ -1135,6 +1142,7 @@ public static class JsonWriterService
                             {
                                 if (File.Exists(file))
                                 {
+                                    WriteJournal.RecordWrite(file);
                                     try { File.Delete(file); continue; } catch { }
                                 }
                             }
@@ -1154,6 +1162,7 @@ public static class JsonWriterService
                                         string.Equals(d.Identifier, alias, StringComparison.OrdinalIgnoreCase) ||
                                         (!string.IsNullOrEmpty(targetSlotKey) && d.Textures.ContainsKey(targetSlotKey))))
                                     {
+                                        WriteJournal.RecordWrite(file);
                                         File.Delete(file);
                                     }
                                 }

@@ -46,8 +46,13 @@ function ensureGlobalListenerAttached(): void {
 
   const handleMessage = (event: MessageEvent) => {
     try {
+      const t0 = performance.now();
       const rawData = event.data;
-      const envelope: IpcEnvelope = typeof rawData === 'string' ? JSON.parse(rawData) : rawData;
+      const isString = typeof rawData === 'string';
+      const rawLen = isString ? rawData.length : 0;
+      const tParseStart = performance.now();
+      const envelope: IpcEnvelope = isString ? JSON.parse(rawData) : rawData;
+      const parseMs = performance.now() - tParseStart;
 
       if (!envelope || typeof envelope.type !== 'string') {
         return;
@@ -64,13 +69,20 @@ function ensureGlobalListenerAttached(): void {
       // 2. Demux by message type to registered subscribers
       const handlers = globalListeners.get(envelope.type);
       if (handlers && handlers.size > 0) {
-        handlers.forEach((fn) => {
-          try {
-            fn(envelope.payload, envelope);
-          } catch (err) {
-            console.error(`[useIpc] Error in handler for message "${envelope.type}":`, err);
-          }
-        });
+        setTimeout(() => {
+          const tHandlerStart = performance.now();
+          handlers.forEach((fn) => {
+            try {
+              fn(envelope.payload, envelope);
+            } catch (err) {
+              console.error(`[useIpc] Error in handler for message "${envelope.type}":`, err);
+            }
+          });
+          const handlerMs = performance.now() - tHandlerStart;
+          console.log(`[PERF][IPC IN] ${envelope.type} parse=${parseMs.toFixed(1)}ms size=${(rawLen / 1024).toFixed(1)}KB handler=${handlerMs.toFixed(1)}ms total=${(performance.now() - t0).toFixed(1)}ms`);
+        }, 0);
+      } else {
+        console.log(`[PERF][IPC IN] ${envelope.type} parse=${parseMs.toFixed(1)}ms size=${(rawLen / 1024).toFixed(1)}KB (no handlers)`);
       }
     } catch (err) {
       console.error('[useIpc] Failed to parse or demux incoming IPC message:', err);

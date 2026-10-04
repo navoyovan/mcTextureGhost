@@ -317,7 +317,7 @@ export const Entity3DViewer: React.FC<Entity3DViewerProps> = React.memo(({
       }
     }, 450);
 
-    // 8. Render Loop
+    // 8. Render Loop (deferred to animation frame so WebGL shader compile doesn't block mount frame)
     let animId: number;
     const render = () => {
       if (!isMounted) return;
@@ -331,7 +331,7 @@ export const Entity3DViewer: React.FC<Entity3DViewerProps> = React.memo(({
         console.warn('[Entity3DViewer] Render loop stopped:', err);
       }
     };
-    render();
+    animId = requestAnimationFrame(render);
 
     // 9. Resize & Wheel Listeners
     const handleResize = () => {

@@ -233,6 +233,15 @@ public static class FlipbookAnimationManager
         _cache.Clear();
     }
 
+    /// <summary>
+    /// Invalidates cached frame slices for a specific texture file path.
+    /// </summary>
+    public static void Invalidate(string fullPath)
+    {
+        if (string.IsNullOrEmpty(fullPath)) return;
+        _cache.TryRemove(fullPath, out _);
+    }
+
     private static void OnTick(object? sender, EventArgs e)
     {
         if (_registrations.Count == 0)

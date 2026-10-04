@@ -31,10 +31,18 @@ public class MainViewModel : INotifyPropertyChanged
 
     private FileSystemWatcher? _watcher;
     private readonly DispatcherTimer _watchDebounceTimer;
-    private readonly SemaphoreSlim _rescanGate = new(1, 1);
+    private readonly object _changedFilesLock = new();
+    private readonly HashSet<string> _pendingChangedFiles = new(StringComparer.OrdinalIgnoreCase);
+    private readonly object _rescanLock = new();
+    private bool _isScanRunning;
+    private bool _hasPendingScan;
+    private bool _pendingIsFullScan;
+    private TextureCategory? _pendingCategory;
+    private TaskCompletionSource<bool>? _currentScanTcs;
+    private TaskCompletionSource<bool>? _pendingScanTcs;
     private string? _packRoot;
 
-    public ObservableCollection<TextureAlias> Aliases { get; } = new();
+    public BulkObservableCollection<TextureAlias> Aliases { get; } = new();
     public ICollectionView FilteredAliases { get; }
 
     public ObservableCollection<PackFolderItem> PackFolders { get; } = new();
@@ -577,13 +585,13 @@ public class MainViewModel : INotifyPropertyChanged
     /// exclusively from the user's pack. Populated on every rescan alongside
     /// <see cref="CatalogTree"/>.
     /// </summary>
-    public ObservableCollection<BlockGroupNode> BlockWorkspaceTree { get; } = new();
+    public BulkObservableCollection<BlockGroupNode> BlockWorkspaceTree { get; } = new();
 
     /// <summary>
     /// 4-tier tree (Entity → AliasGroup → FaceNode → CatalogLeaf) sourced
     /// from the user's entity/ and attachables/ definitions.
     /// </summary>
-    public ObservableCollection<BlockGroupNode> EntityWorkspaceTree { get; } = new();
+    public BulkObservableCollection<BlockGroupNode> EntityWorkspaceTree { get; } = new();
 
     // ─── Vanilla Reference Data ───────────────────────────────────────────────
     private VanillaData? _vanillaData;
@@ -617,7 +625,7 @@ public class MainViewModel : INotifyPropertyChanged
     public RelayCommand FetchVanillaDataCommand { get; }
 
     // ─── Catalog Tree & Dialog ────────────────────────────────────────────────
-    public ObservableCollection<BlockGroupNode> CatalogTree { get; } = new();
+    public BulkObservableCollection<BlockGroupNode> CatalogTree { get; } = new();
     public ICollectionView FilteredCatalogTree { get; }
     public RelayCommand AddVanillaEntryCommand { get; }
     public RelayCommand SetCatalogCategoryAllCommand { get; }
@@ -720,7 +728,7 @@ public class MainViewModel : INotifyPropertyChanged
         _watchDebounceTimer.Tick += (s, e) =>
         {
             _watchDebounceTimer.Stop();
-            _ = RescanAsync();
+            ProcessPendingWatcherChanges();
         };
 
         CommitSearchCommand = new RelayCommand(_ => CommitSearch());
@@ -1164,6 +1172,10 @@ public class MainViewModel : INotifyPropertyChanged
     private void ClosePack()
     {
         _watchDebounceTimer.Stop();
+        lock (_changedFilesLock)
+        {
+            _pendingChangedFiles.Clear();
+        }
         _watcher?.Dispose();
         _watcher = null;
         PackRootPath = null;
@@ -1311,23 +1323,145 @@ public class MainViewModel : INotifyPropertyChanged
         await RescanAsync(isInitialLoad);
     }
 
-    public async Task RescanAsync(bool isInitialLoad = false)
+    public Task RescanAsync(bool isInitialLoad = false)
     {
-        if (_packRoot is null) return;
+        if (_packRoot is null) return Task.CompletedTask;
 
-        await _rescanGate.WaitAsync();
-
-        try
+        lock (_rescanLock)
         {
-            _cachedPackName = null;
-            IsScanning = true;
-            StatusMessage = "Scanning pack textures...";
-            if (isInitialLoad)
+            if (_isScanRunning)
             {
-                ScanProgressChanged?.Invoke("scan_start", 1, 5, "Initializing pack scan...");
+                _hasPendingScan = true;
+                _pendingIsFullScan = true;
+                _pendingScanTcs ??= new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+                return _pendingScanTcs.Task;
             }
 
-            // Clear the current snapshot before rebuilding it so deleted entries cannot remain visible.
+            _isScanRunning = true;
+            _currentScanTcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        }
+
+        _ = RunScanLoopAsync(isInitialLoad, isFullScan: true, category: null);
+        return _currentScanTcs.Task;
+    }
+
+    /// <summary>
+    /// Performs a scoped rescan of the pack when a single category (Block, Item, Entity)
+    /// was mutated. Avoids rebuilding unaffected workspace trees, catalog trees, and folder structures.
+    /// </summary>
+    public Task RescanScopedAsync(TextureCategory category)
+    {
+        if (_packRoot is null) return Task.CompletedTask;
+
+        lock (_rescanLock)
+        {
+            if (_isScanRunning)
+            {
+                _hasPendingScan = true;
+                if (!_pendingIsFullScan && _pendingCategory != null && _pendingCategory != category)
+                {
+                    _pendingIsFullScan = true;
+                    _pendingCategory = null;
+                }
+                else if (!_pendingIsFullScan)
+                {
+                    _pendingCategory = category;
+                }
+
+                _pendingScanTcs ??= new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+                return _pendingScanTcs.Task;
+            }
+
+            _isScanRunning = true;
+            _currentScanTcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        }
+
+        _ = RunScanLoopAsync(isInitialLoad: false, isFullScan: false, category: category);
+        return _currentScanTcs.Task;
+    }
+
+    private async Task RunScanLoopAsync(bool isInitialLoad, bool isFullScan, TextureCategory? category)
+    {
+        bool currentIsInitial = isInitialLoad;
+        bool currentIsFull = isFullScan;
+        TextureCategory? currentCategory = category;
+
+        while (true)
+        {
+            TaskCompletionSource<bool>? tcsToComplete;
+            lock (_rescanLock)
+            {
+                tcsToComplete = _currentScanTcs;
+            }
+
+            try
+            {
+                if (currentIsFull)
+                {
+                    await ExecuteFullRescanInternalAsync(currentIsInitial);
+                }
+                else if (currentCategory.HasValue)
+                {
+                    await ExecuteScopedRescanInternalAsync(currentCategory.Value);
+                }
+                tcsToComplete?.TrySetResult(true);
+            }
+            catch (Exception ex)
+            {
+                tcsToComplete?.TrySetException(ex);
+            }
+
+            currentIsInitial = false;
+
+            lock (_rescanLock)
+            {
+                if (_hasPendingScan)
+                {
+                    _hasPendingScan = false;
+                    currentIsFull = _pendingIsFullScan;
+                    currentCategory = _pendingCategory;
+                    _pendingIsFullScan = false;
+                    _pendingCategory = null;
+
+                    _currentScanTcs = _pendingScanTcs ?? new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+                    _pendingScanTcs = null;
+                    System.Diagnostics.Debug.WriteLine($"[PERF][RESCAN] Coalesced pending rescan into single follow-up flight (full={currentIsFull}, cat={currentCategory}).");
+                }
+                else
+                {
+                    _isScanRunning = false;
+                    _currentScanTcs = null;
+                    _pendingScanTcs = null;
+                    break;
+                }
+            }
+        }
+    }
+
+    private async Task ExecuteFullRescanInternalAsync(bool isInitialLoad)
+    {
+        var dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher != null && !dispatcher.CheckAccess())
+        {
+            await dispatcher.InvokeAsync(() => ExecuteFullRescanInternalAsync(isInitialLoad));
+            return;
+        }
+
+        if (_packRoot is null) return;
+
+        _cachedPackName = null;
+        IsScanning = true;
+        StatusMessage = "Scanning pack textures...";
+        if (isInitialLoad)
+        {
+            ScanProgressChanged?.Invoke("scan_start", 1, 5, "Initializing pack scan...");
+        }
+
+        // On initial load, clear current collections so empty state is clean;
+        // on subsequent rescans, preserve existing collections while background scan runs
+        // to avoid blank UI flashing before swapping in the new data.
+        if (isInitialLoad)
+        {
             Aliases.Clear();
             CatalogTree.Clear();
             BlockWorkspaceTree.Clear();
@@ -1335,161 +1469,145 @@ public class MainViewModel : INotifyPropertyChanged
             PackFolders.Clear();
             FilteredAliases.Refresh();
             FilteredCatalogTree.Refresh();
-
-            // Discard cached BitmapImages and flipbook frame slices so modified-on-disk textures reload fresh.
-            ImagePathConverter.ClearCache();
-            FlipbookAnimationManager.ClearCache();
-
-            var packRoot = _packRoot;
-
-            try
-            {
-                if (isInitialLoad)
-                {
-                    ScanProgressChanged?.Invoke("scanning", 2, 5, "Scanning atlas textures & JSON declarations...");
-                }
-                var results = await Task.Run(() => PackScanner.Scan(packRoot, _vanillaData));
-
-                foreach (var alias in results)
-                    Aliases.Add(alias);
-                ApplySearchFilter();
-
-                if (_vanillaData != null)
-                {
-                    if (isInitialLoad)
-                    {
-                        ScanProgressChanged?.Invoke("building_trees", 3, 5, "Building catalog & workspace models...");
-                    }
-                    var (catalogNodes, workspaceNodes, entityNodes) = await Task.Run(() =>
-                    {
-                        var cat = PackScanner.BuildCatalogTree(results, _vanillaData, packRoot);
-                        var ws  = PackScanner.BuildBlockWorkspaceTree(results, _vanillaData, packRoot);
-                        var ent = PackScanner.BuildEntityWorkspaceTree(results, _vanillaData, packRoot);
-                        return (cat, ws, ent);
-                    });
-
-                    foreach (var node in catalogNodes)
-                        CatalogTree.Add(node);
-                    FilteredCatalogTree.Refresh();
-
-                    foreach (var node in workspaceNodes)
-                        BlockWorkspaceTree.Add(node);
-
-                    foreach (var node in entityNodes)
-                        EntityWorkspaceTree.Add(node);
-                }
-
-                var blockCount = results.Count(a => a.Category == TextureCategory.Block);
-                var itemCount = results.Count(a => a.Category == TextureCategory.Item);
-                var ghostCount = results.Count(a => a.Status == TextureStatus.Ghost);
-                var orphanCount = results.Count(a => a.Status == TextureStatus.Orphan);
-                StatusMessage = orphanCount > 0
-                    ? $"{results.Count} textures found ({blockCount} blocks, {itemCount} items • {ghostCount} ghosts, {orphanCount} orphans)."
-                    : $"{results.Count} textures found ({blockCount} blocks, {itemCount} items • {ghostCount} ghosts).";
-            }
-            catch (Exception ex)
-            {
-                StatusMessage = $"Scan failed: {ex.Message}";
-            }
-            finally
-            {
-                if (isInitialLoad)
-                {
-                    ScanProgressChanged?.Invoke("building_folders", 4, 5, "Indexing folder tree & pack manifest...");
-                }
-                var manifestPath = Path.Combine(packRoot, "manifest.json");
-                if (File.Exists(manifestPath))
-                {
-                    CurrentManifest = ManifestModel.LoadFromFile(manifestPath, PackName ?? Path.GetFileName(packRoot));
-                }
-                else
-                {
-                    CurrentManifest = null;
-                }
-
-                BuildFolderTree();
-                NotifyPackStateChanged();
-                if (isInitialLoad)
-                {
-                    ScanProgressChanged?.Invoke("scan_done", 5, 5, "Pack ready");
-                }
-                IsScanning = false;
-            }
         }
-        finally
-        {
-            _rescanGate.Release();
-        }
-    }
 
-    /// <summary>
-    /// Performs a scoped rescan of the pack when a single category (Block, Item, Entity)
-    /// was mutated. Avoids rebuilding unaffected workspace trees, catalog trees, and folder structures.
-    /// </summary>
-    public async Task RescanScopedAsync(TextureCategory category)
-    {
-        if (_packRoot is null) return;
+        // Discard cached BitmapImages and flipbook frame slices so modified-on-disk textures reload fresh.
+        ImagePathConverter.ClearCache();
+        FlipbookAnimationManager.ClearCache();
 
-        await _rescanGate.WaitAsync();
+        var packRoot = _packRoot;
 
         try
         {
-            IsScanning = true;
-            StatusMessage = $"Updating {category.ToString().ToLowerInvariant()} textures...";
-
-            ImagePathConverter.ClearCache();
-            FlipbookAnimationManager.ClearCache();
-
-            var packRoot = _packRoot;
-
-            try
+            if (isInitialLoad)
             {
-                var results = await Task.Run(() => PackScanner.Scan(packRoot, _vanillaData));
+                ScanProgressChanged?.Invoke("scanning", 2, 5, "Scanning atlas textures & JSON declarations...");
+            }
+            var perfSw = System.Diagnostics.Stopwatch.StartNew();
+            var results = await Task.Run(() => PackScanner.Scan(packRoot, _vanillaData));
+            System.Diagnostics.Debug.WriteLine($"[PERF][RESCAN] scan={perfSw.ElapsedMilliseconds}ms aliases={results.Count}");
+            perfSw.Restart();
 
-                Aliases.Clear();
-                foreach (var alias in results)
-                    Aliases.Add(alias);
-                ApplySearchFilter();
+            Aliases.ReplaceRange(results);
+            ApplySearchFilter();
+            System.Diagnostics.Debug.WriteLine($"[PERF][RESCAN] populateAliases(UI)={perfSw.ElapsedMilliseconds}ms");
 
-                if (_vanillaData != null)
+            if (_vanillaData != null)
+            {
+                if (isInitialLoad)
                 {
-                    if (category == TextureCategory.Block)
-                    {
-                        var ws = await Task.Run(() => PackScanner.BuildBlockWorkspaceTree(results, _vanillaData, packRoot));
-                        BlockWorkspaceTree.Clear();
-                        foreach (var node in ws)
-                            BlockWorkspaceTree.Add(node);
-                    }
-                    else if (category == TextureCategory.Entity)
-                    {
-                        var ent = await Task.Run(() => PackScanner.BuildEntityWorkspaceTree(results, _vanillaData, packRoot));
-                        EntityWorkspaceTree.Clear();
-                        foreach (var node in ent)
-                            EntityWorkspaceTree.Add(node);
-                    }
+                    ScanProgressChanged?.Invoke("building_trees", 3, 5, "Building catalog & workspace models...");
                 }
+                perfSw.Restart();
+                var (catalogNodes, workspaceNodes, entityNodes) = await Task.Run(() =>
+                {
+                    var cat = PackScanner.BuildCatalogTree(results, _vanillaData, packRoot);
+                    var ws  = PackScanner.BuildBlockWorkspaceTree(results, _vanillaData, packRoot);
+                    var ent = PackScanner.BuildEntityWorkspaceTree(results, _vanillaData, packRoot);
+                    return (cat, ws, ent);
+                });
+                System.Diagnostics.Debug.WriteLine($"[PERF][RESCAN] buildTrees={perfSw.ElapsedMilliseconds}ms");
+                perfSw.Restart();
 
-                var blockCount = results.Count(a => a.Category == TextureCategory.Block);
-                var itemCount = results.Count(a => a.Category == TextureCategory.Item);
-                var ghostCount = results.Count(a => a.Status == TextureStatus.Ghost);
-                var orphanCount = results.Count(a => a.Status == TextureStatus.Orphan);
-                StatusMessage = orphanCount > 0
-                    ? $"{results.Count} textures found ({blockCount} blocks, {itemCount} items • {ghostCount} ghosts, {orphanCount} orphans)."
-                    : $"{results.Count} textures found ({blockCount} blocks, {itemCount} items • {ghostCount} ghosts).";
+                CatalogTree.ReplaceRange(catalogNodes);
+                FilteredCatalogTree.Refresh();
+
+                BlockWorkspaceTree.ReplaceRange(workspaceNodes);
+                EntityWorkspaceTree.ReplaceRange(entityNodes);
+                System.Diagnostics.Debug.WriteLine($"[PERF][RESCAN] populateTrees(UI)={perfSw.ElapsedMilliseconds}ms");
             }
-            catch (Exception ex)
-            {
-                StatusMessage = $"Scoped scan failed: {ex.Message}";
-            }
-            finally
-            {
-                NotifyPackStateScoped(category);
-                IsScanning = false;
-            }
+
+            var blockCount = results.Count(a => a.Category == TextureCategory.Block);
+            var itemCount = results.Count(a => a.Category == TextureCategory.Item);
+            var ghostCount = results.Count(a => a.Status == TextureStatus.Ghost);
+            var orphanCount = results.Count(a => a.Status == TextureStatus.Orphan);
+            StatusMessage = orphanCount > 0
+                ? $"{results.Count} textures found ({blockCount} blocks, {itemCount} items • {ghostCount} ghosts, {orphanCount} orphans)."
+                : $"{results.Count} textures found ({blockCount} blocks, {itemCount} items • {ghostCount} ghosts).";
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Scan failed: {ex.Message}";
         }
         finally
         {
-            _rescanGate.Release();
+            if (isInitialLoad)
+            {
+                ScanProgressChanged?.Invoke("building_folders", 4, 5, "Indexing folder tree & pack manifest...");
+            }
+            var manifestPath = Path.Combine(packRoot, "manifest.json");
+            if (File.Exists(manifestPath))
+            {
+                CurrentManifest = ManifestModel.LoadFromFile(manifestPath, PackName ?? Path.GetFileName(packRoot));
+            }
+            else
+            {
+                CurrentManifest = null;
+            }
+
+            BuildFolderTree();
+            NotifyPackStateChanged();
+            if (isInitialLoad)
+            {
+                ScanProgressChanged?.Invoke("scan_done", 5, 5, "Pack ready");
+            }
+            IsScanning = false;
+        }
+    }
+
+    private async Task ExecuteScopedRescanInternalAsync(TextureCategory category)
+    {
+        var dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher != null && !dispatcher.CheckAccess())
+        {
+            await dispatcher.InvokeAsync(() => ExecuteScopedRescanInternalAsync(category));
+            return;
+        }
+
+        if (_packRoot is null) return;
+
+        IsScanning = true;
+        StatusMessage = $"Updating {category.ToString().ToLowerInvariant()} textures...";
+
+        var packRoot = _packRoot;
+
+        try
+        {
+            var results = await Task.Run(() => PackScanner.Scan(packRoot, _vanillaData));
+
+            Aliases.ReplaceRange(results);
+            ApplySearchFilter();
+
+            if (_vanillaData != null)
+            {
+                if (category == TextureCategory.Block)
+                {
+                    var ws = await Task.Run(() => PackScanner.BuildBlockWorkspaceTree(results, _vanillaData, packRoot));
+                    BlockWorkspaceTree.ReplaceRange(ws);
+                }
+                else if (category == TextureCategory.Entity)
+                {
+                    var ent = await Task.Run(() => PackScanner.BuildEntityWorkspaceTree(results, _vanillaData, packRoot));
+                    EntityWorkspaceTree.ReplaceRange(ent);
+                }
+            }
+
+            var blockCount = results.Count(a => a.Category == TextureCategory.Block);
+            var itemCount = results.Count(a => a.Category == TextureCategory.Item);
+            var ghostCount = results.Count(a => a.Status == TextureStatus.Ghost);
+            var orphanCount = results.Count(a => a.Status == TextureStatus.Orphan);
+            StatusMessage = orphanCount > 0
+                ? $"{results.Count} textures found ({blockCount} blocks, {itemCount} items • {ghostCount} ghosts, {orphanCount} orphans)."
+                : $"{results.Count} textures found ({blockCount} blocks, {itemCount} items • {ghostCount} ghosts).";
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Scoped scan failed: {ex.Message}";
+        }
+        finally
+        {
+            NotifyPackStateScoped(category);
+            IsScanning = false;
         }
     }
 
@@ -1918,10 +2036,52 @@ public class MainViewModel : INotifyPropertyChanged
         return null;
     }
 
+    private static readonly HashSet<string> WatchedExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".png", ".tga", ".jpg", ".jpeg",
+        ".json", ".material", ".vertex", ".geometry", ".lang"
+    };
+
+    private static bool IsWatchedPackFile(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return false;
+
+        var fileName = Path.GetFileName(path);
+        if (string.IsNullOrEmpty(fileName)) return false;
+
+        // Ignore hidden, editor swap, or OS metadata files
+        if (fileName.StartsWith("~") || fileName.StartsWith(".")) return false;
+        if (fileName.Equals("Thumbs.db", StringComparison.OrdinalIgnoreCase) ||
+            fileName.Equals("desktop.ini", StringComparison.OrdinalIgnoreCase)) return false;
+
+        // Ignore temp/backup extensions
+        if (fileName.EndsWith(".tmp", StringComparison.OrdinalIgnoreCase) ||
+            fileName.EndsWith(".temp", StringComparison.OrdinalIgnoreCase) ||
+            fileName.EndsWith(".bak", StringComparison.OrdinalIgnoreCase) ||
+            fileName.EndsWith(".part", StringComparison.OrdinalIgnoreCase) ||
+            fileName.EndsWith(".swp", StringComparison.OrdinalIgnoreCase)) return false;
+
+        // Ignore git/vs internal paths
+        if (path.Contains("\\.git\\", StringComparison.OrdinalIgnoreCase) ||
+            path.Contains("/.git/", StringComparison.OrdinalIgnoreCase) ||
+            path.Contains("\\.vs\\", StringComparison.OrdinalIgnoreCase) ||
+            path.Contains("/.vs/", StringComparison.OrdinalIgnoreCase)) return false;
+
+        // Allow directories so user folder renames/additions are indexed
+        if (Directory.Exists(path)) return true;
+
+        var ext = Path.GetExtension(fileName);
+        return WatchedExtensions.Contains(ext);
+    }
+
     private void StartWatching()
     {
         _watcher?.Dispose();
         _watchDebounceTimer.Stop();
+        lock (_changedFilesLock)
+        {
+            _pendingChangedFiles.Clear();
+        }
         if (_packRoot is null || !Directory.Exists(_packRoot)) return;
 
         _watcher = new FileSystemWatcher(_packRoot)
@@ -1931,8 +2091,21 @@ public class MainViewModel : INotifyPropertyChanged
             EnableRaisingEvents = true
         };
 
-        void OnFileChanged(object sender, FileSystemEventArgs e)
+        void QueueChange(string path, string changeType)
         {
+            if (!IsWatchedPackFile(path)) return;
+
+            if (WriteJournal.IsSelfWrite(path))
+            {
+                System.Diagnostics.Debug.WriteLine($"[PERF][WATCHER] Suppressed self-write: {path} ({changeType})");
+                return;
+            }
+
+            lock (_changedFilesLock)
+            {
+                _pendingChangedFiles.Add(path);
+            }
+
             var dispatcher = Application.Current?.Dispatcher;
             if (dispatcher == null) return;
             dispatcher.InvokeAsync(() =>
@@ -1942,15 +2115,17 @@ public class MainViewModel : INotifyPropertyChanged
             });
         }
 
+        void OnFileChanged(object sender, FileSystemEventArgs e)
+        {
+            QueueChange(e.FullPath, e.ChangeType.ToString());
+        }
+
         void OnFileRenamed(object sender, RenamedEventArgs e)
         {
-            var dispatcher = Application.Current?.Dispatcher;
-            if (dispatcher == null) return;
-            dispatcher.InvokeAsync(() =>
-            {
-                _watchDebounceTimer.Stop();
-                _watchDebounceTimer.Start();
-            });
+            if (!string.IsNullOrEmpty(e.OldFullPath))
+                QueueChange(e.OldFullPath, "RenamedOld");
+            if (!string.IsNullOrEmpty(e.FullPath))
+                QueueChange(e.FullPath, "RenamedNew");
         }
 
         // Any create/delete/rename/change in pack root or textures/ refreshes existence in place
@@ -1961,32 +2136,176 @@ public class MainViewModel : INotifyPropertyChanged
         _watcher.Changed += OnFileChanged;
     }
 
-    private void RefreshExistence()
+    private void ProcessPendingWatcherChanges()
+    {
+        List<string> paths;
+        lock (_changedFilesLock)
+        {
+            if (_pendingChangedFiles.Count == 0) return;
+            paths = _pendingChangedFiles.ToList();
+            _pendingChangedFiles.Clear();
+        }
+
+        if (paths.Count == 0) return;
+
+        // Change classifier: TextureFileChanged vs JsonDeclarationChanged / Structural
+        var textureExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ".png", ".tga", ".jpg", ".jpeg"
+        };
+
+        bool anyStructuralOrJson = false;
+        foreach (var path in paths)
+        {
+            if (Directory.Exists(path))
+            {
+                anyStructuralOrJson = true;
+                break;
+            }
+
+            var ext = Path.GetExtension(path);
+            if (!textureExtensions.Contains(ext))
+            {
+                anyStructuralOrJson = true;
+                break;
+            }
+        }
+
+        if (anyStructuralOrJson)
+        {
+            System.Diagnostics.Debug.WriteLine($"[PERF][WATCHER] Structural/JSON change detected across {paths.Count} files. Triggering coalesced rescan.");
+            _ = RescanAsync();
+            return;
+        }
+
+        // All changed files are texture files (.png, .tga, etc.)
+        // Check if all changed paths map to existing in-memory aliases
+        var matchedAliases = new List<TextureAlias>();
+        bool anyUnmatched = false;
+
+        foreach (var path in paths)
+        {
+            string norm;
+            try
+            {
+                norm = Path.GetFullPath(path);
+            }
+            catch
+            {
+                norm = path;
+            }
+
+            // Check pack_icon.png
+            if (norm.EndsWith("pack_icon.png", StringComparison.OrdinalIgnoreCase))
+            {
+                ImagePathConverter.Invalidate(norm);
+                OnPropertyChanged(nameof(HasPackIcon));
+                OnPropertyChanged(nameof(PackIconPath));
+            }
+
+            var matches = Aliases.Where(a =>
+                !string.IsNullOrEmpty(a.FullPath) &&
+                string.Equals(Path.GetFullPath(a.FullPath), norm, StringComparison.OrdinalIgnoreCase)
+            ).ToList();
+
+            if (matches.Count == 0)
+            {
+                anyUnmatched = true;
+                break;
+            }
+
+            matchedAliases.AddRange(matches);
+        }
+
+        if (anyUnmatched || matchedAliases.Count == 0)
+        {
+            System.Diagnostics.Debug.WriteLine($"[PERF][WATCHER] Unmatched texture path detected. Triggering coalesced rescan for orphan/tree resolution.");
+            _ = RescanAsync();
+            return;
+        }
+
+        System.Diagnostics.Debug.WriteLine($"[PERF][WATCHER] Texture-only change detected for {matchedAliases.Count} aliases ({paths.Count} files). Applying incremental update.");
+        HandleTextureFilesChanged(matchedAliases);
+    }
+
+    public void HandleTextureFilesChanged(IEnumerable<TextureAlias> aliases)
     {
         var dispatcher = Application.Current?.Dispatcher;
         if (dispatcher != null && !dispatcher.CheckAccess())
         {
-            dispatcher.Invoke(RefreshExistence);
+            dispatcher.Invoke(() => HandleTextureFilesChanged(aliases));
             return;
         }
 
-        ImagePathConverter.ClearCache();
-        FlipbookAnimationManager.ClearCache();
+        var uniqueAliases = aliases.Distinct().ToList();
+        if (uniqueAliases.Count == 0) return;
 
-        foreach (var alias in Aliases)
+        bool countsChanged = false;
+
+        foreach (var alias in uniqueAliases)
         {
+            var exists = File.Exists(alias.FullPath);
+            var prevStatus = alias.Status;
+
+            ImagePathConverter.Invalidate(alias.FullPath);
+            FlipbookAnimationManager.Invalidate(alias.FullPath);
+
             if (alias.Status == TextureStatus.Orphan)
             {
-                alias.Status = File.Exists(alias.FullPath) ? TextureStatus.Orphan : TextureStatus.Ghost;
+                alias.Status = exists ? TextureStatus.Orphan : TextureStatus.Ghost;
             }
             else if (alias.Status != TextureStatus.NoEntry)
             {
-                alias.Status = File.Exists(alias.FullPath) ? TextureStatus.Ok : TextureStatus.Ghost;
+                alias.Status = exists ? TextureStatus.Ok : TextureStatus.Ghost;
             }
+
+            if (alias.Status != prevStatus)
+            {
+                countsChanged = true;
+            }
+
+            UpdateLeavesForAlias(CatalogTree, alias, exists);
+            UpdateLeavesForAlias(BlockWorkspaceTree, alias, exists);
+            UpdateLeavesForAlias(EntityWorkspaceTree, alias, exists);
+
+            TextureUpdated?.Invoke(alias);
         }
 
-        // Synchronize CatalogTree leaves and refresh thumbnails
-        foreach (var block in CatalogTree)
+        if (countsChanged)
+        {
+            RefreshTreeCounts();
+            var blockCount = Aliases.Count(a => a.Category == TextureCategory.Block);
+            var itemCount = Aliases.Count(a => a.Category == TextureCategory.Item);
+            var ghostCount = Aliases.Count(a => a.Status == TextureStatus.Ghost);
+            var orphanCount = Aliases.Count(a => a.Status == TextureStatus.Orphan);
+
+            StatusMessage = orphanCount > 0
+                ? $"{Aliases.Count} textures ({blockCount} blocks, {itemCount} items • {ghostCount} ghosts, {orphanCount} orphans)."
+                : $"{Aliases.Count} textures ({blockCount} blocks, {itemCount} items • {ghostCount} ghosts).";
+
+            OnPropertyChanged(nameof(TotalGhostCount));
+            OnPropertyChanged(nameof(TotalAddedCount));
+            OnPropertyChanged(nameof(TotalOrphanCount));
+            OnPropertyChanged(nameof(TotalAliasCount));
+            OnPropertyChanged(nameof(AllGhostCount));
+            OnPropertyChanged(nameof(AllAliasCount));
+            OnPropertyChanged(nameof(BlocksGhostCount));
+            OnPropertyChanged(nameof(ItemsGhostCount));
+            OnPropertyChanged(nameof(BlocksTotalCount));
+            OnPropertyChanged(nameof(ItemsTotalCount));
+            OnPropertyChanged(nameof(FilterStatusLabel));
+            OnPropertyChanged(nameof(IsFilterActive));
+            OnPropertyChanged(nameof(WindowTitle));
+            FilteredAliases.Refresh();
+            FilteredCatalogTree?.Refresh();
+        }
+    }
+
+    private static void UpdateLeavesForAlias(IEnumerable<BlockGroupNode>? tree, TextureAlias alias, bool exists)
+    {
+        if (tree == null) return;
+
+        foreach (var block in tree)
         {
             bool blockChanged = false;
             foreach (var ag in block.AliasGroups)
@@ -1994,33 +2313,25 @@ public class MainViewModel : INotifyPropertyChanged
                 bool agChanged = false;
                 foreach (var leaf in ag.Leaves)
                 {
-                    if (leaf.TextureAlias != null)
+                    if (leaf.TextureAlias == alias ||
+                        (!string.IsNullOrEmpty(leaf.FullPath) && string.Equals(leaf.FullPath, alias.FullPath, StringComparison.OrdinalIgnoreCase)))
                     {
-                        var newStatus = leaf.TextureAlias.Status switch
+                        var newStatus = alias.Status switch
                         {
                             TextureStatus.Ok => CatalogEntryStatus.Ok,
                             TextureStatus.Ghost => CatalogEntryStatus.Ghost,
                             TextureStatus.Orphan => CatalogEntryStatus.Orphan,
-                            _ => CatalogEntryStatus.Ok
+                            _ => exists ? CatalogEntryStatus.VanillaOverride : CatalogEntryStatus.NotAdded
                         };
-                        if (leaf.Status != newStatus)
-                        {
-                            leaf.Status = newStatus;
-                            agChanged = true;
-                        }
-                    }
-                    else if (leaf.Status == CatalogEntryStatus.NotAdded || leaf.Status == CatalogEntryStatus.VanillaOverride)
-                    {
-                        var exists = File.Exists(leaf.FullPath);
-                        var newStatus = exists ? CatalogEntryStatus.VanillaOverride : CatalogEntryStatus.NotAdded;
-                        if (leaf.Status != newStatus)
-                        {
-                            leaf.Status = newStatus;
-                            agChanged = true;
-                        }
-                    }
 
-                    leaf.RefreshThumbnail();
+                        if (leaf.Status != newStatus)
+                        {
+                            leaf.Status = newStatus;
+                            agChanged = true;
+                        }
+
+                        leaf.RefreshThumbnail();
+                    }
                 }
 
                 if (agChanged)
@@ -2035,35 +2346,6 @@ public class MainViewModel : INotifyPropertyChanged
                 block.NotifyCountsChanged();
             }
         }
-
-        RefreshTreeCounts();
-
-        var blockCount = Aliases.Count(a => a.Category == TextureCategory.Block);
-        var itemCount = Aliases.Count(a => a.Category == TextureCategory.Item);
-        var ghostCount = Aliases.Count(a => a.Status == TextureStatus.Ghost);
-        var orphanCount = Aliases.Count(a => a.Status == TextureStatus.Orphan);
-
-        StatusMessage = orphanCount > 0
-            ? $"{Aliases.Count} textures ({blockCount} blocks, {itemCount} items • {ghostCount} ghosts, {orphanCount} orphans)."
-            : $"{Aliases.Count} textures ({blockCount} blocks, {itemCount} items • {ghostCount} ghosts).";
-
-        OnPropertyChanged(nameof(TotalGhostCount));
-        OnPropertyChanged(nameof(TotalAddedCount));
-        OnPropertyChanged(nameof(TotalOrphanCount));
-        OnPropertyChanged(nameof(TotalAliasCount));
-        OnPropertyChanged(nameof(AllGhostCount));
-        OnPropertyChanged(nameof(AllAliasCount));
-        OnPropertyChanged(nameof(BlocksGhostCount));
-        OnPropertyChanged(nameof(ItemsGhostCount));
-        OnPropertyChanged(nameof(BlocksTotalCount));
-        OnPropertyChanged(nameof(ItemsTotalCount));
-        OnPropertyChanged(nameof(FilterStatusLabel));
-        OnPropertyChanged(nameof(IsFilterActive));
-        OnPropertyChanged(nameof(WindowTitle));
-        OnPropertyChanged(nameof(HasPackIcon));
-        OnPropertyChanged(nameof(PackIconPath));
-        FilteredAliases.Refresh();
-        FilteredCatalogTree.Refresh();
     }
 
     private void HandlePackIconClick()

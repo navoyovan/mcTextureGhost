@@ -228,6 +228,7 @@ public static class PackArchiveUtility
                                         if (!string.IsNullOrEmpty(targetDir) && !Directory.Exists(targetDir))
                                             Directory.CreateDirectory(targetDir);
 
+                                        WriteJournal.RecordWrite(targetAtlasPath);
                                         File.Copy(chosenSrc, targetAtlasPath, overwrite: true);
                                         break;
                                     }
@@ -315,6 +316,7 @@ public static class PackArchiveUtility
                     {
                         if (!Directory.Exists(destDir)) Directory.CreateDirectory(destDir);
                         var destAtlasPath = Path.Combine(destDir, candName);
+                        WriteJournal.RecordWrite(destAtlasPath);
                         File.Copy(srcAtlasFound, destAtlasPath, overwrite: true);
                     }
                 }

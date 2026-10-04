@@ -18,7 +18,25 @@
 ### v1.2.0 (Staging)
 - [ ] auto scaffold and detach face entries (like shared textures **ex:** `acacia_fence` using `acacia_planks` into `acacia_fence`) maybe default to its own alias but they might clash bcs acacia_planks alias is acacia_planks, get it?
 
-### v1.1.0 (Testing)
+### v1.1.1 (Released 2026-10-04)
+**Performance**
+- [x] Pre-computed `blockMetaMap` memo — derives per-block metadata (hasPackTexture, hasPackLeavesAdded, hasPackLeavesOrphan, hasMers, hasAtlas, hasFlipbook, hasTextureVariation, hasBlockstate, hasMergedVariation, searchTokens) from `blockWorkspaceTree` once, eliminating repeated allLeaves flatMap allocations on every filter tick
+- [x] Replaced all inline `allLeaves.some()` filter checks with O(1) lookups into `blockMetaMap`
+- [x] Consolidated search token matching into a single pre-joined string per block (blockId, displayName, aliases, relativePaths across all leaves and faceNodes)
+- [x] Replaced repeated `packAliases.some()` O(n) scans with pre-computed `packDeclaredBlockAliases` Set for O(1) alias lookups across filter pipeline, `declaredTerrainAliases`, and alias row rendering
+- [x] Replaced `catalogTree.some()` O(n) scans with pre-computed `catalogBlockIdSet`, `vanillaCatalogAliases`, and `vanillaFallbackAliasSet` Sets
+- [x] Switched IPC handler dispatch from `queueMicrotask` to `setTimeout(0)` to ensure handlers run after the current render cycle
+
+**Bug Fixes**
+- [x] Fixed ghost leaf detection — leaves with no `fullPath` and non-OK/OVERRIDE status are now correctly treated as ghost, preventing blank textures from loading in Block3DViewer
+- [x] Fixed delete-block race condition — split `setPendingAliasOp` loop from `deleteTextureEntries` loop so all ops are marked pending before any async delete fires
+- [x] Fixed `isActive` prop on block list items using object equality instead of `selectedBlockId` string comparison
+- [x] Guard Block3DViewer render behind `disable3DView` store flag
+- [x] Fixed IPC desync by adding write journaling and explicit `HandleTextureFilesChanged` triggers when processing frontend texture creation/updates
+t `assets` folder to exclude them from the production bundle
+- [x] Fixed capitalization references across the README (`McTextureGhost` → `mcTextureGhost`)
+
+### v1.1.0 (Released 2026-10-01)
 **Improvements**
 - [x] Optimistic UI updates across all texture interactables — instant feedback for additions, deletions, and variations without waiting for disk I/O
 - [x] Skeleton loading states and granular store flags for smoother, non-blocking background rescans

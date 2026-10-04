@@ -115,6 +115,8 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
     public IIpcBridgeService? IpcBridge => _ipcBridge;
     public MainViewModel ViewModel => (MainViewModel)DataContext;
     public Microsoft.Web.WebView2.Wpf.WebView2 BrowserView => WebView;
+    private PackStatePayload? _lastPushedState;
+    private long _patchSeq;
 
     public MainWindow()
     {
@@ -381,8 +383,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         {
             Dispatcher.Invoke(() =>
             {
-                _ipcBridge?.SetPackVirtualHost(ViewModel.PackRootPath);
-                _ipcBridge?.PushPackState(CreatePackStatePayload(includeAllTrees: true));
+                PushPackStateOrPatch(includeAllTrees: true);
             });
         };
 
@@ -390,7 +391,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         {
             Dispatcher.Invoke(() =>
             {
-                _ipcBridge?.PushPackState(CreatePackStatePayload(includeAllTrees: false, categoryScope: category));
+                PushPackStateOrPatch(includeAllTrees: false, categoryScope: category);
             });
         };
 
@@ -422,8 +423,34 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
             if (e.PropertyName == nameof(MainViewModel.PackRootPath))
             {
                 _ipcBridge?.SetPackVirtualHost(ViewModel.PackRootPath);
+                _lastPushedState = null;
             }
         };
+    }
+
+    private void PushPackStateOrPatch(bool includeAllTrees = true, TextureCategory? categoryScope = null, bool forceFull = false)
+    {
+        _ipcBridge?.SetPackVirtualHost(ViewModel.PackRootPath);
+        var currentState = CreatePackStatePayload(includeAllTrees: includeAllTrees, categoryScope: categoryScope);
+
+        if (forceFull || _lastPushedState == null)
+        {
+            _lastPushedState = currentState;
+            _ipcBridge?.PushPackState(currentState);
+            return;
+        }
+
+        var patch = PackStateDiffer.ComputeDiff(_lastPushedState, currentState, Interlocked.Increment(ref _patchSeq));
+        if (patch != null)
+        {
+            _lastPushedState = currentState;
+            _ipcBridge?.PushPackPatch(patch);
+        }
+        else
+        {
+            _lastPushedState = currentState;
+            _ipcBridge?.PushPackState(currentState);
+        }
     }
 
     private PackStatePayload CreatePackStatePayload(bool includeAllTrees = true, TextureCategory? categoryScope = null)

@@ -225,7 +225,8 @@ export const Block3DViewer: React.FC<Block3DViewerProps> = React.memo(({
       doubleSided?: boolean,
       flipbook?: FlipbookDefinitionDto | null
     ) => {
-      if (!url) {
+      const cleanUrl = (url || '').trim();
+      if (!cleanUrl) {
         return new THREE.MeshStandardMaterial({
           color: 0x3f3f46,
           roughness: 0.9,
@@ -303,8 +304,8 @@ export const Block3DViewer: React.FC<Block3DViewerProps> = React.memo(({
         );
       };
 
-      if (isTgaUrl(url)) {
-        loadTgaAsDataUrl(url)
+      if (isTgaUrl(cleanUrl)) {
+        loadTgaAsDataUrl(cleanUrl)
           .then((dataUrl) => {
             if (isMounted) loadWithUrl(dataUrl);
           })
@@ -315,7 +316,7 @@ export const Block3DViewer: React.FC<Block3DViewerProps> = React.memo(({
             }
           });
       } else {
-        loadWithUrl(url);
+        loadWithUrl(cleanUrl);
       }
 
       return mat;

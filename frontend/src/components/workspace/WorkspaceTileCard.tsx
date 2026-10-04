@@ -73,6 +73,12 @@ export const WorkspaceTileCard: React.FC<WorkspaceTileCardProps> = React.memo(({
   const packRoot = usePackStore((s) => s.packRoot);
   const packAliases = usePackStore((s) => s.aliases);
 
+  // Index aliases for this card's specific alias to avoid O(N) array scans across all pack aliases
+  const groupStoreAliases = useMemo(() => {
+    const target = alias.toLowerCase();
+    return packAliases.filter((a) => a.alias.toLowerCase() === target && a.status !== 'ORPHAN');
+  }, [packAliases, alias]);
+
   const handleUpdateWeight = useCallback((leaf: CatalogLeafDto, weight: number) => {
     if (!leaf.relativePath) return;
     packStoreActions.optimisticSetVariationWeight(leaf.alias, leaf.relativePath, weight);
@@ -91,12 +97,8 @@ export const WorkspaceTileCard: React.FC<WorkspaceTileCardProps> = React.memo(({
 
   const findStoreAlias = useCallback((targetLeaf: CatalogLeafDto) => {
     const targetRel = (targetLeaf.relativePath || '').replace(/\\/g, '/').toLowerCase().replace(/\.(png|tga)$/i, '');
-    const targetAlias = targetLeaf.alias.toLowerCase();
 
-    return packAliases.find((a) => {
-      if (a.status === 'ORPHAN') return false;
-      if (a.alias.toLowerCase() !== targetAlias) return false;
-
+    return groupStoreAliases.find((a) => {
       // 1. If both declare relativePath, match strictly by relative path
       if (targetRel && a.relativePath) {
         const aRel = a.relativePath.replace(/\\/g, '/').toLowerCase().replace(/\.(png|tga)$/i, '');
@@ -117,7 +119,7 @@ export const WorkspaceTileCard: React.FC<WorkspaceTileCardProps> = React.memo(({
 
       return true;
     });
-  }, [packAliases]);
+  }, [groupStoreAliases]);
 
   // Drag and drop state
   const [dragSlotIndex, setDragSlotIndex] = useState<number | null>(null);
@@ -130,26 +132,50 @@ export const WorkspaceTileCard: React.FC<WorkspaceTileCardProps> = React.memo(({
 
   const processImport = useCallback(
     (leaf: CatalogLeafDto, file: File) => {
+      const tImportStart = performance.now();
       const targetFullPath = resolveTextureFullPath(packRoot, leaf.fullPath, leaf.relativePath);
       if (!targetFullPath) return;
       // optimistic BEFORE file read — instant tile flip even for large files
       const previewUrl = URL.createObjectURL(file);
       packStoreActions.updateTexture(leaf.alias, 'OK', targetFullPath, previewUrl, leaf.relativePath);
 
-      const reader = new FileReader();
-      reader.onload = () => {
-        const base64Data = reader.result as string;
-        if (!base64Data) return;
+      const sourceFilePath = (file as any).path as string | undefined;
+      if (sourceFilePath) {
+        const totalMs = performance.now() - tImportStart;
+        console.log(`[PERF][IMPORT] file=${file.name} nativePath=${sourceFilePath} totalBeforeIpc=${totalMs.toFixed(1)}ms`);
         dropImportTexture({
           aliasKey: leaf.alias,
           fullPath: targetFullPath,
-          base64Data,
+          sourceFilePath,
           relativePath: leaf.relativePath,
           category: (leaf.category as string) || 'block',
           fileName: file.name,
         });
-      };
-      reader.readAsDataURL(file);
+      } else {
+        // Fallback: Use arrayBuffer() which stays off the main thread, then convert to base64 in small chunks
+        // to avoid locking the JS thread during encoding (readAsDataURL blocks on large files)
+        file.arrayBuffer().then((buffer) => {
+          const tEncodeStart = performance.now();
+          const bytes = new Uint8Array(buffer);
+          let binary = '';
+          const chunkSize = 8192;
+          for (let i = 0; i < bytes.length; i += chunkSize) {
+            binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+          }
+          const base64Data = `data:${file.type || 'image/png'};base64,${btoa(binary)}`;
+          const encodeMs = performance.now() - tEncodeStart;
+          const totalMs = performance.now() - tImportStart;
+          console.log(`[PERF][IMPORT] file=${file.name} size=${(file.size / 1024).toFixed(1)}KB encode=${encodeMs.toFixed(1)}ms totalBeforeIpc=${totalMs.toFixed(1)}ms`);
+          dropImportTexture({
+            aliasKey: leaf.alias,
+            fullPath: targetFullPath,
+            base64Data,
+            relativePath: leaf.relativePath,
+            category: (leaf.category as string) || 'block',
+            fileName: file.name,
+          });
+        }).catch((err) => console.error('[WorkspaceTileCard] Failed to read file buffer:', err));
+      }
     },
     [packRoot, dropImportTexture]
   );
@@ -167,23 +193,23 @@ export const WorkspaceTileCard: React.FC<WorkspaceTileCardProps> = React.memo(({
         });
       } else if (sourceData.imageUrl) {
         fetch(sourceData.imageUrl)
-          .then((res) => res.blob())
-          .then((blob) => {
-            const reader = new FileReader();
-            reader.onload = () => {
-              const base64Data = reader.result as string;
-              if (base64Data) {
-                dropImportTexture({
-                  aliasKey: leaf.alias,
-                  fullPath: targetFullPath,
-                  base64Data,
-                  relativePath: leaf.relativePath,
-                  category: (leaf.category as string) || 'block',
-                  fileName: `${sourceData.aliasKey}.png`,
-                });
-              }
-            };
-            reader.readAsDataURL(blob);
+          .then((res) => res.arrayBuffer())
+          .then((buffer) => {
+            const bytes = new Uint8Array(buffer);
+            let binary = '';
+            const chunkSize = 8192;
+            for (let i = 0; i < bytes.length; i += chunkSize) {
+              binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+            }
+            const base64Data = `data:image/png;base64,${btoa(binary)}`;
+            dropImportTexture({
+              aliasKey: leaf.alias,
+              fullPath: targetFullPath,
+              base64Data,
+              relativePath: leaf.relativePath,
+              category: (leaf.category as string) || 'block',
+              fileName: `${sourceData.aliasKey}.png`,
+            });
           })
           .catch((err) => console.error('[WorkspaceTileCard] Failed to fetch source texture blob:', err));
       }
@@ -513,16 +539,17 @@ export const WorkspaceTileCard: React.FC<WorkspaceTileCardProps> = React.memo(({
         {leaves.map((leaf, i) => {
           const leafName = getLeafTitle(leaf, alias);
           const storeAlias = findStoreAlias(leaf);
-          const isLeafGhost = storeAlias
-            ? storeAlias.status === 'GHOST' || !storeAlias.exists
-            : leaf.status === 'GHOST' || (!leaf.fullPath && leaf.status !== 'OK' && leaf.status !== 'OVERRIDE');
+          const isLeafGhost =
+            leaf.status === 'GHOST' ||
+            (storeAlias && (storeAlias.status === 'GHOST' || storeAlias.exists === false)) ||
+            (!leaf.fullPath && leaf.status !== 'OK' && leaf.status !== 'OVERRIDE');
           const baseImgUrl = isLeafGhost ? '' : (leaf.imageUrl || storeAlias?.imageUrl || '');
           const resolvedImgUrl = isLeafGhost
             ? ''
             : (baseImgUrl || (packRoot
               ? (leaf.fullPath && leaf.fullPath.startsWith(packRoot)
                 ? `https://pack.local/${normalizePath(leaf.fullPath.slice(packRoot.length).replace(/^[/\\]+/, ''))}`
-                : leaf.relativePath
+                : (leaf.status === 'OK' || leaf.status === 'OVERRIDE') && leaf.relativePath
                 ? `https://pack.local/${normalizePath(leaf.relativePath.replace(/^[/\\]+/, ''))}`
                 : '')
               : ''));
@@ -582,7 +609,6 @@ export const WorkspaceTileCard: React.FC<WorkspaceTileCardProps> = React.memo(({
                     className={`${styles.leafThumb} ${deletingSlotIndex === i ? styles.leafThumbDeleting : ''}`}
                     isFlipbook={leaf.isFlipbook || Boolean(leaf.hasAtlas)}
                     flipbook={leaf.flipbook}
-                    loading="lazy"
                   />
                 ) : (
                   <span key="ghost" className={styles.leafGhost}>?</span>

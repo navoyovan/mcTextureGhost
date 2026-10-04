@@ -17,7 +17,58 @@ export interface BlockEntryTreeProps {
   onTileClick?: (domEl: HTMLElement, leaf: CatalogLeafDto, key: string) => void;
 }
 
-export const BlockEntryTree: React.FC<BlockEntryTreeProps> = ({ block, onTileClick }) => {
+const EMPTY_ALIASES: any[] = [];
+
+// Shared module-level cache for vanilla catalog aliases so hundreds of BlockEntryTree instances don't re-scan catalogTree
+let cachedCatalogTreeRef: any = null;
+let cachedVanillaCatalogAliases = new Set<string>();
+
+function getVanillaCatalogAliases(catalogTree: any): Set<string> {
+  if (!catalogTree) return cachedVanillaCatalogAliases;
+  if (catalogTree === cachedCatalogTreeRef) return cachedVanillaCatalogAliases;
+  const set = new Set<string>();
+  for (let i = 0; i < catalogTree.length; i++) {
+    const cb = catalogTree[i];
+    if (cb?.aliasGroups) {
+      for (let j = 0; j < cb.aliasGroups.length; j++) {
+        const ca = cb.aliasGroups[j];
+        if (ca?.alias && !ca.leaves?.some((l: any) => l.subtitleCaption?.toLowerCase() === 'missing declaration')) {
+          set.add(ca.alias.toLowerCase());
+        }
+      }
+    }
+  }
+  cachedCatalogTreeRef = catalogTree;
+  cachedVanillaCatalogAliases = set;
+  return set;
+}
+
+// Shared module-level cache for declared block aliases
+let cachedPackAliasesRef: any = null;
+let cachedHasTerrainRef: boolean = false;
+let cachedDeclaredBlockAliases = new Set<string>();
+
+function getPackDeclaredBlockAliases(packAliases: any, hasTerrainTextureJson: boolean): Set<string> {
+  if (!hasTerrainTextureJson || !packAliases) {
+    return new Set<string>();
+  }
+  if (packAliases === cachedPackAliasesRef && hasTerrainTextureJson === cachedHasTerrainRef) {
+    return cachedDeclaredBlockAliases;
+  }
+  const set = new Set<string>();
+  for (let i = 0; i < packAliases.length; i++) {
+    const a = packAliases[i];
+    if (a && a.alias && a.category?.toLowerCase() === 'block' && a.status !== 'ORPHAN' && a.isUserDefined !== false) {
+      set.add(a.alias.toLowerCase());
+    }
+  }
+  cachedPackAliasesRef = packAliases;
+  cachedHasTerrainRef = hasTerrainTextureJson;
+  cachedDeclaredBlockAliases = set;
+  return set;
+}
+
+export const BlockEntryTree: React.FC<BlockEntryTreeProps> = React.memo(({ block, onTileClick }) => {
   const [collapsedNodes, setCollapsedNodes] = useState<Record<string, boolean>>({});
   const [isMinimized, setIsMinimized] = useState<boolean>(true);
 
@@ -26,12 +77,34 @@ export const BlockEntryTree: React.FC<BlockEntryTreeProps> = ({ block, onTileCli
     setIsMinimized((prev) => !prev);
   };
 
-  const packAliases = usePackStore((s) => s.aliases);
+  const packAliases = usePackStore((s) => s.aliases || EMPTY_ALIASES);
   const packFolders = usePackStore((s) => s.packFolders);
   const catalogTree = usePackStore((s) => s.catalogTree);
 
   const hasTerrainTextureJson = useMemo(() => checkTerrainTextureJson(packFolders), [packFolders]);
   const hasBlocksJson = useMemo(() => checkBlocksJson(packFolders), [packFolders]);
+
+  const packDeclaredBlockAliases = useMemo(
+    () => getPackDeclaredBlockAliases(packAliases, hasTerrainTextureJson),
+    [packAliases, hasTerrainTextureJson]
+  );
+
+  const vanillaCatalogAliases = useMemo(
+    () => getVanillaCatalogAliases(catalogTree),
+    [catalogTree]
+  );
+
+  const vanillaFallbackAliasSet = useMemo(() => {
+    const set = new Set<string>();
+    if (!packAliases) return set;
+    for (let i = 0; i < packAliases.length; i++) {
+      const a = packAliases[i];
+      if (a && a.alias && a.category?.toLowerCase() === 'block' && (a as any).isUserDefined === false) {
+        set.add(a.alias.toLowerCase());
+      }
+    }
+    return set;
+  }, [packAliases]);
 
   const toggleNode = (nodeId: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
@@ -69,13 +142,7 @@ export const BlockEntryTree: React.FC<BlockEntryTreeProps> = ({ block, onTileCli
 
       const isDeclaredInPackTerrain =
         hasTerrainTextureJson &&
-        packAliases.some(
-          (a) =>
-            a.alias.toLowerCase() === aliasKey &&
-            a.category.toLowerCase() === 'block' &&
-            a.status !== 'ORPHAN' &&
-            a.isUserDefined !== false
-        );
+        packDeclaredBlockAliases.has(aliasKey);
 
       // An alias is missing if any of its leaves explicitly indicate missing declaration
       const hasMissingDeclarationLeaf = ag.leaves?.some(
@@ -89,15 +156,8 @@ export const BlockEntryTree: React.FC<BlockEntryTreeProps> = ({ block, onTileCli
         !isDeclaredInPackTerrain &&
         !hasMissingDeclarationLeaf &&
         (catalogTree && catalogTree.length > 0
-          ? catalogTree.some((cb) =>
-              cb.aliasGroups?.some((ca) => ca.alias.toLowerCase() === aliasKey && !ca.leaves?.some(l => l.subtitleCaption?.toLowerCase() === 'missing declaration'))
-            )
-          : packAliases.some(
-              (a) =>
-                a.alias.toLowerCase() === aliasKey &&
-                a.category.toLowerCase() === 'block' &&
-                (a as any).isUserDefined === false
-            ));
+          ? vanillaCatalogAliases.has(aliasKey)
+          : vanillaFallbackAliasSet.has(aliasKey));
 
       const rawLeaves = [
         ...(ag.leaves ?? []),
@@ -163,7 +223,7 @@ export const BlockEntryTree: React.FC<BlockEntryTreeProps> = ({ block, onTileCli
     }
 
     return list;
-  }, [declaredAliases, packAliases, hasTerrainTextureJson, catalogTree, block.blockId]);
+  }, [declaredAliases, packAliases, hasTerrainTextureJson, catalogTree, block.blockId, packDeclaredBlockAliases, vanillaCatalogAliases, vanillaFallbackAliasSet]);
 
   // Calculate total visible lines across blocks.json and terrain_texture.json
   const visibleLines = useMemo(() => {
@@ -351,7 +411,7 @@ export const BlockEntryTree: React.FC<BlockEntryTreeProps> = ({ block, onTileCli
       </div>
     </div>
   );
-};
+});
 
 interface TextureLeafRowProps {
   leaf: CatalogLeafDto;
@@ -389,10 +449,17 @@ const TextureLeafRow: React.FC<TextureLeafRowProps> = ({ leaf, onTileClick }) =>
       title={isVanilla ? 'Vanilla fallback texture' : isGhost ? 'Missing texture file (Ghost)' : 'Existing texture file'}
     >
       <div className={styles.treeRowMain}>
-        <div className={styles.chevronPlaceholder} />
-
-        {leaf.imageUrl && (
-          <img src={leaf.imageUrl} alt="" className={styles.thumbPreview} loading="lazy" />
+        {!isGhost && leaf.imageUrl && (
+          <img
+            src={leaf.imageUrl}
+            alt=""
+            className={styles.thumbPreview}
+            loading="lazy"
+            decoding="async"
+            onError={(e) => {
+              (e.currentTarget as HTMLElement).style.display = 'none';
+            }}
+          />
         )}
 
         <span className={styles.nodeLabel}>

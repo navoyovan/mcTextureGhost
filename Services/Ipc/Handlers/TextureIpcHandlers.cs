@@ -42,13 +42,16 @@ public static class TextureIpcHandlers
                     var dir = Path.GetDirectoryName(payload.FullPath);
                     if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
                     {
+                        WriteJournal.RecordWrite(dir);
                         Directory.CreateDirectory(dir);
                     }
+                    WriteJournal.RecordWrite(payload.FullPath);
                     PlaceholderImageFactory.CreateStub(payload.FullPath, 16);
                     ImagePathConverter.ClearCache();
                     if (alias != null)
                     {
                         alias.Status = TextureStatus.Ok;
+                        vm.HandleTextureFilesChanged(new[] { alias });
                     }
                     var relPath = alias?.RelativePath ?? Path.GetFileName(payload.FullPath);
                     bridge.PushTextureUpdated(
@@ -84,7 +87,8 @@ public static class TextureIpcHandlers
                 {
                     await Task.Run(async () =>
                     {
-                        ImagePathConverter.ClearCache();
+                        ImagePathConverter.Invalidate(payload.FullPath);
+                        FlipbookAnimationManager.Invalidate(payload.FullPath);
                         bool deleted = false;
                         Exception? lastEx = null;
                         for (int attempt = 0; attempt < 5; attempt++)
@@ -93,6 +97,7 @@ public static class TextureIpcHandlers
                             {
                                 if (File.Exists(payload.FullPath))
                                 {
+                                    WriteJournal.RecordWrite(payload.FullPath);
                                     File.Delete(payload.FullPath);
                                 }
                                 deleted = true;
@@ -111,9 +116,22 @@ public static class TextureIpcHandlers
                         }
                     });
 
-                    await dispatcher.InvokeAsync(async () =>
+                    await dispatcher.InvokeAsync(() =>
                     {
-                        await vm.RescanAsync();
+                        var normPath = Path.GetFullPath(payload.FullPath);
+                        var matches = vm.Aliases.Where(a =>
+                            !string.IsNullOrEmpty(a.FullPath) &&
+                            string.Equals(Path.GetFullPath(a.FullPath), normPath, StringComparison.OrdinalIgnoreCase)
+                        ).ToList();
+
+                        if (matches.Count > 0)
+                        {
+                            vm.HandleTextureFilesChanged(matches);
+                        }
+                        else
+                        {
+                            _ = vm.RescanAsync();
+                        }
                     });
                 }
                 catch (Exception ex)
@@ -132,7 +150,12 @@ public static class TextureIpcHandlers
             try
             {
                 await Task.Run(() => JsonWriterService.DeleteTextureEntries(packRoot, payload.AliasKey, payload.Category, payload.RelativePath));
-                await dispatcher.InvokeAsync(async () => await vm.RescanAsync());
+                var cat = string.Equals(payload.Category, "entity", StringComparison.OrdinalIgnoreCase)
+                    ? TextureCategory.Entity
+                    : string.Equals(payload.Category, "item", StringComparison.OrdinalIgnoreCase)
+                        ? TextureCategory.Item
+                        : TextureCategory.Block;
+                await dispatcher.InvokeAsync(async () => await vm.RescanScopedAsync(cat));
             }
             catch (Exception ex)
             {
@@ -223,34 +246,50 @@ public static class TextureIpcHandlers
         // 5. TEXTURE:DROP_IMPORT
         bridge.RegisterHandler<TextureDropImportPayload>(IpcMessageTypes.TextureDropImport, async (payload, corrId) =>
         {
-            await dispatcher.InvokeAsync(async () =>
+            if (payload == null || string.IsNullOrWhiteSpace(payload.FullPath) || (string.IsNullOrWhiteSpace(payload.Base64Data) && string.IsNullOrWhiteSpace(payload.SourceFilePath)))
             {
-                if (payload == null || string.IsNullOrWhiteSpace(payload.FullPath) || string.IsNullOrWhiteSpace(payload.Base64Data))
+                bridge.PushError("Import Failed", "Invalid drop payload or missing file data.", "error");
+                return;
+            }
+
+            try
+            {
+                var targetPath = payload.FullPath;
+                var dir = Path.GetDirectoryName(targetPath);
+                if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
                 {
-                    bridge.PushError("Import Failed", "Invalid drop payload or missing file data.", "error");
-                    return;
+                    WriteJournal.RecordWrite(dir);
+                    Directory.CreateDirectory(dir);
                 }
 
-                try
+                // Decode base64 or copy directly from disk off the UI thread
+                await Task.Run(async () =>
                 {
-                    var targetPath = payload.FullPath;
-                    var dir = Path.GetDirectoryName(targetPath);
-                    if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+                    if (!string.IsNullOrWhiteSpace(payload.SourceFilePath) && File.Exists(payload.SourceFilePath))
                     {
-                        Directory.CreateDirectory(dir);
+                        WriteJournal.RecordWrite(targetPath);
+                        File.Copy(payload.SourceFilePath, targetPath, overwrite: true);
                     }
-
-                    var base64 = payload.Base64Data;
-                    var commaIdx = base64.IndexOf(',');
-                    if (commaIdx >= 0 && base64.Substring(0, commaIdx).Contains("base64"))
+                    else if (!string.IsNullOrWhiteSpace(payload.Base64Data))
                     {
-                        base64 = base64.Substring(commaIdx + 1);
+                        var base64 = payload.Base64Data;
+                        var commaIdx = base64.IndexOf(',');
+                        if (commaIdx >= 0 && base64.Substring(0, commaIdx).Contains("base64"))
+                        {
+                            base64 = base64.Substring(commaIdx + 1);
+                        }
+                        var bytes = Convert.FromBase64String(base64);
+
+                        WriteJournal.RecordWrite(targetPath);
+                        await File.WriteAllBytesAsync(targetPath, bytes);
                     }
-                    var bytes = Convert.FromBase64String(base64);
+                });
 
-                    await File.WriteAllBytesAsync(targetPath, bytes);
-
-                    ImagePathConverter.ClearCache();
+                // Update UI state and notify frontend on UI Dispatcher thread
+                await dispatcher.InvokeAsync(() =>
+                {
+                    ImagePathConverter.Invalidate(targetPath);
+                    FlipbookAnimationManager.Invalidate(targetPath);
 
                     var alias = vm.Aliases.FirstOrDefault(a =>
                         (!string.IsNullOrEmpty(a.FullPath) && a.FullPath.Equals(targetPath, StringComparison.OrdinalIgnoreCase)) ||
@@ -264,6 +303,7 @@ public static class TextureIpcHandlers
                     {
                         alias.Status = TextureStatus.Ok;
                         alias.FullPath = targetPath;
+                        vm.HandleTextureFilesChanged(new[] { alias });
                     }
 
                     var relPath = alias?.RelativePath ?? payload.RelativePath ?? Path.GetFileName(targetPath);
@@ -275,43 +315,48 @@ public static class TextureIpcHandlers
                         $"{virtualUrl}?t={DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}",
                         relPath
                     );
-
-                }
-                catch (Exception ex)
-                {
-                    bridge.PushError("Texture Drop Failed", ex.Message, "error");
-                }
-            });
+                });
+            }
+            catch (Exception ex)
+            {
+                bridge.PushError("Texture Drop Failed", ex.Message, "error");
+            }
         });
 
         // 6. TEXTURE:COPY_FILE
         bridge.RegisterHandler<TextureCopyFilePayload>(IpcMessageTypes.TextureCopyFile, async (payload, corrId) =>
         {
-            await dispatcher.InvokeAsync(async () =>
+            if (payload == null || string.IsNullOrWhiteSpace(payload.SourceFullPath) || string.IsNullOrWhiteSpace(payload.TargetFullPath))
             {
-                if (payload == null || string.IsNullOrWhiteSpace(payload.SourceFullPath) || string.IsNullOrWhiteSpace(payload.TargetFullPath))
+                bridge.PushError("Copy Failed", "Invalid copy payload or missing file path.", "error");
+                return;
+            }
+
+            if (!File.Exists(payload.SourceFullPath))
+            {
+                bridge.PushError("Copy Failed", $"Source file '{payload.SourceFullPath}' does not exist.", "error");
+                return;
+            }
+
+            try
+            {
+                var targetPath = payload.TargetFullPath;
+                var dir = Path.GetDirectoryName(targetPath);
+                if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
                 {
-                    bridge.PushError("Copy Failed", "Invalid copy payload or missing file path.", "error");
-                    return;
+                    Directory.CreateDirectory(dir);
                 }
 
-                if (!File.Exists(payload.SourceFullPath))
+                // Copy file off the UI thread
+                await Task.Run(() =>
                 {
-                    bridge.PushError("Copy Failed", $"Source file '{payload.SourceFullPath}' does not exist.", "error");
-                    return;
-                }
+                    WriteJournal.RecordWrite(targetPath);
+                    File.Copy(payload.SourceFullPath, targetPath, overwrite: true);
+                });
 
-                try
+                // Update UI state on UI Dispatcher thread
+                await dispatcher.InvokeAsync(() =>
                 {
-                    var targetPath = payload.TargetFullPath;
-                    var dir = Path.GetDirectoryName(targetPath);
-                    if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
-                    {
-                        Directory.CreateDirectory(dir);
-                    }
-
-                    await Task.Run(() => File.Copy(payload.SourceFullPath, targetPath, overwrite: true));
-
                     ImagePathConverter.ClearCache();
 
                     var alias = vm.Aliases.FirstOrDefault(a =>
@@ -337,13 +382,12 @@ public static class TextureIpcHandlers
                         $"{virtualUrl}?t={DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}",
                         relPath
                     );
-
-                }
-                catch (Exception ex)
-                {
-                    bridge.PushError("Texture Copy Failed", ex.Message, "error");
-                }
-            });
+                });
+            }
+            catch (Exception ex)
+            {
+                bridge.PushError("Texture Copy Failed", ex.Message, "error");
+            }
         });
 
         // 7. SCAFFOLD:PLAIN
@@ -419,6 +463,7 @@ public static class TextureIpcHandlers
 
                     if (sourceFile != null && File.Exists(sourceFile))
                     {
+                        WriteJournal.RecordWrite(targetFile);
                         File.Copy(sourceFile, targetFile, overwrite: true);
                     }
                     else
@@ -428,6 +473,7 @@ public static class TextureIpcHandlers
                         var vanillaSrc = PackArchiveUtility.ResolveReferenceTexturePath(refDir, targetFile, payload.RelativePath ?? newPath, payload.Alias, "block", packRoot);
                         if (!string.IsNullOrEmpty(vanillaSrc) && File.Exists(vanillaSrc))
                         {
+                            WriteJournal.RecordWrite(targetFile);
                             File.Copy(vanillaSrc, targetFile, overwrite: true);
                         }
                         else
@@ -479,13 +525,17 @@ public static class TextureIpcHandlers
                         var dir = Path.GetDirectoryName(payload.FullPath);
                         if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
                         {
+                            WriteJournal.RecordWrite(dir);
                             Directory.CreateDirectory(dir);
                         }
 
-                        File.Copy(srcPath, payload.FullPath, overwrite: true);
-
-                        // If there is an associated atlas / flipbook texture companion in reference pack, extract it too
-                        PackArchiveUtility.ExtractCompanionAtlasIfExists(refDir, srcPath, payload.FullPath, payload.AliasKey, vm.PackRootPath, vm.VanillaData);
+                        WriteJournal.RecordWrite(payload.FullPath);
+                        await Task.Run(() =>
+                        {
+                            File.Copy(srcPath, payload.FullPath, overwrite: true);
+                            // If there is an associated atlas / flipbook texture companion in reference pack, extract it too
+                            PackArchiveUtility.ExtractCompanionAtlasIfExists(refDir, srcPath, payload.FullPath, payload.AliasKey, vm.PackRootPath, vm.VanillaData);
+                        });
 
                         ImagePathConverter.ClearCache();
 
@@ -499,6 +549,7 @@ public static class TextureIpcHandlers
                         if (matchedAlias != null)
                         {
                             matchedAlias.Status = TextureStatus.Ok;
+                            vm.HandleTextureFilesChanged(new[] { matchedAlias });
                         }
 
                         var relPath = matchedAlias?.RelativePath ?? payload.RelativePath ?? Path.GetFileName(payload.FullPath);
@@ -509,8 +560,6 @@ public static class TextureIpcHandlers
                             IpcContractMapper.BuildVirtualTextureUrl(relPath, payload.FullPath, vm.PackRootPath),
                             relPath
                         );
-
-                        await vm.RescanAsync();
                     }
                     else
                     {

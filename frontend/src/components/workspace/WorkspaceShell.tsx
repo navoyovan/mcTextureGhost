@@ -20,12 +20,14 @@ export interface WorkspaceShellProps {
   previewContent?: React.ReactNode;
   children?: React.ReactNode;
   hasLangName?: boolean;
+  sidebarRef?: React.Ref<HTMLElement>;
 }
 
 export const WorkspaceShell: React.FC<WorkspaceShellProps> = ({
   listAriaLabel,
   listHeader,
   sidebarContent,
+  sidebarRef,
   hasSelection,
   emptySelectionText = 'Select an item to inspect',
   detailAriaLabel = 'Detail Pane',
@@ -59,6 +61,7 @@ export const WorkspaceShell: React.FC<WorkspaceShellProps> = ({
 
       {/* Left List */}
       <aside
+        ref={sidebarRef}
         className={`${styles.blockListPane} ${isListDrawerOpen ? styles.blockListPaneOpen : ''}`}
         aria-label={listAriaLabel}
       >
@@ -83,7 +86,7 @@ export const WorkspaceShell: React.FC<WorkspaceShellProps> = ({
           </div>
 
           {/* 3D Preview Collapsible Card */}
-          {show3DPreview && previewContent && (
+          {show3DPreview && (
             <div
               className={`${styles.previewTreeContainer} ${disable3DView ? styles.previewTreeContainerCollapsed : ''}`}
             >
@@ -115,11 +118,11 @@ export const WorkspaceShell: React.FC<WorkspaceShellProps> = ({
                 </div>
               </div>
 
-              <div
-                className={`${styles.previewTreeContentWrapper} ${disable3DView ? styles.previewTreeContentWrapperCollapsed : ''}`}
-              >
-                <div className={styles.previewTreeContentInner}>{previewContent}</div>
-              </div>
+              {!disable3DView && previewContent && (
+                <div className={styles.previewTreeContentWrapper}>
+                  <div className={styles.previewTreeContentInner}>{previewContent}</div>
+                </div>
+              )}
             </div>
           )}
 

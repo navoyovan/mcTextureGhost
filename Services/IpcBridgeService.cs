@@ -65,6 +65,9 @@ public interface IIpcBridgeService : IDisposable
     /// <summary>Convenience: pushes full pack state to web.</summary>
     void PushPackState(PackStatePayload state);
 
+    /// <summary>Convenience: pushes incremental pack patch to web.</summary>
+    void PushPackPatch(PackPatchPayload patch);
+
     /// <summary>Convenience: pushes scan progress update to web.</summary>
     void PushScanProgress(string stage, int current, int total, string message);
 
@@ -430,8 +433,11 @@ public sealed class IpcBridgeService : IIpcBridgeService
         if (_coreWebView2 == null || _dispatcher == null) return;
 
         // Perform JSON serialization on caller thread (zero UI-thread blocking for heavy objects)
+        var perfSw = Stopwatch.StartNew();
         var envelope = IpcEnvelope.Create(type, payload, correlationId);
         string json = JsonSerializer.Serialize(envelope, JsonOptions);
+        perfSw.Stop();
+        Debug.WriteLine($"[PERF][IPC OUT] {type} serialize={perfSw.ElapsedMilliseconds}ms size={json.Length / 1024}KB uiThread={_dispatcher.CheckAccess()}");
 
         if (_dispatcher.CheckAccess())
         {
@@ -474,6 +480,9 @@ public sealed class IpcBridgeService : IIpcBridgeService
 
     public void PushPackState(PackStatePayload state) =>
         PostMessage(IpcMessageTypes.PackStateChanged, state);
+
+    public void PushPackPatch(PackPatchPayload patch) =>
+        PostMessage(IpcMessageTypes.PackPatch, patch);
 
     public void PushScanProgress(string stage, int current, int total, string message) =>
         PostMessage(IpcMessageTypes.ScanProgress, new ScanProgressPayload(stage, current, total, message));

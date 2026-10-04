@@ -90,6 +90,7 @@ public static class IpcMessageTypes
 
     // Outgoing from C# to Web
     public const string PackStateChanged = "PACK:STATE_CHANGED";
+    public const string PackPatch        = "PACK:PATCH";
     public const string ScanProgress     = "SCAN:PROGRESS";
     public const string TextureUpdated   = "TEXTURE:UPDATED";
     public const string AppConfig        = "APP:CONFIG";
@@ -153,7 +154,8 @@ public record TextureDeleteFilePayload(
 public record TextureDropImportPayload(
     [property: JsonPropertyName("aliasKey")] string AliasKey,
     [property: JsonPropertyName("fullPath")] string FullPath,
-    [property: JsonPropertyName("base64Data")] string Base64Data,
+    [property: JsonPropertyName("base64Data")] string? Base64Data = null,
+    [property: JsonPropertyName("sourceFilePath")] string? SourceFilePath = null,
     [property: JsonPropertyName("relativePath")] string? RelativePath = null,
     [property: JsonPropertyName("category")] string? Category = null,
     [property: JsonPropertyName("fileName")] string? FileName = null
@@ -452,6 +454,25 @@ public record PackStatePayload(
     [property: JsonPropertyName("activeReferenceId")] string? ActiveReferenceId = null,
     [property: JsonPropertyName("entityWorkspaceTree")] List<BlockGroupNodeDto>? EntityWorkspaceTree = null,
     [property: JsonPropertyName("hasVanillaAssets")] bool HasVanillaAssets = false
+);
+
+/// <summary>
+/// Payload for "PACK:PATCH". Pushed after rescan when only a subset of entries/trees changed.
+/// Carries a monotonic sequence number so outdated patches can be safely discarded by the frontend.
+/// </summary>
+public record PackPatchPayload(
+    [property: JsonPropertyName("seq")] long Seq,
+    [property: JsonPropertyName("upsertAliases")] List<TextureAliasDto>? UpsertAliases = null,
+    [property: JsonPropertyName("removeAliasKeys")] List<string>? RemoveAliasKeys = null,
+    [property: JsonPropertyName("upsertBlocks")] List<BlockGroupNodeDto>? UpsertBlocks = null,
+    [property: JsonPropertyName("removeBlockIds")] List<string>? RemoveBlockIds = null,
+    [property: JsonPropertyName("upsertEntities")] List<BlockGroupNodeDto>? UpsertEntities = null,
+    [property: JsonPropertyName("removeEntityIds")] List<string>? RemoveEntityIds = null,
+    [property: JsonPropertyName("upsertCatalog")] List<BlockGroupNodeDto>? UpsertCatalog = null,
+    [property: JsonPropertyName("stats")] PackStatsDto? Stats = null,
+    [property: JsonPropertyName("manifest")] ManifestModelDto? Manifest = null,
+    [property: JsonPropertyName("hasPackIcon")] bool? HasPackIcon = null,
+    [property: JsonPropertyName("packIconUrl")] string? PackIconUrl = null
 );
 
 /// <summary>
