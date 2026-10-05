@@ -1557,57 +1557,70 @@ public class MainViewModel : INotifyPropertyChanged
 
     private async Task ExecuteScopedRescanInternalAsync(TextureCategory category)
     {
-        var dispatcher = Application.Current?.Dispatcher;
-        if (dispatcher != null && !dispatcher.CheckAccess())
-        {
-            await dispatcher.InvokeAsync(() => ExecuteScopedRescanInternalAsync(category));
-            return;
-        }
-
         if (_packRoot is null) return;
 
-        IsScanning = true;
-        StatusMessage = $"Updating {category.ToString().ToLowerInvariant()} textures...";
-
         var packRoot = _packRoot;
+        var dispatcher = Application.Current?.Dispatcher;
+
+        if (dispatcher != null)
+        {
+            await dispatcher.InvokeAsync(() =>
+            {
+                IsScanning = true;
+                StatusMessage = $"Updating {category.ToString().ToLowerInvariant()} textures...";
+            });
+        }
 
         try
         {
             var results = await Task.Run(() => PackScanner.Scan(packRoot, _vanillaData));
-
-            Aliases.ReplaceRange(results);
-            ApplySearchFilter();
+            List<BlockGroupNode>? ws = null;
+            List<BlockGroupNode>? ent = null;
 
             if (_vanillaData != null)
             {
                 if (category == TextureCategory.Block)
                 {
-                    var ws = await Task.Run(() => PackScanner.BuildBlockWorkspaceTree(results, _vanillaData, packRoot));
-                    BlockWorkspaceTree.ReplaceRange(ws);
+                    ws = await Task.Run(() => PackScanner.BuildBlockWorkspaceTree(results, _vanillaData, packRoot));
                 }
                 else if (category == TextureCategory.Entity)
                 {
-                    var ent = await Task.Run(() => PackScanner.BuildEntityWorkspaceTree(results, _vanillaData, packRoot));
-                    EntityWorkspaceTree.ReplaceRange(ent);
+                    ent = await Task.Run(() => PackScanner.BuildEntityWorkspaceTree(results, _vanillaData, packRoot));
                 }
             }
 
-            var blockCount = results.Count(a => a.Category == TextureCategory.Block);
-            var itemCount = results.Count(a => a.Category == TextureCategory.Item);
-            var ghostCount = results.Count(a => a.Status == TextureStatus.Ghost);
-            var orphanCount = results.Count(a => a.Status == TextureStatus.Orphan);
-            StatusMessage = orphanCount > 0
-                ? $"{results.Count} textures found ({blockCount} blocks, {itemCount} items • {ghostCount} ghosts, {orphanCount} orphans)."
-                : $"{results.Count} textures found ({blockCount} blocks, {itemCount} items • {ghostCount} ghosts).";
+            if (dispatcher != null)
+            {
+                await dispatcher.InvokeAsync(() =>
+                {
+                    Aliases.ReplaceRange(results);
+                    ApplySearchFilter();
+                    if (ws != null) BlockWorkspaceTree.ReplaceRange(ws);
+                    if (ent != null) EntityWorkspaceTree.ReplaceRange(ent);
+
+                    var blockCount = results.Count(a => a.Category == TextureCategory.Block);
+                    var itemCount = results.Count(a => a.Category == TextureCategory.Item);
+                    var ghostCount = results.Count(a => a.Status == TextureStatus.Ghost);
+                    var orphanCount = results.Count(a => a.Status == TextureStatus.Orphan);
+                    StatusMessage = orphanCount > 0
+                        ? $"{results.Count} textures found ({blockCount} blocks, {itemCount} items • {ghostCount} ghosts, {orphanCount} orphans)."
+                        : $"{results.Count} textures found ({blockCount} blocks, {itemCount} items • {ghostCount} ghosts).";
+
+                    NotifyPackStateScoped(category);
+                    IsScanning = false;
+                });
+            }
         }
         catch (Exception ex)
         {
-            StatusMessage = $"Scoped scan failed: {ex.Message}";
-        }
-        finally
-        {
-            NotifyPackStateScoped(category);
-            IsScanning = false;
+            if (dispatcher != null)
+            {
+                await dispatcher.InvokeAsync(() =>
+                {
+                    StatusMessage = $"Scoped scan failed: {ex.Message}";
+                    IsScanning = false;
+                });
+            }
         }
     }
 

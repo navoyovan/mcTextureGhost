@@ -33,8 +33,6 @@
 - [x] Fixed `isActive` prop on block list items using object equality instead of `selectedBlockId` string comparison
 - [x] Guard Block3DViewer render behind `disable3DView` store flag
 - [x] Fixed IPC desync by adding write journaling and explicit `HandleTextureFilesChanged` triggers when processing frontend texture creation/updates
-t `assets` folder to exclude them from the production bundle
-- [x] Fixed capitalization references across the README (`McTextureGhost` → `mcTextureGhost`)
 
 ### v1.1.0 (Released 2026-10-01)
 **Improvements**

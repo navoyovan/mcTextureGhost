@@ -389,7 +389,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
 
         ViewModel.PackStateScopedChanged += (category) =>
         {
-            Dispatcher.Invoke(() =>
+            Dispatcher.InvokeAsync(() =>
             {
                 PushPackStateOrPatch(includeAllTrees: false, categoryScope: category);
             });
@@ -397,7 +397,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
 
         ViewModel.TextureUpdated += (alias) =>
         {
-            Dispatcher.Invoke(() =>
+            Dispatcher.InvokeAsync(() =>
             {
                 _ipcBridge?.PushTextureUpdated(
                     alias.Alias,
@@ -412,7 +412,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
 
         ViewModel.ScanProgressChanged += (stage, current, total, message) =>
         {
-            Dispatcher.Invoke(() =>
+            Dispatcher.InvokeAsync(() =>
             {
                 _ipcBridge?.PushScanProgress(stage, current, total, message);
             });
@@ -428,7 +428,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         };
     }
 
-    private void PushPackStateOrPatch(bool includeAllTrees = true, TextureCategory? categoryScope = null, bool forceFull = false)
+    private async void PushPackStateOrPatch(bool includeAllTrees = true, TextureCategory? categoryScope = null, bool forceFull = false)
     {
         _ipcBridge?.SetPackVirtualHost(ViewModel.PackRootPath);
         var currentState = CreatePackStatePayload(includeAllTrees: includeAllTrees, categoryScope: categoryScope);
@@ -440,7 +440,9 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
             return;
         }
 
-        var patch = PackStateDiffer.ComputeDiff(_lastPushedState, currentState, Interlocked.Increment(ref _patchSeq));
+        var prevState = _lastPushedState;
+        var seq = Interlocked.Increment(ref _patchSeq);
+        var patch = await Task.Run(() => PackStateDiffer.ComputeDiff(prevState, currentState, seq));
         if (patch != null)
         {
             _lastPushedState = currentState;
