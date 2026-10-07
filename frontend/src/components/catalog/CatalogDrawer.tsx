@@ -245,12 +245,12 @@ export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose })
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, handleClose]);
 
-  const [displayLimit, setDisplayLimit] = useState(100);
+  const [displayLimit, setDisplayLimit] = useState(40);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 
   // Reset display limit and collapse items when query or filter changes
   useEffect(() => {
-    setDisplayLimit(100);
+    setDisplayLimit(40);
     setExpandedIds(new Set());
     if (scrollContainerRef.current) {
       scrollContainerRef.current.scrollTop = 0;
@@ -289,7 +289,7 @@ export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose })
     (e: React.UIEvent<HTMLDivElement>) => {
       const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
       if (scrollHeight - scrollTop - clientHeight < 400) {
-        setDisplayLimit((prev) => Math.min(prev + 100, filteredBlocks.length));
+        setDisplayLimit((prev) => Math.min(prev + 40, filteredBlocks.length));
       }
     },
     [filteredBlocks.length]
@@ -480,7 +480,7 @@ export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose })
                     blockKey={blockKey}
                     block={block}
                     isExpanded={isBlockExpanded(blockKey)}
-                    onToggleExpand={() => toggleExpand(blockKey)}
+                    onToggleExpand={toggleExpand}
                     onAdd={handleAdd}
                     isBlockUserDefined={isBlockUserDefined}
                     isEntityInWorkspace={isEntityInWorkspace}
@@ -497,7 +497,7 @@ export const CatalogDrawer: React.FC<CatalogDrawerProps> = ({ isOpen, onClose })
                     className={styles.loadMoreBtn}
                     onClick={() =>
                       setDisplayLimit((prev) =>
-                        Math.min(prev + 100, filteredBlocks.length)
+                        Math.min(prev + 40, filteredBlocks.length)
                       )
                     }
                   >

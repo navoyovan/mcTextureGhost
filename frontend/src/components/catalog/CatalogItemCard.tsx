@@ -1,5 +1,4 @@
-// frontend/src/components/catalog/CatalogItemCard.tsx
-import React, { useState } from 'react';
+import React, { useState, useCallback, memo } from 'react';
 import {
   ChevronRight,
   Zap,
@@ -80,10 +79,10 @@ export const LeafThumbnail: React.FC<{ leaf: CatalogLeafDto }> = ({ leaf }) => {
 /**
  * Tier 3: Leaf Row Component
  */
-export const CatalogLeafRow: React.FC<{
+export const CatalogLeafRow = memo<{
   leaf: CatalogLeafDto;
   blockDisplayName?: string;
-}> = ({ leaf, blockDisplayName }) => {
+}>(({ leaf, blockDisplayName }) => {
   const isAdded = leaf.status !== 'VANILLA';
 
   const getCheckStatusClass = (status: string) => {
@@ -184,12 +183,13 @@ export const CatalogLeafRow: React.FC<{
       </div>
     </div>
   );
-};
+});
+CatalogLeafRow.displayName = 'CatalogLeafRow';
 
 /**
  * Tier 2: Alias Group Component
  */
-export const CatalogAliasGroup: React.FC<{
+export const CatalogAliasGroup = memo<{
   aliasGroup: AliasGroupNodeDto;
   category: string;
   blockDisplayName?: string;
@@ -197,7 +197,7 @@ export const CatalogAliasGroup: React.FC<{
   onAdd: (id: string, category: string, alias?: string) => void;
   isAliasDeclaredInPack: (alias: string, category: string, parentBlockId?: string) => boolean;
   isOptimisticAdded?: boolean;
-}> = ({ aliasGroup, category, blockDisplayName, parentBlockId, onAdd, isAliasDeclaredInPack, isOptimisticAdded }) => {
+}>(({ aliasGroup, category, blockDisplayName, parentBlockId, onAdd, isAliasDeclaredInPack, isOptimisticAdded }) => {
   const isEntity = (aliasGroup.category || category).toLowerCase() === 'entity';
   const slotName = aliasGroup.geometryId || aliasGroup.alias;
   const isAttachable = isEntity && (aliasGroup.isAttachable || aliasGroup.leaves?.some((l) => l.isAttachable));
@@ -274,13 +274,14 @@ export const CatalogAliasGroup: React.FC<{
       )}
     </div>
   );
-};
+});
+CatalogAliasGroup.displayName = 'CatalogAliasGroup';
 
 export interface CatalogBlockGroupProps {
   block: BlockGroupNodeDto;
   blockKey: string;
   isExpanded: boolean;
-  onToggleExpand: () => void;
+  onToggleExpand: (blockKey: string) => void;
   onAdd: (id: string, category: string, alias?: string) => void;
   isBlockUserDefined: (blockId: string) => boolean;
   isEntityInWorkspace: (entityId: string) => boolean;
@@ -292,7 +293,7 @@ export interface CatalogBlockGroupProps {
 /**
  * Tier 1: Block/Item/Entity Group Component
  */
-export const CatalogBlockGroup: React.FC<CatalogBlockGroupProps> = ({
+export const CatalogBlockGroup = memo<CatalogBlockGroupProps>(({
   block,
   blockKey,
   isExpanded,
@@ -304,9 +305,21 @@ export const CatalogBlockGroup: React.FC<CatalogBlockGroupProps> = ({
   isOptimisticBlockAdded,
   isOptimisticAliasAdded,
 }) => {
+  const handleToggleExpand = useCallback(() => {
+    onToggleExpand(blockKey);
+  }, [onToggleExpand, blockKey]);
+
   const cat = (block.category || 'block').toLowerCase();
   const isItem = cat === 'item';
   const isEntity = cat === 'entity';
+
+  const handleAliasAdd = useCallback((id: string, itemCat: string, alias?: string) => {
+    if (isEntity) {
+      onAdd(block.blockId, 'entity');
+    } else {
+      onAdd(id, itemCat, alias ?? id);
+    }
+  }, [isEntity, onAdd, block.blockId]);
 
   const isAdded = Boolean(isOptimisticBlockAdded?.(block.blockId)) || (isEntity
     ? isEntityInWorkspace(block.blockId)
@@ -318,13 +331,13 @@ export const CatalogBlockGroup: React.FC<CatalogBlockGroupProps> = ({
     <div className={styles.blockGroupCard} data-testid={`block-group-${block.blockId}`}>
       <div
         className={styles.blockGroupHeader}
-        onClick={onToggleExpand}
+        onClick={handleToggleExpand}
         role="button"
         tabIndex={0}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
-            onToggleExpand();
+            handleToggleExpand();
           }
         }}
         aria-expanded={isExpanded}
@@ -335,7 +348,7 @@ export const CatalogBlockGroup: React.FC<CatalogBlockGroupProps> = ({
             className={styles.chevronButton}
             onClick={(e) => {
               e.stopPropagation();
-              onToggleExpand();
+              handleToggleExpand();
             }}
             aria-label={isExpanded ? 'Collapse item' : 'Expand item'}
           >
@@ -401,32 +414,29 @@ export const CatalogBlockGroup: React.FC<CatalogBlockGroupProps> = ({
         </div>
       </div>
 
-      <div className={`${styles.aliasGroupListWrapper} ${isExpanded ? styles.expanded : styles.collapsed}`}>
-        <div className={styles.aliasGroupListInner}>
-          {block.aliasGroups && block.aliasGroups.length > 0 && (
-            <div className={styles.aliasGroupList}>
-              {block.aliasGroups.map((aliasGroup, agIndex) => (
-                <CatalogAliasGroup
-                  key={`${blockKey}:${aliasGroup.alias || agIndex}`}
-                  aliasGroup={aliasGroup}
-                  category={block.category}
-                  blockDisplayName={block.displayName}
-                  parentBlockId={block.blockId}
-                  onAdd={(id, cat, alias) => {
-                    if (isEntity) {
-                      onAdd(block.blockId, 'entity');
-                    } else {
-                      onAdd(id, cat, alias ?? id);
-                    }
-                  }}
-                  isAliasDeclaredInPack={isAliasDeclaredInPack}
-                  isOptimisticAdded={Boolean(aliasGroup.alias && isOptimisticAliasAdded?.(aliasGroup.alias))}
-                />
-              ))}
-            </div>
-          )}
+      {isExpanded && (
+        <div className={`${styles.aliasGroupListWrapper} ${styles.expanded}`}>
+          <div className={styles.aliasGroupListInner}>
+            {block.aliasGroups && block.aliasGroups.length > 0 && (
+              <div className={styles.aliasGroupList}>
+                {block.aliasGroups.map((aliasGroup, agIndex) => (
+                  <CatalogAliasGroup
+                    key={`${blockKey}:${aliasGroup.alias || agIndex}`}
+                    aliasGroup={aliasGroup}
+                    category={block.category}
+                    blockDisplayName={block.displayName}
+                    parentBlockId={block.blockId}
+                    onAdd={handleAliasAdd}
+                    isAliasDeclaredInPack={isAliasDeclaredInPack}
+                    isOptimisticAdded={Boolean(aliasGroup.alias && isOptimisticAliasAdded?.(aliasGroup.alias))}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
-};
+});
+CatalogBlockGroup.displayName = 'CatalogBlockGroup';
