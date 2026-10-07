@@ -17,6 +17,17 @@ public static class AppIpcHandlers
         {
             context.Dispatcher.Invoke(() =>
             {
+                string? iconUrl = context.ViewModel.HasPackIcon
+                    ? IpcContractMapper.BuildVirtualTextureUrl("pack_icon.png", context.ViewModel.PackIconPath, context.ViewModel.PackRootPath)
+                    : null;
+
+                context.IpcBridge.PostMessage(IpcMessageTypes.PackIdentity, new PackIdentityPayload(
+                    context.ViewModel.PackRootPath,
+                    context.ViewModel.PackName,
+                    context.ViewModel.HasPackIcon,
+                    iconUrl
+                ));
+
                 context.IpcBridge.PushPackState(context.CreatePackStatePayload(true, null));
                 context.IpcBridge.PushAppConfig(
                     context.ViewModel.TintOpacityPercent,

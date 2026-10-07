@@ -27,6 +27,7 @@ export const App: React.FC = () => {
   const packRoot = usePackStore((s) => s.packRoot);
   const activeView = usePackStore((s) => s.activeView);
   const setPackState = usePackStore((s) => s.setPackState);
+  const setPackIdentity = usePackStore((s) => s.setPackIdentity);
   const updateTexture = usePackStore((s) => s.updateTexture);
   const setScanProgress = usePackStore((s) => s.setScanProgress);
   const setAppConfig = usePackStore((s) => s.setAppConfig);
@@ -137,6 +138,11 @@ export const App: React.FC = () => {
   useEffect(() => {
     applyTintTokens(DEFAULT_TINT);
 
+    // 0. PACK:IDENTITY (Fast-path initial pack icon & metadata in < 5ms)
+    const unsubPackIdentity = subscribe(IpcMessageTypes.PackIdentity, (payload) => {
+      setPackIdentity(payload);
+    });
+
     // 1. PACK:STATE_CHANGED
     const unsubPackState = subscribe(IpcMessageTypes.PackStateChanged, (payload) => {
       setPackState(payload);
@@ -214,6 +220,7 @@ export const App: React.FC = () => {
     postCommand(IpcMessageTypes.OpenWithGetApps, {});
 
     return () => {
+      unsubPackIdentity();
       unsubPackState();
       unsubPackPatch();
       unsubScanProgress();
@@ -225,7 +232,7 @@ export const App: React.FC = () => {
       unsubCatalogDetailed();
       unsubDownloadProgress();
     };
-  }, [subscribe, postCommand, setPackState, updateTexture, setScanProgress, setAppConfig]);
+  }, [subscribe, postCommand, setPackState, setPackIdentity, updateTexture, setScanProgress, setAppConfig]);
 
   return (
     <div className={styles.appContainer} data-testid="app-shell">

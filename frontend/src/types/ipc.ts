@@ -55,6 +55,7 @@ export const IpcMessageTypes = {
   PackExportMcpack: 'PACK:EXPORT_MCPACK',
 
   // Outgoing from C# to Web
+  PackIdentity: 'PACK:IDENTITY',
   PackStateChanged: 'PACK:STATE_CHANGED',
   PackPatch: 'PACK:PATCH',
   ScanProgress: 'SCAN:PROGRESS',
@@ -444,6 +445,13 @@ export interface ReferencePackProfile {
 }
 
 // C# -> Web Payloads
+export interface PackIdentityPayload {
+  packRoot: string | null;
+  packName: string | null;
+  hasPackIcon: boolean;
+  packIconUrl: string | null;
+}
+
 export interface PackStatePayload {
   packRoot: string | null;
   packName: string | null;

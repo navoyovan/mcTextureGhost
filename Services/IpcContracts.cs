@@ -90,6 +90,7 @@ public static class IpcMessageTypes
     public const string PackExportMcpack         = "PACK:EXPORT_MCPACK";
 
     // Outgoing from C# to Web
+    public const string PackIdentity     = "PACK:IDENTITY";
     public const string PackStateChanged = "PACK:STATE_CHANGED";
     public const string PackPatch        = "PACK:PATCH";
     public const string ScanProgress     = "SCAN:PROGRESS";
@@ -441,6 +442,17 @@ public record ReferencePackProfileDto(
     [property: JsonPropertyName("packPath")] string? PackPath,
     [property: JsonPropertyName("iconUrl")] string IconUrl,
     [property: JsonPropertyName("isVanilla")] bool IsVanilla
+);
+
+/// <summary>
+/// Fast-path payload for "PACK:IDENTITY". Dispatched immediately upon app ready or pack load
+/// to hydrate the header/sidebar pack icon and title in < 5ms before tree scanning.
+/// </summary>
+public record PackIdentityPayload(
+    [property: JsonPropertyName("packRoot")] string? PackRoot,
+    [property: JsonPropertyName("packName")] string? PackName,
+    [property: JsonPropertyName("hasPackIcon")] bool HasPackIcon,
+    [property: JsonPropertyName("packIconUrl")] string? PackIconUrl
 );
 
 /// <summary>

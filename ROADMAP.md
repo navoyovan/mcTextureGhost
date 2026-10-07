@@ -18,6 +18,10 @@
 ### v1.2.0 (Staging)
 - [ ] auto scaffold and detach face entries (like shared textures **ex:** `acacia_fence` using `acacia_planks` into `acacia_fence`) maybe default to its own alias but they might clash bcs acacia_planks alias is acacia_planks, get it?
 
+### v1.1.2 
+trying to optimize the whole app even further 
+- [] 
+
 ### v1.1.1 (Released 2026-10-04)
 **Performance**
 - [x] Pre-computed `blockMetaMap` memo — derives per-block metadata (hasPackTexture, hasPackLeavesAdded, hasPackLeavesOrphan, hasMers, hasAtlas, hasFlipbook, hasTextureVariation, hasBlockstate, hasMergedVariation, searchTokens) from `blockWorkspaceTree` once, eliminating repeated allLeaves flatMap allocations on every filter tick

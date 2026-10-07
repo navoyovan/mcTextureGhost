@@ -437,6 +437,15 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
             {
                 _ipcBridge?.SetPackVirtualHost(ViewModel.PackRootPath);
                 _lastPushedState = null;
+                string? iconUrl = ViewModel.HasPackIcon
+                    ? IpcContractMapper.BuildVirtualTextureUrl("pack_icon.png", ViewModel.PackIconPath, ViewModel.PackRootPath)
+                    : null;
+                _ipcBridge?.PostMessage(IpcMessageTypes.PackIdentity, new PackIdentityPayload(
+                    ViewModel.PackRootPath,
+                    ViewModel.PackName,
+                    ViewModel.HasPackIcon,
+                    iconUrl
+                ));
             }
         };
     }

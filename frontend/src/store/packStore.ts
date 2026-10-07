@@ -2,6 +2,7 @@
 import { useSyncExternalStore } from 'react';
 import {
   PackStatePayload,
+  PackIdentityPayload,
   PackPatchPayload,
   TextureAliasDto,
   BlockGroupNodeDto,
@@ -104,6 +105,7 @@ export interface PackStoreState {
 }
 
 export interface PackStoreActions {
+  setPackIdentity: (dto: PackIdentityPayload) => void;
   setPackState: (dto: Partial<PackStatePayload>) => void;
   applyPackPatch: (patch: PackPatchPayload) => void;
   resetPackState: () => void;
@@ -325,6 +327,17 @@ function notifyDeferred(): void {
 }
 
 export const packStoreActions: PackStoreActions = {
+  setPackIdentity(dto: PackIdentityPayload): void {
+    currentState = {
+      ...currentState,
+      packRoot: dto.packRoot ?? currentState.packRoot,
+      packName: dto.packName ?? currentState.packName,
+      hasPackIcon: dto.hasPackIcon ?? currentState.hasPackIcon,
+      packIconUrl: dto.packIconUrl ?? currentState.packIconUrl,
+    };
+    notify();
+  },
+
   setPackState(dto: Partial<PackStatePayload>): void {
     const t0 = performance.now();
     const rawAliases = dto.aliases || currentState.aliases || [];
