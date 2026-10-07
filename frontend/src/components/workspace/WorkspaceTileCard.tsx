@@ -606,6 +606,8 @@ export const WorkspaceTileCard: React.FC<WorkspaceTileCardProps> = React.memo(({
                     }
                     alt={leafName}
                     aliasKey={leaf.alias}
+                    width={64}
+                    height={64}
                     className={`${styles.leafThumb} ${deletingSlotIndex === i ? styles.leafThumbDeleting : ''}`}
                     isFlipbook={leaf.isFlipbook || Boolean(leaf.hasAtlas)}
                     flipbook={leaf.flipbook}

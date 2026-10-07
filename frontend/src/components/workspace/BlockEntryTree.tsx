@@ -453,8 +453,10 @@ const TextureLeafRow: React.FC<TextureLeafRowProps> = ({ leaf, onTileClick }) =>
           <img
             src={leaf.imageUrl}
             alt=""
+            width={14}
+            height={14}
             className={styles.thumbPreview}
-            loading="lazy"
+            loading="eager"
             decoding="async"
             onError={(e) => {
               (e.currentTarget as HTMLElement).style.display = 'none';

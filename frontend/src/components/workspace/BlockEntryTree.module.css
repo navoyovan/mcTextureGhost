@@ -317,6 +317,7 @@
 .thumbPreview {
   width: 14px;
   height: 14px;
+  aspect-ratio: 1;
   image-rendering: pixelated;
   border-radius: 2px;
   border: 1px solid rgba(255, 255, 255, 0.15);

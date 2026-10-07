@@ -60,11 +60,13 @@ export const LeafThumbnail: React.FC<{ leaf: CatalogLeafDto }> = ({ leaf }) => {
         <FlipbookThumbnail
           src={src}
           alt={leaf.alias}
+          width={22}
+          height={22}
           className={styles.leafThumbImg}
           isFlipbook={leaf.isFlipbook}
           flipbook={leaf.flipbook}
           onError={() => setHasError(true)}
-          loading="lazy"
+          loading="eager"
         />
       ) : (
         <span className={`${styles.leafThumbFallback} ${getFallbackStatusClass(leaf.status)}`}>

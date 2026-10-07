@@ -1,5 +1,5 @@
 // frontend/src/components/common/SearchInput.tsx
-import React, { forwardRef, useRef, useImperativeHandle, useEffect, useState } from 'react';
+import React, { forwardRef, useRef, useImperativeHandle, useEffect, useState, useId } from 'react';
 import { Search, X } from 'lucide-react';
 import styles from './SearchInput.module.css';
 
@@ -21,6 +21,8 @@ export interface SearchInputProps extends Omit<React.InputHTMLAttributes<HTMLInp
 export const SearchInput = forwardRef<HTMLInputElement, SearchInputProps>(
   (
     {
+      id,
+      name = 'search',
       value,
       onChange,
       onClear,
@@ -40,6 +42,8 @@ export const SearchInput = forwardRef<HTMLInputElement, SearchInputProps>(
     },
     ref
   ) => {
+    const generatedId = useId();
+    const inputId = id || generatedId;
     const inputRef = useRef<HTMLInputElement | null>(null);
     useImperativeHandle(ref, () => inputRef.current as HTMLInputElement);
 
@@ -117,6 +121,9 @@ export const SearchInput = forwardRef<HTMLInputElement, SearchInputProps>(
 
         <input
           ref={inputRef}
+          id={inputId}
+          name={name}
+          autoComplete={rest.autoComplete || 'off'}
           type="text"
           className={`${styles.searchInput} ${inputClassName}`}
           value={value}

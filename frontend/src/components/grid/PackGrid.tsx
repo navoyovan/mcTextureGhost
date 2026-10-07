@@ -342,10 +342,12 @@ const PackGridTile = React.memo<PackGridTileProps>(({
             }
             alt={alias.alias}
             aliasKey={alias.alias}
+            width={64}
+            height={64}
             className={`${styles.tileThumbnail} ${isDeletingTexture ? styles.tileThumbnailDeleting : ''}`}
             isFlipbook={alias.isFlipbook || Boolean(alias.hasAtlas)}
             flipbook={alias.flipbook}
-            loading="lazy"
+            loading="eager"
           />
         ) : (
           <span key="ghost" className={styles.placeholderGhost}>?</span>

@@ -132,7 +132,10 @@ export const Sidebar: React.FC = () => {
                 key={packIconUrl || packRoot || 'icon'}
                 src={packIconUrl || ''}
                 alt="Pack Icon"
+                width={120}
+                height={120}
                 className={styles.packIconImg96}
+                fetchPriority="high"
                 onError={() => setPackIconLoadError(true)}
               />
             ) : (

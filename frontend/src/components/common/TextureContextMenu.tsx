@@ -512,6 +512,8 @@ export const TextureContextMenu: React.FC<TextureContextMenuProps> = ({
                 >−</button>
                 <input
                   type="number"
+                  id="variation-count-input"
+                  name="variationCount"
                   className={styles.varCountInput}
                   value={varCount}
                   min={1}
@@ -570,6 +572,8 @@ export const TextureContextMenu: React.FC<TextureContextMenuProps> = ({
               >−</button>
               <input
                 type="number"
+                id="custom-weight-input"
+                name="customWeight"
                 className={styles.varCountInput}
                 value={customWeight}
                 min={1}
@@ -623,6 +627,8 @@ export const TextureContextMenu: React.FC<TextureContextMenuProps> = ({
             {isEditingLabel ? (
               <input
                 type="text"
+                id="custom-label-input"
+                name="customLabel"
                 autoFocus
                 className={styles.varCountInput}
                 style={{ width: '90px', textAlign: 'left', padding: '0 4px', borderRadius: '4px' }}

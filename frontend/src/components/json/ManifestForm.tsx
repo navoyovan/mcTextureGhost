@@ -18,14 +18,18 @@ import styles from './JsonReader.module.css';
 interface VersionSegmentProps {
   value: number;
   min?: number;
+  id?: string;
+  name?: string;
   onChange: (val: number) => void;
 }
 
-const VersionSegment: React.FC<VersionSegmentProps> = ({ value, min = 0, onChange }) => {
+const VersionSegment: React.FC<VersionSegmentProps> = ({ value, min = 0, id, name, onChange }) => {
   return (
     <div className={styles.versionFieldBox}>
       <input
         type="number"
+        id={id}
+        name={name}
         min={min}
         className={styles.versionSegmentInput}
         value={value}
@@ -143,6 +147,7 @@ export const ManifestForm: React.FC<ManifestFormProps> = ({
               <input
                 ref={titleInputRef}
                 id="manifest-name"
+                name="headerName"
                 type="text"
                 className={styles.packTitleInput}
                 value={form.headerName || ''}
@@ -198,6 +203,7 @@ export const ManifestForm: React.FC<ManifestFormProps> = ({
           </div>
           <textarea
             id="manifest-desc"
+            name="headerDescription"
             className={styles.packDescTextarea}
             value={form.headerDescription || ''}
             placeholder="Resource pack description displayed in Minecraft Bedrock…"
@@ -213,18 +219,24 @@ export const ManifestForm: React.FC<ManifestFormProps> = ({
           </div>
           <div className={styles.versionInputs}>
             <VersionSegment
+              id="manifest-version-major"
+              name="versionMajor"
               value={form.versionMajor}
               min={0}
               onChange={(v) => updateField('versionMajor', v)}
             />
             <span className={styles.versionDot}>.</span>
             <VersionSegment
+              id="manifest-version-minor"
+              name="versionMinor"
               value={form.versionMinor}
               min={0}
               onChange={(v) => updateField('versionMinor', v)}
             />
             <span className={styles.versionDot}>.</span>
             <VersionSegment
+              id="manifest-version-patch"
+              name="versionPatch"
               value={form.versionPatch}
               min={0}
               onChange={(v) => updateField('versionPatch', v)}
@@ -240,18 +252,24 @@ export const ManifestForm: React.FC<ManifestFormProps> = ({
           </div>
           <div className={styles.versionInputs}>
             <VersionSegment
+              id="manifest-min-engine-major"
+              name="minEngineMajor"
               value={form.minEngineMajor}
               min={1}
               onChange={(v) => updateField('minEngineMajor', v)}
             />
             <span className={styles.versionDot}>.</span>
             <VersionSegment
+              id="manifest-min-engine-minor"
+              name="minEngineMinor"
               value={form.minEngineMinor}
               min={0}
               onChange={(v) => updateField('minEngineMinor', v)}
             />
             <span className={styles.versionDot}>.</span>
             <VersionSegment
+              id="manifest-min-engine-patch"
+              name="minEnginePatch"
               value={form.minEnginePatch}
               min={0}
               onChange={(v) => updateField('minEnginePatch', v)}
@@ -268,6 +286,7 @@ export const ManifestForm: React.FC<ManifestFormProps> = ({
           <div className={styles.uuidFieldGroup}>
             <input
               id="manifest-header-uuid"
+              name="headerUuid"
               type="text"
               className={styles.uuidFieldInput}
               value={form.headerUuid || ''}
@@ -301,6 +320,7 @@ export const ManifestForm: React.FC<ManifestFormProps> = ({
           <div className={styles.uuidFieldGroup}>
             <input
               id="manifest-module-uuid"
+              name="moduleUuid"
               type="text"
               className={styles.uuidFieldInput}
               value={form.moduleUuid || ''}
@@ -333,6 +353,7 @@ export const ManifestForm: React.FC<ManifestFormProps> = ({
           </div>
           <input
             id="manifest-module-type"
+            name="moduleType"
             type="text"
             className={styles.textFieldInput}
             value={form.moduleType || 'resources'}

@@ -109,6 +109,8 @@ export interface FlipbookThumbnailProps {
   flipbook?: FlipbookDefinitionDto | null;
   aliasKey?: string;
   loading?: 'lazy' | 'eager';
+  width?: number;
+  height?: number;
   onError?: (e: React.SyntheticEvent<HTMLImageElement, Event>) => void;
 }
 
@@ -120,7 +122,9 @@ const AnimatedFlipbookThumbnail: React.FC<FlipbookThumbnailProps> = ({
   isFlipbook = false,
   flipbook,
   aliasKey,
-  loading = 'lazy',
+  loading = 'eager',
+  width = 64,
+  height = 64,
   onError,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -430,6 +434,8 @@ const AnimatedFlipbookThumbnail: React.FC<FlipbookThumbnailProps> = ({
       <img
         src={resolvedSrc}
         alt={alt}
+        width={width}
+        height={height}
         className={`${styles.thumbnailImg} ${className || ''}`}
         loading={loading}
         decoding="async"
@@ -453,6 +459,8 @@ const AnimatedFlipbookThumbnail: React.FC<FlipbookThumbnailProps> = ({
     <img
       src={resolvedSrc}
       alt={alt}
+      width={width}
+      height={height}
       className={`${styles.thumbnailImg} ${className || ''}`}
       loading={loading || 'eager'}
       decoding="async"
@@ -470,6 +478,8 @@ export const FlipbookThumbnail: React.FC<FlipbookThumbnailProps> = (props) => {
       <img
         src={props.src}
         alt={props.alt || ''}
+        width={props.width ?? 64}
+        height={props.height ?? 64}
         className={`${styles.thumbnailImg} ${props.className || ''}`}
         loading={props.loading || 'eager'}
         decoding="async"

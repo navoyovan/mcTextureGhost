@@ -279,6 +279,8 @@ export const MenuBar: React.FC = () => {
                       </div>
                       <input
                         type="range"
+                        id="tile-size-zoom"
+                        name="tileSizeZoom"
                         className={styles.betaSlider}
                         min={80}
                         max={200}
