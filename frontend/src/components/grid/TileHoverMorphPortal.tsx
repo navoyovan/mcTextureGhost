@@ -565,16 +565,21 @@ const TileHoverMorphCard: React.FC<TileHoverMorphPortalProps> = ({
 
   const handleCreateStub = (e: React.MouseEvent) => {
     e.stopPropagation();
+    console.time(`[PERF] addTexture(${alias.alias})`);
+    console.log(`[PERF] handleCreateStub initiated for "${alias.alias}" at ${performance.now().toFixed(2)}ms`);
     const targetFullPath = resolveTextureFullPath(packRoot, alias.fullPath, alias.relativePath);
     setIsMorphingToAdded(true);
     setLocalAdded(true);
+    const t0 = performance.now();
     packStoreActions.updateTexture(alias.alias, 'OK', targetFullPath, null, alias.relativePath);
+    console.log(`[PERF] packStore.updateTexture took ${(performance.now() - t0).toFixed(2)}ms`);
     postCommand(IpcMessageTypes.TextureEdit, {
       aliasKey: alias.alias,
       fullPath: targetFullPath,
       isGhost: true,
       createOnly: true,
     });
+    console.timeEnd(`[PERF] addTexture(${alias.alias})`);
   };
 
   const handleExtractReference = (e: React.MouseEvent) => {

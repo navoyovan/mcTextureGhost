@@ -182,28 +182,40 @@ public sealed class IpcBridgeService : IIpcBridgeService
 
     #region Virtual Host Mapping (pack.local, vanilla.local, app.local)
 
+    private string? _mappedPackRoot;
+
     public void SetPackVirtualHost(string? packRoot)
     {
-        _currentPackRoot = string.IsNullOrWhiteSpace(packRoot) || !Directory.Exists(packRoot) ? null : packRoot;
+        var normalizedRoot = string.IsNullOrWhiteSpace(packRoot) || !Directory.Exists(packRoot)
+            ? null
+            : Path.GetFullPath(packRoot).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+        if (string.Equals(_mappedPackRoot, normalizedRoot, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        _currentPackRoot = normalizedRoot;
 
         if (_coreWebView2 == null || _dispatcher == null) return;
 
         if (!_dispatcher.CheckAccess())
         {
-            _dispatcher.Invoke(() => SetPackVirtualHost(packRoot));
+            _dispatcher.InvokeAsync(() => SetPackVirtualHost(packRoot));
             return;
         }
 
         try
         {
-            if (!string.IsNullOrWhiteSpace(packRoot) && Directory.Exists(packRoot))
+            if (normalizedRoot != null)
             {
                 _coreWebView2.SetVirtualHostNameToFolderMapping(
                     "pack.local",
-                    Path.GetFullPath(packRoot),
+                    normalizedRoot,
                     CoreWebView2HostResourceAccessKind.Allow
                 );
-                Debug.WriteLine($"[IPC Bridge] Mapped 'https://pack.local/' to '{packRoot}'");
+                _mappedPackRoot = normalizedRoot;
+                Debug.WriteLine($"[IPC Bridge] Mapped 'https://pack.local/' to '{normalizedRoot}'");
             }
             else
             {
@@ -212,6 +224,7 @@ public sealed class IpcBridgeService : IIpcBridgeService
                     _coreWebView2.ClearVirtualHostNameToFolderMapping("pack.local");
                 }
                 catch { /* Ignore if not mapped */ }
+                _mappedPackRoot = null;
                 Debug.WriteLine("[IPC Bridge] Cleared mapping for 'pack.local'");
             }
         }
@@ -227,7 +240,7 @@ public sealed class IpcBridgeService : IIpcBridgeService
 
         if (!_dispatcher.CheckAccess())
         {
-            _dispatcher.Invoke(() => SetVanillaVirtualHost(vanillaCacheDir));
+            _dispatcher.InvokeAsync(() => SetVanillaVirtualHost(vanillaCacheDir));
             return;
         }
 
@@ -258,7 +271,7 @@ public sealed class IpcBridgeService : IIpcBridgeService
 
         if (!_dispatcher.CheckAccess())
         {
-            _dispatcher.Invoke(() => SetReferenceVirtualHost(referencePackPath));
+            _dispatcher.InvokeAsync(() => SetReferenceVirtualHost(referencePackPath));
             return;
         }
 
@@ -296,7 +309,7 @@ public sealed class IpcBridgeService : IIpcBridgeService
 
         if (!_dispatcher.CheckAccess())
         {
-            _dispatcher.Invoke(() => SetAppVirtualHost(distPath));
+            _dispatcher.InvokeAsync(() => SetAppVirtualHost(distPath));
             return;
         }
 

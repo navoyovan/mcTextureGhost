@@ -18,10 +18,10 @@
         <vm:MainViewModel />
     </Window.DataContext>
 
-    <Grid Background="Transparent">
+    <Grid Background="#141416">
         <wv2:WebView2 Name="WebView"
-                      DefaultBackgroundColor="Transparent"
-                      Margin="0"
+                      DefaultBackgroundColor="#141416"
+                      Margin="6"
                       HorizontalAlignment="Stretch"
                       VerticalAlignment="Stretch" />
     </Grid>

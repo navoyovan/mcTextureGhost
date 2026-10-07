@@ -101,6 +101,61 @@ public static class PackScanner
     }
 
     /// <summary>
+    /// Scoped fast-path for block mutations (delete/add entries in terrain_texture.json or blocks.json).
+    /// Re-parses only block definitions and merges them into the existing alias collection in milliseconds
+    /// without re-enumerating disk or rescanning entities/items.
+    /// </summary>
+    public static List<TextureAlias> RescanBlocksScoped(string packRoot, IList<TextureAlias> currentAliases, VanillaData? vanilla = null)
+    {
+        if (!Directory.Exists(packRoot)) return currentAliases.ToList();
+
+        var terrainTexturePath = Path.Combine(packRoot, "textures", "terrain_texture.json");
+        var blocksJsonPath = Path.Combine(packRoot, "blocks.json");
+        var flipbookJsonPath = Path.Combine(packRoot, "textures", "flipbook_textures.json");
+
+        bool hasTerrain = File.Exists(terrainTexturePath);
+        var texturesDir = Path.Combine(packRoot, "textures");
+        string? texturesDirNormalized = Directory.Exists(texturesDir) ? Path.GetFullPath(texturesDir) : null;
+
+        var aliasUsage = File.Exists(blocksJsonPath)
+            ? ParseBlocksJson(blocksJsonPath)
+            : new Dictionary<string, List<BlockFaceUsage>>(StringComparer.OrdinalIgnoreCase);
+
+        var flipbookCatalog = File.Exists(flipbookJsonPath)
+            ? ParseFlipbookTextures(flipbookJsonPath)
+            : new FlipbookCatalog();
+
+        // Build set of existing files from current aliases and quick file checks
+        var existingFiles = new HashSet<string>(
+            currentAliases.Where(a => a.Status == TextureStatus.Ok || a.Status == TextureStatus.Orphan)
+                          .Select(a => Path.GetFullPath(a.FullPath)),
+            StringComparer.OrdinalIgnoreCase);
+
+        var matchedFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var blockResults = new List<TextureAlias>();
+
+        if (hasTerrain)
+        {
+            ScanBlockTextures(packRoot, terrainTexturePath, aliasUsage, flipbookCatalog, existingFiles, texturesDirNormalized, matchedFiles, blockResults);
+        }
+
+        // Retain non-block aliases and known orphans, merging with refreshed block results
+        var nonBlockAliases = currentAliases.Where(a => a.Category != TextureCategory.Block || a.Status == TextureStatus.Orphan).ToList();
+        var combined = nonBlockAliases.Concat(blockResults).ToList();
+
+        var sorted = combined.OrderBy(r => r.Category)
+                             .ThenBy(r => r.Alias, StringComparer.OrdinalIgnoreCase)
+                             .ThenBy(r => r.BlockVariantIndex ?? 0)
+                             .ThenBy(r => r.TextureVariantIndex ?? 0)
+                             .ToList();
+
+        foreach (var item in sorted)
+            _ = item.SearchFilterKey;
+
+        return sorted;
+    }
+
+    /// <summary>
     /// Resolves the absolute path and existence on disk for a texture, checking .png
     /// and fallback extensions (such as .tga), and handling paths with or without "textures/" prefix.
     /// </summary>

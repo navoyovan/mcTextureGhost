@@ -93,7 +93,7 @@ export const BlockWorkspace: React.FC = () => {
   const selectedBlockId = usePackStore((s) => s.blockWorkspaceSelectedId);
   const setSelectedBlockId = usePackStore((s) => s.setBlockWorkspaceSelectedId);
   const pendingAliasOps = usePackStore((s) => s.pendingAliasOps);
-  const { editTexture, deleteTextureFile, deleteTextureEntries, deleteTextureVariation, deleteBlockEntry, openInExplorer, scaffoldTextureVariation } = useIpc();
+  const { editTexture, deleteTextureFile, deleteTextureEntries, deleteTextureVariation, deleteBlockEntry, deleteBlockAndTerrainEntries, openInExplorer, scaffoldTextureVariation } = useIpc();
 
   const hasTerrainTextureJson = useMemo(() => checkTerrainTextureJson(packFolders), [packFolders]);
   const hasBlocksJson = useMemo(() => checkBlocksJson(packFolders), [packFolders]);
@@ -266,20 +266,7 @@ export const BlockWorkspace: React.FC = () => {
 
     const filtered = blockWorkspaceTree.filter((block) => {
       const meta = blockMetaMap.get(block.blockId);
-      const hasPackTexture = meta?.hasPackTexture || false;
-      const hasPackTerrainDeclaration =
-        hasTerrainTextureJson &&
-        Boolean(block.aliasGroups?.some((ag) => packDeclaredBlockAliases.has(ag.alias.toLowerCase())));
-      const isCustomBlock =
-        (block.blockId.includes(':') && !block.blockId.startsWith('minecraft:')) ||
-        (catalogTree && catalogTree.length > 0
-          ? !catalogBlockIdSet.has(block.blockId.toLowerCase())
-          : false);
-      const isUncategorized = block.blockId === 'uncategorized';
-
-      const hasPackPresence = hasPackTexture || hasPackTerrainDeclaration || isCustomBlock || isUncategorized;
       const isCurrentlySelected = Boolean(selectedBlockId && block.blockId === selectedBlockId);
-      if (!hasPackPresence && !isCurrentlySelected) return false;
 
       // 1. Active Filters (Checklist)
       if (effectiveFilters.length > 0) {
@@ -547,20 +534,32 @@ export const BlockWorkspace: React.FC = () => {
       }>;
     }> = [];
 
+    // Pre-group leaves by slot for this block to avoid repeatedly grouping in nested loops
+    const agGroupsMap = new Map<any, ReturnType<typeof groupLeavesByVariantSlot>>();
+    for (const ag of selectedBlock.aliasGroups) {
+      if (ag.faceNodes) {
+        for (const fn of ag.faceNodes) {
+          agGroupsMap.set(fn, groupLeavesByVariantSlot(fn.leaves ?? []));
+        }
+      } else if (ag.leaves && ag.leaves.length > 0) {
+        agGroupsMap.set(ag, groupLeavesByVariantSlot(ag.leaves));
+      }
+    }
+
     for (let i = 0; i < totalBV; i++) {
       // Find maximum variations across faces for this specific blockstate slot
       let maxVariations = 1;
       for (const ag of selectedBlock.aliasGroups) {
         if (ag.faceNodes) {
           for (const fn of ag.faceNodes) {
-            const groups = groupLeavesByVariantSlot(fn.leaves ?? []);
+            const groups = agGroupsMap.get(fn) ?? [];
             const g = groups[i] ?? groups[0];
             if (g && g.leaves.length > maxVariations) {
               maxVariations = g.leaves.length;
             }
           }
         } else if (ag.leaves && ag.leaves.length > 0) {
-          const groups = groupLeavesByVariantSlot(ag.leaves);
+          const groups = agGroupsMap.get(ag) ?? [];
           const g = groups[i] ?? groups[0];
           if (g && g.leaves.length > maxVariations) {
             maxVariations = g.leaves.length;
@@ -582,7 +581,7 @@ export const BlockWorkspace: React.FC = () => {
           if (ag.faceNodes) {
             for (const fn of ag.faceNodes) {
               const label = (fn.faceLabel || '').toLowerCase();
-              const groups = groupLeavesByVariantSlot(fn.leaves ?? []);
+              const groups = agGroupsMap.get(fn) ?? [];
               const g = groups[i] ?? groups[0];
               if (g) {
                 const leaf = g.leaves[v] ?? g.leaves[0];
@@ -608,7 +607,7 @@ export const BlockWorkspace: React.FC = () => {
               }
             }
           } else if (ag.leaves && ag.leaves.length > 0) {
-            const groups = groupLeavesByVariantSlot(ag.leaves);
+            const groups = agGroupsMap.get(ag) ?? [];
             const g = groups[i] ?? groups[0];
             if (g) {
               const leaf = g.leaves[v] ?? g.leaves[0];
@@ -669,13 +668,12 @@ export const BlockWorkspace: React.FC = () => {
   const [hoverMorphTarget, setHoverMorphTarget] = useState<TileHoverMorphTarget | null>(null);
 
   const handleSelectBlock = useCallback((id: string) => {
-    startTransition(() => {
-      setSelectedBlockId(id);
-    });
+    setSelectedBlockId(id);
     setIsListDrawerOpen(false);
   }, [setSelectedBlockId, setIsListDrawerOpen]);
 
   const handleTileClick = useCallback((domEl: HTMLElement, leaf: CatalogLeafDto, key: string, targetType: 'card' | 'image' = 'image') => {
+    console.log(`[PERF] Tile clicked for morph: ${key} (${leaf.alias}) at ${performance.now().toFixed(2)}ms`);
     const rect = domEl.getBoundingClientRect();
     setHoverMorphTarget({
       alias: leafToAliasDto(leaf),
@@ -725,25 +723,25 @@ export const BlockWorkspace: React.FC = () => {
 
   useEffect(() => {
     if (!isMoreMenuOpen) return;
-    const handleOutsideClick = (e: MouseEvent) => {
+    const handleOutsideClick = (e: Event) => {
       if (moreMenuRef.current && !moreMenuRef.current.contains(e.target as Node)) {
         setIsMoreMenuOpen(false);
       }
     };
-    document.addEventListener('mousedown', handleOutsideClick);
-    return () => document.removeEventListener('mousedown', handleOutsideClick);
+    document.addEventListener('pointerdown', handleOutsideClick, { passive: true });
+    return () => document.removeEventListener('pointerdown', handleOutsideClick);
   }, [isMoreMenuOpen]);
 
   useEffect(() => {
     if (!openAliasMenu) return;
-    const handleOutsideClick = (e: MouseEvent) => {
+    const handleOutsideClick = (e: Event) => {
       const target = e.target as HTMLElement;
       if (!target.closest(`.${styles.moreMenuWrapper}`)) {
         setOpenAliasMenu(null);
       }
     };
-    document.addEventListener('mousedown', handleOutsideClick);
-    return () => document.removeEventListener('mousedown', handleOutsideClick);
+    document.addEventListener('pointerdown', handleOutsideClick, { passive: true });
+    return () => document.removeEventListener('pointerdown', handleOutsideClick);
   }, [openAliasMenu]);
 
   const handleDeleteBlockEntry = useCallback(() => {
@@ -761,25 +759,24 @@ export const BlockWorkspace: React.FC = () => {
       .filter((alias) => packDeclaredBlockAliases.has(alias.toLowerCase()));
   }, [selectedBlock, hasTerrainTextureJson, packDeclaredBlockAliases]);
 
-  const handleDeleteBlockAndTerrainEntries = useCallback(async () => {
+  const handleDeleteBlockAndTerrainEntries = useCallback(() => {
     if (!selectedBlock || selectedBlock.blockId === 'uncategorized') return;
+
+    setIsMoreMenuOpen(false);
 
     if (selectedBlock.isUserDefined !== false) {
       packStoreActions.optimisticDeleteBlockEntry(selectedBlock.blockId);
-      await deleteBlockEntry(selectedBlock.blockId);
     }
 
     if (declaredTerrainAliases.length > 0) {
       for (const alias of declaredTerrainAliases) {
         packStoreActions.setPendingAliasOp(alias, 'deleting');
       }
-      for (const alias of declaredTerrainAliases) {
-        await deleteTextureEntries(alias, 'block');
-      }
     }
 
-    setIsMoreMenuOpen(false);
-  }, [selectedBlock, declaredTerrainAliases, deleteBlockEntry, deleteTextureEntries]);
+    const blockIdToDelete = selectedBlock.isUserDefined !== false ? selectedBlock.blockId : '';
+    deleteBlockAndTerrainEntries(blockIdToDelete, declaredTerrainAliases);
+  }, [selectedBlock, declaredTerrainAliases, deleteBlockAndTerrainEntries]);
 
   const handleDeleteAliasEntry = useCallback((alias: string) => {
     packStoreActions.setPendingAliasOp(alias, 'deleting');

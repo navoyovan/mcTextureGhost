@@ -72,6 +72,7 @@ public static class IpcMessageTypes
     public const string TextureDeleteEntries = "TEXTURE:DELETE_ENTRIES";
     public const string TextureDeleteVariation = "TEXTURE:DELETE_VARIATION";
     public const string BlockDeleteEntry = "BLOCK:DELETE_ENTRY";
+    public const string BlockDeleteAndTerrainEntries = "BLOCK:DELETE_AND_TERRAIN_ENTRIES";
     public const string TextureSetVariationWeight = "TEXTURE:SET_VARIATION_WEIGHT";
     public const string TextureRenameVariation = "TEXTURE:RENAME_VARIATION";
     public const string TextureDropImport = "TEXTURE:DROP_IMPORT";
@@ -194,6 +195,14 @@ public record TextureDeleteVariationPayload(
 /// </summary>
 public record BlockDeleteEntryPayload(
     [property: JsonPropertyName("blockId")] string BlockId
+);
+
+/// <summary>
+/// Payload for "BLOCK:DELETE_AND_TERRAIN_ENTRIES". Atomic batch deletion of blocks.json entry and associated terrain_texture aliases.
+/// </summary>
+public record BlockDeleteAndTerrainEntriesPayload(
+    [property: JsonPropertyName("blockId")] string BlockId,
+    [property: JsonPropertyName("aliases")] string[]? Aliases
 );
 
 /// <summary>

@@ -288,8 +288,13 @@ public static partial class WorkspaceTreeBuilder
 
             foreach (var aliasItem in untracked)
             {
-                // We allow orphan files to match against vanilla blocks by alias
-                // instead of dumping them straight to (Uncategorized).
+                // True orphan files (on disk, not declared in terrain_texture.json)
+                // must ALWAYS go straight to (Uncategorized) so they never vanish or get absorbed as ghost blocks.
+                if (aliasItem.Status == TextureStatus.Orphan)
+                {
+                    remainingUntracked.Add(aliasItem);
+                    continue;
+                }
 
                 var aliasName = aliasItem.Alias;
                 if (vanilla.BlockUsage.TryGetValue(aliasName, out var vFaces) && vFaces.Count > 0)

@@ -1573,17 +1573,23 @@ public class MainViewModel : INotifyPropertyChanged
 
         try
         {
-            var results = await Task.Run(() => PackScanner.Scan(packRoot, _vanillaData));
+            List<TextureAlias> results;
             List<BlockGroupNode>? ws = null;
             List<BlockGroupNode>? ent = null;
 
-            if (_vanillaData != null)
+            if (category == TextureCategory.Block)
             {
-                if (category == TextureCategory.Block)
+                var curAliases = Aliases.ToList();
+                results = await Task.Run(() => PackScanner.RescanBlocksScoped(packRoot, curAliases, _vanillaData));
+                if (_vanillaData != null)
                 {
                     ws = await Task.Run(() => PackScanner.BuildBlockWorkspaceTree(results, _vanillaData, packRoot));
                 }
-                else if (category == TextureCategory.Entity)
+            }
+            else
+            {
+                results = await Task.Run(() => PackScanner.Scan(packRoot, _vanillaData));
+                if (_vanillaData != null && category == TextureCategory.Entity)
                 {
                     ent = await Task.Run(() => PackScanner.BuildEntityWorkspaceTree(results, _vanillaData, packRoot));
                 }
@@ -1608,7 +1614,7 @@ public class MainViewModel : INotifyPropertyChanged
 
                     NotifyPackStateScoped(category);
                     IsScanning = false;
-                });
+                }, System.Windows.Threading.DispatcherPriority.Background);
             }
         }
         catch (Exception ex)
@@ -2130,6 +2136,11 @@ public class MainViewModel : INotifyPropertyChanged
 
         void OnFileChanged(object sender, FileSystemEventArgs e)
         {
+            // Ignore directory timestamp updates triggered by writing files inside them
+            if (e.ChangeType == WatcherChangeTypes.Changed && Directory.Exists(e.FullPath))
+            {
+                return;
+            }
             QueueChange(e.FullPath, e.ChangeType.ToString());
         }
 
@@ -2159,6 +2170,12 @@ public class MainViewModel : INotifyPropertyChanged
             _pendingChangedFiles.Clear();
         }
 
+        // Filter out any self-writes recorded by internal operations (e.g. JsonWriterService)
+        paths.RemoveAll(p => WriteJournal.IsSelfWrite(p));
+        if (paths.Count == 0) return;
+
+        // Filter out existing directories from Changed events that were touched by internal child writes
+        paths.RemoveAll(p => Directory.Exists(p));
         if (paths.Count == 0) return;
 
         // Change classifier: TextureFileChanged vs JsonDeclarationChanged / Structural
@@ -2167,26 +2184,57 @@ public class MainViewModel : INotifyPropertyChanged
             ".png", ".tga", ".jpg", ".jpeg"
         };
 
-        bool anyStructuralOrJson = false;
+        var blockJsonNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "terrain_texture.json",
+            "blocks.json",
+            "flipbook_textures.json"
+        };
+
+        var itemJsonNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "item_texture.json"
+        };
+
+        bool allBlockJsons = true;
+        bool allItemJsons = true;
+        bool anyNonTexture = false;
+
         foreach (var path in paths)
         {
-            if (Directory.Exists(path))
-            {
-                anyStructuralOrJson = true;
-                break;
-            }
-
             var ext = Path.GetExtension(path);
             if (!textureExtensions.Contains(ext))
             {
-                anyStructuralOrJson = true;
-                break;
+                anyNonTexture = true;
+                var fileName = Path.GetFileName(path);
+                if (!blockJsonNames.Contains(fileName))
+                {
+                    allBlockJsons = false;
+                }
+                if (!itemJsonNames.Contains(fileName))
+                {
+                    allItemJsons = false;
+                }
             }
         }
 
-        if (anyStructuralOrJson)
+        if (anyNonTexture)
         {
-            System.Diagnostics.Debug.WriteLine($"[PERF][WATCHER] Structural/JSON change detected across {paths.Count} files. Triggering coalesced rescan.");
+            if (allBlockJsons)
+            {
+                System.Diagnostics.Debug.WriteLine($"[PERF][WATCHER] Block JSON declarations changed across {paths.Count} files ({string.Join(", ", paths)}). Triggering fast scoped block rescan.");
+                _ = RescanScopedAsync(TextureCategory.Block);
+                return;
+            }
+
+            if (allItemJsons)
+            {
+                System.Diagnostics.Debug.WriteLine($"[PERF][WATCHER] Item JSON declarations changed across {paths.Count} files ({string.Join(", ", paths)}). Triggering fast scoped item rescan.");
+                _ = RescanScopedAsync(TextureCategory.Item);
+                return;
+            }
+
+            System.Diagnostics.Debug.WriteLine($"[PERF][WATCHER] Structural/manifest change detected across {paths.Count} files ({string.Join(", ", paths)}). Triggering coalesced full rescan.");
             _ = RescanAsync();
             return;
         }
@@ -2217,8 +2265,8 @@ public class MainViewModel : INotifyPropertyChanged
             }
 
             var matches = Aliases.Where(a =>
-                !string.IsNullOrEmpty(a.FullPath) &&
-                string.Equals(Path.GetFullPath(a.FullPath), norm, StringComparison.OrdinalIgnoreCase)
+                (!string.IsNullOrEmpty(a.FullPath) && string.Equals(Path.GetFullPath(a.FullPath), norm, StringComparison.OrdinalIgnoreCase)) ||
+                (!string.IsNullOrEmpty(a.RelativePath) && norm.EndsWith(a.RelativePath.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar), StringComparison.OrdinalIgnoreCase))
             ).ToList();
 
             if (matches.Count == 0)
@@ -2232,7 +2280,7 @@ public class MainViewModel : INotifyPropertyChanged
 
         if (anyUnmatched || matchedAliases.Count == 0)
         {
-            System.Diagnostics.Debug.WriteLine($"[PERF][WATCHER] Unmatched texture path detected. Triggering coalesced rescan for orphan/tree resolution.");
+            System.Diagnostics.Debug.WriteLine($"[PERF][WATCHER] Unmatched texture path detected: {paths.FirstOrDefault()}. Triggering coalesced rescan for orphan/tree resolution.");
             _ = RescanAsync();
             return;
         }
@@ -2246,7 +2294,7 @@ public class MainViewModel : INotifyPropertyChanged
         var dispatcher = Application.Current?.Dispatcher;
         if (dispatcher != null && !dispatcher.CheckAccess())
         {
-            dispatcher.Invoke(() => HandleTextureFilesChanged(aliases));
+            dispatcher.InvokeAsync(() => HandleTextureFilesChanged(aliases));
             return;
         }
 

@@ -155,7 +155,14 @@ public static class TextureIpcHandlers
                     : string.Equals(payload.Category, "item", StringComparison.OrdinalIgnoreCase)
                         ? TextureCategory.Item
                         : TextureCategory.Block;
-                await dispatcher.InvokeAsync(async () => await vm.RescanScopedAsync(cat));
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        await vm.RescanScopedAsync(cat);
+                    }
+                    catch { }
+                });
             }
             catch (Exception ex)
             {
@@ -176,7 +183,14 @@ public static class TextureIpcHandlers
                 {
                     bridge.PushError("Delete Variation", $"No matching variation entry found for '{payload.Alias}'.", "warning");
                 }
-                await dispatcher.InvokeAsync(async () => await vm.RescanScopedAsync(TextureCategory.Block));
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        await vm.RescanScopedAsync(TextureCategory.Block);
+                    }
+                    catch { }
+                });
             }
             catch (Exception ex)
             {
@@ -193,11 +207,53 @@ public static class TextureIpcHandlers
             try
             {
                 var removed = await Task.Run(() => JsonWriterService.DeleteBlockEntry(packRoot, payload.BlockId));
-                await dispatcher.InvokeAsync(async () => await vm.RescanScopedAsync(TextureCategory.Block));
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        await vm.RescanScopedAsync(TextureCategory.Block);
+                    }
+                    catch { }
+                });
             }
             catch (Exception ex)
             {
                 bridge.PushError("Delete blocks.json Entry", $"Failed to delete blocks.json entry: {ex.Message}", "warning");
+            }
+        });
+
+        // 4d. BLOCK:DELETE_AND_TERRAIN_ENTRIES (Batch atomic deletion: blocks.json + terrain_texture.json)
+        bridge.RegisterHandler<BlockDeleteAndTerrainEntriesPayload>(IpcMessageTypes.BlockDeleteAndTerrainEntries, async (payload, corrId) =>
+        {
+            if (payload == null) return;
+            var packRoot = await dispatcher.InvokeAsync(() => vm.PackRootPath);
+            if (packRoot == null) return;
+            try
+            {
+                await Task.Run(() =>
+                {
+                    if (!string.IsNullOrWhiteSpace(payload.BlockId))
+                    {
+                        JsonWriterService.DeleteBlockEntry(packRoot, payload.BlockId);
+                    }
+                    if (payload.Aliases != null && payload.Aliases.Length > 0)
+                    {
+                        JsonWriterService.DeleteTextureEntriesBatch(packRoot, payload.Aliases, "block");
+                    }
+                });
+
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        await vm.RescanScopedAsync(TextureCategory.Block);
+                    }
+                    catch { }
+                });
+            }
+            catch (Exception ex)
+            {
+                bridge.PushError("Delete Block & Terrain Entries", $"Failed to batch delete block and terrain entries: {ex.Message}", "warning");
             }
         });
 

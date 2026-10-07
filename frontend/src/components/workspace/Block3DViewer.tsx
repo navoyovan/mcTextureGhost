@@ -154,6 +154,8 @@ export const Block3DViewer: React.FC<Block3DViewerProps> = React.memo(({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const cubeRef = useRef<THREE.Object3D | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
+  const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
+  const sceneRef = useRef<THREE.Scene | null>(null);
 
   // Pan & Zoom state
   const cameraTargetRef = useRef<THREE.Vector3>(new THREE.Vector3(0, 0, 0));
@@ -163,6 +165,14 @@ export const Block3DViewer: React.FC<Block3DViewerProps> = React.memo(({
   const dragModeRef = useRef<'rotate' | 'pan' | null>(null);
   const lastMousePosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
 
+  const requestRender = useCallback(() => {
+    if (rendererRef.current && sceneRef.current && cameraRef.current) {
+      try {
+        rendererRef.current.render(sceneRef.current, cameraRef.current);
+      } catch { }
+    }
+  }, []);
+
   useEffect(() => {
     if (!containerRef.current || !canvasRef.current) return;
 
@@ -171,6 +181,7 @@ export const Block3DViewer: React.FC<Block3DViewerProps> = React.memo(({
 
     // 1. Scene & Camera
     const scene = new THREE.Scene();
+    sceneRef.current = scene;
     const camera = new THREE.PerspectiveCamera(40, width / height, 0.1, 100);
     cameraRef.current = camera;
     zoomLevelRef.current = 1.0;
@@ -190,6 +201,7 @@ export const Block3DViewer: React.FC<Block3DViewerProps> = React.memo(({
       renderer.setSize(width, height);
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
       renderer.outputColorSpace = THREE.SRGBColorSpace;
+      rendererRef.current = renderer;
     } catch (e) {
       console.warn('[Block3DViewer] Failed to initialize WebGLRenderer:', e);
       return;
@@ -369,18 +381,10 @@ export const Block3DViewer: React.FC<Block3DViewerProps> = React.memo(({
 
     let isMounted = true;
 
-    // Render loop
-    let animId: number;
-    const render = () => {
-      if (!isMounted) return;
-      try {
-        renderer.render(scene, camera);
-        animId = requestAnimationFrame(render);
-      } catch (err) {
-        console.warn('[Block3DViewer] Render loop stopped:', err);
-      }
-    };
-    render();
+    // Initial render
+    try {
+      renderer.render(scene, camera);
+    } catch { }
 
     // Resize Handler
     const handleResize = () => {
@@ -453,7 +457,6 @@ export const Block3DViewer: React.FC<Block3DViewerProps> = React.memo(({
     return () => {
       isMounted = false;
       if (unsubscribeFlipbook) unsubscribeFlipbook();
-      cancelAnimationFrame(animId);
       window.removeEventListener('resize', handleResize);
       containerEl.removeEventListener('wheel', handleWheelNative);
       pivotGroup.traverse((child) => {
@@ -518,6 +521,7 @@ export const Block3DViewer: React.FC<Block3DViewerProps> = React.memo(({
 
       const xQuat = new THREE.Quaternion().setFromAxisAngle(camRight, dy * rotSpeed);
       cubeRef.current.quaternion.premultiply(xQuat);
+      requestRender();
     } else if (dragModeRef.current === 'pan') {
       if (!cameraRef.current) return;
 
@@ -531,6 +535,7 @@ export const Block3DViewer: React.FC<Block3DViewerProps> = React.memo(({
 
       cameraTargetRef.current.add(panDelta);
       cam.position.add(panDelta);
+      requestRender();
     }
   };
 

@@ -45,6 +45,18 @@ export const App: React.FC = () => {
   const [activeToast, setActiveToast] = useState<ErrorPayload | null>(null);
   const [isComponentLibraryOpen, setIsComponentLibraryOpen] = useState<boolean>(false);
 
+  // Diagnostics: Track input delivery lag from Win32 host to Chromium renderer
+  useEffect(() => {
+    const handlePointerDown = (e: PointerEvent) => {
+      const lag = performance.now() - e.timeStamp;
+      if (lag > 80) {
+        console.warn(`[PERF] Pointer input reached JS ${lag | 0}ms late! (Host thread stall: ${lag | 0}ms)`);
+      }
+    };
+    window.addEventListener('pointerdown', handlePointerDown, { capture: true, passive: true });
+    return () => window.removeEventListener('pointerdown', handlePointerDown, { capture: true });
+  }, []);
+
   // Global keypress listener: ` (backtick) toggles Component Library
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {

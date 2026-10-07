@@ -899,9 +899,8 @@ export const packStoreActions: PackStoreActions = {
     notify();
   },
 
-  optimisticDeleteTexture(fullPath: string, aliasKey?: string): void {
+  optimisticDeleteTexture(fullPath: string, _aliasKey?: string): void {
     if (fullPath) this.setPendingTileOp(fullPath, 'deleting');
-    if (aliasKey) this.setPendingAliasOp(aliasKey, 'deleting');
   },
 
   optimisticDeleteEntries(aliasKey: string, _category: string, relativePath?: string): void {
@@ -1083,7 +1082,8 @@ export const packStoreActions: PackStoreActions = {
 
   setSelectedBlockId(id: string | null): void {
     currentState = { ...currentState, selectedBlockId: id };
-    notifyDeferred();
+    cachedSnapshot = null;
+    notify();
   },
 
   setSelectedAliasKey(key: string | null): void {

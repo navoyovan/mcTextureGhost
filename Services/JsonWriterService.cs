@@ -1220,6 +1220,91 @@ public static class JsonWriterService
         }
     }
 
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public static void DeleteTextureEntriesBatch(string packRoot, IEnumerable<string> aliases, string category)
+    {
+        var aliasList = aliases.Where(a => !string.IsNullOrWhiteSpace(a)).Distinct().ToList();
+        if (aliasList.Count == 0) return;
+
+        if (string.Equals(category, "item", StringComparison.OrdinalIgnoreCase))
+        {
+            var itemTexturePath = Path.Combine(packRoot, "textures", "item_texture.json");
+            if (File.Exists(itemTexturePath))
+            {
+                var itemObj = LoadOrCreateItemTexture(packRoot);
+                var texData = GetTextureData(itemObj);
+                bool changed = false;
+                foreach (var alias in aliasList)
+                {
+                    if (texData.ContainsKey(alias))
+                    {
+                        texData.Remove(alias);
+                        changed = true;
+                    }
+                }
+                if (changed)
+                {
+                    SaveItemTexture(packRoot, itemObj);
+                }
+            }
+        }
+        else if (string.Equals(category, "entity", StringComparison.OrdinalIgnoreCase))
+        {
+            foreach (var alias in aliasList)
+            {
+                DeleteTextureEntries(packRoot, alias, category);
+            }
+            return;
+        }
+        else
+        {
+            var terrainPath = Path.Combine(packRoot, "textures", "terrain_texture.json");
+            if (File.Exists(terrainPath))
+            {
+                var terrainObj = LoadOrCreateTerrainTexture(packRoot);
+                var texData = GetTextureData(terrainObj);
+                bool changed = false;
+                foreach (var alias in aliasList)
+                {
+                    if (texData.ContainsKey(alias))
+                    {
+                        texData.Remove(alias);
+                        changed = true;
+                    }
+                }
+                if (changed)
+                {
+                    SaveTerrainTexture(packRoot, terrainObj);
+                }
+            }
+        }
+
+        // Clean flipbook in a single pass
+        var flipbookPath = Path.Combine(packRoot, "textures", "flipbook_textures.json");
+        if (File.Exists(flipbookPath))
+        {
+            var aliasSet = new HashSet<string>(aliasList, StringComparer.OrdinalIgnoreCase);
+            var flipbook = LoadOrCreateJsonArray(flipbookPath);
+            int countBefore = flipbook.Count;
+            for (int i = flipbook.Count - 1; i >= 0; i--)
+            {
+                if (flipbook[i] is JsonObject fbObj)
+                {
+                    bool match = false;
+                    if (fbObj.TryGetPropertyValue("atlas_tile", out var at) && at != null && aliasSet.Contains(at.ToString()))
+                        match = true;
+                    if (fbObj.TryGetPropertyValue("flipbook_texture", out var ft) && ft != null && aliasSet.Contains(ft.ToString()))
+                        match = true;
+                    if (match) flipbook.RemoveAt(i);
+                }
+            }
+            if (flipbook.Count != countBefore)
+            {
+                WriteAllTextRetry(flipbookPath, flipbook.ToJsonString(WriteOptions));
+            }
+        }
+    }
+
     private static string Sanitize(string alias) =>
         alias.Trim().Replace(" ", "_").ToLowerInvariant();
 }

@@ -135,12 +135,21 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
             WebView.MessageHook += WebView_MessageHook;
         };
 
+        StateChanged += (s, e) => UpdateWindowMargin();
         Loaded += MainWindow_Loaded;
     }
 
     private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
     {
+        UpdateWindowMargin();
         await InitializeWebViewAsync();
+    }
+
+    private void UpdateWindowMargin()
+    {
+        WebView.Margin = WindowState == WindowState.Maximized
+            ? new Thickness(0)
+            : new Thickness(6);
     }
 
     private IntPtr WebView_MessageHook(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
@@ -199,7 +208,6 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
     {
         if (msg == WM_GETMINMAXINFO)
         {
-            var mmi = Marshal.PtrToStructure<MINMAXINFO>(lParam);
             var monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
             if (monitor != IntPtr.Zero)
             {
@@ -209,18 +217,21 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
                     var rcWork = monitorInfo.rcWork;
                     var rcMonitor = monitorInfo.rcMonitor;
 
-                    AdjustForAutoHideTaskbar(monitor, ref rcWork, rcMonitor);
-
-                    mmi.ptMaxPosition.X = rcWork.Left - rcMonitor.Left;
-                    mmi.ptMaxPosition.Y = rcWork.Top - rcMonitor.Top;
-                    mmi.ptMaxSize.X = rcWork.Right - rcWork.Left;
-                    mmi.ptMaxSize.Y = rcWork.Bottom - rcWork.Top;
-                    mmi.ptMaxTrackSize.X = mmi.ptMaxSize.X;
-                    mmi.ptMaxTrackSize.Y = mmi.ptMaxSize.Y;
+                    if (AdjustForAutoHideTaskbar(monitor, ref rcWork, rcMonitor))
+                    {
+                        var mmi = Marshal.PtrToStructure<MINMAXINFO>(lParam);
+                        mmi.ptMaxPosition.X = rcWork.Left - rcMonitor.Left;
+                        mmi.ptMaxPosition.Y = rcWork.Top - rcMonitor.Top;
+                        mmi.ptMaxSize.X = rcWork.Right - rcWork.Left;
+                        mmi.ptMaxSize.Y = rcWork.Bottom - rcWork.Top;
+                        mmi.ptMaxTrackSize.X = mmi.ptMaxSize.X;
+                        mmi.ptMaxTrackSize.Y = mmi.ptMaxSize.Y;
+                        Marshal.StructureToPtr(mmi, lParam, true);
+                        handled = true;
+                        return IntPtr.Zero;
+                    }
                 }
             }
-            Marshal.StructureToPtr(mmi, lParam, true);
-            handled = true;
             return IntPtr.Zero;
         }
 
@@ -243,7 +254,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         return new IntPtr(hit);
     }
 
-    private static void AdjustForAutoHideTaskbar(IntPtr monitor, ref RECT rcWork, RECT rcMonitor)
+    private static bool AdjustForAutoHideTaskbar(IntPtr monitor, ref RECT rcWork, RECT rcMonitor)
     {
         var appbarData = new APPBARDATA { cbSize = Marshal.SizeOf<APPBARDATA>() };
         IntPtr taskbarHwnd = FindWindow("Shell_TrayWnd", null);
@@ -273,7 +284,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
                                 rcWork.Bottom -= 2;
                                 break;
                         }
-                        return;
+                        return true;
                     }
                 }
 
@@ -282,8 +293,10 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
                 {
                     rcWork.Bottom -= 2;
                 }
+                return true;
             }
         }
+        return false;
     }
 
     private async Task InitializeWebViewAsync()
@@ -381,10 +394,10 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
     {
         ViewModel.PackStateChanged += () =>
         {
-            Dispatcher.Invoke(() =>
+            Dispatcher.InvokeAsync(() =>
             {
                 PushPackStateOrPatch(includeAllTrees: true);
-            });
+            }, System.Windows.Threading.DispatcherPriority.Background);
         };
 
         ViewModel.PackStateScopedChanged += (category) =>
@@ -392,7 +405,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
             Dispatcher.InvokeAsync(() =>
             {
                 PushPackStateOrPatch(includeAllTrees: false, categoryScope: category);
-            });
+            }, System.Windows.Threading.DispatcherPriority.Background);
         };
 
         ViewModel.TextureUpdated += (alias) =>
@@ -430,7 +443,6 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
 
     private async void PushPackStateOrPatch(bool includeAllTrees = true, TextureCategory? categoryScope = null, bool forceFull = false)
     {
-        _ipcBridge?.SetPackVirtualHost(ViewModel.PackRootPath);
         var currentState = CreatePackStatePayload(includeAllTrees: includeAllTrees, categoryScope: categoryScope);
 
         if (forceFull || _lastPushedState == null)
