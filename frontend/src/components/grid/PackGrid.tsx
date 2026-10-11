@@ -690,8 +690,12 @@ export const PackGrid: React.FC = () => {
           }
           onDeleteVariation={
             hasTerrainTextureJson &&
-            contextMenuTarget.alias.category === 'block' &&
-            contextMenuTarget.alias.textureVariantIndex != null &&
+            (contextMenuTarget.alias.category || 'block') === 'block' &&
+            (contextMenuTarget.alias.textureVariantIndex != null ||
+              (contextMenuTarget.alias.totalTextureVariants != null && contextMenuTarget.alias.totalTextureVariants > 1) ||
+              contextMenuTarget.alias.weight != null ||
+              contextMenuTarget.alias.variantKind === 'TextureVariant' ||
+              contextMenuTarget.alias.variantKind === 'NestedVariant') &&
             contextMenuTarget.alias.relativePath
               ? () => {
                   setHoverMorphTarget(null);
@@ -704,8 +708,12 @@ export const PackGrid: React.FC = () => {
               : undefined
           }
           onUpdateWeight={
-            contextMenuTarget.alias.category === 'block' &&
-            contextMenuTarget.alias.textureVariantIndex != null &&
+            (contextMenuTarget.alias.category || 'block') === 'block' &&
+            (contextMenuTarget.alias.textureVariantIndex != null ||
+              (contextMenuTarget.alias.totalTextureVariants != null && contextMenuTarget.alias.totalTextureVariants > 1) ||
+              contextMenuTarget.alias.weight != null ||
+              contextMenuTarget.alias.variantKind === 'TextureVariant' ||
+              contextMenuTarget.alias.variantKind === 'NestedVariant') &&
             contextMenuTarget.alias.relativePath
               ? (weight: number) => {
                   setHoverMorphTarget(null);
@@ -719,8 +727,11 @@ export const PackGrid: React.FC = () => {
               : undefined
           }
           onRenameVariation={
-            contextMenuTarget.alias.category === 'block' &&
-            contextMenuTarget.alias.textureVariantIndex != null &&
+            (contextMenuTarget.alias.category || 'block') === 'block' &&
+            (contextMenuTarget.alias.textureVariantIndex != null ||
+              (contextMenuTarget.alias.totalTextureVariants != null && contextMenuTarget.alias.totalTextureVariants > 1) ||
+              contextMenuTarget.alias.variantKind === 'TextureVariant' ||
+              contextMenuTarget.alias.variantKind === 'NestedVariant') &&
             contextMenuTarget.alias.relativePath
               ? (newLabel: string) => {
                   setHoverMorphTarget(null);

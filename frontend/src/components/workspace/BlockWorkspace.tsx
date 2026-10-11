@@ -93,7 +93,7 @@ export const BlockWorkspace: React.FC = () => {
   const selectedBlockId = usePackStore((s) => s.blockWorkspaceSelectedId);
   const setSelectedBlockId = usePackStore((s) => s.setBlockWorkspaceSelectedId);
   const pendingAliasOps = usePackStore((s) => s.pendingAliasOps);
-  const { editTexture, deleteTextureFile, deleteTextureEntries, deleteTextureVariation, deleteBlockEntry, deleteBlockAndTerrainEntries, openInExplorer, scaffoldTextureVariation } = useIpc();
+  const { editTexture, deleteTextureFile, deleteTextureEntries, deleteTextureVariation, deleteBlockEntry, deleteBlockAndTerrainEntries, openInExplorer, scaffoldTextureVariation, setVariationWeight, renameVariation } = useIpc();
 
   const hasTerrainTextureJson = useMemo(() => checkTerrainTextureJson(packFolders), [packFolders]);
   const hasBlocksJson = useMemo(() => checkBlocksJson(packFolders), [packFolders]);
@@ -1215,7 +1215,12 @@ export const BlockWorkspace: React.FC = () => {
           }
           onDeleteVariation={
             hasTerrainTextureJson &&
-            contextMenuTarget.alias.textureVariantIndex != null &&
+            (contextMenuTarget.alias.category || 'block') === 'block' &&
+            (contextMenuTarget.alias.textureVariantIndex != null ||
+              (contextMenuTarget.alias.totalTextureVariants != null && contextMenuTarget.alias.totalTextureVariants > 1) ||
+              contextMenuTarget.alias.weight != null ||
+              contextMenuTarget.alias.variantKind === 'TextureVariant' ||
+              contextMenuTarget.alias.variantKind === 'NestedVariant') &&
             contextMenuTarget.alias.relativePath &&
             packAliases.some(
               (a: TextureAliasDto) =>
@@ -1233,6 +1238,44 @@ export const BlockWorkspace: React.FC = () => {
                     contextMenuTarget.alias.alias,
                     contextMenuTarget.alias.relativePath!
                   );
+                }
+              : undefined
+          }
+          onUpdateWeight={
+            (contextMenuTarget.alias.category || 'block') === 'block' &&
+            (contextMenuTarget.alias.textureVariantIndex != null ||
+              (contextMenuTarget.alias.totalTextureVariants != null && contextMenuTarget.alias.totalTextureVariants > 1) ||
+              contextMenuTarget.alias.weight != null ||
+              contextMenuTarget.alias.variantKind === 'TextureVariant' ||
+              contextMenuTarget.alias.variantKind === 'NestedVariant') &&
+            contextMenuTarget.alias.relativePath
+              ? (weight: number) => {
+                  setHoverMorphTarget(null);
+                  packStoreActions.optimisticSetVariationWeight(
+                    contextMenuTarget.alias.alias,
+                    contextMenuTarget.alias.relativePath!,
+                    weight
+                  );
+                  setVariationWeight(contextMenuTarget.alias.alias, contextMenuTarget.alias.relativePath!, weight);
+                }
+              : undefined
+          }
+          onRenameVariation={
+            (contextMenuTarget.alias.category || 'block') === 'block' &&
+            (contextMenuTarget.alias.textureVariantIndex != null ||
+              (contextMenuTarget.alias.totalTextureVariants != null && contextMenuTarget.alias.totalTextureVariants > 1) ||
+              contextMenuTarget.alias.variantKind === 'TextureVariant' ||
+              contextMenuTarget.alias.variantKind === 'NestedVariant') &&
+            contextMenuTarget.alias.relativePath
+              ? (newLabel: string) => {
+                  setHoverMorphTarget(null);
+                  const oldRel = contextMenuTarget.alias.relativePath!;
+                  packStoreActions.optimisticRenameVariation(
+                    contextMenuTarget.alias.alias,
+                    oldRel,
+                    newLabel
+                  );
+                  renameVariation(contextMenuTarget.alias.alias, oldRel, newLabel);
                 }
               : undefined
           }

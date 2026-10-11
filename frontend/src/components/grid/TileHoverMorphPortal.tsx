@@ -125,7 +125,18 @@ const TileHoverMorphCard: React.FC<TileHoverMorphPortalProps> = ({
     });
   });
   const [localAdded, setLocalAdded] = useState(false);
-  const alias = storeAlias ? { ...target.alias, ...storeAlias } : target.alias;
+  const alias = storeAlias
+    ? {
+        ...target.alias,
+        ...storeAlias,
+        variantKind: storeAlias.variantKind && storeAlias.variantKind !== 'None' ? storeAlias.variantKind : target.alias.variantKind,
+        textureVariantIndex: storeAlias.textureVariantIndex ?? target.alias.textureVariantIndex,
+        totalTextureVariants: storeAlias.totalTextureVariants ?? target.alias.totalTextureVariants,
+        blockVariantIndex: storeAlias.blockVariantIndex ?? target.alias.blockVariantIndex,
+        weight: storeAlias.weight ?? target.alias.weight,
+        relativePath: storeAlias.relativePath || target.alias.relativePath,
+      }
+    : target.alias;
   const isGhost = localAdded ? false : alias.status === 'GHOST';
   const { postCommand, dropImportTexture } = useIpc();
   const packRoot = usePackStore((s) => s.packRoot);

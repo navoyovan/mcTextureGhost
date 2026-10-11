@@ -18,9 +18,22 @@
 ### v1.2.0 (Staging)
 - [ ] auto scaffold and detach face entries (like shared textures **ex:** `acacia_fence` using `acacia_planks` into `acacia_fence`) maybe default to its own alias but they might clash bcs acacia_planks alias is acacia_planks, get it?
 
-### v1.1.2 
-trying to optimize the whole app even further 
-- [] 
+### v1.1.2 (Released 2026-10-12)
+**Performance & Pipeline Overhaul**
+- [x] Fast-path `PACK:IDENTITY` IPC handshake — instantaneous header & pack identity hydration, eliminating LCP blocking before full catalog scan completes
+- [x] Offloaded Scoped Rescans & State Diffing — moved `PackStateDiffer.ComputeDiff` and scoped rescans off the UI Dispatcher to background tasks, preventing UI thread stalls
+- [x] Filesystem Watcher Event Classification & `RescanBlocksScoped` — targeted rescans for `terrain_texture.json`, `blocks.json`, and `item_texture.json` avoiding full directory disk crawls
+- [x] WriteJournal Hardening & NTFS Directory Timestamp Suppression — parent directory registration and multi-event suppression preventing recursive scan storms on disk mutation
+- [x] Multi-Alias Atomic Batch Deletion — consolidated multi-entry deletions into atomic operations, eliminating sequential IPC rounds and cascading file watcher rescans
+- [x] Catalog Drawer DOM Pruning & Component Memoization — conditional DOM rendering of alias groups/leaves and React.memo callback stabilization, pruning 10,000+ hidden DOM elements to ~320 on mount and eliminating INP lag on open
+- [x] Eager-loading and layout shift elimination — removed lazy-load observer overhead and dimension audit warnings across tile components
+- [x] Variant Slot Group Caching & Passive Listeners — cached variant slot groupings and added passive wheel listeners in BlockWorkspace
+- [x] Optimistic Deletion State Isolation in `packStore` — granular optimistic state handling preventing stale-closure UI flickers
+
+**Bug Fixes & UI Polish**
+- [x] Fixed variation weight editor and rename controls missing in morph tile 3-dots context menu across Block Workspace and Pack Grid
+- [x] Fixed interaction freeze after deleting entries and resolved missing entry badge styling
+- [x] Fixed character encoding artifact in copyright notice across About modal and project manifest
 
 ### v1.1.1 (Released 2026-10-04)
 **Performance**
